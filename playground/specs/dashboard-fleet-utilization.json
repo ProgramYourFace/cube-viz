@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "kind": "dashboard",
+  "id": "dash_fleet_utilization",
+  "name": "Fleet Utilization",
+  "grid": { "cols": 12, "rowHeight": 40, "margin": [12, 12] },
+  "variables": [
+    { "name": "dateRange", "type": "dateRange", "label": "Date range", "default": "last 30 days" },
+    { "name": "granularity", "type": "granularity", "label": "Granularity", "default": "day" }
+  ],
+  "layout": [
+    { "i": "w_dateRange", "x": 0, "y": 0, "w": 4, "h": 2, "minW": 3, "minH": 2 },
+    { "i": "w_granularity", "x": 4, "y": 0, "w": 4, "h": 2, "minW": 3, "minH": 2 },
+    { "i": "w_distance", "x": 0, "y": 2, "w": 7, "h": 5, "minW": 3, "minH": 3 },
+    { "i": "w_trips", "x": 7, "y": 2, "w": 5, "h": 5, "minW": 3, "minH": 3 }
+  ],
+  "widgets": [
+    {
+      "id": "w_dateRange",
+      "type": "input",
+      "title": "Date range",
+      "control": {
+        "variable": "dateRange",
+        "control": {
+          "kind": "dateRange",
+          "allowFuture": false,
+          "presets": ["last 7 days", "last 30 days", "last 90 days", "this year"]
+        }
+      }
+    },
+    {
+      "id": "w_granularity",
+      "type": "input",
+      "title": "Granularity",
+      "control": {
+        "variable": "granularity",
+        "control": { "kind": "granularity", "options": ["day", "week", "month"] }
+      }
+    },
+    {
+      "id": "w_distance",
+      "type": "chart",
+      "title": "Total Distance Over Time",
+      "query": {
+        "measures": ["device_trips.total_distance"],
+        "timeDimensions": [
+          {
+            "dimension": "device_trips.start_time",
+            "granularity": { "var": "granularity" },
+            "dateRange": { "var": "dateRange" }
+          }
+        ],
+        "order": [["device_trips.start_time", "asc"]],
+        "limit": 5000
+      },
+      "chart": {
+        "family": "line",
+        "mapping": {
+          "category": { "member": "device_trips.start_time" },
+          "series": {
+            "mode": "measures",
+            "members": ["device_trips.total_distance"],
+            "meta": { "device_trips.total_distance": { "label": "Distance", "colorToken": "chart-1" } }
+          }
+        },
+        "legend": { "show": false },
+        "tooltip": { "show": true, "indicator": "line" }
+      }
+    },
+    {
+      "id": "w_trips",
+      "type": "chart",
+      "title": "Trip Count by Device",
+      "query": {
+        "measures": ["device_trips.count"],
+        "dimensions": ["device_trips.device_id"],
+        "timeDimensions": [
+          { "dimension": "device_trips.start_time", "dateRange": { "var": "dateRange" } }
+        ],
+        "order": { "device_trips.count": "desc" },
+        "limit": 10
+      },
+      "chart": {
+        "family": "bar",
+        "orientation": "horizontal",
+        "stackMode": "none",
+        "mapping": {
+          "category": { "member": "device_trips.device_id" },
+          "series": {
+            "mode": "measures",
+            "members": ["device_trips.count"],
+            "meta": { "device_trips.count": { "label": "Trips", "colorToken": "chart-3" } }
+          }
+        },
+        "legend": { "show": false },
+        "tooltip": { "show": true, "indicator": "dot" }
+      }
+    }
+  ]
+}

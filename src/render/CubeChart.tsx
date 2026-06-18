@@ -1,0 +1,101 @@
+import { useMemo, type ReactElement } from "react";
+
+import type { ChartOptions, ChartSpec, CubeQuery } from "@/spec";
+import type { NormalizedChartData } from "@/adapter/types";
+import { useNormalizedSeries } from "@/hooks";
+import { ChartRenderer } from "@/charts";
+import type { ChartConfig } from "@/charts";
+import { defaultFormatter, makeChartFormat } from "@/format";
+import type { ChartFormat } from "@/format";
+import { resolveChart, useCubeVizContext } from "@/provider";
+
+/**
+ * The data-fetching wrapper around the pure {@link ChartRenderer}
+ * (docs/03-override-theme-preview.md A3, A2.5). `CubeChart` is the JSON→UI surface
+ * for a single chart: it fetches + normalizes via `useNormalizedSeries` (which
+ * picks up dashboard variable resolution + noFilter automatically when inside a
+ * `DashboardProvider`), resolves the family component from the registry, and hands
+ * `NormalizedChartData` + `ChartOptions` to `ChartRenderer`.
+ *
+ * Everything semantic (fetch / castNumerics / Continue-wait polling / variable
+ * substitution / annotation-driven formatting) happens below `useNormalizedSeries`;
+ * the renderer only maps `NormalizedChartData` → Recharts. Loading / error / empty
+ * pass straight through to `ChartRenderer`, which renders the shared state chrome.
+ */
+
+export interface CubeChartProps {
+  /** The Cube query (may carry `{var}` tokens — resolved by the surrounding dashboard). */
+  query: CubeQuery;
+  /** The chart option envelope (family, mapping, axes, …). */
+  chart: ChartOptions;
+}
+
+/** A normalized-but-empty placeholder so `ChartRenderer` can render state chrome before data arrives. */
+const EMPTY_DATA: NormalizedChartData = {
+  categories: [],
+  series: [],
+  raw: { rows: [], query: {} },
+  empty: true,
+};
+
+export function CubeChart({ query, chart }: CubeChartProps): ReactElement {
+  const { registry, locale } = useCubeVizContext();
+
+  // Inject the provider's unit system as the default so the pure families (which
+  // only see `options`) convert km→mi / L→gal etc. A per-chart `format.unitSystem`
+  // still wins. This is how the host-wide "metric|imperial" choice reaches the
+  // member-meta-driven formatter without the families needing context.
+  const resolvedChart = useMemo<ChartOptions>(() => {
+    if (chart.format?.unitSystem || !locale?.unitSystem) return chart;
+    return { ...chart, format: { ...chart.format, unitSystem: locale.unitSystem } };
+  }, [chart, locale?.unitSystem]);
+
+  const { data, isLoading, error } = useNormalizedSeries(query, resolvedChart);
+
+  // Resolve the family component once (registry override → builtin) and feed it to
+  // the pure dispatcher as a single-entry `components` map so resolution stays in
+  // one place (resolveChart) rather than duplicating the registry-fallback logic.
+  const components = useMemo(
+    () => ({ [resolvedChart.family]: resolveChart(registry, resolvedChart.family) }),
+    [registry, resolvedChart.family],
+  );
+
+  // ChartRenderer requires non-null data; before the first result we feed an empty
+  // placeholder and let `state.loading` / `state.error` take precedence inside it.
+  const renderData = data ?? EMPTY_DATA;
+  const emptyConfig: ChartConfig = {};
+
+  // Build the bound, member-aware formatter from the context-resolved ValueFormatter
+  // (host's `locale.formatValue`, else the minimal default). Memoized on the inputs
+  // that change its output: the annotation, the resolved options, and locale config.
+  const valueFormatter = locale.formatValue ?? defaultFormatter;
+  const format = useMemo<ChartFormat>(
+    () =>
+      makeChartFormat(renderData.raw.annotation, resolvedChart, valueFormatter, {
+        locale: locale.locale,
+        unitSystem: locale.unitSystem,
+      }),
+    [renderData.raw.annotation, resolvedChart, valueFormatter, locale.locale, locale.unitSystem],
+  );
+
+  return (
+    <ChartRenderer
+      data={renderData}
+      options={resolvedChart}
+      config={emptyConfig}
+      format={format}
+      state={{ loading: isLoading && !data, error }}
+      components={components}
+    />
+  );
+}
+
+export interface CubeChartSpecProps {
+  /** A standalone chart spec; its `query` + `chart` drive the render. */
+  spec: ChartSpec;
+}
+
+/** Convenience wrapper that renders a standalone {@link ChartSpec}. */
+export function CubeChartSpec({ spec }: CubeChartSpecProps): ReactElement {
+  return <CubeChart query={spec.query} chart={spec.chart} />;
+}
