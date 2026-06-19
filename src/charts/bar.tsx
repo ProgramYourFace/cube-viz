@@ -165,6 +165,7 @@ export function BarChartFamily({
         {fo.referenceLines?.map((r, k) => (
           <ReferenceLine
             key={k}
+            yAxisId={horizontal ? undefined : "left"}
             {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
             label={r.label}
             stroke={`var(--${r.colorToken ?? "muted-foreground"})`}

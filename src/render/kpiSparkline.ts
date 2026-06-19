@@ -44,6 +44,8 @@ export function kpiSparklineInput(
     ],
     ...(query.filters ? { filters: query.filters } : {}),
     ...(query.segments ? { segments: query.segments } : {}),
+    // Keep the trend's buckets/relative-ranges in the host timezone (same as the headline).
+    ...(query.timezone ? { timezone: query.timezone } : {}),
     order: [[timeDimension, "asc"]],
   };
 

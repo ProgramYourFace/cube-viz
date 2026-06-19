@@ -9,7 +9,7 @@ export function rowsToCsv(rows: Record<string, unknown>[]): string {
   const cols = Object.keys(rows[0]);
   const esc = (v: unknown): string => {
     const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const head = cols.map(esc).join(",");
   const body = rows.map((r) => cols.map((c) => esc(r[c])).join(",")).join("\n");

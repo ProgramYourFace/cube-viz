@@ -37,13 +37,14 @@ export function WidgetActionsMenu({ title, rows, refetch }: WidgetActionsMenuPro
       <PopoverTrigger
         onMouseDown={stop}
         onPointerDown={stop}
+        onTouchStart={stop}
         className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         aria-label="Chart actions"
         title="Actions"
       >
         <MoreVertical className="size-4" />
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 p-1" onMouseDown={stop} onPointerDown={stop}>
+      <PopoverContent align="end" className="w-44 p-1" onMouseDown={stop} onPointerDown={stop} onTouchStart={stop}>
         {refetch ? (
           <button
             type="button"

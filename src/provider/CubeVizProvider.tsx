@@ -115,7 +115,15 @@ export function CubeVizProvider({
   // properties still cascade to descendants. "system" defers to the host's selector.
   return (
     <CubeVizContext.Provider value={value}>
-      <div className={cn("contents", resolvedTheme.mode === "dark" && "dark")}>{children}</div>
+      <div
+        className={cn(
+          "contents",
+          resolvedTheme.mode === "dark" && "dark",
+          resolvedTheme.mode === "light" && "cube-viz-light",
+        )}
+      >
+        {children}
+      </div>
     </CubeVizContext.Provider>
   );
 }

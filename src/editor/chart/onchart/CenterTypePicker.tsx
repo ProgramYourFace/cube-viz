@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/components/ui/utils";
 import type { ChartFamily, ChartSpec } from "@/spec";
 
-import { FAMILY_LABELS } from "../helpers";
+import { FAMILY_LABELS, migrateToFamily } from "../helpers";
 import { CustomizeSection } from "../builder/CustomizeSection";
 
 const FAMILY_ORDER: ChartFamily[] = [
@@ -58,7 +58,9 @@ export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps)
   const family = spec.chart.family;
   const setFamily = (next: ChartFamily): void => {
     if (next === family) return;
-    update({ ...spec, chart: { ...spec.chart, family: next, familyOptions: undefined } });
+    // Carry the field bindings across families (kpi/scatter/table/combo store fields in
+    // familyOptions, so a plain reset would empty the new chart and hide its settings).
+    update(migrateToFamily(spec, next));
   };
 
   if (empty) {

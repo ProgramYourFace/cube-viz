@@ -46,7 +46,7 @@ function WidgetBody({
   }
 }
 
-export function RenderWidget({ widget, dragHandleProps = {} }: RenderWidgetProps): ReactElement {
+export function RenderWidget({ widget, dragHandleProps = {}, editable = false }: RenderWidgetProps): ReactElement {
   // Lift the chart's rows + refetch up so the chrome can offer Export / Refresh — in
   // BOTH view and edit mode (a viewer can get the data out of an embedded dashboard).
   const [chartState, setChartState] = useState<{
@@ -69,7 +69,10 @@ export function RenderWidget({ widget, dragHandleProps = {} }: RenderWidgetProps
     );
   }
 
-  const menu: ReactNode = (
+  // Actions (Export CSV / Refresh) are a VIEW-mode affordance: in edit mode the canvas
+  // lays a drag overlay over each widget and authoring is the focus, so omit the menu
+  // there (it would be intercepted by the overlay anyway).
+  const menu: ReactNode = editable ? null : (
     <WidgetActionsMenu title={widget.title} rows={chartState.rows} refetch={chartState.refetch} />
   );
 

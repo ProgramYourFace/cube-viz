@@ -124,3 +124,62 @@ export const FAMILY_LABELS: Record<ChartFamily, string> = {
 
 /** Default granularity offered when a time dimension is first selected. */
 export const DEFAULT_GRANULARITY: Granularity = "day";
+
+/**
+ * Switch a chart to `next` family WITHOUT losing the field bindings. Each family stores
+ * its fields differently (cartesian/pie in `mapping`; kpi/scatter/table/combo in
+ * `familyOptions`), so a naive `familyOptions: undefined` reset drops the user's work and
+ * leaves the new family empty. This re-derives the new family's structure from the query
+ * (measures + the first category/dimension/time member), so type-switching is lossless.
+ */
+export function migrateToFamily(spec: ChartSpec, next: ChartFamily): ChartSpec {
+  const { query, chart } = spec;
+  const measures = measuresOf(chart).length ? measuresOf(chart) : (query.measures ?? []);
+  const category =
+    categoryOf(chart) ?? query.dimensions?.[0] ?? query.timeDimensions?.[0]?.dimension;
+  const cartesianMapping: SeriesMapping | undefined = category
+    ? { category: { member: category }, series: { mode: "measures", members: measures } }
+    : undefined;
+  const base: ChartSpec = {
+    ...spec,
+    chart: { ...chart, family: next, mapping: undefined, familyOptions: undefined },
+  };
+  const withChart = (patch: Partial<ChartOptions>): ChartSpec => ({
+    ...base,
+    chart: { ...base.chart, ...patch },
+  });
+
+  switch (next) {
+    case "bar":
+    case "line":
+    case "area":
+    case "pie":
+      return withChart({ mapping: cartesianMapping });
+    case "combo":
+      return withChart({
+        mapping: cartesianMapping,
+        familyOptions: {
+          series: measures.map((m, i) => ({ member: m, render: i % 2 === 1 ? "bar" : "line" })),
+        },
+      });
+    case "kpi":
+      return withChart({
+        familyOptions: { display: "number", ...(measures[0] ? { measure: measures[0] } : {}) },
+      });
+    case "scatter":
+      return withChart({
+        familyOptions: {
+          ...(measures[0] ? { x: measures[0] } : {}),
+          ...(measures[1] ? { y: measures[1] } : {}),
+        },
+      });
+    case "table": {
+      const cols = [
+        ...(query.dimensions ?? []),
+        ...(query.timeDimensions?.map((t) => t.dimension) ?? []),
+        ...measures,
+      ].map((m) => ({ member: m }));
+      return withChart({ familyOptions: cols.length ? { columns: cols } : undefined });
+    }
+  }
+}
