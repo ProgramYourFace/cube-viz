@@ -31,6 +31,10 @@ export interface MemberOption {
   description?: string;
   /** Member `meta` blob (unit/quantity/convert live here for formatting). */
   meta?: Record<string, unknown>;
+  /** Cube `meta.quantity` (e.g. "distance", "time"), lifted for axis-unit checks. */
+  quantity?: string;
+  /** Cube `meta.unit` (e.g. "km", "L"), lifted for axis-unit checks. */
+  unit?: string;
 }
 
 /** A cube or view entry for the CubePicker. */
@@ -64,7 +68,14 @@ function toLabel(m: { shortTitle?: string; title?: string; name: string }): stri
   return m.shortTitle || m.title || m.name;
 }
 
+/** Read a string-valued key off a member `meta` blob (undefined when absent/non-string). */
+function metaString(meta: Record<string, unknown> | undefined, key: string): string | undefined {
+  const v = meta?.[key];
+  return typeof v === "string" ? v : undefined;
+}
+
 function measureToOption(m: TCubeMeasure, cube: string): MemberOption {
+  const meta = m.meta as Record<string, unknown> | undefined;
   return {
     name: m.name,
     label: toLabel(m),
@@ -74,11 +85,14 @@ function measureToOption(m: TCubeMeasure, cube: string): MemberOption {
     memberType: "measure",
     cube,
     description: m.description,
-    meta: m.meta as Record<string, unknown> | undefined,
+    meta,
+    quantity: metaString(meta, "quantity"),
+    unit: metaString(meta, "unit"),
   };
 }
 
 function dimensionToOption(m: TCubeDimension, cube: string): MemberOption {
+  const meta = m.meta as Record<string, unknown> | undefined;
   return {
     name: m.name,
     label: toLabel(m),
@@ -88,7 +102,9 @@ function dimensionToOption(m: TCubeDimension, cube: string): MemberOption {
     memberType: "dimension",
     cube,
     description: m.description,
-    meta: m.meta as Record<string, unknown> | undefined,
+    meta,
+    quantity: metaString(meta, "quantity"),
+    unit: metaString(meta, "unit"),
   };
 }
 

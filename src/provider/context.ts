@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 
 import type { ChartColorToken, FormatOptions } from "@/spec";
 import type { ValueFormatter } from "@/format";
+import type { UnitDef } from "@/units";
 import type { CubeClient } from "@/adapter";
 import type { ComponentRegistry } from "./registry";
 
@@ -49,6 +50,14 @@ export interface ResolvedLocale {
    * none of those.
    */
   formatValue?: ValueFormatter;
+  /**
+   * Extra/override metric→imperial unit conversions, merged OVER the core
+   * {@link import("@/units").DEFAULT_UNIT_CONVERSIONS}. This is the EXTENSION POINT
+   * for the core units feature: hosts register additional storage units (or
+   * override a default rule) without touching the library. Ignored when a host
+   * supplies `formatValue` (that fully overrides the core formatter).
+   */
+  units?: Record<string, UnitDef>;
 }
 
 /** Resolved theme config (defaults applied in the provider). */

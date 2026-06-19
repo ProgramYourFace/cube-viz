@@ -7,7 +7,7 @@ import { cn } from "@/components/ui/utils";
 import { CubeChart } from "@/render";
 import type { ChartSpec } from "@/spec";
 
-import { ChartConfigPanel } from "./chart/ChartConfigPanel";
+import { ChartBuilderPanel } from "./chart/builder/ChartBuilderPanel";
 import { useChartEditorState } from "./chart/useChartEditorState";
 import { EditorShell } from "./primitives/EditorShell";
 
@@ -109,7 +109,7 @@ export function ChartEditor({
           </AlertDescription>
         </Alert>
       ) : null}
-      <ChartConfigPanel spec={draft} update={update} />
+      <ChartBuilderPanel spec={draft} update={update} />
     </div>
   );
 

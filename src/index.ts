@@ -18,6 +18,10 @@ export * from "./variables";
 // Value/date formatting (member-meta-driven).
 export * from "./format";
 
+// Units: the core, extensible metric/imperial registry + units-aware formatter +
+// per-axis consistency primitives (axisKey/quantityLabel).
+export * from "./units";
+
 // Chart families + options framework + pure dispatcher.
 export * from "./charts";
 

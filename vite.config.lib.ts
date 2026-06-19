@@ -17,11 +17,7 @@ export default defineConfig({
   },
   build: {
     lib: {
-      // Core (`cube-viz`) + the opt-in `cube-viz/presets` entry, emitted separately.
-      entry: {
-        index: resolve(__dirname, "src/index.ts"),
-        presets: resolve(__dirname, "src/presets/index.ts"),
-      },
+      entry: { index: resolve(__dirname, "src/index.ts") },
       formats: ["es"],
     },
     rollupOptions: {

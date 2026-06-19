@@ -1,0 +1,695 @@
+import type {
+  ChartFamily,
+  ChartSpec,
+  CubeQuery,
+  Granularity,
+  SeriesMeta,
+  SeriesMapping,
+  TimeDimension,
+} from "@/spec";
+
+import {
+  buildSeries,
+  categoryOf,
+  DEFAULT_GRANULARITY,
+  measuresOf,
+  seriesMetaOf,
+  timeDimensionOf,
+} from "../helpers";
+
+/**
+ * Chart Builder v2 — the PURE seam (no React). It is the single place that knows
+ * the typed-well ↔ {@link ChartSpec} mapping (docs/05 §2). Every writer returns a
+ * FULL `ChartSpec`, so the panel funnels each edit through the unchanged
+ * `update → validate → debounce-emit` engine. Unit-testable in isolation.
+ */
+
+/** A field's primitive role: a measure / a non-time dimension / a time dimension. */
+export type FieldKind = "number" | "category" | "time";
+
+/** A typed slot in the builder. `kinds` gates which fields may be dropped/clicked in. */
+export interface WellDef {
+  id: string;
+  label: string;
+  hint?: string;
+  cardinality: "one" | "many";
+  kinds: FieldKind[];
+  /** Optional wells render a muted "(optional)" affordance. */
+  optional?: boolean;
+}
+
+/* ─────────────────────────── per-family well sets ─────────────────────────── */
+
+const X_AXIS_HINT = "a date or category";
+
+/**
+ * The typed wells for a family, top→bottom (docs/05 §2). Plain, axis-oriented
+ * names. Reads NOTHING from the spec — pure shape.
+ */
+export function getWells(family: ChartFamily): WellDef[] {
+  switch (family) {
+    case "bar":
+    case "line":
+    case "area":
+      return [
+        { id: "y", label: "Y axis", hint: "the numbers to plot", cardinality: "many", kinds: ["number"] },
+        { id: "x", label: "X axis", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
+        {
+          id: "color",
+          label: "Color",
+          hint: "split into series",
+          cardinality: "one",
+          kinds: ["category"],
+          optional: true,
+        },
+      ];
+    case "combo":
+      return [
+        { id: "x", label: "X axis", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
+        { id: "y", label: "Y axis", hint: "the numbers to plot", cardinality: "many", kinds: ["number"] },
+      ];
+    case "pie":
+      return [
+        { id: "slices", label: "Slices", hint: "one slice per value", cardinality: "one", kinds: ["category", "time"] },
+        { id: "size", label: "Size", hint: "size of each slice", cardinality: "one", kinds: ["number"] },
+      ];
+    case "scatter":
+      return [
+        { id: "sx", label: "X axis", hint: "a number", cardinality: "one", kinds: ["number"] },
+        { id: "sy", label: "Y axis", hint: "a number", cardinality: "one", kinds: ["number"] },
+        { id: "size", label: "Bubble size", hint: "a number", cardinality: "one", kinds: ["number"], optional: true },
+        { id: "color", label: "Color", hint: "split into series", cardinality: "one", kinds: ["category"], optional: true },
+      ];
+    case "kpi":
+      return [{ id: "value", label: "Value", hint: "the number to show", cardinality: "one", kinds: ["number"] }];
+    case "table":
+      return [
+        {
+          id: "columns",
+          label: "Columns",
+          hint: "any field, in order",
+          cardinality: "many",
+          kinds: ["number", "category", "time"],
+        },
+      ];
+  }
+}
+
+/* ─────────────────────────────── read model ──────────────────────────────── */
+
+/** A combo series option (`familyOptions.series[i]`). */
+interface ComboSeriesEntry {
+  member: string;
+  render: "bar" | "line" | "area";
+  label?: string;
+  colorToken?: string;
+}
+
+/** A table column option (`familyOptions.columns[i]`). */
+interface TableColumnEntry {
+  member: string;
+  label?: string;
+}
+
+function familyOptions(spec: ChartSpec): Record<string, unknown> {
+  return (spec.chart.familyOptions ?? {}) as Record<string, unknown>;
+}
+
+function comboSeries(spec: ChartSpec): ComboSeriesEntry[] {
+  const series = familyOptions(spec).series;
+  return Array.isArray(series) ? (series as ComboSeriesEntry[]) : [];
+}
+
+function tableColumns(spec: ChartSpec): TableColumnEntry[] {
+  const cols = familyOptions(spec).columns;
+  return Array.isArray(cols) ? (cols as TableColumnEntry[]) : [];
+}
+
+/** The pivot color member, if the mapping is in pivot mode. */
+export function pivotColorOf(spec: ChartSpec): string | undefined {
+  const series = spec.chart.mapping?.series;
+  return series && series.mode === "pivot" ? series.pivot : undefined;
+}
+
+/**
+ * Derive each well's current member name(s) from the spec (docs/05 §6). The
+ * inverse of {@link placeField}/{@link removeField}.
+ */
+export function readWells(spec: ChartSpec): Record<string, string[]> {
+  const { chart } = spec;
+  const family = chart.family;
+  const one = (m: string | undefined): string[] => (m ? [m] : []);
+
+  switch (family) {
+    case "bar":
+    case "line":
+    case "area": {
+      const color = pivotColorOf(spec);
+      // In pivot mode the "value" lives in `series.value`; in measures mode it's `members`.
+      const series = chart.mapping?.series;
+      const y =
+        series && series.mode === "pivot" ? one(series.value) : measuresOf(chart);
+      return { y, x: one(categoryOf(chart)), color: one(color) };
+    }
+    case "combo": {
+      return {
+        x: one(categoryOf(chart)),
+        y: comboSeries(spec).map((s) => s.member),
+      };
+    }
+    case "pie": {
+      return { slices: one(categoryOf(chart)), size: measuresOf(chart) };
+    }
+    case "scatter": {
+      const fo = familyOptions(spec);
+      return {
+        sx: one(fo.x as string | undefined),
+        sy: one(fo.y as string | undefined),
+        size: one(fo.size as string | undefined),
+        color: one(fo.groupBy as string | undefined),
+      };
+    }
+    case "kpi": {
+      return { value: one(familyOptions(spec).measure as string | undefined) };
+    }
+    case "table": {
+      return { columns: tableColumns(spec).map((c) => c.member) };
+    }
+  }
+}
+
+/* ──────────────────────────── granularity helper ─────────────────────────── */
+
+/**
+ * Adaptive default granularity for a freshly-placed date X: pick from the bound
+ * dateRange span when present (≤2 days→hour, ≤90→day, ≤730→month, else year),
+ * else fall back to `day` (docs/05 §3.3).
+ */
+export function adaptiveGranularity(dateRange: TimeDimension["dateRange"]): Granularity {
+  const days = spanDays(dateRange);
+  if (days === undefined) return DEFAULT_GRANULARITY;
+  if (days <= 2) return "hour";
+  if (days <= 90) return "day";
+  if (days <= 730) return "month";
+  return "year";
+}
+
+/** Approximate day-span of an absolute `[from,to]` range; `undefined` for relative/var. */
+function spanDays(dateRange: TimeDimension["dateRange"]): number | undefined {
+  if (!Array.isArray(dateRange) || dateRange.length !== 2) return undefined;
+  const from = Date.parse(dateRange[0]);
+  const to = Date.parse(dateRange[1]);
+  if (Number.isNaN(from) || Number.isNaN(to)) return undefined;
+  return Math.abs(to - from) / 86_400_000;
+}
+
+/* ───────────────────────────── query mutators ────────────────────────────── */
+
+function withMember(list: string[] | undefined, member: string): string[] {
+  const base = list ?? [];
+  return base.includes(member) ? base : [...base, member];
+}
+
+function withoutMember(list: string[] | undefined, member: string): string[] {
+  return (list ?? []).filter((m) => m !== member);
+}
+
+/** Ensure a category dimension is present on the query (used for X/Color labels). */
+function ensureDimension(query: CubeQuery, member: string): CubeQuery {
+  return { ...query, dimensions: withMember(query.dimensions, member) };
+}
+
+/** Drop a dimension from the query (and clean an empty list to undefined). */
+function dropDimension(query: CubeQuery, member: string): CubeQuery {
+  const dims = withoutMember(query.dimensions, member);
+  return { ...query, dimensions: dims.length ? dims : undefined };
+}
+
+/** Set the single edited time dimension, preserving granularity/dateRange. */
+function setTimeDimension(query: CubeQuery, td: TimeDimension | undefined): CubeQuery {
+  return { ...query, timeDimensions: td ? [td] : undefined };
+}
+
+/* ─────────────────────────── mapping (cartesian) ─────────────────────────── */
+
+/** Compose a measures-mode mapping from a category + measures + carried meta. */
+function measuresMapping(
+  category: string | undefined,
+  members: string[],
+  meta: Record<string, SeriesMeta>,
+): SeriesMapping | undefined {
+  if (!category) return undefined;
+  return { category: { member: category }, series: buildSeries(members, meta) };
+}
+
+/** Compose a pivot-mode mapping (single value split by a color dimension). */
+function pivotMapping(
+  category: string | undefined,
+  value: string,
+  pivot: string,
+): SeriesMapping | undefined {
+  if (!category) return undefined;
+  return { category: { member: category }, series: { mode: "pivot", value, pivot } };
+}
+
+/* ─────────────────────────────── writers ─────────────────────────────────── */
+
+/**
+ * Place `member` (of `kind`) into well `wellId` for `family`, returning a full
+ * spec. One-cardinality wells replace; many-cardinality wells append. Implements
+ * the §2 mapping precisely.
+ */
+export function placeField(
+  spec: ChartSpec,
+  family: ChartFamily,
+  wellId: string,
+  member: string,
+  kind: FieldKind,
+): ChartSpec {
+  switch (family) {
+    case "bar":
+    case "line":
+    case "area":
+      return placeCartesian(spec, wellId, member, kind);
+    case "combo":
+      return placeCombo(spec, wellId, member, kind);
+    case "pie":
+      return placePie(spec, wellId, member, kind);
+    case "scatter":
+      return placeScatter(spec, wellId, member);
+    case "kpi":
+      return placeKpi(spec, member);
+    case "table":
+      return placeTable(spec, member, kind);
+  }
+}
+
+/**
+ * Remove `member` from well `wellId`, unbinding it from the query and any
+ * family-specific structure. Returns a full spec.
+ */
+export function removeField(
+  spec: ChartSpec,
+  family: ChartFamily,
+  wellId: string,
+  member: string,
+): ChartSpec {
+  switch (family) {
+    case "bar":
+    case "line":
+    case "area":
+      return removeCartesian(spec, wellId, member);
+    case "combo":
+      return removeCombo(spec, wellId, member);
+    case "pie":
+      return removePie(spec, wellId, member);
+    case "scatter":
+      return removeScatter(spec, wellId, member);
+    case "kpi":
+      return removeKpi(spec, member);
+    case "table":
+      return removeTable(spec, member);
+  }
+}
+
+/* ── bar / line / area ─────────────────────────────────────────────────────── */
+
+function placeCartesian(
+  spec: ChartSpec,
+  wellId: string,
+  member: string,
+  kind: FieldKind,
+): ChartSpec {
+  const { query, chart } = spec;
+  const wells = readWells(spec);
+  const color = wells.color[0];
+  const category = categoryOf(chart);
+  const meta = seriesMetaOf(chart);
+
+  if (wellId === "y") {
+    const measures = wells.y;
+    // Adding a 2nd Y while a Color split exists auto-clears Color (pivot needs one value).
+    const next = withMember(measures, member);
+    if (color && next.length > 1) {
+      const cleared = dropDimension(query, color);
+      return {
+        ...spec,
+        query: { ...cleared, measures: next },
+        chart: { ...chart, mapping: measuresMapping(category, next, meta) },
+      };
+    }
+    if (color) {
+      // Stay in pivot mode with the (still single) value.
+      return {
+        ...spec,
+        query: { ...query, measures: next },
+        chart: { ...chart, mapping: pivotMapping(category, next[0], color) },
+      };
+    }
+    return {
+      ...spec,
+      query: { ...query, measures: next },
+      chart: { ...chart, mapping: measuresMapping(category, next, meta) },
+    };
+  }
+
+  if (wellId === "x") {
+    return placeCartesianX(spec, member, kind, color);
+  }
+
+  if (wellId === "color") {
+    // Color requires exactly one Y; pivot uses the first measure as the value.
+    const measures = wells.y;
+    if (measures.length === 0) return spec; // nothing to pivot yet
+    const q = ensureDimension(query, member);
+    // Pivot keeps only the first measure as the value; the query measures stay as-is.
+    return {
+      ...spec,
+      query: q,
+      chart: { ...chart, mapping: pivotMapping(category, measures[0], member) },
+    };
+  }
+
+  return spec;
+}
+
+function placeCartesianX(
+  spec: ChartSpec,
+  member: string,
+  kind: FieldKind,
+  color: string | undefined,
+): ChartSpec {
+  const { query, chart } = spec;
+  const prevCategory = categoryOf(chart);
+  const measures = readWells(spec).y;
+  const meta = seriesMetaOf(chart);
+
+  // Replace any existing X: drop the previous category dim from the query.
+  let q = query;
+  const prevTime = timeDimensionOf(query);
+  if (prevTime && prevCategory === prevTime.dimension) {
+    q = setTimeDimension(q, undefined);
+  } else if (prevCategory) {
+    q = dropDimension(q, prevCategory);
+  }
+
+  if (kind === "time") {
+    const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
+    q = setTimeDimension(q, {
+      dimension: member,
+      granularity,
+      dateRange: prevTime?.dateRange,
+    });
+  } else {
+    q = ensureDimension(q, member);
+  }
+
+  const mapping = color
+    ? pivotMapping(member, measures[0], color)
+    : measuresMapping(member, measures, meta);
+  return { ...spec, query: q, chart: { ...chart, mapping } };
+}
+
+function removeCartesian(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+  const { query, chart } = spec;
+  const wells = readWells(spec);
+  const category = categoryOf(chart);
+  const color = wells.color[0];
+  const meta = seriesMetaOf(chart);
+
+  if (wellId === "y") {
+    const measures = withoutMember(wells.y, member);
+    if (color && measures.length >= 1) {
+      // Still a single value to pivot — stay in pivot mode.
+      return {
+        ...spec,
+        query: { ...query, measures },
+        chart: { ...chart, mapping: pivotMapping(category, measures[0], color) },
+      };
+    }
+    // No measures left (or no color): drop the pivot dim if present, fall back to measures mode.
+    const q: CubeQuery = color ? dropDimension({ ...query, measures }, color) : { ...query, measures };
+    return { ...spec, query: q, chart: { ...chart, mapping: measuresMapping(category, measures, meta) } };
+  }
+
+  if (wellId === "x") {
+    let q = query;
+    const prevTime = timeDimensionOf(query);
+    if (prevTime && prevTime.dimension === member) q = setTimeDimension(q, undefined);
+    else q = dropDimension(q, member);
+    // No category → mapping collapses to undefined.
+    return { ...spec, query: q, chart: { ...chart, mapping: undefined } };
+  }
+
+  if (wellId === "color") {
+    const q = dropDimension(query, member);
+    return {
+      ...spec,
+      query: q,
+      chart: { ...chart, mapping: measuresMapping(category, wells.y, meta) },
+    };
+  }
+
+  return spec;
+}
+
+/* ── combo ─────────────────────────────────────────────────────────────────── */
+
+const COMBO_RENDER_CYCLE: ComboSeriesEntry["render"][] = ["line", "bar"];
+
+function placeCombo(
+  spec: ChartSpec,
+  wellId: string,
+  member: string,
+  kind: FieldKind,
+): ChartSpec {
+  const { query, chart } = spec;
+  const fo = familyOptions(spec);
+
+  if (wellId === "x") {
+    let q = query;
+    const prevCategory = categoryOf(chart);
+    const prevTime = timeDimensionOf(query);
+    if (prevTime && prevCategory === prevTime.dimension) q = setTimeDimension(q, undefined);
+    else if (prevCategory) q = dropDimension(q, prevCategory);
+
+    if (kind === "time") {
+      const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
+      q = setTimeDimension(q, { dimension: member, granularity, dateRange: prevTime?.dateRange });
+    } else {
+      q = ensureDimension(q, member);
+    }
+    return { ...spec, query: q, chart: { ...chart, mapping: { category: { member }, series: comboSeriesAsMapping(spec) } } };
+  }
+
+  if (wellId === "y") {
+    const series = comboSeries(spec);
+    if (series.some((s) => s.member === member)) return spec;
+    const render = COMBO_RENDER_CYCLE[series.length % COMBO_RENDER_CYCLE.length];
+    const nextSeries = [...series, { member, render }];
+    return {
+      ...spec,
+      query: { ...query, measures: withMember(query.measures, member) },
+      chart: { ...chart, familyOptions: { ...fo, series: nextSeries } },
+    };
+  }
+
+  return spec;
+}
+
+/** Combo carries series in familyOptions; the envelope mapping needs a measures
+ *  series only to satisfy the cartesian renderer's category. Keep it minimal. */
+function comboSeriesAsMapping(spec: ChartSpec): SeriesMapping["series"] {
+  return { mode: "measures", members: comboSeries(spec).map((s) => s.member) };
+}
+
+function removeCombo(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+  const { query, chart } = spec;
+  const fo = familyOptions(spec);
+
+  if (wellId === "x") {
+    let q = query;
+    const prevTime = timeDimensionOf(query);
+    if (prevTime && prevTime.dimension === member) q = setTimeDimension(q, undefined);
+    else q = dropDimension(q, member);
+    return { ...spec, query: q, chart: { ...chart, mapping: undefined } };
+  }
+
+  if (wellId === "y") {
+    const nextSeries = comboSeries(spec).filter((s) => s.member !== member);
+    const measures = withoutMember(query.measures, member);
+    return {
+      ...spec,
+      query: { ...query, measures },
+      chart: { ...chart, familyOptions: { ...fo, series: nextSeries } },
+    };
+  }
+
+  return spec;
+}
+
+/* ── pie ───────────────────────────────────────────────────────────────────── */
+
+function placePie(spec: ChartSpec, wellId: string, member: string, kind: FieldKind): ChartSpec {
+  const { query, chart } = spec;
+  const meta = seriesMetaOf(chart);
+
+  if (wellId === "slices") {
+    let q = query;
+    const prevCategory = categoryOf(chart);
+    const prevTime = timeDimensionOf(query);
+    if (prevTime && prevCategory === prevTime.dimension) q = setTimeDimension(q, undefined);
+    else if (prevCategory) q = dropDimension(q, prevCategory);
+
+    if (kind === "time") {
+      const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
+      q = setTimeDimension(q, { dimension: member, granularity, dateRange: prevTime?.dateRange });
+    } else {
+      q = ensureDimension(q, member);
+    }
+    return {
+      ...spec,
+      query: q,
+      chart: { ...chart, mapping: measuresMapping(member, measuresOf(chart), meta) },
+    };
+  }
+
+  if (wellId === "size") {
+    const members = [member];
+    return {
+      ...spec,
+      query: { ...query, measures: members },
+      chart: { ...chart, mapping: measuresMapping(categoryOf(chart), members, meta) },
+    };
+  }
+
+  return spec;
+}
+
+function removePie(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+  const { query, chart } = spec;
+  const meta = seriesMetaOf(chart);
+
+  if (wellId === "slices") {
+    let q = query;
+    const prevTime = timeDimensionOf(query);
+    if (prevTime && prevTime.dimension === member) q = setTimeDimension(q, undefined);
+    else q = dropDimension(q, member);
+    return { ...spec, query: q, chart: { ...chart, mapping: undefined } };
+  }
+
+  if (wellId === "size") {
+    return {
+      ...spec,
+      query: { ...query, measures: [] },
+      chart: { ...chart, mapping: measuresMapping(categoryOf(chart), [], meta) },
+    };
+  }
+
+  return spec;
+}
+
+/* ── scatter ───────────────────────────────────────────────────────────────── */
+
+const SCATTER_WELL_TO_KEY: Record<string, "x" | "y" | "size" | "groupBy"> = {
+  sx: "x",
+  sy: "y",
+  size: "size",
+  color: "groupBy",
+};
+
+function placeScatter(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+  const key = SCATTER_WELL_TO_KEY[wellId];
+  if (!key) return spec;
+  const { query, chart } = spec;
+  const fo = { ...familyOptions(spec) };
+  const prev = fo[key] as string | undefined;
+  fo[key] = member;
+
+  let q = query;
+  // x/y/size are measures; color (groupBy) is a dimension.
+  if (key === "groupBy") {
+    if (prev && prev !== member) q = dropDimension(q, prev);
+    q = ensureDimension(q, member);
+  } else {
+    const measures = prev ? withoutMember(query.measures, prev) : query.measures;
+    q = { ...query, measures: withMember(measures, member) };
+  }
+  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
+}
+
+function removeScatter(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+  const key = SCATTER_WELL_TO_KEY[wellId];
+  if (!key) return spec;
+  const { query, chart } = spec;
+  const fo = { ...familyOptions(spec) };
+  delete fo[key];
+
+  let q = query;
+  if (key === "groupBy") q = dropDimension(q, member);
+  else {
+    const measures = withoutMember(query.measures, member);
+    q = { ...query, measures: measures.length ? measures : [] };
+  }
+  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
+}
+
+/* ── kpi ───────────────────────────────────────────────────────────────────── */
+
+function placeKpi(spec: ChartSpec, member: string): ChartSpec {
+  const { query, chart } = spec;
+  const fo = { ...familyOptions(spec), measure: member };
+  return { ...spec, query: { ...query, measures: [member] }, chart: { ...chart, familyOptions: fo } };
+}
+
+function removeKpi(spec: ChartSpec, member: string): ChartSpec {
+  const { query, chart } = spec;
+  const fo = { ...familyOptions(spec) };
+  if (fo.measure === member) delete fo.measure;
+  return { ...spec, query: { ...query, measures: [] }, chart: { ...chart, familyOptions: fo } };
+}
+
+/* ── table ─────────────────────────────────────────────────────────────────── */
+
+function placeTable(spec: ChartSpec, member: string, kind: FieldKind): ChartSpec {
+  const { query, chart } = spec;
+  const cols = tableColumns(spec);
+  if (cols.some((c) => c.member === member)) return spec;
+
+  let q = query;
+  if (kind === "number") q = { ...query, measures: withMember(query.measures, member) };
+  else if (kind === "time") {
+    const prevTime = timeDimensionOf(query);
+    const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
+    // Tables can carry multiple time dims; append rather than replace.
+    const existing = query.timeDimensions ?? [];
+    if (!existing.some((t) => t.dimension === member)) {
+      q = { ...query, timeDimensions: [...existing, { dimension: member, granularity }] };
+    }
+  } else q = ensureDimension(query, member);
+
+  const fo = { ...familyOptions(spec), columns: [...cols, { member }] };
+  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
+}
+
+function removeTable(spec: ChartSpec, member: string): ChartSpec {
+  const { query, chart } = spec;
+  const cols = tableColumns(spec).filter((c) => c.member !== member);
+
+  let q = query;
+  const measures = withoutMember(query.measures, member);
+  if (measures.length !== (query.measures?.length ?? 0)) {
+    q = { ...q, measures: measures.length ? measures : undefined };
+  }
+  const dims = withoutMember(query.dimensions, member);
+  if (dims.length !== (query.dimensions?.length ?? 0)) {
+    q = { ...q, dimensions: dims.length ? dims : undefined };
+  }
+  const tds = (query.timeDimensions ?? []).filter((t) => t.dimension !== member);
+  if (tds.length !== (query.timeDimensions?.length ?? 0)) {
+    q = { ...q, timeDimensions: tds.length ? tds : undefined };
+  }
+
+  const fo = { ...familyOptions(spec), columns: cols };
+  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
+}

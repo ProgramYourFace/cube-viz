@@ -5,8 +5,9 @@ import type { NormalizedChartData } from "@/adapter/types";
 import { useNormalizedSeries } from "@/hooks";
 import { ChartRenderer } from "@/charts";
 import type { ChartConfig } from "@/charts";
-import { defaultFormatter, makeChartFormat } from "@/format";
+import { makeChartFormat } from "@/format";
 import type { ChartFormat } from "@/format";
+import { createUnitsFormatter, mergeUnitConversions } from "@/units";
 import { resolveChart, useCubeVizContext } from "@/provider";
 
 /**
@@ -65,10 +66,15 @@ export function CubeChart({ query, chart }: CubeChartProps): ReactElement {
   const renderData = data ?? EMPTY_DATA;
   const emptyConfig: ChartConfig = {};
 
-  // Build the bound, member-aware formatter from the context-resolved ValueFormatter
-  // (host's `locale.formatValue`, else the minimal default). Memoized on the inputs
-  // that change its output: the annotation, the resolved options, and locale config.
-  const valueFormatter = locale.formatValue ?? defaultFormatter;
+  // Build the bound, member-aware formatter from the context-resolved ValueFormatter.
+  // Units are CORE + on by default: when the host supplies no `locale.formatValue`,
+  // fall back to `createUnitsFormatter` (host-registered `locale.units` merged over
+  // the defaults) so every axis/tooltip/label localizes metric↔imperial. Memoized on
+  // the inputs that change its output: the annotation, resolved options, locale config.
+  const valueFormatter = useMemo(
+    () => locale.formatValue ?? createUnitsFormatter(mergeUnitConversions(locale.units)),
+    [locale.formatValue, locale.units],
+  );
   const format = useMemo<ChartFormat>(
     () =>
       makeChartFormat(renderData.raw.annotation, resolvedChart, valueFormatter, {

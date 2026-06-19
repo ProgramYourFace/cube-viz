@@ -1,44 +1,19 @@
 import { defaultFormatter, type FormatContext, type ValueFormatter } from "@/format";
 
+import { DEFAULT_UNIT_CONVERSIONS, type UnitDef } from "./registry";
+
 /**
- * OPT-IN unit-formatter preset — NOT part of cube-viz's core/default behavior.
+ * The CORE units-aware {@link ValueFormatter}. It reads each Cube member's
+ * `meta.{unit,quantity,convert}` + the active `unitSystem` (from the
+ * {@link FormatContext}) to convert metric↔imperial, humanize durations
+ * ("2d 19h"), and apply unit affixes. Dates / strings / category labels delegate
+ * to the core minimal {@link defaultFormatter}.
  *
- * The core library deliberately ships only a minimal `defaultFormatter` and a
- * pluggable `ValueFormatter` seam (host supplies the logic). This preset is the
- * "batteries-included" host implementation a consumer can opt into:
- *
- *   import { createUnitFormatter } from "cube-viz/presets";
- *   <CubeVizProvider locale={{ unitSystem, formatValue: createUnitFormatter() }} />
- *
- * It reads each Cube member's `meta.{unit,quantity,convert}` + the active
- * `unitSystem` (from the FormatContext) to convert metric↔imperial, humanize
- * durations ("2d 19h"), and apply unit affixes — mirroring aa-app-embeddable's
- * `withUnits`/`UNIT_RULES`. Dates/strings/category labels delegate to the core
- * `defaultFormatter`. Fully configurable (override the rule table / duration base).
+ * Units are now ON BY DEFAULT — {@link import("@/hooks").useFormatter} builds this
+ * automatically when a host does not supply its own `locale.formatValue`. Pass a
+ * conversion table to extend/override the metric→imperial defaults (the provider's
+ * `units` prop merges over {@link DEFAULT_UNIT_CONVERSIONS} and threads them here).
  */
-
-export interface UnitConversionRule {
-  /** Unit shown when the viewer's unitSystem is "imperial". */
-  imperialUnit: string;
-  /** Pure storage(metric)→imperial conversion. */
-  toImperial: (v: number) => number;
-}
-
-/** Metric storage unit → imperial display rule. Keys match aa-cube `meta.unit`. */
-export const METRIC_IMPERIAL_RULES: Record<string, UnitConversionRule> = {
-  km: { imperialUnit: "mi", toImperial: (v) => v * 0.621371 },
-  m: { imperialUnit: "ft", toImperial: (v) => v * 3.28084 },
-  cm: { imperialUnit: "in", toImperial: (v) => v * 0.393701 },
-  "km/h": { imperialUnit: "mph", toImperial: (v) => v * 0.621371 },
-  "m/s": { imperialUnit: "mph", toImperial: (v) => v * 2.23694 },
-  L: { imperialUnit: "gal", toImperial: (v) => v * 0.264172 },
-  ml: { imperialUnit: "fl oz", toImperial: (v) => v * 0.033814 },
-  kg: { imperialUnit: "lb", toImperial: (v) => v * 2.20462 },
-  g: { imperialUnit: "oz", toImperial: (v) => v * 0.035274 },
-  "°C": { imperialUnit: "°F", toImperial: (v) => (v * 9) / 5 + 32 },
-  C: { imperialUnit: "°F", toImperial: (v) => (v * 9) / 5 + 32 },
-  "km/L": { imperialUnit: "mpg", toImperial: (v) => v * 2.35215 },
-};
 
 /** Time storage units → milliseconds (so any time member humanizes uniformly). */
 const TIME_MS: Record<string, number> = {
@@ -51,11 +26,6 @@ const TIME_MS: Record<string, number> = {
   hr: 3_600_000,
   d: 86_400_000,
 };
-
-export interface UnitFormatterOptions {
-  /** Override/extend the metric→imperial rule table (merged over the defaults). */
-  rules?: Record<string, UnitConversionRule>;
-}
 
 function trim(s: string): string {
   return s.includes(".") ? s.replace(/\.?0+$/, "") : s;
@@ -105,10 +75,17 @@ function affix(quantity: string | undefined, unit: string): { prefix?: string; s
   return { suffix: ` ${unit}` };
 }
 
-/** Build the opt-in unit-aware {@link ValueFormatter}. */
-export function createUnitFormatter(options: UnitFormatterOptions = {}): ValueFormatter {
-  const rules = { ...METRIC_IMPERIAL_RULES, ...options.rules };
+function wrap(body: string, prefix?: string, suffix?: string): string {
+  return `${prefix ?? ""}${body}${suffix ? ` ${suffix}` : ""}`;
+}
 
+/**
+ * Build the core unit-aware {@link ValueFormatter}. `conversions` (storage-unit →
+ * {@link UnitDef}) drives metric→imperial; omit it to use the built-in defaults.
+ */
+export function createUnitsFormatter(
+  conversions: Record<string, UnitDef> = DEFAULT_UNIT_CONVERSIONS,
+): ValueFormatter {
   return (ctx) => {
     // Dates / strings / category axis → the core minimal default.
     if (ctx.role === "category" || typeof ctx.value === "string") return defaultFormatter(ctx);
@@ -136,9 +113,9 @@ export function createUnitFormatter(options: UnitFormatterOptions = {}): ValueFo
 
     let v = value;
     let unit = meta?.unit;
-    if (unit && ctx.unitSystem === "imperial" && rules[unit]) {
-      v = rules[unit].toImperial(value);
-      unit = rules[unit].imperialUnit;
+    if (unit && ctx.unitSystem === "imperial" && conversions[unit]) {
+      v = conversions[unit].toImperial(value);
+      unit = conversions[unit].imperialUnit;
     }
     const a = unit ? affix(quantity, unit) : {};
     const prefix = f?.prefix ?? a.prefix ?? "";
@@ -146,10 +123,3 @@ export function createUnitFormatter(options: UnitFormatterOptions = {}): ValueFo
     return `${prefix}${formatNumber(v, ctx)}${suffix}`;
   };
 }
-
-function wrap(body: string, prefix?: string, suffix?: string): string {
-  return `${prefix ?? ""}${body}${suffix ? ` ${suffix}` : ""}`;
-}
-
-/** A ready-to-use instance with the default metric/imperial rules. */
-export const unitFormatter: ValueFormatter = createUnitFormatter();

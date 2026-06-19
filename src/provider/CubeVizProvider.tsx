@@ -92,8 +92,9 @@ export function CubeVizProvider({
       timezone: locale?.timezone,
       unitSystem: locale?.unitSystem,
       formatValue: locale?.formatValue,
+      units: locale?.units,
     }),
-    [locale?.locale, locale?.timezone, locale?.unitSystem, locale?.formatValue],
+    [locale?.locale, locale?.timezone, locale?.unitSystem, locale?.formatValue, locale?.units],
   );
 
   const resolvedRegistry = useMemo<ComponentRegistry>(() => registry ?? {}, [registry]);

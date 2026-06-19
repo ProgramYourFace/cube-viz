@@ -7,18 +7,14 @@
 export { ChartEditor } from "./ChartEditor";
 export type { ChartEditorProps } from "./ChartEditor";
 
-// Helper components reusable by a host building a custom chart-config surface.
-export { ChartConfigPanel } from "./chart/ChartConfigPanel";
-export type { ChartConfigPanelProps } from "./chart/ChartConfigPanel";
+// Chart Builder v2 — the type-first config surface (docs/05), reusable by a host
+// building a custom chart-config UI. Supersedes ChartConfigPanel/SeriesMetaEditor/
+// FormatOptionsEditor (formatting/axes/legend are now automatic).
+export { ChartBuilderPanel } from "./chart/builder/ChartBuilderPanel";
+export type { ChartBuilderPanelProps } from "./chart/builder/ChartBuilderPanel";
 
 export { FilterBuilder } from "./chart/FilterBuilder";
 export type { FilterBuilderProps } from "./chart/FilterBuilder";
-
-export { FormatOptionsEditor } from "./chart/FormatOptionsEditor";
-export type { FormatOptionsEditorProps } from "./chart/FormatOptionsEditor";
-
-export { SeriesMetaEditor } from "./chart/SeriesMetaEditor";
-export type { SeriesMetaEditorProps } from "./chart/SeriesMetaEditor";
 
 // The controlled-spec engine (validate + debounce-emit), for advanced hosts.
 export { useChartEditorState } from "./chart/useChartEditorState";

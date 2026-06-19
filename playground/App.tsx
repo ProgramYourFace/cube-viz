@@ -6,7 +6,6 @@ import { CubeVizProvider } from "@/provider";
 import { CubeChart, InputWidgetView } from "@/render";
 import { DashboardProvider, useDashboard } from "@/hooks";
 import { DashboardEditor } from "@/editor";
-import { createUnitFormatter } from "@/presets";
 
 import { granularitiesForRange, nearestGranularity, rangeSpanDays } from "./granularity";
 import { Button } from "@/components/ui/button";
@@ -22,9 +21,9 @@ import {
 
 import dashJson from "./specs/dashboard-fleet-utilization.json";
 
-// Example HOST formatting config (NOT baked into the library): the opt-in
-// metric/imperial unit-formatter preset, driven by the unit-system setting.
-const hostFormatter = createUnitFormatter();
+// Units are a CORE, on-by-default feature now: no host `formatValue` needed — the
+// provider's `locale.unitSystem` toggle re-localizes every axis/tooltip via the
+// core units formatter. (A host could still pass `units={…}` to extend conversions.)
 
 /** Granularity control whose options ADAPT to the selected date range (down to second). */
 function AdaptiveGranularityControl() {
@@ -348,7 +347,7 @@ export function App() {
   return (
     <CubeVizProvider
       cube={connection}
-      locale={{ unitSystem: settings.unitSystem, locale: settings.locale, formatValue: hostFormatter }}
+      locale={{ unitSystem: settings.unitSystem, locale: settings.locale }}
       theme={{ mode: settings.theme }}
     >
       <div className="mx-auto max-w-7xl space-y-6 p-6">
