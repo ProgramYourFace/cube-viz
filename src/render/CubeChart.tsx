@@ -52,15 +52,22 @@ export function CubeChart({ query, chart }: CubeChartProps): ReactElement {
     return { ...chart, format: { ...chart.format, unitSystem: locale.unitSystem } };
   }, [chart, locale?.unitSystem]);
 
-  const { data, isLoading, error } = useNormalizedSeries(query, resolvedChart);
+  // Inject the host's IANA timezone so Cube buckets/relative-ranges resolve in the
+  // host's zone (not UTC). A query-level `timezone` always wins.
+  const tzQuery = useMemo<CubeQuery>(
+    () => (query.timezone || !locale?.timezone ? query : { ...query, timezone: locale.timezone }),
+    [query, locale?.timezone],
+  );
+
+  const { data, isLoading, error } = useNormalizedSeries(tzQuery, resolvedChart);
 
   // KPI sparkline: a KPI's main query is an AGGREGATE (the headline number), so its
   // trend is fetched as a SEPARATE time-bucketed query and merged into the render data
   // below. `kpiSparklineInput` returns null for non-KPI charts or KPIs without a
   // sparkline, so the hook is skipped (no extra request) in the common case.
-  const sparkInput = useMemo(() => kpiSparklineInput(query, resolvedChart), [query, resolvedChart]);
+  const sparkInput = useMemo(() => kpiSparklineInput(tzQuery, resolvedChart), [tzQuery, resolvedChart]);
   const sparkline = useNormalizedSeries(
-    sparkInput?.query ?? query,
+    sparkInput?.query ?? tzQuery,
     sparkInput?.chart ?? resolvedChart,
     { skip: !sparkInput },
   );

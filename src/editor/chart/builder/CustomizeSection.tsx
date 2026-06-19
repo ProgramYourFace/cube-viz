@@ -1,13 +1,34 @@
 import * as React from "react";
 
 import { DEFAULTS } from "@/charts";
-import type { ChartOptions, ChartSpec, DateRange, Granularity, TimeDimension, VarRef } from "@/spec";
+import type {
+  AxisOptions,
+  ChartOptions,
+  ChartSpec,
+  DateRange,
+  FormatKind,
+  FormatOptions,
+  Granularity,
+  OrderSpec,
+  TimeDimension,
+  VarRef,
+} from "@/spec";
+import { useCubeMeta } from "@/hooks";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { FieldRow } from "../../primitives/FieldRow";
 import { GranularityPicker } from "../../primitives/GranularityPicker";
 import { MemberPicker } from "../../primitives/MemberPicker";
 import { SegmentedControl } from "../../primitives/SegmentedControl";
 import { SwitchRow } from "../../primitives/SwitchRow";
+import { findMember } from "../../primitives/meta-helpers";
 import { inferCube } from "../helpers";
 import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
 import { ValueBinding } from "../binding/ValueBinding";
@@ -153,11 +174,40 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
 
       case "pie":
         return (
-          <SwitchRow
-            label="Donut"
-            checked={typeof fo.innerRadiusPct === "number" && fo.innerRadiusPct > 0}
-            onChange={(on) => setFamilyOptions({ innerRadiusPct: on ? 55 : 0 })}
-          />
+          <>
+            <SwitchRow
+              label="Donut"
+              checked={typeof fo.innerRadiusPct === "number" && fo.innerRadiusPct > 0}
+              onChange={(on) => setFamilyOptions({ innerRadiusPct: on ? 55 : 0 })}
+            />
+            <FieldRow label="Slice labels">
+              <SegmentedControl<"none" | "value" | "percent" | "name">
+                aria-label="Slice labels"
+                size="sm"
+                options={[
+                  { value: "none", label: "None" },
+                  { value: "percent", label: "%" },
+                  { value: "value", label: "Value" },
+                  { value: "name", label: "Name" },
+                ]}
+                value={(fo.showLabels as "none" | "value" | "percent" | "name") ?? "percent"}
+                onChange={(v) => setFamilyOptions({ showLabels: v })}
+              />
+            </FieldRow>
+            <KField label="Max slices">
+              <Input
+                type="number"
+                min={1}
+                className="h-8"
+                value={(fo.maxSlices as number | undefined) ?? ""}
+                placeholder="8"
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  setFamilyOptions({ maxSlices: Number.isFinite(n) && n > 0 ? n : undefined });
+                }}
+              />
+            </KField>
+          </>
         );
 
       case "kpi": {
@@ -173,6 +223,8 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           "up";
         const sparkGranularity = (fo.sparkline as { granularity?: Granularity | VarRef } | undefined)
           ?.granularity;
+        const display = (fo.display as "number" | "gauge" | undefined) ?? "number";
+        const gauge = fo.gauge as { min?: number; max?: number } | undefined;
 
         // Edit the KPI's single time dimension. The MAIN query stays granularity-LESS so
         // the headline is an aggregate over the full range; the sparkline adds the bucket.
@@ -213,6 +265,33 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
               </KField>
             ) : null}
 
+            <FieldRow label="Display">
+              <SegmentedControl<"number" | "gauge">
+                aria-label="Display"
+                size="sm"
+                options={[
+                  { value: "number", label: "Number" },
+                  { value: "gauge", label: "Gauge" },
+                ]}
+                value={display}
+                onChange={(v) => setFamilyOptions({ display: v })}
+              />
+            </FieldRow>
+            {display === "gauge" ? (
+              <KField label="Gauge max">
+                <Input
+                  type="number"
+                  className="h-8"
+                  value={gauge?.max ?? ""}
+                  placeholder="Auto"
+                  onChange={(e) => {
+                    const n = parseFloat(e.target.value);
+                    setFamilyOptions({ gauge: Number.isFinite(n) ? { ...(gauge ?? {}), max: n } : undefined });
+                  }}
+                />
+              </KField>
+            ) : null}
+
             <SwitchRow
               label="Sparkline"
               hint="An area trend under the number, colored by the direction."
@@ -241,7 +320,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
             ) : null}
 
             <SwitchRow
-              label="Compare to previous period"
+              label="Compare"
               checked={comparing}
               onChange={(on) =>
                 setFamilyOptions({
@@ -252,11 +331,40 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
               }
             />
             {comparing ? (
-              <SwitchRow
-                label="Show as %"
-                checked={(comparison?.showAsPercent ?? true) !== false}
-                onChange={(on) => setFamilyOptions({ comparison: { ...comparison, showAsPercent: on } })}
-              />
+              <>
+                <FieldRow label="Compare to">
+                  <SegmentedControl<"previousPeriod" | "value">
+                    aria-label="Compare to"
+                    size="sm"
+                    options={[
+                      { value: "previousPeriod", label: "Prev period" },
+                      { value: "value", label: "Fixed value" },
+                    ]}
+                    value={(comparison?.mode as "previousPeriod" | "value") ?? "previousPeriod"}
+                    onChange={(m) => setFamilyOptions({ comparison: { ...comparison, mode: m } })}
+                  />
+                </FieldRow>
+                {comparison?.mode === "value" ? (
+                  <KField label="Baseline value">
+                    <Input
+                      type="number"
+                      className="h-8"
+                      value={(comparison?.value as number | undefined) ?? ""}
+                      onChange={(e) => {
+                        const n = parseFloat(e.target.value);
+                        setFamilyOptions({
+                          comparison: { ...comparison, value: Number.isFinite(n) ? n : undefined },
+                        });
+                      }}
+                    />
+                  </KField>
+                ) : null}
+                <SwitchRow
+                  label="Show as %"
+                  checked={(comparison?.showAsPercent ?? true) !== false}
+                  onChange={(on) => setFamilyOptions({ comparison: { ...comparison, showAsPercent: on } })}
+                />
+              </>
             ) : null}
 
             {comparing || sparkOn ? (
@@ -318,16 +426,187 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     <div className="flex flex-col">
       {LegendControl}
       {body}
+      <AxisControls spec={spec} update={update} />
+      <FormatControls spec={spec} update={update} />
+      <DataControls spec={spec} update={update} />
     </div>
   );
 }
 
-/** A vertical labeled field (caption above the control) for the KPI option pickers. */
+/** A vertical labeled field (caption above the control) for the option pickers. */
 function KField({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
   return (
     <div className="flex flex-col gap-1 py-1">
       <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
       {children}
     </div>
+  );
+}
+
+/* ───────────────────────── shared cross-family controls ──────────────────── */
+
+const CARTESIAN = new Set<ChartOptions["family"]>(["bar", "line", "area", "combo"]);
+
+/** The first sort key as `{member, dir}`, from either OrderSpec shape (record | tuples). */
+function firstOrder(order: OrderSpec | undefined): { member: string; dir: "asc" | "desc" } | undefined {
+  if (!order) return undefined;
+  if (Array.isArray(order)) {
+    const e = order[0];
+    return e ? { member: e[0], dir: e[1] } : undefined;
+  }
+  const k = Object.keys(order)[0];
+  return k ? { member: k, dir: order[k] } : undefined;
+}
+
+/** Sort (order) + row limit — query-level controls that shape WHICH rows are plotted. */
+function DataControls({ spec, update }: CustomizeSectionProps): React.ReactElement | null {
+  const { meta } = useCubeMeta();
+  const { chart, query } = spec;
+  if (chart.family === "kpi" || chart.family === "scatter") return null;
+
+  const members = [
+    ...(query.measures ?? []),
+    ...(query.dimensions ?? []),
+    ...(query.timeDimensions?.map((t) => t.dimension) ?? []),
+  ];
+  if (members.length === 0) return null;
+
+  const sort = firstOrder(query.order);
+  const setOrder = (member: string | undefined, dir: "asc" | "desc"): void =>
+    update({ ...spec, query: { ...query, order: member ? [[member, dir]] : undefined } });
+  const limit = typeof query.limit === "number" ? query.limit : undefined;
+  const setLimit = (n: number | undefined): void =>
+    update({ ...spec, query: { ...query, limit: n } });
+
+  return (
+    <>
+      <KField label="Sort by">
+        <div className="flex gap-1">
+          <Select
+            value={sort?.member ?? "__none"}
+            onValueChange={(v) => setOrder(v === "__none" ? undefined : v, sort?.dir ?? "desc")}
+          >
+            <SelectTrigger className="h-8 flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none">Default order</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {findMember(meta, m)?.label ?? m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {sort?.member ? (
+            <SegmentedControl<"asc" | "desc">
+              aria-label="Sort direction"
+              size="sm"
+              options={[
+                { value: "asc", label: "Asc" },
+                { value: "desc", label: "Desc" },
+              ]}
+              value={sort.dir}
+              onChange={(d) => setOrder(sort.member, d)}
+            />
+          ) : null}
+        </div>
+      </KField>
+      <KField label="Row limit">
+        <Input
+          type="number"
+          min={1}
+          className="h-8"
+          value={limit ?? ""}
+          placeholder="Auto"
+          onChange={(e) => {
+            const n = parseInt(e.target.value, 10);
+            setLimit(Number.isFinite(n) && n > 0 ? n : undefined);
+          }}
+        />
+      </KField>
+    </>
+  );
+}
+
+/** Value-axis controls (scale / hide / label) for the cartesian families. */
+function AxisControls({ spec, update }: CustomizeSectionProps): React.ReactElement | null {
+  const { chart } = spec;
+  if (!CARTESIAN.has(chart.family)) return null;
+  const y = chart.axes?.y ?? {};
+  const setY = (patch: Partial<AxisOptions>): void =>
+    update({ ...spec, chart: { ...chart, axes: { ...chart.axes, y: { ...y, ...patch } } } });
+
+  return (
+    <>
+      <FieldRow label="Y scale">
+        <SegmentedControl<"linear" | "log">
+          aria-label="Y scale"
+          size="sm"
+          options={[
+            { value: "linear", label: "Linear" },
+            { value: "log", label: "Log" },
+          ]}
+          value={y.scale ?? "linear"}
+          onChange={(v) => setY({ scale: v })}
+        />
+      </FieldRow>
+      <SwitchRow label="Hide Y axis" checked={y.hide === true} onChange={(on) => setY({ hide: on })} />
+      <KField label="Y axis label">
+        <Input
+          className="h-8"
+          value={y.label ?? ""}
+          placeholder="Auto"
+          onChange={(e) => setY({ label: e.target.value || undefined })}
+        />
+      </KField>
+    </>
+  );
+}
+
+/** Number-format controls (kind / abbreviate / decimals) for value-bearing families. */
+function FormatControls({ spec, update }: CustomizeSectionProps): React.ReactElement | null {
+  const { chart } = spec;
+  if (chart.family === "table" || chart.family === "scatter") return null;
+  const f = chart.format ?? {};
+  const setF = (patch: Partial<FormatOptions>): void =>
+    update({ ...spec, chart: { ...chart, format: { ...f, ...patch } } });
+
+  return (
+    <>
+      <FieldRow label="Number format">
+        <SegmentedControl<FormatKind>
+          aria-label="Number format"
+          size="sm"
+          options={[
+            { value: "auto", label: "Auto" },
+            { value: "number", label: "123" },
+            { value: "currency", label: "$" },
+            { value: "percent", label: "%" },
+          ]}
+          value={f.kind ?? "auto"}
+          onChange={(v) => setF({ kind: v })}
+        />
+      </FieldRow>
+      <SwitchRow
+        label="Abbreviate (1.2k)"
+        checked={f.abbreviate === true}
+        onChange={(on) => setF({ abbreviate: on })}
+      />
+      <KField label="Decimals">
+        <Input
+          type="number"
+          min={0}
+          max={6}
+          className="h-8"
+          value={f.decimals ?? ""}
+          placeholder="Auto"
+          onChange={(e) => {
+            const n = parseInt(e.target.value, 10);
+            setF({ decimals: Number.isFinite(n) && n >= 0 ? n : undefined });
+          }}
+        />
+      </KField>
+    </>
   );
 }

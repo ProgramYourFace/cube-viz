@@ -47,6 +47,8 @@ export interface AnnotatedMember {
   title?: string;
   shortTitle?: string;
   type?: string;
+  /** Cube's `format` annotation (e.g. "currency", "percent") — refines auto formatting. */
+  format?: string;
   meta?: { unit?: string; quantity?: string; convert?: boolean } & Record<string, unknown>;
 }
 export interface ResultAnnotation {

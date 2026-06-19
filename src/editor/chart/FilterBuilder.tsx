@@ -23,6 +23,7 @@ import {
 } from "@/spec";
 
 import { MemberPicker, memberTypeIcon } from "../primitives/MemberPicker";
+import { SegmentedControl } from "../primitives/SegmentedControl";
 import {
   findMember,
   OPERATOR_LABELS,
@@ -105,20 +106,38 @@ export function FilterBuilder({
   const [draft, setDraft] = React.useState<LeafFilter | null>(null);
   const filters = value ?? [];
 
-  // Split leaves (editable) from group nodes (preserved verbatim, re-appended on emit).
-  const leaves: { filter: LeafFilter; index: number }[] = [];
-  const groups: QueryFilter[] = [];
-  filters.forEach((f, index) => {
-    if (isLeaf(f)) leaves.push({ filter: f, index });
-    else groups.push(f);
-  });
+  // Match mode: "any" iff the query is a single `{ or: [...leaves] }` group; otherwise
+  // "all" (a flat AND of leaves), with any OTHER nested group preserved verbatim.
+  const orGroup =
+    filters.length === 1 &&
+    !isLeaf(filters[0]) &&
+    "or" in filters[0] &&
+    Array.isArray((filters[0] as { or?: QueryFilter[] }).or) &&
+    (filters[0] as { or: QueryFilter[] }).or.every(isLeaf)
+      ? (filters[0] as { or: LeafFilter[] })
+      : undefined;
+  const matchMode: "all" | "any" = orGroup ? "any" : "all";
 
-  // Only committed (field-bearing) leaves live in the spec.
-  const committed = leaves.map((l) => l.filter);
+  // Editable leaves + any preserved (non-leaf) groups (all-mode only).
+  const flat: LeafFilter[] = [];
+  const groups: QueryFilter[] = [];
+  if (!orGroup) filters.forEach((f) => (isLeaf(f) ? flat.push(f) : groups.push(f)));
+  const committed: LeafFilter[] = orGroup ? orGroup.or : flat;
+  // The All/Any toggle only shows when there are no OTHER preserved groups to reason about.
+  const showMatchToggle = groups.length === 0 && (committed.length >= 2 || matchMode === "any");
+
+  const wrap = (leaves: LeafFilter[]): QueryFilter[] =>
+    matchMode === "any" ? (leaves.length ? [{ or: leaves }] : []) : [...leaves, ...groups];
 
   const emit = (nextLeaves: LeafFilter[]): void => {
     const clean = nextLeaves.filter((l) => l.member.length > 0);
-    const next: QueryFilter[] = [...clean, ...groups];
+    const next = wrap(clean);
+    onChange(next.length > 0 ? next : undefined);
+  };
+
+  const setMatchMode = (mode: "all" | "any"): void => {
+    const next: QueryFilter[] =
+      mode === "any" ? (committed.length ? [{ or: committed }] : []) : [...committed];
     onChange(next.length > 0 ? next : undefined);
   };
 
@@ -143,6 +162,23 @@ export function FilterBuilder({
     <div data-slot="filter-builder" className={cn("flex flex-col gap-2", className)}>
       {committed.length === 0 && !draft ? (
         <p className="px-1 py-1 text-xs text-muted-foreground">No filters — the chart shows all rows.</p>
+      ) : null}
+
+      {showMatchToggle ? (
+        <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+          <span>Match</span>
+          <SegmentedControl<"all" | "any">
+            aria-label="Match filters"
+            size="sm"
+            options={[
+              { value: "all", label: "All" },
+              { value: "any", label: "Any" },
+            ]}
+            value={matchMode}
+            onChange={setMatchMode}
+          />
+          <span>of these</span>
+        </div>
       ) : null}
 
       {committed.map((leaf, i) => {

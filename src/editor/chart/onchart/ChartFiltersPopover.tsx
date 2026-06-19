@@ -3,8 +3,10 @@ import { ListFilter } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
+import { useCubeMeta } from "@/hooks";
 import type { ChartSpec, CubeQuery } from "@/spec";
 
+import { listSegments } from "../../primitives/meta-helpers";
 import { FilterBuilder } from "../FilterBuilder";
 import type { JoinScope } from "./join-scope";
 
@@ -54,8 +56,55 @@ export function ChartFiltersPopover({ spec, update, cube, scopeCubes, scope }: C
             Narrow this chart. Each row reads as a sentence — click to edit.
           </p>
         </div>
+        <SegmentsControl spec={spec} update={update} scopeCubes={scopeCubes} />
         <FilterBuilder cube={cube} cubes={scopeCubes} scope={scope} value={query.filters} onChange={onFiltersChange} />
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Segment toggles — Cube's named boolean filters, applied via `query.segments`. */
+function SegmentsControl({
+  spec,
+  update,
+  scopeCubes,
+}: {
+  spec: ChartSpec;
+  update: (next: ChartSpec) => void;
+  scopeCubes?: string[];
+}): React.ReactElement | null {
+  const { meta } = useCubeMeta();
+  const segs = listSegments(meta, scopeCubes);
+  if (segs.length === 0) return null;
+  const active = new Set(spec.query.segments ?? []);
+  const toggle = (name: string): void => {
+    const next = new Set(active);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    const arr = [...next];
+    update({ ...spec, query: { ...spec.query, segments: arr.length ? arr : undefined } });
+  };
+  return (
+    <div className="flex flex-col gap-1.5 border-b border-border pb-2">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Segments</p>
+      <div className="flex flex-wrap gap-1.5">
+        {segs.map((s) => (
+          <button
+            key={s.name}
+            type="button"
+            onClick={() => toggle(s.name)}
+            title={s.description ?? s.name}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-xs transition-colors",
+              active.has(s.name)
+                ? "border-ring bg-accent text-foreground"
+                : "border-input text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+            )}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

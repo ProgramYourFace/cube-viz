@@ -184,6 +184,26 @@ export function listMembers(
   return out;
 }
 
+/** Segment options (boolean named filters) across the visible cubes, restricted to
+ *  `cubes` (the chart's join scope) when given. Segments are applied via query.segments. */
+export function listSegments(meta: CubeMeta | undefined, cubes?: string[]): MemberOption[] {
+  if (!meta) return [];
+  const allow = cubes ? new Set(cubes) : undefined;
+  const out: MemberOption[] = [];
+  for (const c of meta.cubes) {
+    if (!isPublic(c)) continue;
+    if (allow && !allow.has(c.name)) continue;
+    const comp = componentOf(c as { connectedComponent?: number });
+    for (const s of c.segments) {
+      if (!isPublic(s)) continue;
+      const o = segmentToOption(s, c.name);
+      o.connectedComponent = comp;
+      out.push(o);
+    }
+  }
+  return out;
+}
+
 /** Find a single member option by its verbatim name. */
 export function findMember(
   meta: CubeMeta | undefined,

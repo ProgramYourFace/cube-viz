@@ -113,6 +113,7 @@ function toAnnotatedMember(a: {
   title?: string;
   shortTitle?: string;
   type?: string;
+  format?: string;
   meta?: unknown;
 }): AnnotatedMember {
   const meta = (a.meta ?? undefined) as AnnotatedMember["meta"];
@@ -120,6 +121,7 @@ function toAnnotatedMember(a: {
     title: a.title,
     shortTitle: a.shortTitle,
     type: a.type,
+    ...(a.format ? { format: a.format } : {}),
     ...(meta ? { meta } : {}),
   };
 }
@@ -173,8 +175,20 @@ function resolveSeriesMeta(
   if (m?.quantity !== undefined) out.quantity = m.quantity;
   if (m?.convert !== undefined) out.convert = m.convert;
 
-  // Format: chart-level default, then per-series override.
-  const format = specMeta?.format ?? chartFormat;
+  // Cube's `format` annotation refines AUTO formatting by default (explicit spec
+  // formats below still win): a `percent` measure (0–100) gets a "%" suffix; a
+  // `currency` measure formats as currency.
+  const cubeFormat = memberMeta?.format;
+  if (cubeFormat === "percent" && out.unit === undefined) out.unit = "%";
+
+  // Format: per-series override, then chart-level default.
+  let format = specMeta?.format ?? chartFormat;
+  if (
+    (cubeFormat === "currency" || cubeFormat === "currencyShort") &&
+    (!format || format.kind === undefined || format.kind === "auto")
+  ) {
+    format = { ...format, kind: "currency" };
+  }
   if (format) out.format = format;
 
   if (specMeta?.axis) out.axis = specMeta.axis;
