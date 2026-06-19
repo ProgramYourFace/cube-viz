@@ -21,6 +21,8 @@ export interface UseNormalizedSeriesResult {
   data?: NormalizedChartData;
   isLoading: boolean;
   error?: Error;
+  /** Force a re-fetch (Refresh action). */
+  refetch?: () => void;
 }
 
 export interface UseNormalizedSeriesOptions {
@@ -41,7 +43,7 @@ export function useNormalizedSeries(
     [dashboard, query],
   );
 
-  const { resultSet, isLoading, error } = useCubeQuery(resolvedQuery, { skip: opts?.skip });
+  const { resultSet, isLoading, error, refetch } = useCubeQuery(resolvedQuery, { skip: opts?.skip });
 
   // Normalize against the RESOLVED query (stored verbatim on raw.query). Re-runs
   // only when the result, options, or resolved query change.
@@ -50,5 +52,5 @@ export function useNormalizedSeries(
     return normalize(resultSet, options, resolvedQuery);
   }, [resultSet, options, resolvedQuery]);
 
-  return { data, isLoading, error };
+  return { data, isLoading, error, refetch };
 }

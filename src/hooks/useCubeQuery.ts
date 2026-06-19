@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Query, ResultSet } from "@cubejs-client/core";
 
 import type { CubeQuery } from "@/spec";
@@ -20,6 +20,8 @@ export interface UseCubeQueryResult {
   resultSet?: ResultSet<Record<string, unknown>>;
   isLoading: boolean;
   error?: Error;
+  /** Force a re-fetch (cache-bypass via a fresh request), e.g. a Refresh action. */
+  refetch?: () => void;
 }
 
 export interface UseCubeQueryOptions {
@@ -50,6 +52,9 @@ export function useCubeQuery(
   const queryKey = useMemo(() => JSON.stringify(effectiveQuery), [effectiveQuery]);
 
   const [state, setState] = useState<UseCubeQueryResult>({ isLoading: !skip });
+  // A monotonic nonce: bumping it re-runs the fetch effect (Refresh / cache-bypass).
+  const [nonce, setNonce] = useState(0);
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     if (skip) {
@@ -82,11 +87,10 @@ export function useCubeQuery(
     return () => {
       active = false;
     };
-    // `query` is captured via `queryKey`; re-fetch whenever the client, key, or
-    // skip flag changes. (queryKey is the serialized query; query itself is read
-    // inside the effect.)
+    // `query` is captured via `queryKey`; re-fetch whenever the client, key, skip flag,
+    // or refetch nonce changes. (queryKey is the serialized query; query is read inside.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cubeClient, queryKey, skip]);
+  }, [cubeClient, queryKey, skip, nonce]);
 
-  return state;
+  return { ...state, refetch };
 }

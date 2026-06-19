@@ -64,6 +64,11 @@ export function BarChartFamily({
 
   const catAxisHidden = horizontal ? options.axes?.y?.hide : options.axes?.x?.hide;
   const valAxis = horizontal ? options.axes?.x : options.axes?.y;
+  // Dual value axis (VERTICAL bars only): a measure with meta.axis:"right" mounts a 2nd
+  // Y, so two same-unit measures of disparate magnitude stay readable side by side.
+  const hasRight = !horizontal && data.series.some((s) => s.meta?.axis === "right");
+  const leftMember = splitMember ?? data.series.find((s) => s.meta?.axis !== "right")?.key ?? valueMember;
+  const rightMember = data.series.find((s) => s.meta?.axis === "right")?.key;
 
   return (
     <ChartContainer config={config} className="h-full w-full min-h-[200px]">
@@ -91,12 +96,24 @@ export function BarChartFamily({
           <>
             <XAxis type="category" dataKey="__cat" hide={catAxisHidden} tickFormatter={catFmt} />
             <YAxis
+              yAxisId="left"
               type="number"
               hide={valAxis?.hide}
               scale={axisScale(valAxis)}
               domain={axisDomain(valAxis)}
-              tickFormatter={(v: number) => valueFmt(v, valueMember, "axis")}
+              tickFormatter={(v: number) => valueFmt(v, leftMember, "axis")}
             />
+            {hasRight && (
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                type="number"
+                hide={options.axes?.y2?.hide}
+                scale={axisScale(options.axes?.y2)}
+                domain={axisDomain(options.axes?.y2)}
+                tickFormatter={(v: number) => valueFmt(v, rightMember, "axis")}
+              />
+            )}
           </>
         )}
         {options.tooltip?.show !== false && (
@@ -125,6 +142,7 @@ export function BarChartFamily({
         {data.series.map((s) => (
           <Bar
             key={s.key}
+            yAxisId={horizontal ? undefined : s.meta?.axis === "right" && hasRight ? "right" : "left"}
             dataKey={s.key}
             name={s.label}
             stackId={stacked ? (s.meta?.stackId ?? "stack") : undefined}

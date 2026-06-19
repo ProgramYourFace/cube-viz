@@ -126,10 +126,12 @@ export function chipBindings(
     ? (comboSeries.find((s) => s.member === member)?.render ?? "line")
     : undefined;
 
-  // Dual value axes (left/right) are renderer-supported for line (SeriesMeta.axis) and
-  // combo (ComboSeriesOpt.axis). bar/area have a single value axis → no axis control.
+  // Dual value axes (left/right) are renderer-supported for line + VERTICAL bar
+  // (SeriesMeta.axis) and combo (ComboSeriesOpt.axis). A horizontal bar has a single
+  // value axis → no axis control.
   const isLineY = family === "line" && well.id === "y";
-  const canAxis = (isLineY && measuresMode) || isComboY;
+  const isBarY = family === "bar" && well.id === "y" && chart.orientation !== "horizontal";
+  const canAxis = ((isLineY || isBarY) && measuresMode) || isComboY;
   const axis: AxisSide | undefined = canAxis
     ? ((isComboY ? comboSeries.find((s) => s.member === member)?.axis : meta?.axis) ?? "left")
     : undefined;

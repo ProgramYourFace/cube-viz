@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement } from "react";
+import { useEffect, useMemo, type ReactElement } from "react";
 
 import type { ChartOptions, ChartSpec, CubeQuery } from "@/spec";
 import type { NormalizedChartData } from "@/adapter/types";
@@ -30,6 +30,8 @@ export interface CubeChartProps {
   query: CubeQuery;
   /** The chart option envelope (family, mapping, axes, …). */
   chart: ChartOptions;
+  /** Lifts the resolved rows + a refetch up to the chrome (for export / refresh). */
+  onState?: (state: { rows: Record<string, unknown>[]; refetch?: () => void; isLoading: boolean }) => void;
 }
 
 /** A normalized-but-empty placeholder so `ChartRenderer` can render state chrome before data arrives. */
@@ -40,7 +42,7 @@ const EMPTY_DATA: NormalizedChartData = {
   empty: true,
 };
 
-export function CubeChart({ query, chart }: CubeChartProps): ReactElement {
+export function CubeChart({ query, chart, onState }: CubeChartProps): ReactElement {
   const { registry, locale } = useCubeVizContext();
 
   // Inject the provider's unit system as the default so the pure families (which
@@ -59,7 +61,7 @@ export function CubeChart({ query, chart }: CubeChartProps): ReactElement {
     [query, locale?.timezone],
   );
 
-  const { data, isLoading, error } = useNormalizedSeries(tzQuery, resolvedChart);
+  const { data, isLoading, error, refetch } = useNormalizedSeries(tzQuery, resolvedChart);
 
   // KPI sparkline: a KPI's main query is an AGGREGATE (the headline number), so its
   // trend is fetched as a SEPARATE time-bucketed query and merged into the render data
@@ -91,6 +93,12 @@ export function CubeChart({ query, chart }: CubeChartProps): ReactElement {
     }
     return base;
   }, [data, sparkInput, sparkline.data]);
+
+  // Lift the resolved rows + a refetch to the chrome (CSV export / Refresh actions).
+  useEffect(() => {
+    onState?.({ rows: renderData.raw.rows, refetch, isLoading });
+  }, [onState, renderData.raw.rows, refetch, isLoading]);
+
   const emptyConfig: ChartConfig = {};
 
   // Build the bound, member-aware formatter from the context-resolved ValueFormatter.

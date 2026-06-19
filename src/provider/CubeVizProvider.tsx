@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { ChartColorToken } from "@/spec";
 import { createCubeClient, DEFAULT_COLOR_RAMP } from "@/adapter";
 import type { CubeClient, CubeConnection } from "@/adapter";
+import { cn } from "@/components/ui/utils";
 
 import {
   CubeVizContext,
@@ -109,5 +110,12 @@ export function CubeVizProvider({
     [cubeClient, resolvedRegistry, resolvedLocale, resolvedTheme],
   );
 
-  return <CubeVizContext.Provider value={value}>{children}</CubeVizContext.Provider>;
+  // Apply theme.mode by scoping the `.dark` token set to the provider subtree.
+  // `display:contents` keeps the wrapper layout-transparent while the CSS custom
+  // properties still cascade to descendants. "system" defers to the host's selector.
+  return (
+    <CubeVizContext.Provider value={value}>
+      <div className={cn("contents", resolvedTheme.mode === "dark" && "dark")}>{children}</div>
+    </CubeVizContext.Provider>
+  );
 }
