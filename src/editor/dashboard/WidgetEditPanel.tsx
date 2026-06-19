@@ -14,6 +14,7 @@ import { ChartEditor } from "../ChartEditor";
 import { FieldRow } from "../primitives/FieldRow";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/components/ui/utils";
+import { VariableAdminProvider } from "../chart/binding/variable-admin";
 import { TextWidgetEditor } from "./TextWidgetEditor";
 import { InputWidgetEditor } from "./InputWidgetEditor";
 
@@ -35,6 +36,8 @@ export interface WidgetEditPanelProps {
   /** Dashboard variables (for the input widget's variable binding). */
   variables: VariableDecl[];
   onChange: (widget: WidgetSpec) => void;
+  /** Register a new dashboard variable (enables inline "New variable" in binding controls). */
+  onVariablesChange?: (variables: VariableDecl[]) => void;
   /** Fill the parent's height (full-screen editing) — the chart editor's preview fills the screen. */
   fill?: boolean;
 }
@@ -72,19 +75,31 @@ export function WidgetEditPanel({
   widget,
   variables,
   onChange,
+  onVariablesChange,
   fill = false,
 }: WidgetEditPanelProps): React.ReactElement {
+  // Inline variable creation from the chart editor's binding controls.
+  const createVariable = onVariablesChange
+    ? (decl: VariableDecl): void => onVariablesChange([...variables, decl])
+    : undefined;
+
   return (
     <div data-slot="widget-edit-panel" className={cn("flex flex-col gap-2", fill && "h-full")}>
-      <FieldRow label="Title" hint="Shown in the widget header.">
-        <Input
-          value={widget.title ?? ""}
-          placeholder="Untitled"
-          onChange={(e) =>
-            onChange({ ...widget, title: e.target.value || undefined } as WidgetSpec)
-          }
-        />
-      </FieldRow>
+      {/* A title for charts; the field label for inputs. Text carries its own headings. */}
+      {widget.type !== "text" ? (
+        <FieldRow
+          label="Title"
+          hint={widget.type === "input" ? "Used as the field label." : "Shown in the widget header."}
+        >
+          <Input
+            value={widget.title ?? ""}
+            placeholder="Untitled"
+            onChange={(e) =>
+              onChange({ ...widget, title: e.target.value || undefined } as WidgetSpec)
+            }
+          />
+        </FieldRow>
+      ) : null}
 
       {widget.type === "chart" ? (
         // The chart's query may carry {var} tokens bound to dashboard variables.
@@ -92,13 +107,15 @@ export function WidgetEditPanel({
         // preview RESOLVES them — otherwise an unresolved {var:granularity} reaches
         // Cube and 400s ("granularity must be a string").
         <DashboardProvider spec={previewDashboard(variables)}>
-          <div className={cn(fill && "min-h-0 flex-1")}>
-            <ChartEditor
-              fill={fill}
-              spec={widgetToChartSpec(widget)}
-              onChange={(spec) => onChange(chartSpecToWidget(widget, spec))}
-            />
-          </div>
+          <VariableAdminProvider createVariable={createVariable}>
+            <div className={cn(fill && "min-h-0 flex-1")}>
+              <ChartEditor
+                fill={fill}
+                spec={widgetToChartSpec(widget)}
+                onChange={(spec) => onChange(chartSpecToWidget(widget, spec))}
+              />
+            </div>
+          </VariableAdminProvider>
         </DashboardProvider>
       ) : widget.type === "text" ? (
         <TextWidgetEditor widget={widget} onChange={onChange} />

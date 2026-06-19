@@ -133,7 +133,7 @@ export function InputWidgetEditor({
         </Select>
       </FieldRow>
 
-      <KindOptions control={control} onChange={setControl} />
+      <KindOptions control={control} onChange={setControl} variables={variables} />
     </div>
   );
 }
@@ -143,15 +143,17 @@ export function InputWidgetEditor({
 function KindOptions({
   control,
   onChange,
+  variables,
 }: {
   control: Control;
   onChange: (next: Control) => void;
+  variables: VariableDecl[];
 }): React.ReactElement | null {
   switch (control.kind) {
     case "dateRange":
       return <DateRangeOptions control={control} onChange={onChange} />;
     case "granularity":
-      return <GranularityOptions control={control} onChange={onChange} />;
+      return <GranularityOptions control={control} onChange={onChange} variables={variables} />;
     case "select":
       return <SelectOptions control={control} onChange={onChange} />;
     case "memberSelect":
@@ -200,9 +202,11 @@ function DateRangeOptions({
 function GranularityOptions({
   control,
   onChange,
+  variables,
 }: {
   control: ControlOf<"granularity">;
   onChange: (next: Control) => void;
+  variables: VariableDecl[];
 }): React.ReactElement {
   const selected = new Set(control.options ?? []);
   const toggle = (g: Granularity): void => {
@@ -212,30 +216,56 @@ function GranularityOptions({
     const list = GranularitySchema.options.filter((o) => next.has(o));
     onChange({ ...control, options: list.length > 0 ? list : undefined });
   };
+  const rangeVars = variables.filter((v) => v.type === "dateRange" || v.type === "time");
+  const NONE = "__none__";
   return (
-    <FieldRow label="Granularities" hint="Leave all off to offer every granularity.">
-      <div className="flex flex-wrap gap-1.5">
-        {GranularitySchema.options.map((g) => {
-          const on = selected.has(g);
-          return (
-            <button
-              key={g}
-              type="button"
-              aria-pressed={on}
-              onClick={() => toggle(g)}
-              className={
-                "rounded-md border px-2 py-1 text-xs capitalize transition-colors " +
-                (on
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : "border-border text-muted-foreground hover:text-foreground")
-              }
-            >
-              {g}
-            </button>
-          );
-        })}
-      </div>
-    </FieldRow>
+    <>
+      <FieldRow
+        label="Proportion to"
+        hint="Narrow the buckets to a date-range variable's span (e.g. hours for a 1-day range)."
+      >
+        <Select
+          value={control.rangeVariable ?? NONE}
+          onValueChange={(v) => onChange({ ...control, rangeVariable: v === NONE ? undefined : v })}
+          disabled={rangeVars.length === 0}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={rangeVars.length === 0 ? "No date-range variables" : "None"} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>None</SelectItem>
+            {rangeVars.map((v) => (
+              <SelectItem key={v.name} value={v.name}>
+                {v.label ? `${v.label} (${v.name})` : v.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldRow>
+      <FieldRow label="Granularities" hint="Leave all off to offer every granularity (or the proportioned set).">
+        <div className="flex flex-wrap gap-1.5">
+          {GranularitySchema.options.map((g) => {
+            const on = selected.has(g);
+            return (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(g)}
+                className={
+                  "rounded-md border px-2 py-1 text-xs capitalize transition-colors " +
+                  (on
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border text-muted-foreground hover:text-foreground")
+                }
+              >
+                {g}
+              </button>
+            );
+          })}
+        </div>
+      </FieldRow>
+    </>
   );
 }
 

@@ -304,7 +304,12 @@ export const InputControlSchema = z
         })
         .strict(),
       z
-        .object({ kind: z.literal("granularity"), options: z.array(GranularitySchema).optional() })
+        .object({
+          kind: z.literal("granularity"),
+          options: z.array(GranularitySchema).optional(),
+          /** A dateRange variable whose span narrows the offered granularities. */
+          rangeVariable: z.string().optional(),
+        })
         .strict(),
       z
         .object({

@@ -254,6 +254,7 @@ export function DashboardEditor({
                 widget={editingWidget}
                 variables={draft.variables}
                 onChange={handleWidgetChange}
+                onVariablesChange={handleVariablesChange}
               />
             ) : editingWidget ? (
               <div className="mx-auto h-full max-w-3xl overflow-y-auto">
@@ -261,6 +262,7 @@ export function DashboardEditor({
                   widget={editingWidget}
                   variables={draft.variables}
                   onChange={handleWidgetChange}
+                  onVariablesChange={handleVariablesChange}
                 />
               </div>
             ) : null}

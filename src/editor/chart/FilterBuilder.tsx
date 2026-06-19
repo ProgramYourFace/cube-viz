@@ -12,7 +12,15 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/components/ui/utils";
 import { useCubeMeta } from "@/hooks";
-import type { FilterOperator, LeafFilter, QueryFilter } from "@/spec";
+import {
+  isVarRef,
+  type DateRange,
+  type FilterOperator,
+  type LeafFilter,
+  type QueryFilter,
+  type Scalar,
+  type VarRef,
+} from "@/spec";
 
 import { MemberPicker } from "../primitives/MemberPicker";
 import {
@@ -21,6 +29,9 @@ import {
   operatorsForType,
   VALUELESS_OPERATORS,
 } from "../primitives/meta-helpers";
+import { DateRangeValueEditor } from "./binding/DateRangeValueEditor";
+import { ValueBinding } from "./binding/ValueBinding";
+import type { BindKind } from "./binding/variable-binding";
 
 /**
  * Leaf-filter list builder (docs/03 §A3.1 step 5). Edits the flat list of leaf
@@ -104,9 +115,6 @@ export function FilterBuilder({
           ? l.filter.operator
           : operators[0];
         const needsValue = !VALUELESS_OPERATORS.has(operator);
-        const valuesText = (l.filter.values ?? [])
-          .map((v) => (typeof v === "object" ? `{${v.var}}` : String(v)))
-          .join(", ");
 
         return (
           <div
@@ -160,15 +168,13 @@ export function FilterBuilder({
                 </SelectContent>
               </Select>
               {needsValue ? (
-                <Input
-                  value={valuesText}
-                  onChange={(e) =>
-                    updateLeaf(i, { values: splitValues(e.target.value) })
-                  }
-                  placeholder="value, value…"
-                  disabled={disabled}
-                  className="min-w-0 flex-1"
-                />
+                <div className="min-w-0 flex-1">
+                  <FilterValueField
+                    values={l.filter.values}
+                    memberType={member?.type}
+                    onChange={(values) => updateLeaf(i, { values })}
+                  />
+                </div>
               ) : (
                 <span className="flex-1 text-xs text-muted-foreground">No value needed</span>
               )}
@@ -195,6 +201,73 @@ export function FilterBuilder({
       </Button>
     </div>
   );
+}
+
+interface FilterValueFieldProps {
+  values: LeafFilter["values"];
+  /** The member's primitive type (drives the editor + which variables can bind). */
+  memberType: string | undefined;
+  onChange: (values: (Scalar | VarRef)[]) => void;
+}
+
+/**
+ * A filter's value — a FIXED literal (date range for time members, else comma-separated
+ * scalars) OR a `{var}` binding — through the shared {@link ValueBinding}. A bound filter
+ * is `values: [{var}]`; the resolver spreads multi-select variables + drops empties.
+ */
+function FilterValueField({ values, memberType, onChange }: FilterValueFieldProps): React.ReactElement {
+  const list = values ?? [];
+  const bound = list.length === 1 && isVarRef(list[0]);
+
+  if (memberType === "time") {
+    const current: DateRange | VarRef | undefined = bound ? (list[0] as VarRef) : toDateRange(list);
+    return (
+      <ValueBinding
+        kind="dateRange"
+        value={current}
+        onChange={(next) =>
+          onChange(next === undefined ? [] : isVarRef(next) ? [next] : dateRangeToValues(next))
+        }
+        renderFixed={(r, set) => <DateRangeValueEditor value={r} onChange={set} />}
+      />
+    );
+  }
+
+  const bindKind: BindKind =
+    memberType === "number" ? "number" : memberType === "boolean" ? "boolean" : "string";
+  const current: Scalar[] | VarRef | undefined = bound
+    ? (list[0] as VarRef)
+    : (list.filter((v) => !isVarRef(v)) as Scalar[]);
+  return (
+    <ValueBinding
+      kind={bindKind}
+      value={current}
+      onChange={(next) =>
+        onChange(next === undefined ? [] : isVarRef(next) ? [next] : (next as Scalar[]))
+      }
+      renderFixed={(arr, set) => (
+        <Input
+          value={(arr ?? []).map(String).join(", ")}
+          onChange={(e) => set(splitValues(e.target.value))}
+          placeholder="value, value…"
+          className="h-8"
+        />
+      )}
+    />
+  );
+}
+
+/** Derive a {@link DateRange} from a leaf's literal values (relative string or [from,to]). */
+function toDateRange(values: (Scalar | VarRef)[]): DateRange | undefined {
+  const scalars = values.filter((v) => !isVarRef(v)).map(String);
+  if (scalars.length >= 2) return [scalars[0], scalars[1]];
+  if (scalars.length === 1) return scalars[0];
+  return undefined;
+}
+
+/** A {@link DateRange} as a leaf's `values` array (relative → 1 entry, absolute → 2). */
+function dateRangeToValues(dr: DateRange): (Scalar | VarRef)[] {
+  return typeof dr === "string" ? [dr] : [dr[0], dr[1]];
 }
 
 /** Split a comma-separated value string into trimmed, non-empty string values. */

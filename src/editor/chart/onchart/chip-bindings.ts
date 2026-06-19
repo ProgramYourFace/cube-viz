@@ -1,4 +1,12 @@
-import type { ChartColorToken, ChartSpec, Granularity, SeriesMeta } from "@/spec";
+import type {
+  ChartColorToken,
+  ChartSpec,
+  DateRange,
+  Granularity,
+  SeriesMeta,
+  TimeDimension,
+  VarRef,
+} from "@/spec";
 
 import { buildSeries, categoryOf, seriesMetaOf, timeDimensionOf } from "../helpers";
 import { removeField, type FieldKind, type WellDef } from "../builder/wells";
@@ -33,18 +41,22 @@ export interface ChipBindings {
   label?: string;
   /** The EXPLICIT color token (undefined = auto/ramp); for the color picker's value. */
   colorToken?: ChartColorToken;
-  /** A date-X granularity, when this field is the time dimension. */
-  granularity?: Granularity;
+  /** The time bucket — a literal granularity OR a `{var}` binding — when this is the time field. */
+  granularity?: Granularity | VarRef;
+  /** The date range — a literal range OR a `{var}` binding — when this is the time field. */
+  dateRange?: DateRange | VarRef;
   /** A combo render type, when this is a combo Y field. */
   render?: ComboRender;
   canRename: boolean;
   /** Whether a per-series color is meaningful (one rendered series ↔ this field). */
   canColor: boolean;
-  isDateX: boolean;
+  /** Whether this placed field IS the (groupable) time dimension → granularity + date range. */
+  isTimeField: boolean;
   isComboY: boolean;
   onRename: (label: string | undefined) => void;
   onRecolor: (token: ChartColorToken | null) => void;
-  onGranularity: (g: Granularity) => void;
+  onGranularity: (g: Granularity | VarRef | undefined) => void;
+  onDateRange: (range: DateRange | VarRef | undefined) => void;
   onRender: (r: ComboRender) => void;
   onRemove: () => void;
 }
@@ -96,11 +108,11 @@ export function chipBindings(
       : undefined;
 
   const timeDim = timeDimensionOf(query);
-  const isDateX =
-    well.kinds.includes("time") &&
-    timeDim?.dimension === member &&
-    typeof timeDim.granularity === "string";
-  const granularity = isDateX ? (timeDim?.granularity as Granularity) : undefined;
+  // This placed field IS the (groupable) time dimension — so it owns granularity +
+  // date range, each of which may be a literal OR a `{var}` binding.
+  const isTimeField = well.kinds.includes("time") && timeDim?.dimension === member;
+  const granularity = isTimeField ? timeDim?.granularity : undefined;
+  const dateRange = isTimeField ? timeDim?.dateRange : undefined;
 
   const render = isComboY
     ? (comboSeries.find((s) => s.member === member)?.render ?? "line")
@@ -150,10 +162,20 @@ export function chipBindings(
     else if (usesSeriesMeta) patchSeriesMeta({ ...meta, colorToken: token ?? undefined });
   };
 
-  const onGranularity = (g: Granularity): void => {
+  // Set a time-dimension field (granularity / dateRange), dropping a key set to undefined.
+  const patchTimeDim = (patch: Partial<TimeDimension>): void => {
     if (!timeDim) return;
-    update({ ...spec, query: { ...query, timeDimensions: [{ ...timeDim, granularity: g }] } });
+    const next: TimeDimension = { ...timeDim };
+    for (const key of Object.keys(patch) as (keyof TimeDimension)[]) {
+      const v = patch[key];
+      if (v === undefined) delete next[key];
+      else (next as Record<string, unknown>)[key] = v;
+    }
+    update({ ...spec, query: { ...query, timeDimensions: [next] } });
   };
+
+  const onGranularity = (g: Granularity | VarRef | undefined): void => patchTimeDim({ granularity: g });
+  const onDateRange = (range: DateRange | VarRef | undefined): void => patchTimeDim({ dateRange: range });
 
   const onRender = (r: ComboRender): void => patchComboSeries({ render: r });
 
@@ -164,17 +186,19 @@ export function chipBindings(
     label,
     colorToken,
     granularity,
+    dateRange,
     render,
     canRename: isComboY || isTableCol || usesSeriesMeta,
     // A color dot is meaningful only when one rendered series ↔ this field: a
     // measures-mode cartesian Y measure, or a combo Y series. (Pivot Y, pie size,
     // scatter, etc. colour per-datum, so they show an icon, not a swatch.)
     canColor: (isCartesianY && measuresMode) || isComboY,
-    isDateX,
+    isTimeField,
     isComboY,
     onRename,
     onRecolor,
     onGranularity,
+    onDateRange,
     onRender,
     onRemove,
   };

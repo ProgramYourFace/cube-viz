@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { format, parse } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -180,14 +180,58 @@ const ALL_GRANULARITIES: Granularity[] = [
   "year",
 ];
 
+/** Sensible granularity options for a date-range span (finest→coarsest, ≈3 buckets). */
+function granularitiesForSpan(days: number): Granularity[] {
+  if (days <= 2) return ["minute", "hour", "day"];
+  if (days <= 31) return ["hour", "day", "week"];
+  if (days <= 186) return ["day", "week", "month"];
+  if (days <= 731) return ["week", "month", "quarter"];
+  return ["month", "quarter", "year"];
+}
+
+/** Approximate the day-span of a resolved date-range value (absolute pair or relative). */
+function rangeSpanDays(range: VariableValue | undefined): number | undefined {
+  if (Array.isArray(range) && range.length === 2 && typeof range[0] === "string") {
+    const a = Date.parse(range[0]);
+    const b = Date.parse(range[1] as string);
+    if (!Number.isNaN(a) && !Number.isNaN(b)) return Math.max(1, Math.abs(b - a) / 86_400_000);
+  }
+  if (typeof range === "string") {
+    const m = range.match(/(\d+)\s*(day|week|month|quarter|year)/i);
+    if (m) {
+      const mult: Record<string, number> = { day: 1, week: 7, month: 30, quarter: 91, year: 365 };
+      return Number(m[1]) * (mult[m[2].toLowerCase()] ?? 1);
+    }
+    const lc = range.toLowerCase();
+    if (lc.includes("today") || lc.includes("yesterday")) return 1;
+    if (lc.includes("week")) return 7;
+    if (lc.includes("month")) return 30;
+    if (lc.includes("quarter")) return 91;
+    if (lc.includes("year")) return 365;
+  }
+  return undefined;
+}
+
 function GranularityControl({
   value,
   onChange,
   control,
 }: InputControlProps): ReactElement {
   const cfg = control as Extract<InputControl["control"], { kind: "granularity" }>;
-  const options = cfg.options ?? ALL_GRANULARITIES;
+  const { resolveValue } = useDashboard();
+  // Proportion the offered buckets to the bound date range's span (when configured).
+  const span = cfg.rangeVariable ? rangeSpanDays(resolveValue(cfg.rangeVariable)) : undefined;
+  const options =
+    cfg.options ?? (span !== undefined ? granularitiesForSpan(span) : ALL_GRANULARITIES);
   const current = typeof value === "string" ? value : "";
+
+  // If the span shrank past the current bucket, snap to the finest still-valid one.
+  const optionsKey = options.join(",");
+  useEffect(() => {
+    if (current && !options.includes(current as Granularity)) onChange(options[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, optionsKey]);
+
   return (
     <Select
       value={current}

@@ -13,6 +13,8 @@ import { memberTypeIcon } from "../../primitives/MemberPicker";
 import type { MemberOption } from "../../primitives/meta-helpers";
 import type { WellDef } from "../builder/wells";
 import { chipBindings, type ComboRender } from "./chip-bindings";
+import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
+import { ValueBinding } from "../binding/ValueBinding";
 
 export interface PillReorder {
   canUp: boolean;
@@ -62,7 +64,7 @@ export function FieldPill({
   const display = b.label || defaultLabel;
   const showSwatch = b.canColor && resolvedColor !== undefined;
   // Whether the field has anything to configure; if not, the pill is just a label + ×.
-  const hasConfig = b.canRename || showSwatch || b.isDateX || (b.isComboY && !!b.render) || !!reorder;
+  const hasConfig = b.canRename || showSwatch || b.isTimeField || (b.isComboY && !!b.render) || !!reorder;
 
   const commitRename = (value: string): void => {
     const trimmed = value.trim();
@@ -134,15 +136,29 @@ export function FieldPill({
               </div>
             ) : null}
 
-            {b.isDateX ? (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">Group dates by</span>
-                <GranularityPicker
-                  value={b.granularity}
-                  onChange={b.onGranularity}
-                  className="h-8 w-full"
-                />
-              </div>
+            {b.isTimeField ? (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">Date range</span>
+                  <ValueBinding
+                    kind="dateRange"
+                    value={b.dateRange}
+                    onChange={b.onDateRange}
+                    renderFixed={(r, set) => <DateRangeValueEditor value={r} onChange={set} />}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">Group dates by</span>
+                  <ValueBinding
+                    kind="granularity"
+                    value={b.granularity}
+                    onChange={b.onGranularity}
+                    renderFixed={(g, set) => (
+                      <GranularityPicker value={g} onChange={set} className="h-8 w-full" />
+                    )}
+                  />
+                </div>
+              </>
             ) : null}
 
             {b.isComboY && b.render ? (
