@@ -1,5 +1,6 @@
 import type {
   ChartFamily,
+  ChartOptions,
   ChartSpec,
   CubeQuery,
   Granularity,
@@ -52,8 +53,8 @@ export function getWells(family: ChartFamily): WellDef[] {
     case "line":
     case "area":
       return [
-        { id: "y", label: "Y axis", hint: "the numbers to plot", cardinality: "many", kinds: ["number"] },
-        { id: "x", label: "X axis", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
+        { id: "y", label: "Values", hint: "the numbers to plot", cardinality: "many", kinds: ["number"] },
+        { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
         {
           id: "color",
           label: "Color",
@@ -65,8 +66,8 @@ export function getWells(family: ChartFamily): WellDef[] {
       ];
     case "combo":
       return [
-        { id: "x", label: "X axis", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
-        { id: "y", label: "Y axis", hint: "the numbers to plot", cardinality: "many", kinds: ["number"] },
+        { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
+        { id: "y", label: "Values", hint: "the numbers to plot", cardinality: "many", kinds: ["number"] },
       ];
     case "pie":
       return [
@@ -158,7 +159,8 @@ export function readWells(spec: ChartSpec): Record<string, string[]> {
       };
     }
     case "pie": {
-      return { slices: one(categoryOf(chart)), size: measuresOf(chart) };
+      // `size` is a one-cardinality well — clamp to a single measure for an imported spec.
+      return { slices: one(categoryOf(chart)), size: one(measuresOf(chart)[0]) };
     }
     case "scatter": {
       const fo = familyOptions(spec);
@@ -492,15 +494,23 @@ function placeCombo(
     return {
       ...spec,
       query: { ...query, measures: withMember(query.measures, member) },
-      chart: { ...chart, familyOptions: { ...fo, series: nextSeries } },
+      // Keep mapping.series in lockstep with familyOptions.series — normalize() drives
+      // categories + per-series data off mapping, so a stale mapping makes the renderer
+      // fall back to raw rows (unbucketed time → collapsed x → stuck tooltip).
+      chart: { ...chart, familyOptions: { ...fo, series: nextSeries }, mapping: comboMapping(chart, nextSeries) },
     };
   }
 
   return spec;
 }
 
-/** Combo carries series in familyOptions; the envelope mapping needs a measures
- *  series only to satisfy the cartesian renderer's category. Keep it minimal. */
+/** The envelope mapping for combo, kept in sync with its `familyOptions.series`. */
+function comboMapping(chart: ChartOptions, series: { member: string }[]): SeriesMapping | undefined {
+  const category = categoryOf(chart);
+  if (!category) return chart.mapping;
+  return { category: { member: category }, series: { mode: "measures", members: series.map((s) => s.member) } };
+}
+
 function comboSeriesAsMapping(spec: ChartSpec): SeriesMapping["series"] {
   return { mode: "measures", members: comboSeries(spec).map((s) => s.member) };
 }
@@ -523,7 +533,7 @@ function removeCombo(spec: ChartSpec, wellId: string, member: string): ChartSpec
     return {
       ...spec,
       query: { ...query, measures },
-      chart: { ...chart, familyOptions: { ...fo, series: nextSeries } },
+      chart: { ...chart, familyOptions: { ...fo, series: nextSeries }, mapping: comboMapping(chart, nextSeries) },
     };
   }
 

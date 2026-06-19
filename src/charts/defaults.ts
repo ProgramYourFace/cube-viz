@@ -189,6 +189,14 @@ export const ComboFamilyOptionsSchema = z
   .object({
     series: z.array(ComboSeriesOptSchema),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
+    // Global render options applied per render-type (line/area get curve+dots+connectNulls
+    // +strokeWidth; area gets fillOpacity) — so combo isn't stuck on hard-coded defaults.
+    curve: CurveSchema.optional(),
+    dots: z.boolean().optional(),
+    connectNulls: z.boolean().optional(),
+    strokeWidth: z.number().optional(),
+    fillOpacity: z.number().optional(),
+    barRadius: z.number().optional(),
   })
   .strict();
 export type ComboFamilyOptions = z.infer<typeof ComboFamilyOptionsSchema>;

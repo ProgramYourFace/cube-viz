@@ -70,16 +70,30 @@ export function ChartEditor({
     (q.measures?.length ?? 0) > 0 ||
     (q.dimensions?.length ?? 0) > 0 ||
     (q.timeDimensions?.some((td) => typeof td.granularity === "string") ?? false);
+  const hasMeasure = (q: ChartSpec["query"]): boolean => (q.measures?.length ?? 0) > 0;
+  // Every chart family except `table` draws from a value (measure); a dimension-only
+  // query renders an empty plot, so gate those families on a measure and tell the
+  // user what's still missing rather than showing a blank chart with no guidance.
+  const needsMeasure = draft.chart.family !== "table";
   // Show the chart only when BOTH the live draft and the committed spec have fields:
   // gating on the draft means clearing every field flips straight to the empty
   // chooser (a stale non-empty `committed` won't keep issuing a now-orphaned query).
-  const previewReady = hasFields(draft.query) && hasFields(previewSpec.query);
+  const previewReady =
+    hasFields(draft.query) &&
+    hasFields(previewSpec.query) &&
+    (!needsMeasure || (hasMeasure(draft.query) && hasMeasure(previewSpec.query)));
+
+  // Family-aware hint so the empty state names the missing required field.
+  const emptyHint =
+    needsMeasure && !hasMeasure(draft.query)
+      ? `Add a value (measure) to build this ${draft.chart.family} chart.`
+      : "Add fields from the axes to build this chart.";
 
   const preview = previewReady ? (
     <CubeChart query={previewSpec.query} chart={previewSpec.chart} />
   ) : (
     <div className="flex size-full items-center justify-center rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-      <span className="max-w-[16rem]">Add fields from the axes to build this chart.</span>
+      <span className="max-w-[16rem]">{emptyHint}</span>
     </div>
   );
 

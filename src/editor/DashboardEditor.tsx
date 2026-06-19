@@ -92,11 +92,16 @@ export function DashboardEditor({
     debounceMs,
   );
 
-  // The single mutation seam: update the draft + fire (debounced) onChange.
+  // The single mutation seam: a FUNCTIONAL update so two commits in one tick compose
+  // (e.g. inline "New variable" adds a variable AND binds the widget — both must land,
+  // not clobber each other via a stale `draft` closure).
   const commit = React.useCallback(
-    (next: DashboardSpec) => {
-      setDraft(next);
-      debouncedChange(next);
+    (update: (prev: DashboardSpec) => DashboardSpec) => {
+      setDraft((prev) => {
+        const next = update(prev);
+        debouncedChange(next);
+        return next;
+      });
     },
     [debouncedChange],
   );
@@ -106,12 +111,12 @@ export function DashboardEditor({
   const handleAdd = React.useCallback(
     (type: WidgetSpec["type"]) => {
       const widget = newWidget(type, mintId());
-      commit(appendWidget(draft, widget));
+      commit((d) => appendWidget(d, widget));
       setSelectedId(widget.id);
       // Open the new widget straight into the full-screen editor.
       setEditing({ kind: "widget", id: widget.id });
     },
-    [commit, draft, mintId],
+    [commit, mintId],
   );
 
   // Clicking a widget only selects it (the ring) — editing is via the edit button.
@@ -124,33 +129,33 @@ export function DashboardEditor({
 
   const handleDelete = React.useCallback(
     (id: string) => {
-      commit(removeWidget(draft, id));
+      commit((d) => removeWidget(d, id));
       setSelectedId((cur) => (cur === id ? null : cur));
       setEditing((cur) => (cur?.kind === "widget" && cur.id === id ? null : cur));
     },
-    [commit, draft],
+    [commit],
   );
 
   const handleWidgetChange = React.useCallback(
-    (widget: WidgetSpec) => commit(replaceWidget(draft, widget)),
-    [commit, draft],
+    (widget: WidgetSpec) => commit((d) => replaceWidget(d, widget)),
+    [commit],
   );
 
   const handleLayoutChange = React.useCallback(
-    (layout: LayoutItem[]) => commit({ ...draft, layout: mergeLayout(draft.layout, layout) }),
-    [commit, draft],
+    (layout: LayoutItem[]) => commit((d) => ({ ...d, layout: mergeLayout(d.layout, layout) })),
+    [commit],
   );
 
   /* ────────────────────────── dashboard-level edits ─────────────────────── */
 
   const handleNameChange = React.useCallback(
-    (name: string) => commit({ ...draft, name: name || undefined }),
-    [commit, draft],
+    (name: string) => commit((d) => ({ ...d, name: name || undefined })),
+    [commit],
   );
 
   const handleVariablesChange = React.useCallback(
-    (variables: VariableDecl[]) => commit({ ...draft, variables }),
-    [commit, draft],
+    (variables: VariableDecl[]) => commit((d) => ({ ...d, variables })),
+    [commit],
   );
 
   /* ──────────────────────────────── save ────────────────────────────────── */

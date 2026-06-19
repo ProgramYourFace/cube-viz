@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useEffect, useId, useMemo, useState, type ReactElement } from "react";
 import { format, parse } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -429,6 +429,7 @@ export function InputWidgetView({ control, title }: InputWidgetViewProps): React
 
   // The widget title is the field label (falling back to the variable's own label).
   const fieldLabel = title ?? decl.label ?? decl.name;
+  const controlId = useId();
 
   // Toggle renders its own inline label; the others get a stacked field label.
   if (kind === "toggle") {
@@ -437,8 +438,16 @@ export function InputWidgetView({ control, title }: InputWidgetViewProps): React
 
   return (
     <div>
-      <label className={labelClass}>{fieldLabel}</label>
-      <Control value={value} onChange={onChange} decl={decl} control={control.control} />
+      <label className={labelClass} htmlFor={controlId}>
+        {fieldLabel}
+      </label>
+      <Control
+        value={value}
+        onChange={onChange}
+        decl={decl}
+        control={control.control}
+        controlId={controlId}
+      />
     </div>
   );
 }

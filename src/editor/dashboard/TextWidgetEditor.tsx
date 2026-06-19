@@ -15,6 +15,7 @@ import {
 
 import type { TextWidget, TipTapDoc } from "@/spec";
 import { cn } from "@/components/ui/utils";
+import { RICH_TEXT_CLASS } from "@/render/richTextStyles";
 
 import { FieldRow } from "../primitives/FieldRow";
 
@@ -67,11 +68,12 @@ export function TextWidgetEditor({
     },
     editorProps: {
       attributes: {
+        // Same typography as the rendered widget + editor chrome (border/padding/focus),
+        // so WYSIWYG: what you type matches the final render exactly.
         class: cn(
-          "prose prose-sm max-w-none min-h-[8rem] rounded-md border border-input bg-background px-3 py-2 text-sm",
+          RICH_TEXT_CLASS,
+          "min-h-[8rem] rounded-md border border-input bg-background px-3 py-2",
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-          "[&_a]:text-primary [&_a]:underline",
-          "[&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold",
         ),
       },
     },

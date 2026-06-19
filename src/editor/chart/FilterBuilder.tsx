@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/components/ui/utils";
-import { useCubeMeta } from "@/hooks";
+import { useCubeMeta, useOptionalDashboard } from "@/hooks";
 import {
   isVarRef,
   type DateRange,
@@ -28,6 +28,7 @@ import {
   OPERATOR_LABELS,
   operatorsForType,
   VALUELESS_OPERATORS,
+  type MemberOption,
 } from "../primitives/meta-helpers";
 import { DateRangeValueEditor } from "./binding/DateRangeValueEditor";
 import { ValueBinding } from "./binding/ValueBinding";
@@ -74,6 +75,12 @@ export function FilterBuilder({
   className,
 }: FilterBuilderProps): React.ReactElement {
   const { meta } = useCubeMeta();
+  const decls = useOptionalDashboard()?.decls ?? [];
+  // Only one filter is expanded for editing at a time; the rest show a readable summary.
+  const [editingIndex, setEditingIndex] = React.useState<number | null>(null);
+  // The in-progress NEW filter — held locally until it has a field, so we never write
+  // an incomplete (field-less) leaf to the spec (which would flash "invalid chart spec").
+  const [draft, setDraft] = React.useState<LeafFilter | null>(null);
   const filters = value ?? [];
 
   // Split leaves (editable) from group nodes (preserved verbatim, re-appended on emit).
@@ -84,104 +91,74 @@ export function FilterBuilder({
     else groups.push(f);
   });
 
+  // Only committed (field-bearing) leaves live in the spec.
+  const committed = leaves.map((l) => l.filter);
+
   const emit = (nextLeaves: LeafFilter[]): void => {
-    const next: QueryFilter[] = [...nextLeaves, ...groups];
+    const clean = nextLeaves.filter((l) => l.member.length > 0);
+    const next: QueryFilter[] = [...clean, ...groups];
     onChange(next.length > 0 ? next : undefined);
   };
 
-  const updateLeaf = (leafIndex: number, patch: Partial<LeafFilter>): void => {
-    const nextLeaves = leaves.map((l, i) =>
-      i === leafIndex ? ({ ...l.filter, ...patch } as LeafFilter) : l.filter,
-    );
-    emit(nextLeaves);
-  };
+  const updateLeaf = (i: number, patch: Partial<LeafFilter>): void =>
+    emit(committed.map((f, idx) => (idx === i ? ({ ...f, ...patch } as LeafFilter) : f)));
+  const removeLeaf = (i: number): void => emit(committed.filter((_, idx) => idx !== i));
 
-  const addLeaf = (): void => {
-    const blank: LeafFilter = { member: "", operator: "equals", values: [] };
-    emit([...leaves.map((l) => l.filter), blank]);
-  };
-
-  const removeLeaf = (leafIndex: number): void => {
-    emit(leaves.filter((_, i) => i !== leafIndex).map((l) => l.filter));
+  // The draft promotes to a real filter the moment it gets a field (keeps spec valid).
+  const updateDraft = (patch: Partial<LeafFilter>): void => {
+    const base = draft ?? { member: "", operator: "equals", values: [] };
+    const next = { ...base, ...patch } as LeafFilter;
+    if (next.member) {
+      setDraft(null);
+      setEditingIndex(committed.length);
+      emit([...committed, next]);
+    } else {
+      setDraft(next);
+    }
   };
 
   return (
     <div data-slot="filter-builder" className={cn("flex flex-col gap-2", className)}>
-      {leaves.map((l, i) => {
-        const member = findMember(meta, l.filter.member);
-        const operators = operatorsForType(member?.type);
-        // Keep the chosen operator valid even before a member resolves.
-        const operator = operators.includes(l.filter.operator)
-          ? l.filter.operator
-          : operators[0];
-        const needsValue = !VALUELESS_OPERATORS.has(operator);
+      {committed.length === 0 && !draft ? (
+        <p className="px-1 py-1 text-xs text-muted-foreground">No filters — the chart shows all rows.</p>
+      ) : null}
 
-        return (
-          <div
+      {committed.map((leaf, i) => {
+        const member = findMember(meta, leaf.member);
+        return editingIndex === i ? (
+          <FilterEditRow
             key={i}
-            className="flex flex-col gap-1.5 rounded-md border border-border bg-background p-2"
-          >
-            <div className="flex items-start gap-1.5">
-              <div className="min-w-0 flex-1">
-                <MemberPicker
-                  cube={cube}
-                  cubes={cubes}
-                  kind="dimensionOrMeasure"
-                  value={l.filter.member || undefined}
-                  onChange={(m) => updateLeaf(i, { member: m })}
-                  placeholder="Field…"
-                  disabled={disabled}
-                />
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-9 shrink-0 text-muted-foreground hover:text-destructive"
-                disabled={disabled}
-                onClick={() => removeLeaf(i)}
-                aria-label="Remove filter"
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Select
-                value={operator}
-                onValueChange={(v) =>
-                  updateLeaf(i, {
-                    operator: v as FilterOperator,
-                    // Clear values when switching to a valueless operator.
-                    values: VALUELESS_OPERATORS.has(v as FilterOperator) ? [] : l.filter.values,
-                  })
-                }
-                disabled={disabled}
-              >
-                <SelectTrigger className="w-40 shrink-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {operators.map((op) => (
-                    <SelectItem key={op} value={op}>
-                      {OPERATOR_LABELS[op]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {needsValue ? (
-                <div className="min-w-0 flex-1">
-                  <FilterValueField
-                    values={l.filter.values}
-                    memberType={member?.type}
-                    onChange={(values) => updateLeaf(i, { values })}
-                  />
-                </div>
-              ) : (
-                <span className="flex-1 text-xs text-muted-foreground">No value needed</span>
-              )}
-            </div>
-          </div>
+            leaf={leaf}
+            member={member}
+            cube={cube}
+            cubes={cubes}
+            disabled={disabled}
+            onChange={(patch) => updateLeaf(i, patch)}
+            onDone={() => setEditingIndex(null)}
+            onRemove={() => removeLeaf(i)}
+          />
+        ) : (
+          <FilterSummaryRow
+            key={i}
+            text={summarize(leaf, member?.label, decls)}
+            disabled={disabled}
+            onEdit={() => setEditingIndex(i)}
+            onRemove={() => removeLeaf(i)}
+          />
         );
       })}
+
+      {draft ? (
+        <FilterEditRow
+          leaf={draft}
+          member={findMember(meta, draft.member)}
+          cube={cube}
+          cubes={cubes}
+          disabled={disabled}
+          onChange={updateDraft}
+          onRemove={() => setDraft(null)}
+        />
+      ) : null}
 
       {groups.length > 0 ? (
         <p className="text-xs text-muted-foreground">
@@ -193,14 +170,175 @@ export function FilterBuilder({
         variant="outline"
         size="sm"
         className="w-full justify-start"
-        disabled={disabled}
-        onClick={addLeaf}
+        disabled={disabled || !!draft}
+        onClick={() => {
+          setEditingIndex(null);
+          setDraft({ member: "", operator: "equals", values: [] });
+        }}
       >
         <Plus className="size-4" />
         Add filter
       </Button>
     </div>
   );
+}
+
+/* ─────────────────────────────── filter rows ─────────────────────────────── */
+
+/** A collapsed filter: a plain-English sentence that opens to edit on click. */
+function FilterSummaryRow({
+  text,
+  disabled,
+  onEdit,
+  onRemove,
+}: {
+  text: string;
+  disabled?: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}): React.ReactElement {
+  return (
+    <div className="flex items-center gap-1 rounded-md border border-border bg-background">
+      <button
+        type="button"
+        onClick={onEdit}
+        className="min-w-0 flex-1 truncate px-3 py-2 text-left text-sm hover:text-foreground"
+        title="Edit filter"
+      >
+        {text}
+      </button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+        disabled={disabled}
+        onClick={onRemove}
+        aria-label="Remove filter"
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    </div>
+  );
+}
+
+/** An expanded filter editor: Field → Condition → Value, each full-width. */
+function FilterEditRow({
+  leaf,
+  member,
+  cube,
+  cubes,
+  disabled,
+  onChange,
+  onDone,
+  onRemove,
+}: {
+  leaf: LeafFilter;
+  member: MemberOption | undefined;
+  cube?: string;
+  cubes?: string[];
+  disabled?: boolean;
+  onChange: (patch: Partial<LeafFilter>) => void;
+  onDone?: () => void;
+  onRemove: () => void;
+}): React.ReactElement {
+  const operators = operatorsForType(member?.type);
+  const operator = operators.includes(leaf.operator) ? leaf.operator : operators[0];
+  const needsValue = !VALUELESS_OPERATORS.has(operator);
+
+  return (
+    <div className="flex flex-col gap-2.5 rounded-lg border border-ring/50 bg-muted/30 p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Filter</span>
+        <div className="flex items-center gap-0.5">
+          {onDone && leaf.member ? (
+            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={onDone}>
+              <Check className="size-3.5" /> Done
+            </Button>
+          ) : null}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+            disabled={disabled}
+            onClick={onRemove}
+            aria-label="Remove filter"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] font-medium text-muted-foreground">Field</span>
+        <MemberPicker
+          cube={cube}
+          cubes={cubes}
+          kind="dimensionOrMeasure"
+          value={leaf.member || undefined}
+          onChange={(m) => onChange({ member: m })}
+          placeholder="Choose a field…"
+          disabled={disabled}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] font-medium text-muted-foreground">Condition</span>
+        <Select
+          value={operator}
+          onValueChange={(v) =>
+            onChange({
+              operator: v as FilterOperator,
+              values: VALUELESS_OPERATORS.has(v as FilterOperator) ? [] : leaf.values,
+            })
+          }
+          disabled={disabled}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {operators.map((op) => (
+              <SelectItem key={op} value={op}>
+                {OPERATOR_LABELS[op]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+
+      {needsValue ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-muted-foreground">Value</span>
+          <FilterValueField
+            values={leaf.values}
+            memberType={member?.type}
+            onChange={(values) => onChange({ values })}
+          />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+/** A plain-English summary of a leaf filter for the collapsed row. */
+function summarize(
+  leaf: LeafFilter,
+  fieldLabel: string | undefined,
+  decls: { name: string; label?: string }[],
+): string {
+  const field = fieldLabel ?? leaf.member;
+  if (!field) return "New filter";
+  const op = OPERATOR_LABELS[leaf.operator] ?? leaf.operator;
+  if (VALUELESS_OPERATORS.has(leaf.operator)) return `${field} ${op}`;
+  const parts = (leaf.values ?? []).map((v) => {
+    if (isVarRef(v)) {
+      const d = decls.find((x) => x.name === v.var);
+      // Strip braces from the label so they can't break the {…} wrapper.
+      return `{${(d?.label ?? v.var).replace(/[{}]/g, "")}}`;
+    }
+    return String(v);
+  });
+  return parts.length > 0 ? `${field} ${op} ${parts.join(", ")}` : `${field} ${op} …`;
 }
 
 interface FilterValueFieldProps {

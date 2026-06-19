@@ -34,8 +34,16 @@ export interface JoinScope {
   scopeComponent?: number;
 }
 
-/** Resolve the current {@link JoinScope} for a chart spec against the meta. */
-export function computeJoinScope(meta: CubeMeta | undefined, spec: ChartSpec): JoinScope {
+/**
+ * Resolve the current {@link JoinScope} for a chart spec. `sourceHint` (a cube/view
+ * name chosen via the Source control) scopes an EMPTY chart to that source so the
+ * picker focuses it before any field is placed.
+ */
+export function computeJoinScope(
+  meta: CubeMeta | undefined,
+  spec: ChartSpec,
+  sourceHint?: string,
+): JoinScope {
   const all = listCubes(meta);
   const views = all.filter((c) => c.type === "view");
 
@@ -50,9 +58,11 @@ export function computeJoinScope(meta: CubeMeta | undefined, spec: ChartSpec): J
     }
   }
 
-  const anchorCube = anchor ? findCube(meta, anchor.cube) : undefined;
+  // With no placed field, fall back to the chosen source hint so the picker is scoped.
+  const hintCube = !anchor && sourceHint ? findCube(meta, sourceHint) : undefined;
+  const anchorCube = anchor ? findCube(meta, anchor.cube) : hintCube;
   const viewLocked = anchorCube?.type === "view" ? anchorCube.name : undefined;
-  const scopeComponent = anchor?.connectedComponent;
+  const scopeComponent = anchor?.connectedComponent ?? hintCube?.connectedComponent;
 
   const measures = spec.query.measures ?? [];
   const measureSource = measures.length ? cubeOfMember(measures[0]) : undefined;
@@ -61,7 +71,7 @@ export function computeJoinScope(meta: CubeMeta | undefined, spec: ChartSpec): J
     return { viewLocked, relatedCubes: [], views, measureSource, scopeComponent };
   }
 
-  const sourceName = measureSource ?? anchor?.cube;
+  const sourceName = measureSource ?? anchor?.cube ?? hintCube?.name;
   const sourceCube = sourceName ? findCube(meta, sourceName) : undefined;
 
   const cubeSources = all.filter((c) => c.type === "cube" && c.connectedComponent !== undefined);

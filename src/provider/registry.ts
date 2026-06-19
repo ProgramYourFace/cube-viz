@@ -80,6 +80,8 @@ export interface InputControlProps<V extends VariableValue = VariableValue> {
   decl: VariableDecl;
   /** Kind-specific config (presets, options, min/max, …). */
   control: InputControl["control"];
+  /** Id for the focusable element, so the field's `<label htmlFor>` associates (a11y). */
+  controlId?: string;
 }
 
 /** An input-control override component. */

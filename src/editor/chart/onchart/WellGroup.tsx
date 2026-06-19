@@ -34,6 +34,10 @@ export interface WellGroupProps {
   orientation: "vertical" | "horizontal";
   /** Force single-field behaviour on a many-well (e.g. a Y axis under a color split). */
   lockedSingle?: boolean;
+  /** Disable reorder (e.g. an axis sub-group renders a filtered subset of one well). */
+  disableReorder?: boolean;
+  /** Label override (e.g. "Left axis" / "Right axis" for a split value well). */
+  label?: string;
   /** Popover anchoring for this well's add-slot. */
   pickerSide?: "top" | "bottom" | "left" | "right";
   pickerAlign?: "start" | "center" | "end";
@@ -59,6 +63,8 @@ export function WellGroup({
   badge,
   orientation,
   lockedSingle,
+  disableReorder,
+  label,
   pickerSide,
   pickerAlign,
 }: WellGroupProps): React.ReactElement {
@@ -68,6 +74,7 @@ export function WellGroup({
   const showAdd = many || placed.length === 0;
   const total = placed.length;
   const vertical = orientation === "vertical";
+  const groupLabel = label ?? well.label;
 
   const addSlot = (
     <FieldPickerPopover
@@ -87,7 +94,7 @@ export function WellGroup({
         )}
       >
         <Plus className="size-3.5" />
-        {placed.length === 0 ? well.label : "Add"}
+        {placed.length === 0 ? groupLabel : "Add"}
       </button>
     </FieldPickerPopover>
   );
@@ -98,7 +105,7 @@ export function WellGroup({
       className={cn("flex flex-col gap-1", !vertical && "min-w-0")}
     >
       <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        <span className="truncate">{well.label}</span>
+        <span className="truncate">{groupLabel}</span>
         {badge ? (
           <span className="truncate rounded-sm bg-muted px-1 py-px text-[9px] normal-case text-muted-foreground">
             {badge}
@@ -121,7 +128,7 @@ export function WellGroup({
             resolvedColor={colorFor(member)}
             className={vertical ? "w-full" : undefined}
             reorder={
-              many && total > 1
+              many && total > 1 && !disableReorder
                 ? {
                     canUp: i > 0,
                     canDown: i < total - 1,

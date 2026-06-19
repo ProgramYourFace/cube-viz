@@ -22,11 +22,14 @@ import type { MemberOption } from "../../primitives/meta-helpers";
 
 export type ComboRender = "bar" | "line" | "area";
 
+type AxisSide = "left" | "right";
+
 interface ComboSeriesEntry {
   member: string;
   render: ComboRender;
   label?: string;
   colorToken?: ChartColorToken;
+  axis?: AxisSide;
 }
 
 interface TableColumnEntry {
@@ -47,6 +50,10 @@ export interface ChipBindings {
   dateRange?: DateRange | VarRef;
   /** A combo render type, when this is a combo Y field. */
   render?: ComboRender;
+  /** The value axis (left/right) this series is on — for dual-axis families. */
+  axis?: AxisSide;
+  /** Whether this field can be moved between left/right value axes (line + combo Y). */
+  canAxis: boolean;
   canRename: boolean;
   /** Whether a per-series color is meaningful (one rendered series ↔ this field). */
   canColor: boolean;
@@ -58,6 +65,7 @@ export interface ChipBindings {
   onGranularity: (g: Granularity | VarRef | undefined) => void;
   onDateRange: (range: DateRange | VarRef | undefined) => void;
   onRender: (r: ComboRender) => void;
+  onAxis: (side: AxisSide) => void;
   onRemove: () => void;
 }
 
@@ -116,6 +124,14 @@ export function chipBindings(
 
   const render = isComboY
     ? (comboSeries.find((s) => s.member === member)?.render ?? "line")
+    : undefined;
+
+  // Dual value axes (left/right) are renderer-supported for line (SeriesMeta.axis) and
+  // combo (ComboSeriesOpt.axis). bar/area have a single value axis → no axis control.
+  const isLineY = family === "line" && well.id === "y";
+  const canAxis = (isLineY && measuresMode) || isComboY;
+  const axis: AxisSide | undefined = canAxis
+    ? ((isComboY ? comboSeries.find((s) => s.member === member)?.axis : meta?.axis) ?? "left")
     : undefined;
 
   /* ── writers ────────────────────────────────────────────────────────────── */
@@ -179,6 +195,11 @@ export function chipBindings(
 
   const onRender = (r: ComboRender): void => patchComboSeries({ render: r });
 
+  const onAxis = (side: AxisSide): void => {
+    if (isComboY) patchComboSeries({ axis: side });
+    else if (usesSeriesMeta) patchSeriesMeta({ ...meta, axis: side });
+  };
+
   const onRemove = (): void => update(removeField(spec, family, well.id, member));
 
   return {
@@ -188,6 +209,8 @@ export function chipBindings(
     granularity,
     dateRange,
     render,
+    axis,
+    canAxis,
     canRename: isComboY || isTableCol || usesSeriesMeta,
     // A color dot is meaningful only when one rendered series ↔ this field: a
     // measures-mode cartesian Y measure, or a combo Y series. (Pivot Y, pie size,
@@ -200,8 +223,32 @@ export function chipBindings(
     onGranularity,
     onDateRange,
     onRender,
+    onAxis,
     onRemove,
   };
+}
+
+/**
+ * Set a Y series' value AXIS (left/right) for a dual-axis family — combo
+ * (`ComboSeriesOpt.axis`) or measures-mode cartesian/line (`SeriesMeta.axis`). Pure;
+ * used by the overlay to auto-assign a freshly-added measure to an axis by its unit.
+ */
+export function withSeriesAxis(spec: ChartSpec, family: string, member: string, side: AxisSide): ChartSpec {
+  const { chart } = spec;
+  if (family === "combo") {
+    const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
+    const series = (Array.isArray(fo.series) ? fo.series : []).map((s) =>
+      (s as ComboSeriesEntry).member === member ? { ...(s as ComboSeriesEntry), axis: side } : s,
+    );
+    return { ...spec, chart: { ...chart, familyOptions: { ...fo, series } } };
+  }
+  const s = chart.mapping?.series;
+  if (s && s.mode === "measures") {
+    const meta: Record<string, SeriesMeta> = { ...(s.meta ?? {}) };
+    meta[member] = { ...(meta[member] ?? {}), axis: side };
+    return { ...spec, chart: { ...chart, mapping: { ...chart.mapping!, series: { ...s, meta } } } };
+  }
+  return spec;
 }
 
 function kindOf(option: MemberOption | undefined): FieldKind {

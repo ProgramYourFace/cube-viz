@@ -17,6 +17,7 @@ import { cn } from "@/components/ui/utils";
 import type { ChartFamily, ChartSpec } from "@/spec";
 
 import { FAMILY_LABELS } from "../helpers";
+import { CustomizeSection } from "../builder/CustomizeSection";
 
 const FAMILY_ORDER: ChartFamily[] = [
   "bar",
@@ -89,8 +90,16 @@ export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps)
             <ChevronDown className="size-3 text-muted-foreground" />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="center" className="w-64 p-2">
-          <TypeGrid family={family} onPick={setFamily} />
+        <PopoverContent align="center" className="flex max-h-[70vh] w-72 flex-col gap-2.5 overflow-y-auto p-3">
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Chart type</p>
+            <TypeGrid family={family} onPick={setFamily} />
+          </div>
+          {/* Options live WITH the type — they're per-family (stacking, curve, donut…). */}
+          <div className="flex flex-col gap-1.5 border-t border-border pt-2.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Options</p>
+            <CustomizeSection spec={spec} update={update} />
+          </div>
         </PopoverContent>
       </Popover>
     </div>

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Calendar, Check, Database, Hash, Layers, Search, Table2, Type } from "lucide-react";
+import { Calendar, Check, ChevronDown, ChevronRight, Database, Hash, Layers, Search, Table2, Type } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
@@ -61,6 +61,8 @@ export function FieldPickerPopover({
   const [search, setSearch] = React.useState("");
   // Which source we're browsing: the raw table graph, or a specific view.
   const [browse, setBrowse] = React.useState<string>(scope.viewLocked ?? "tables");
+  // Per-table collapse overrides (related tables default collapsed; search forces open).
+  const [collapsedOverride, setCollapsedOverride] = React.useState<Record<string, boolean>>({});
 
   // Re-seed the browse source whenever the popover (re)opens for a new scope.
   React.useEffect(() => {
@@ -135,41 +137,65 @@ export function FieldPickerPopover({
               {isLoading ? "Loading fields…" : "No fields match."}
             </p>
           ) : (
-            rendered.map(({ section, groups }, idx) => (
-              <div key={section.cube.name}>
-                {section.tag === "related" && idx > 0 && rendered[idx - 1].section.tag !== "related" ? (
-                  <div className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                    Related tables
-                  </div>
-                ) : null}
-                <div className="flex items-center gap-1.5 px-1 pb-0.5 pt-1.5">
-                  <Table2 className="size-3 text-muted-foreground" />
-                  <span className="truncate text-xs font-medium">{section.cube.title}</span>
-                  {section.tag === "source" ? (
-                    <span className="rounded-sm bg-primary/10 px-1 py-px text-[9px] font-medium uppercase text-primary">
-                      source
-                    </span>
-                  ) : section.tag === "dataset" ? (
-                    <span className="rounded-sm bg-muted px-1 py-px text-[9px] font-medium uppercase text-muted-foreground">
-                      dataset
-                    </span>
+            rendered.map(({ section, groups }, idx) => {
+              const count = groups.reduce((n, g) => n + g.items.length, 0);
+              // Related tables collapse by default; an explicit toggle overrides; a
+              // search query forces every table open so matches are always visible.
+              const defaultCollapsed = section.tag === "related";
+              const effectiveCollapsed = collapsedOverride[section.cube.name] ?? defaultCollapsed;
+              const expanded = q.length > 0 ? true : !effectiveCollapsed;
+              return (
+                <div key={section.cube.name}>
+                  {section.tag === "related" && idx > 0 && rendered[idx - 1].section.tag !== "related" ? (
+                    <div className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                      Related tables
+                    </div>
                   ) : null}
-                </div>
-                {groups.map((g) => (
-                  <div key={g.kind} className="pb-0.5">
-                    {showKindHeaders ? (
-                      <div className="flex items-center gap-1.5 px-2 pb-0.5 pt-1 text-[9px] uppercase tracking-wide text-muted-foreground/70">
-                        {g.icon}
-                        {g.label}
-                      </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCollapsedOverride((m) => ({ ...m, [section.cube.name]: !effectiveCollapsed }))
+                    }
+                    className="flex w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left hover:bg-accent/50"
+                  >
+                    {expanded ? (
+                      <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                    )}
+                    <Table2 className="size-3 shrink-0 text-muted-foreground" />
+                    <span className="truncate text-xs font-medium">{section.cube.title}</span>
+                    {section.tag === "source" ? (
+                      <span className="rounded-sm bg-primary/10 px-1 py-px text-[9px] font-medium uppercase text-primary">
+                        source
+                      </span>
+                    ) : section.tag === "dataset" ? (
+                      <span className="rounded-sm bg-muted px-1 py-px text-[9px] font-medium uppercase text-muted-foreground">
+                        dataset
+                      </span>
                     ) : null}
-                    {g.items.map((o) => (
-                      <PickerRow key={o.name} option={o} reason={blockReason(o)} onPick={() => pick(o.name, g.kind)} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            ))
+                    <span className="ml-auto shrink-0 pr-1 text-[10px] tabular-nums text-muted-foreground/70">
+                      {count}
+                    </span>
+                  </button>
+                  {expanded
+                    ? groups.map((g) => (
+                        <div key={g.kind} className="pb-0.5 pl-4">
+                          {showKindHeaders ? (
+                            <div className="flex items-center gap-1.5 px-2 pb-0.5 pt-1 text-[9px] uppercase tracking-wide text-muted-foreground/70">
+                              {g.icon}
+                              {g.label}
+                            </div>
+                          ) : null}
+                          {g.items.map((o) => (
+                            <PickerRow key={o.name} option={o} reason={blockReason(o)} onPick={() => pick(o.name, g.kind)} />
+                          ))}
+                        </div>
+                      ))
+                    : null}
+                </div>
+              );
+            })
           )}
         </div>
       </PopoverContent>

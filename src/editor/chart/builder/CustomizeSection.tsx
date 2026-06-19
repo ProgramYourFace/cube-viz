@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { DEFAULTS } from "@/charts";
 import type { ChartOptions, ChartSpec } from "@/spec";
 
 import { FieldRow } from "../../primitives/FieldRow";
@@ -12,11 +13,12 @@ export interface CustomizeSectionProps {
 }
 
 type StackChoice = "none" | "stacked" | "percent";
+type CurveChoice = "monotone" | "linear" | "step" | "natural";
 
 /**
- * The small per-family option set (docs/05 §4) — only the meaning-changing toggles.
- * Everything formatting/legend/axis/tooltip is automatic and lives nowhere in the
- * UI. Orientation is bar-only. Combo's render lives on the chips, so it has none.
+ * The per-family option set (docs/05 §4) — the meaning-changing toggles for each chart
+ * type, exposed so the UI covers what the renderers support (no spec hand-editing).
+ * Lives under the chart-type picker since options are inherently per-type.
  */
 export function CustomizeSection({ spec, update }: CustomizeSectionProps): React.ReactElement {
   const { chart } = spec;
@@ -28,12 +30,10 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
   const setFamilyOptions = (patch: Record<string, unknown>): void =>
     update({ ...spec, chart: { ...chart, familyOptions: { ...fo, ...patch } } });
 
+  // Reflect the EFFECTIVE stack mode (an unset value renders with the family default).
+  const effectiveStack = chart.stackMode ?? DEFAULTS[family].envelope.stackMode ?? "none";
   const stackValue: StackChoice =
-    chart.stackMode === "stacked"
-      ? "stacked"
-      : chart.stackMode === "percent"
-        ? "percent"
-        : "none";
+    effectiveStack === "stacked" ? "stacked" : effectiveStack === "percent" ? "percent" : "none";
 
   const StackControl = (
     <FieldRow label="Stacked">
@@ -51,8 +51,47 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     </FieldRow>
   );
 
-  // Legend is shared by every family that draws one (not KPI / table). Defaults to on;
-  // a UI toggle matters most for color-split charts where colours map to categories.
+  // A full curve picker (not a binary toggle) so step/natural survive editing.
+  const CurveControl = (
+    <FieldRow label="Line shape">
+      <SegmentedControl<CurveChoice>
+        aria-label="Line shape"
+        size="sm"
+        options={[
+          { value: "monotone", label: "Smooth" },
+          { value: "linear", label: "Straight" },
+          { value: "step", label: "Step" },
+          { value: "natural", label: "Curved" },
+        ]}
+        value={(fo.curve as CurveChoice) ?? "monotone"}
+        onChange={(v) => setFamilyOptions({ curve: v })}
+      />
+    </FieldRow>
+  );
+
+  const PointsControl = (
+    <SwitchRow
+      label="Show points"
+      checked={fo.dots === true}
+      onChange={(on) => setFamilyOptions({ dots: on })}
+    />
+  );
+  const ValueLabelsControl = (
+    <SwitchRow
+      label="Show value labels"
+      checked={fo.showValueLabels === true}
+      onChange={(on) => setFamilyOptions({ showValueLabels: on })}
+    />
+  );
+  const ConnectNullsControl = (
+    <SwitchRow
+      label="Connect gaps"
+      checked={fo.connectNulls === true}
+      onChange={(on) => setFamilyOptions({ connectNulls: on })}
+    />
+  );
+
+  // Legend is shared by every family that draws one (not KPI / table).
   const hasLegend = family !== "kpi" && family !== "table";
   const LegendControl = hasLegend ? (
     <SwitchRow
@@ -61,6 +100,9 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
       onChange={(on) => setEnvelope({ legend: { ...chart.legend, show: on } })}
     />
   ) : null;
+
+  // Remember the last comparison config so toggling KPI comparison off→on restores it.
+  const lastComparison = React.useRef<Record<string, unknown> | undefined>(undefined);
 
   const body = ((): React.ReactNode => {
     switch (family) {
@@ -73,22 +115,17 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
               onChange={(on) => setEnvelope({ orientation: on ? "horizontal" : "vertical" })}
             />
             {StackControl}
+            {ValueLabelsControl}
           </>
         );
 
       case "line":
         return (
           <>
-            <SwitchRow
-              label="Curved"
-              checked={(fo.curve ?? "monotone") === "monotone"}
-              onChange={(on) => setFamilyOptions({ curve: on ? "monotone" : "linear" })}
-            />
-            <SwitchRow
-              label="Show points"
-              checked={fo.dots === true}
-              onChange={(on) => setFamilyOptions({ dots: on })}
-            />
+            {CurveControl}
+            {PointsControl}
+            {ConnectNullsControl}
+            {ValueLabelsControl}
           </>
         );
 
@@ -96,11 +133,9 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
         return (
           <>
             {StackControl}
-            <SwitchRow
-              label="Curved"
-              checked={(fo.curve ?? "monotone") === "monotone"}
-              onChange={(on) => setFamilyOptions({ curve: on ? "monotone" : "linear" })}
-            />
+            {CurveControl}
+            {PointsControl}
+            {ConnectNullsControl}
           </>
         );
 
@@ -114,7 +149,8 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
         );
 
       case "kpi": {
-        const comparison = fo.comparison as { mode: string; showAsPercent?: boolean } | undefined;
+        const comparison = fo.comparison as Record<string, unknown> | undefined;
+        if (comparison) lastComparison.current = comparison;
         const comparing = comparison !== undefined;
         return (
           <>
@@ -123,20 +159,30 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
               checked={comparing}
               onChange={(on) =>
                 setFamilyOptions({
-                  comparison: on ? { mode: "previousPeriod", showAsPercent: true } : undefined,
+                  comparison: on
+                    ? (lastComparison.current ?? { mode: "previousPeriod", showAsPercent: true })
+                    : undefined,
                 })
               }
             />
             {comparing ? (
-              <SwitchRow
-                label="Show as %"
-                checked={comparison?.showAsPercent !== false}
-                onChange={(on) =>
-                  setFamilyOptions({
-                    comparison: { ...comparison, mode: "previousPeriod", showAsPercent: on },
-                  })
-                }
-              />
+              <>
+                <SwitchRow
+                  label="Show as %"
+                  checked={(comparison?.showAsPercent ?? true) !== false}
+                  onChange={(on) =>
+                    setFamilyOptions({ comparison: { ...comparison, showAsPercent: on } })
+                  }
+                />
+                <SwitchRow
+                  label="Higher is better"
+                  hint="Off = a decrease is good (inverts the up/down colors)."
+                  checked={(comparison?.goodDirection ?? "up") !== "down"}
+                  onChange={(on) =>
+                    setFamilyOptions({ comparison: { ...comparison, goodDirection: on ? "up" : "down" } })
+                  }
+                />
+              </>
             ) : null}
           </>
         );
@@ -144,18 +190,40 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
 
       case "table":
         return (
-          <SwitchRow
-            label="Compact rows"
-            checked={fo.rowHeight === "compact"}
-            onChange={(on) => setFamilyOptions({ rowHeight: on ? "compact" : "default" })}
-          />
+          <>
+            <SwitchRow
+              label="Compact rows"
+              checked={fo.rowHeight === "compact"}
+              onChange={(on) => setFamilyOptions({ rowHeight: on ? "compact" : "default" })}
+            />
+            <SwitchRow
+              label="Sortable columns"
+              checked={fo.sortable !== false}
+              onChange={(on) => setFamilyOptions({ sortable: on })}
+            />
+            <SwitchRow
+              label="Sticky header"
+              checked={fo.stickyHeader !== false}
+              onChange={(on) => setFamilyOptions({ stickyHeader: on })}
+            />
+            <SwitchRow
+              label="Row numbers"
+              checked={fo.showRowNumbers === true}
+              onChange={(on) => setFamilyOptions({ showRowNumbers: on })}
+            />
+          </>
         );
 
       case "combo":
         return (
-          <p className="py-1 text-xs text-muted-foreground">
-            Set bar / line / area per series on each Y-axis field above.
-          </p>
+          <>
+            {CurveControl}
+            {PointsControl}
+            {ConnectNullsControl}
+            <p className="py-1 text-xs text-muted-foreground">
+              Set bar / line / area and the axis per series on each Values field above.
+            </p>
+          </>
         );
 
       case "scatter":

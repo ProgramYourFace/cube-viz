@@ -5,7 +5,7 @@ import {
   type LayoutItem as RglLayoutItem,
   type ResponsiveLayouts,
 } from "react-grid-layout";
-import { GripVertical, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -137,8 +137,8 @@ export function EditorCanvas({
             // full-body overlay (added below for chart/text widgets) both carry, so
             // you can drag anywhere on a chart even when it has no title bar.
             dragConfig={{ enabled: true, handle: `.${DRAG_HANDLE_CLASS}` }}
-            // Every corner is a resize grip.
-            resizeConfig={{ enabled: true, handles: ["se", "sw", "ne", "nw"] }}
+            // Resize from three corners; the top-right is reserved for the actions.
+            resizeConfig={{ enabled: true, handles: ["se", "sw", "nw"] }}
             onLayoutChange={handleLayoutChange}
           >
             {spec.layout.map((item) => {
@@ -178,13 +178,16 @@ export function EditorCanvas({
                       : "ring-1 ring-transparent hover:ring-border focus-visible:ring-border",
                   )}
                 >
-                  {/* Edit + delete affordances — appear on hover/selection. Inset
-                      from the right edge so the NE resize grip stays grabbable. */}
+                  {/* Edit + delete actions — top-right corner, on hover/selection.
+                      Idle = pointer-events-none so they never block dragging; the
+                      top-right resize corner is dropped so they don't conflict. */}
                   <div
                     className={cn(
-                      "absolute right-9 top-1.5 z-[4] flex items-center gap-1",
-                      "opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100",
-                      selected && "opacity-100",
+                      "absolute right-2 top-2 z-[4] flex items-center gap-1",
+                      "pointer-events-none opacity-0 transition-opacity",
+                      "focus-within:pointer-events-auto focus-within:opacity-100",
+                      "group-hover:pointer-events-auto group-hover:opacity-100",
+                      selected && "pointer-events-auto opacity-100",
                     )}
                   >
                     <button
@@ -218,32 +221,14 @@ export function EditorCanvas({
                       <Trash2 />
                     </button>
                   </div>
-                  {/* Frameless inputs have no title bar, so they get an explicit drag
-                      grip (charts/text use the full-body overlay below). */}
-                  {widget.type === "input" && (
-                    <div
-                      aria-hidden
-                      className={cn(
-                        DRAG_HANDLE_CLASS,
-                        "absolute left-1.5 top-1.5 z-[4] flex size-7 cursor-move items-center justify-center rounded-md",
-                        "bg-card/90 text-muted-foreground shadow-sm backdrop-blur [&_svg]:size-4",
-                        "opacity-0 transition-opacity group-hover:opacity-100",
-                        selected && "opacity-100",
-                      )}
-                    >
-                      <GripVertical />
-                    </div>
-                  )}
                   <RenderWidget widget={widget} editable />
-                  {/* Drag-anywhere overlay: a plain div react-draggable can grab —
-                      recharts' SVG otherwise swallows the mousedown so the chart
-                      body couldn't be dragged. No z-index, so it sits ABOVE the
-                      chart but BELOW the (later-DOM) RGL resize handles + the
-                      z-[2] delete button. Clicks bubble to the wrapper (select).
-                      Inputs skip it so their controls stay interactive. */}
-                  {widget.type !== "input" && (
-                    <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "absolute inset-0 cursor-move rounded-xl")} />
-                  )}
+                  {/* Drag-anywhere: the WHOLE widget is the drag handle (a plain div
+                      RGL can grab; recharts' SVG and input controls otherwise swallow
+                      the mousedown). Covers every widget type — in edit mode you only
+                      position / resize / edit-via-buttons, never use a widget's own
+                      controls, so covering them is correct. Sits below the z-[3] resize
+                      handles + z-[4] action buttons; clicks bubble to the wrapper. */}
+                  <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "absolute inset-0 cursor-move rounded-xl")} />
                 </div>
               );
             })}

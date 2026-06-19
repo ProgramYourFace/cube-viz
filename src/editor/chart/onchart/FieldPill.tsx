@@ -64,7 +64,8 @@ export function FieldPill({
   const display = b.label || defaultLabel;
   const showSwatch = b.canColor && resolvedColor !== undefined;
   // Whether the field has anything to configure; if not, the pill is just a label + ×.
-  const hasConfig = b.canRename || showSwatch || b.isTimeField || (b.isComboY && !!b.render) || !!reorder;
+  const hasConfig =
+    b.canRename || showSwatch || b.isTimeField || (b.isComboY && !!b.render) || b.canAxis || !!reorder;
 
   const commitRename = (value: string): void => {
     const trimmed = value.trim();
@@ -179,6 +180,28 @@ export function FieldPill({
                     >
                       {RENDER_LABELS[r]}
                       {b.render === r ? <Check className="size-3" /> : null}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {b.canAxis ? (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-medium text-muted-foreground">Axis</span>
+                <div className="flex gap-1">
+                  {(["left", "right"] as const).map((side) => (
+                    <button
+                      key={side}
+                      type="button"
+                      onClick={() => b.onAxis(side)}
+                      className={cn(
+                        "flex flex-1 items-center justify-center gap-1 rounded-md border px-2 py-1 text-xs capitalize",
+                        b.axis === side ? "border-ring bg-accent" : "border-input hover:bg-accent/50",
+                      )}
+                    >
+                      {side}
+                      {b.axis === side ? <Check className="size-3" /> : null}
                     </button>
                   ))}
                 </div>

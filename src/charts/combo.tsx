@@ -102,7 +102,7 @@ export function ComboChartFamily({ data, options, format }: ChartComponentProps)
             align={legendAlign(options.legend.position)}
           />
         )}
-        {seriesOpts.map((s) => renderSeries(s, data))}
+        {seriesOpts.map((s) => renderSeries(s, data, fo))}
         {fo.referenceLines?.map((r, k) => (
           <ReferenceLine
             key={k}
@@ -118,10 +118,17 @@ export function ComboChartFamily({ data, options, format }: ChartComponentProps)
   );
 }
 
-function renderSeries(s: ComboSeriesOpt, data: NormalizedChartData): React.ReactElement {
+function renderSeries(
+  s: ComboSeriesOpt,
+  data: NormalizedChartData,
+  fo: ComboFamilyOptions,
+): React.ReactElement {
   const yAxisId = s.axis === "right" ? "right" : "left";
   const color = `var(${colorVarName(s.member)})`;
   const name = s.label ?? labelOf(data, s.member);
+  // Per-series option, then the family-level option, then a sensible default.
+  const curve = s.curve ?? fo.curve ?? "monotone";
+  const connectNulls = fo.connectNulls ?? false;
 
   if (s.render === "bar") {
     return (
@@ -132,7 +139,7 @@ function renderSeries(s: ComboSeriesOpt, data: NormalizedChartData): React.React
         name={name}
         stackId={s.stackId}
         fill={color}
-        radius={[3, 3, 0, 0]}
+        radius={[fo.barRadius ?? 3, fo.barRadius ?? 3, 0, 0]}
       />
     );
   }
@@ -141,13 +148,16 @@ function renderSeries(s: ComboSeriesOpt, data: NormalizedChartData): React.React
       <Area
         key={s.member}
         yAxisId={yAxisId}
-        type={s.curve ?? "monotone"}
+        type={curve}
         dataKey={s.member}
         name={name}
         stackId={s.stackId}
         stroke={color}
+        strokeWidth={fo.strokeWidth ?? 2}
         fill={color}
-        fillOpacity={0.25}
+        fillOpacity={fo.fillOpacity ?? 0.25}
+        dot={fo.dots ?? false}
+        connectNulls={connectNulls}
       />
     );
   }
@@ -155,12 +165,13 @@ function renderSeries(s: ComboSeriesOpt, data: NormalizedChartData): React.React
     <Line
       key={s.member}
       yAxisId={yAxisId}
-      type={s.curve ?? "monotone"}
+      type={curve}
       dataKey={s.member}
       name={name}
       stroke={color}
-      strokeWidth={2}
-      dot={false}
+      strokeWidth={fo.strokeWidth ?? 2}
+      dot={fo.dots ?? false}
+      connectNulls={connectNulls}
     />
   );
 }
