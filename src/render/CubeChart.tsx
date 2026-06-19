@@ -9,6 +9,7 @@ import { makeChartFormat } from "@/format";
 import type { ChartFormat } from "@/format";
 import { createUnitsFormatter, mergeUnitConversions } from "@/units";
 import { resolveChart, useCubeVizContext } from "@/provider";
+import { kpiSparklineInput } from "./kpiSparkline";
 
 /**
  * The data-fetching wrapper around the pure {@link ChartRenderer}
@@ -53,6 +54,17 @@ export function CubeChart({ query, chart }: CubeChartProps): ReactElement {
 
   const { data, isLoading, error } = useNormalizedSeries(query, resolvedChart);
 
+  // KPI sparkline: a KPI's main query is an AGGREGATE (the headline number), so its
+  // trend is fetched as a SEPARATE time-bucketed query and merged into the render data
+  // below. `kpiSparklineInput` returns null for non-KPI charts or KPIs without a
+  // sparkline, so the hook is skipped (no extra request) in the common case.
+  const sparkInput = useMemo(() => kpiSparklineInput(query, resolvedChart), [query, resolvedChart]);
+  const sparkline = useNormalizedSeries(
+    sparkInput?.query ?? query,
+    sparkInput?.chart ?? resolvedChart,
+    { skip: !sparkInput },
+  );
+
   // Resolve the family component once (registry override → builtin) and feed it to
   // the pure dispatcher as a single-entry `components` map so resolution stays in
   // one place (resolveChart) rather than duplicating the registry-fallback logic.
@@ -63,7 +75,15 @@ export function CubeChart({ query, chart }: CubeChartProps): ReactElement {
 
   // ChartRenderer requires non-null data; before the first result we feed an empty
   // placeholder and let `state.loading` / `state.error` take precedence inside it.
-  const renderData = data ?? EMPTY_DATA;
+  // For a KPI with a sparkline, merge the trend's series/categories onto the aggregate
+  // data — the headline still reads `raw.rows` from the main aggregate query.
+  const renderData = useMemo<NormalizedChartData>(() => {
+    const base = data ?? EMPTY_DATA;
+    if (sparkInput && sparkline.data) {
+      return { ...base, series: sparkline.data.series, categories: sparkline.data.categories };
+    }
+    return base;
+  }, [data, sparkInput, sparkline.data]);
   const emptyConfig: ChartConfig = {};
 
   // Build the bound, member-aware formatter from the context-resolved ValueFormatter.

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ import {
   type VarRef,
 } from "@/spec";
 
-import { MemberPicker } from "../primitives/MemberPicker";
+import { MemberPicker, memberTypeIcon } from "../primitives/MemberPicker";
 import {
   findMember,
   OPERATOR_LABELS,
@@ -30,9 +30,24 @@ import {
   VALUELESS_OPERATORS,
   type MemberOption,
 } from "../primitives/meta-helpers";
+import { FieldPickerPopover } from "./onchart/FieldPickerPopover";
+import type { JoinScope } from "./onchart/join-scope";
+import type { WellDef } from "./builder/wells";
 import { DateRangeValueEditor } from "./binding/DateRangeValueEditor";
 import { ValueBinding } from "./binding/ValueBinding";
 import type { BindKind } from "./binding/variable-binding";
+
+/**
+ * A virtual "well" so the filter Field selector can reuse the rich {@link
+ * FieldPickerPopover} (grouped Numbers / Categories / Dates, search, join-scope) —
+ * the same picker the axis wells use. Any field kind is filterable, time included.
+ */
+const FILTER_WELL: WellDef = {
+  id: "filter",
+  label: "Field",
+  cardinality: "one",
+  kinds: ["number", "category", "time"],
+};
 
 /**
  * Leaf-filter list builder (docs/03 §A3.1 step 5). Edits the flat list of leaf
@@ -54,6 +69,12 @@ export interface FilterBuilderProps {
    * join graph (e.g. filter a `device_trips` chart by `devices.name`). Overrides `cube`.
    */
   cubes?: string[];
+  /**
+   * The chart's cross-table join scope. When provided, the Field selector uses the
+   * rich {@link FieldPickerPopover} (matching the axis wells); without it, falls back
+   * to the plain {@link MemberPicker} (standalone/host use).
+   */
+  scope?: JoinScope;
   /** The query's current `filters` (may be undefined). */
   value?: QueryFilter[];
   onChange: (filters: QueryFilter[] | undefined) => void;
@@ -69,6 +90,7 @@ function isLeaf(f: QueryFilter): f is LeafFilter {
 export function FilterBuilder({
   cube,
   cubes,
+  scope,
   value,
   onChange,
   disabled,
@@ -132,6 +154,7 @@ export function FilterBuilder({
             member={member}
             cube={cube}
             cubes={cubes}
+            scope={scope}
             disabled={disabled}
             onChange={(patch) => updateLeaf(i, patch)}
             onDone={() => setEditingIndex(null)}
@@ -154,6 +177,7 @@ export function FilterBuilder({
           member={findMember(meta, draft.member)}
           cube={cube}
           cubes={cubes}
+          scope={scope}
           disabled={disabled}
           onChange={updateDraft}
           onRemove={() => setDraft(null)}
@@ -227,6 +251,7 @@ function FilterEditRow({
   member,
   cube,
   cubes,
+  scope,
   disabled,
   onChange,
   onDone,
@@ -236,6 +261,7 @@ function FilterEditRow({
   member: MemberOption | undefined;
   cube?: string;
   cubes?: string[];
+  scope?: JoinScope;
   disabled?: boolean;
   onChange: (patch: Partial<LeafFilter>) => void;
   onDone?: () => void;
@@ -268,18 +294,48 @@ function FilterEditRow({
         </div>
       </div>
 
-      <label className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <span className="text-[11px] font-medium text-muted-foreground">Field</span>
-        <MemberPicker
-          cube={cube}
-          cubes={cubes}
-          kind="dimensionOrMeasure"
-          value={leaf.member || undefined}
-          onChange={(m) => onChange({ member: m })}
-          placeholder="Choose a field…"
-          disabled={disabled}
-        />
-      </label>
+        {scope ? (
+          // Same rich picker as the axis wells: grouped Numbers / Categories / Dates,
+          // search, join-scope. Including Dates makes time dimensions filterable.
+          <FieldPickerPopover
+            well={FILTER_WELL}
+            placed={[]}
+            scope={scope}
+            blockReason={() => undefined}
+            onSelect={(m) => onChange({ member: m })}
+            side="bottom"
+            align="start"
+          >
+            <button
+              type="button"
+              disabled={disabled}
+              className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {member ? (
+                <span className="flex min-w-0 items-center gap-2">
+                  {memberTypeIcon(member.type)}
+                  <span className="truncate">{member.label}</span>
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Choose a field…</span>
+              )}
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            </button>
+          </FieldPickerPopover>
+        ) : (
+          <MemberPicker
+            cube={cube}
+            cubes={cubes}
+            kind="dimensionOrMeasure"
+            value={leaf.member || undefined}
+            onChange={(m) => onChange({ member: m })}
+            placeholder="Choose a field…"
+            disabled={disabled}
+          />
+        )}
+      </div>
 
       <label className="flex flex-col gap-1">
         <span className="text-[11px] font-medium text-muted-foreground">Condition</span>

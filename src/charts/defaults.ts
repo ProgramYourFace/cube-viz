@@ -2,8 +2,11 @@ import { z } from "zod";
 
 import {
   ChartColorTokenSchema,
+  DateRangeSchema,
   FormatOptionsSchema,
+  GranularitySchema,
   MemberSchema,
+  VarRefSchema,
   type ChartFamily,
   type ChartOptions,
 } from "@/spec";
@@ -114,10 +117,22 @@ export const KpiFamilyOptionsSchema = z
       })
       .strict()
       .optional(),
+    /** Inline AREA trend under the headline. TIED to the KPI: its measure defaults to
+     *  `measure` and its time dimension / range to the KPI's own query — only the
+     *  granularity (the trend bucket) is sparkline-specific. Its area is colored by the
+     *  same good/bad direction as the comparison delta (see `goodDirection`). */
     sparkline: z
-      .object({ member: MemberSchema, timeDimension: MemberSchema })
+      .object({
+        member: MemberSchema.optional(),
+        timeDimension: MemberSchema.optional(),
+        granularity: z.union([GranularitySchema, VarRefSchema]).optional(),
+        dateRange: z.union([DateRangeSchema, VarRefSchema]).optional(),
+      })
       .strict()
       .optional(),
+    /** The change direction that counts as "good" — drives BOTH the comparison delta
+     *  color and the sparkline area color. Configured once for the KPI. */
+    goodDirection: z.enum(["up", "down"]).optional(),
     gauge: z
       .object({
         min: z.number().optional(),

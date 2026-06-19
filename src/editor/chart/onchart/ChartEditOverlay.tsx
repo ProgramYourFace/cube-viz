@@ -312,7 +312,7 @@ export function ChartEditOverlay({
             hasFields={allPlaced.length > 0}
             onSelect={onSelectSource}
           />
-          <ChartFiltersPopover spec={spec} update={update} cube={cube} scopeCubes={scopeCubes} />
+          <ChartFiltersPopover spec={spec} update={update} cube={cube} scopeCubes={scopeCubes} scope={scope} />
         </div>
       </div>
 

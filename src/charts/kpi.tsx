@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts";
+import { Area, AreaChart, PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 
 import { cn } from "@/components/ui/utils";
@@ -7,9 +7,20 @@ import { ChartContainer } from "@/components/ui/chart";
 import { Card, CardContent } from "@/components/ui/card";
 
 import type { ChartConfig } from "@/components/ui/chart";
+import type { NormalizedSeries } from "@/adapter/types";
 import type { ChartComponentProps } from "./types";
 import type { KpiFamilyOptions } from "./defaults";
-import { LineChartFamily } from "./line";
+
+/** Tailwind text-color class for a change direction, shared by the delta chip + the
+ *  sparkline area (via `currentColor`) so the number and trend always agree. */
+type DirKind = "good" | "bad" | "flat";
+function directionKind(diff: number, goodDirection: "up" | "down"): DirKind {
+  if (!Number.isFinite(diff) || diff === 0) return "flat";
+  return diff > 0 === (goodDirection === "up") ? "good" : "bad";
+}
+function directionClass(kind: DirKind): string {
+  return kind === "flat" ? "text-muted-foreground" : kind === "good" ? "text-emerald-600" : "text-destructive";
+}
 
 /**
  * `kpi` — covers KPI/Number/Comparison + the folded-in radial gauge
@@ -39,8 +50,6 @@ export function KpiFamily(props: ChartComponentProps): React.ReactElement {
 
 function NumberKpi({
   data,
-  config,
-  format,
   value,
   label,
   fo,
@@ -51,7 +60,13 @@ function NumberKpi({
   fo: KpiFamilyOptions;
   fmt: (v: number) => string;
 }): React.ReactElement {
+  const goodDirection = fo.goodDirection ?? fo.comparison?.goodDirection ?? "up";
   const delta = computeDelta(data.raw.rows, value, fo);
+  const spark = fo.sparkline ? data.series[0] : undefined;
+  // The trend area is colored by the SAME good/bad direction as the delta: prefer the
+  // comparison change, else the sparkline's own net movement across the range.
+  const trendDiff = delta ? delta.diff : spark ? netChange(spark) : 0;
+  const dirClass = directionClass(directionKind(trendDiff, goodDirection));
 
   return (
     <Card className="h-full w-full">
@@ -59,21 +74,53 @@ function NumberKpi({
         <div className="text-sm font-medium text-muted-foreground">{label}</div>
         <div className="flex items-baseline gap-2">
           <span className="text-3xl font-bold tabular-nums text-foreground">{fmt(value)}</span>
-          {delta && <DeltaChip delta={delta} fo={fo} fmt={fmt} />}
+          {delta && <DeltaChip delta={delta} goodDirection={goodDirection} fo={fo} fmt={fmt} />}
         </div>
-        {fo.sparkline && data.series.length > 0 && (
-          <div className="mt-2 h-12">
-            <LineChartFamily
-              data={data}
-              config={config}
-              format={format}
-              options={{ family: "line", familyOptions: { chrome: "none" } }}
-            />
-          </div>
+        {spark && spark.data.length > 0 && (
+          <KpiSparkline series={spark} categories={data.categories} colorClass={dirClass} />
         )}
       </CardContent>
     </Card>
   );
+}
+
+/** The inline area trend. Stroke + fill inherit `currentColor` from `colorClass`, so the
+ *  trend always matches the delta's good/bad color. No axes/grid/tooltip (a sparkline). */
+function KpiSparkline({
+  series,
+  categories,
+  colorClass,
+}: {
+  series: NormalizedSeries;
+  categories: (string | number)[];
+  colorClass: string;
+}): React.ReactElement {
+  const rows = categories.map((c, i) => ({ x: typeof c === "number" ? c : String(c), v: series.data[i] ?? null }));
+  return (
+    <div className={cn("mt-2 h-12 w-full", colorClass)}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+          <Area
+            dataKey="v"
+            type="monotone"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            fill="currentColor"
+            fillOpacity={0.15}
+            dot={false}
+            isAnimationActive={false}
+            connectNulls
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Net movement of a series over its range (last minus first non-null). */
+function netChange(series: NormalizedSeries): number {
+  const vals = series.data.filter((v): v is number => v !== null);
+  return vals.length >= 2 ? vals[vals.length - 1] - vals[0] : 0;
 }
 
 interface Delta {
@@ -85,17 +132,18 @@ interface Delta {
 
 function DeltaChip({
   delta,
+  goodDirection,
   fo,
   fmt,
 }: {
   delta: Delta;
+  goodDirection: "up" | "down";
   fo: KpiFamilyOptions;
   fmt: (v: number) => string;
 }): React.ReactElement {
   const up = delta.diff > 0;
   const flat = delta.diff === 0;
-  const goodDir = fo.comparison?.goodDirection ?? "up";
-  const isGood = flat ? true : up === (goodDir === "up");
+  const isGood = flat ? true : up === (goodDirection === "up");
   const Icon = flat ? Minus : up ? ArrowUp : ArrowDown;
   const text =
     fo.comparison?.showAsPercent && delta.pct !== null

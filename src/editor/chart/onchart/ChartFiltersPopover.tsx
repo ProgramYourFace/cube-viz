@@ -6,6 +6,7 @@ import { cn } from "@/components/ui/utils";
 import type { ChartSpec, CubeQuery } from "@/spec";
 
 import { FilterBuilder } from "../FilterBuilder";
+import type { JoinScope } from "./join-scope";
 
 export interface ChartFiltersPopoverProps {
   spec: ChartSpec;
@@ -13,6 +14,8 @@ export interface ChartFiltersPopoverProps {
   cube?: string;
   /** Joinable tables for cross-table filtering. */
   scopeCubes?: string[];
+  /** Cross-table join scope — lets the Field selector reuse the rich axis-well picker. */
+  scope?: JoinScope;
 }
 
 /**
@@ -20,7 +23,7 @@ export interface ChartFiltersPopoverProps {
  * pinned to the top bar where it reads contextually as "narrow this chart". The button
  * shows the active filter count; the panel hosts the readable {@link FilterBuilder}.
  */
-export function ChartFiltersPopover({ spec, update, cube, scopeCubes }: ChartFiltersPopoverProps): React.ReactElement {
+export function ChartFiltersPopover({ spec, update, cube, scopeCubes, scope }: ChartFiltersPopoverProps): React.ReactElement {
   const { query } = spec;
   const count = (query.filters ?? []).length;
   const onFiltersChange = (filters: CubeQuery["filters"]): void =>
@@ -51,7 +54,7 @@ export function ChartFiltersPopover({ spec, update, cube, scopeCubes }: ChartFil
             Narrow this chart. Each row reads as a sentence — click to edit.
           </p>
         </div>
-        <FilterBuilder cube={cube} cubes={scopeCubes} value={query.filters} onChange={onFiltersChange} />
+        <FilterBuilder cube={cube} cubes={scopeCubes} scope={scope} value={query.filters} onChange={onFiltersChange} />
       </PopoverContent>
     </Popover>
   );
