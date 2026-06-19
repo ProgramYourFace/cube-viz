@@ -27,6 +27,10 @@ export interface UseCubeQueryOptions {
   skip?: boolean;
 }
 
+/** Safety cap applied when a query omits `limit`, so a high-cardinality dimension can't
+ *  flood the browser/WebView with an unbounded result. An explicit `limit` always wins. */
+export const DEFAULT_ROW_CAP = 5000;
+
 export function useCubeQuery(
   query: CubeQuery,
   opts?: UseCubeQueryOptions,
@@ -34,9 +38,16 @@ export function useCubeQuery(
   const { cubeClient } = useCubeVizContext();
   const skip = opts?.skip ?? false;
 
+  // Apply the default row cap when the query sets no explicit limit (a runaway guard for
+  // high-cardinality dimensions). Charts should top-N well below this; it's a safety net.
+  const effectiveQuery = useMemo<CubeQuery>(
+    () => (query.limit === undefined ? { ...query, limit: DEFAULT_ROW_CAP } : query),
+    [query],
+  );
+
   // Stable dependency key: a deterministic serialization of the query. This is
   // the cancel/ignore boundary — a changed key supersedes any in-flight fetch.
-  const queryKey = useMemo(() => JSON.stringify(query), [query]);
+  const queryKey = useMemo(() => JSON.stringify(effectiveQuery), [effectiveQuery]);
 
   const [state, setState] = useState<UseCubeQueryResult>({ isLoading: !skip });
 
@@ -52,7 +63,7 @@ export function useCubeQuery(
     cubeClient
       // Cast at the Cube seam: our CubeQuery is structurally compatible with the
       // SDK's loose `Query`, which the SDK's own types keep `any`-heavy.
-      .load(query as unknown as Query, { castNumerics: true })
+      .load(effectiveQuery as unknown as Query, { castNumerics: true })
       .then((resultSet) => {
         if (!active) return;
         setState({

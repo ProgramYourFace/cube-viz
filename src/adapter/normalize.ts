@@ -33,6 +33,13 @@ export const DEFAULT_COLOR_RAMP: ChartColorToken[] = [
   "chart-5",
 ];
 
+/** Mapping families that should still render from a measure-only (category-less) query. */
+const MEASURE_ONLY_FAMILIES = new Set<string>(["bar", "line", "area", "pie"]);
+
+/** Max distinct series a pivot renders before the tail is rolled into an "Other" series,
+ *  so a high-cardinality split stays legible (mirrors the pie family's slice rollup). */
+const MAX_PIVOT_SERIES = 8;
+
 /** A ResultSet with the handful of methods we use, loosely typed. */
 type AnyResultSet = ResultSet<Record<string, unknown>>;
 
@@ -207,9 +214,30 @@ export function normalize(
 
   const mapping = options.mapping;
 
-  // No mapping (scatter/kpi/table carry their own mapping in familyOptions): hand
-  // back the raw rows with an empty series list so those families can read raw.
   if (!mapping) {
+    const measures = resolvedQuery.measures ?? [];
+    // Measure-only chart (measures but NO category → no mapping): rather than render
+    // blank, plot one mark per measure from the single aggregate row (categories = the
+    // measure labels). scatter/kpi/table intentionally read raw, so they keep the empty
+    // series list.
+    if (MEASURE_ONLY_FAMILIES.has(options.family) && measures.length > 0) {
+      const row = rows[0] ?? {};
+      const series: NormalizedSeries[] = [
+        {
+          key: "value",
+          label: "Value",
+          data: measures.map((m) => coerceNumber(row[m])),
+          meta: resolveSeriesMeta(findMember(annotation, measures[0]), undefined, options.format),
+        },
+      ];
+      assignColors(series, options.colors);
+      const categories = measures.map(
+        (m) => findMember(annotation, m)?.shortTitle ?? findMember(annotation, m)?.title ?? m,
+      );
+      return { categories, series, raw: { rows, annotation, query: resolvedQuery }, empty: rows.length === 0 };
+    }
+    // Scatter / kpi / table carry their own mapping in familyOptions: hand back the raw
+    // rows with an empty series list so those families read raw.
     return {
       categories: [],
       series: [],
@@ -298,7 +326,7 @@ function normalizePivot(
   // The plotted measure's meta drives formatting for every pivot series.
   const valueMeta = findMember(annotation, value);
 
-  return seriesNames.map((sn): NormalizedSeries => {
+  const all = seriesNames.map((sn): NormalizedSeries => {
     // For pivot, the leading yValue is the distinct pivot value — the natural label.
     const pivotValue = sn.yValues?.[0];
     const label = pivotValue ?? sn.shortTitle ?? sn.title ?? sn.key;
@@ -310,6 +338,48 @@ function normalizePivot(
       meta: resolveSeriesMeta(valueMeta, undefined, options.format),
     };
   });
+
+  return rollupPivotSeries(all, valueMeta, options.format);
+}
+
+/**
+ * Cap a pivot to the top {@link MAX_PIVOT_SERIES} series (ranked by total) and fold the
+ * rest into a single element-wise-summed "Other" series, so a high-cardinality split
+ * stays legible instead of emitting dozens of indistinguishable, color-cycling series.
+ */
+function rollupPivotSeries(
+  series: NormalizedSeries[],
+  valueMeta: AnnotatedMember | undefined,
+  format: ChartOptions["format"],
+): NormalizedSeries[] {
+  if (series.length <= MAX_PIVOT_SERIES) return series;
+
+  const sum = (s: NormalizedSeries): number => s.data.reduce<number>((a, v) => a + (v ?? 0), 0);
+  const ranked = [...series].sort((a, b) => sum(b) - sum(a));
+  const top = ranked.slice(0, MAX_PIVOT_SERIES - 1);
+  const rest = ranked.slice(MAX_PIVOT_SERIES - 1);
+
+  const len = series[0]?.data.length ?? 0;
+  const otherData: (number | null)[] = Array.from({ length: len }, (_, i) => {
+    let sumAtI = 0;
+    let any = false;
+    for (const s of rest) {
+      const v = s.data[i];
+      if (v !== null) {
+        sumAtI += v;
+        any = true;
+      }
+    }
+    return any ? sumAtI : null;
+  });
+
+  const other: NormalizedSeries = {
+    key: "__other",
+    label: `Other (${rest.length})`,
+    data: otherData,
+    meta: resolveSeriesMeta(valueMeta, undefined, format),
+  };
+  return [...top, other];
 }
 
 /** Coerce a chart-pivot cell to `number | null`. `castNumerics` usually did this already. */

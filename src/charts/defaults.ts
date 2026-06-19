@@ -275,8 +275,10 @@ export const DEFAULTS: Record<ChartFamily, FamilyDefault> = {
     } satisfies LineFamilyOptions,
   },
   area: {
+    // No static stackMode: the area renderer defaults it SHAPE-AWARELY (a color-split
+    // pivot stacks as parts of a whole; multiple independent measures overlap instead of
+    // summing into a misleading band). An explicit spec stackMode always wins.
     envelope: {
-      stackMode: "stacked",
       legend: { show: true, position: "bottom" },
       tooltip: { show: true, indicator: "dot" },
       format: { kind: "auto" },

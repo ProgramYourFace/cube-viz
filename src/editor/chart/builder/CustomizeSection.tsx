@@ -37,7 +37,13 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     update({ ...spec, chart: { ...chart, familyOptions: { ...fo, ...patch } } });
 
   // Reflect the EFFECTIVE stack mode (an unset value renders with the family default).
-  const effectiveStack = chart.stackMode ?? DEFAULTS[family].envelope.stackMode ?? "none";
+  // Area's default is shape-aware (a color-split pivot stacks; multiple measures overlap),
+  // matching the area renderer; other families use their static envelope default.
+  const areaDefault = chart.mapping?.series?.mode === "pivot" ? "stacked" : "none";
+  const effectiveStack =
+    chart.stackMode ??
+    (family === "area" ? areaDefault : DEFAULTS[family].envelope.stackMode) ??
+    "none";
   const stackValue: StackChoice =
     effectiveStack === "stacked" ? "stacked" : effectiveStack === "percent" ? "percent" : "none";
 

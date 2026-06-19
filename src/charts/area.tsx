@@ -45,8 +45,13 @@ export function AreaChartFamily({
   format,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as AreaFamilyOptions;
-  const stacked = isStacked(options.stackMode);
-  const percent = options.stackMode === "percent";
+  // Shape-aware default: a color-split (pivot) area stacks (parts of a whole), but
+  // multiple INDEPENDENT measures overlap — stacking them would sum unrelated / mixed-unit
+  // series into a meaningless cumulative band. An explicit `stackMode` always wins.
+  const isPivot = options.mapping?.series?.mode === "pivot";
+  const stackMode = options.stackMode ?? (isPivot ? "stacked" : "none");
+  const stacked = isStacked(stackMode);
+  const percent = stackMode === "percent";
 
   const rows = buildRows(data);
   const catFmt = (v: string | number) => format.category(v);

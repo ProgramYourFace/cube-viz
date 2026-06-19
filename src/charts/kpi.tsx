@@ -245,8 +245,10 @@ function computeDelta(
     if (typeof cmp.value === "number") baseline = cmp.value;
     else if (typeof cmp.value === "string") baseline = readMeasure(rows, cmp.value);
   } else {
-    // previousPeriod: the prior compareDateRange row's measure.
-    const prior = rows[1] ?? rows[rows.length - 1];
+    // previousPeriod: Cube's compareDateRange yields one row per range (prior is the
+    // 2nd). A single-row result has NO prior period → null, so we never show a phantom
+    // 0% delta computed against the current value itself.
+    const prior = rows[1];
     baseline = prior ? num(prior[fo.measure]) : null;
   }
 
