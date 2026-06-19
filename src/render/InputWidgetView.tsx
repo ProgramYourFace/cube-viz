@@ -47,6 +47,8 @@ import {
 export interface InputWidgetViewProps {
   /** The input control (variable name + kind-specific config). */
   control: InputControl;
+  /** The widget title — used as the field LABEL (replaces the old card header). */
+  title?: string;
 }
 
 /* ───────────────────────────── shared field styling ─────────────────────── */
@@ -357,7 +359,7 @@ const BUILTIN_CONTROLS: Record<InputControl["control"]["kind"], InputControlComp
 
 /* ───────────────────────────── the bound view ───────────────────────────── */
 
-export function InputWidgetView({ control }: InputWidgetViewProps): ReactElement {
+export function InputWidgetView({ control, title }: InputWidgetViewProps): ReactElement {
   const { registry } = useCubeVizContext();
   const { decls, resolveValue, setVar } = useDashboard();
 
@@ -381,6 +383,9 @@ export function InputWidgetView({ control }: InputWidgetViewProps): ReactElement
   const onChange = (next: VariableValue | undefined): void =>
     setVar(control.variable, next);
 
+  // The widget title is the field label (falling back to the variable's own label).
+  const fieldLabel = title ?? decl.label ?? decl.name;
+
   // Toggle renders its own inline label; the others get a stacked field label.
   if (kind === "toggle") {
     return <Control value={value} onChange={onChange} decl={decl} control={control.control} />;
@@ -388,7 +393,7 @@ export function InputWidgetView({ control }: InputWidgetViewProps): ReactElement
 
   return (
     <div>
-      <label className={labelClass}>{decl.label ?? decl.name}</label>
+      <label className={labelClass}>{fieldLabel}</label>
       <Control value={value} onChange={onChange} decl={decl} control={control.control} />
     </div>
   );

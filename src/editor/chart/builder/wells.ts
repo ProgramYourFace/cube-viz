@@ -358,15 +358,17 @@ function placeCartesian(
   }
 
   if (wellId === "color") {
-    // Color requires exactly one Y; pivot uses the first measure as the value.
+    // A color split = pivot = ONE measure split into a series per category value.
+    // Trim the query to that single value, else Cube pivots EVERY measure and emits
+    // one series per (value × measure) — duplicate series per category.
     const measures = wells.y;
     if (measures.length === 0) return spec; // nothing to pivot yet
-    const q = ensureDimension(query, member);
-    // Pivot keeps only the first measure as the value; the query measures stay as-is.
+    const value = measures[0];
+    const q = ensureDimension({ ...query, measures: [value] }, member);
     return {
       ...spec,
       query: q,
-      chart: { ...chart, mapping: pivotMapping(category, measures[0], member) },
+      chart: { ...chart, mapping: pivotMapping(category, value, member) },
     };
   }
 

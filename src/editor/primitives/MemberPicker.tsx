@@ -17,6 +17,8 @@ import { listMembers, type MemberKind, type MemberOption } from "./meta-helpers"
 export interface MemberPickerProps {
   /** Restrict to a single cube/view; omit to allow any visible member. */
   cube?: string;
+  /** Restrict to a SET of joinable cubes/views (cross-table scope); overrides `cube`. */
+  cubes?: string[];
   kind: MemberKind;
   /** Selected member name (verbatim). */
   value?: string;
@@ -46,6 +48,7 @@ export function memberTypeIcon(type: MemberOption["type"]): React.ReactElement {
  */
 export function MemberPicker({
   cube,
+  cubes,
   kind,
   value,
   onChange,
@@ -55,7 +58,15 @@ export function MemberPicker({
   className,
 }: MemberPickerProps): React.ReactElement {
   const { meta, isLoading } = useCubeMeta();
-  const members = React.useMemo(() => listMembers(meta, kind, cube), [meta, kind, cube]);
+  const members = React.useMemo(() => {
+    // A cross-table scope (`cubes`) lists members across all joinable tables; a single
+    // `cube` restricts to one; omitting both offers every visible member.
+    if (cubes) {
+      const allow = new Set(cubes);
+      return listMembers(meta, kind).filter((m) => allow.has(m.cube));
+    }
+    return listMembers(meta, kind, cube);
+  }, [meta, kind, cube, cubes]);
   const grouped = React.useMemo(() => groupByCube(members), [members]);
   const selected = members.find((m) => m.name === value);
 

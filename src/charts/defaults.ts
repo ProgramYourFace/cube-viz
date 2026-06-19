@@ -53,7 +53,6 @@ export const LineFamilyOptionsSchema = z
     strokeWidth: z.number().optional(),
     dots: z.union([z.boolean(), z.literal("active")]).optional(),
     connectNulls: z.boolean().optional(),
-    showArea: z.boolean().optional(),
     chrome: z.enum(["full", "none"]).optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
     showValueLabels: z.boolean().optional(),

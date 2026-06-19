@@ -34,7 +34,8 @@ function WidgetBody({ widget }: { widget: WidgetSpec }): ReactElement {
     case "text":
       return <TextWidget doc={widget.doc} />;
     case "input":
-      return <InputWidgetView control={widget.control} />;
+      // The widget title becomes the field label (no separate card header).
+      return <InputWidgetView control={widget.control} title={widget.title} />;
   }
 }
 
@@ -43,6 +44,17 @@ export function RenderWidget({
   dragHandleProps = {},
   editable = false,
 }: RenderWidgetProps): ReactElement {
+  // Text + input are FRAMELESS: no card, no title header — they sit directly on the
+  // dashboard (text carries its own headings; an input's title is its field label).
+  // Only data widgets (charts) get the bordered Card chrome + draggable title bar.
+  if (widget.type === "text" || widget.type === "input") {
+    return (
+      <div className="h-full w-full overflow-auto p-2">
+        <WidgetBody widget={widget} />
+      </div>
+    );
+  }
+
   // The chrome actions menu — empty in view mode; reserved for export/edit in edit
   // mode (wired by the editor layer in a later wave). Kept as a slot here.
   const menu: ReactNode = editable ? null : null;

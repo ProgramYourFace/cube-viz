@@ -37,6 +37,11 @@ import {
 export interface FilterBuilderProps {
   /** Owning cube/view; restricts the member picker to that source. */
   cube?: string;
+  /**
+   * Joinable cross-table scope: when set, filters may target any field in the chart's
+   * join graph (e.g. filter a `device_trips` chart by `devices.name`). Overrides `cube`.
+   */
+  cubes?: string[];
   /** The query's current `filters` (may be undefined). */
   value?: QueryFilter[];
   onChange: (filters: QueryFilter[] | undefined) => void;
@@ -51,6 +56,7 @@ function isLeaf(f: QueryFilter): f is LeafFilter {
 
 export function FilterBuilder({
   cube,
+  cubes,
   value,
   onChange,
   disabled,
@@ -111,6 +117,7 @@ export function FilterBuilder({
               <div className="min-w-0 flex-1">
                 <MemberPicker
                   cube={cube}
+                  cubes={cubes}
                   kind="dimensionOrMeasure"
                   value={l.filter.member || undefined}
                   onChange={(m) => updateLeaf(i, { member: m })}

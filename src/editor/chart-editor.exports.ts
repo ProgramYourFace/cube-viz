@@ -7,11 +7,12 @@
 export { ChartEditor } from "./ChartEditor";
 export type { ChartEditorProps } from "./ChartEditor";
 
-// Chart Builder v2 — the type-first config surface (docs/05), reusable by a host
-// building a custom chart-config UI. Supersedes ChartConfigPanel/SeriesMetaEditor/
-// FormatOptionsEditor (formatting/axes/legend are now automatic).
-export { ChartBuilderPanel } from "./chart/builder/ChartBuilderPanel";
-export type { ChartBuilderPanelProps } from "./chart/builder/ChartBuilderPanel";
+// Chart Builder v3 — the panel-less, on-chart editing surface (docs/05): field slots
+// arranged around the live preview. Reusable by a host that wants to wrap its own
+// chart preview with the same direct-manipulation slots. The pure well↔spec seam
+// (`chart/builder/wells.ts` + `axis.ts`) is unchanged underneath.
+export { ChartEditOverlay } from "./chart/onchart/ChartEditOverlay";
+export type { ChartEditOverlayProps } from "./chart/onchart/ChartEditOverlay";
 
 export { FilterBuilder } from "./chart/FilterBuilder";
 export type { FilterBuilderProps } from "./chart/FilterBuilder";

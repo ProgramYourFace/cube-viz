@@ -7,31 +7,25 @@ import { cn } from "@/components/ui/utils";
 import { CubeChart } from "@/render";
 import type { ChartSpec } from "@/spec";
 
-import { ChartBuilderPanel } from "./chart/builder/ChartBuilderPanel";
+import { ChartEditOverlay } from "./chart/onchart/ChartEditOverlay";
 import { useChartEditorState } from "./chart/useChartEditorState";
-import { EditorShell } from "./primitives/EditorShell";
 
 /**
- * ChartEditor (docs/03 §A3.1) — the JSON-in / JSON-out chart editor. It takes a
- * {@link ChartSpec}, renders a responsive two-pane {@link EditorShell} (LEFT = config
- * pickers driven entirely by `useCubeMeta()`; RIGHT = a live `<CubeChart>` preview),
- * and emits a NEW validated `ChartSpec` via `onChange` on every edit (debounced).
+ * ChartEditor (docs/03 §A3.1, docs/05) — the JSON-in / JSON-out chart editor. It takes
+ * a {@link ChartSpec} and turns the live `<CubeChart>` preview itself into the editing
+ * surface: a {@link ChartEditOverlay} wraps the chart with on-chart field slots (a left
+ * Y-axis strip, a bottom X-axis slot, a centre type widget, a ⋯ chrome menu) — no side
+ * panel. Every edit emits a NEW validated `ChartSpec` via `onChange` (debounced).
  *
  * Contract / assumptions:
- *  - Performs NO I/O. It only reads `/v1/meta` (via the pickers) and re-fetches the
- *    preview through `<CubeChart>`. The host decides where the emitted spec goes.
- *  - MUST be rendered inside a `<CubeVizProvider>` — `<CubeChart>` + the meta-driven
- *    pickers both require the Cube client from context. If a `<DashboardProvider>` is
- *    also an ancestor, the Time section offers "bind to variable" using its declared
- *    variables; otherwise binding is hidden.
- *  - Every candidate is validated with the zod `ChartSpecSchema`. An invalid draft is
- *    held in the form (so input isn't lost) and surfaced inline, but NEVER emitted —
- *    `onChange`/`onSave` only ever receive a valid spec. The preview renders the last
- *    VALID spec so it never issues a malformed `/v1/load`.
- *  - `onChange` fires (debounced) on every valid edit — the live JSON-out contract.
- *    `onSave` is an OPTIONAL explicit-commit hook: when provided, a "Save" button
- *    appears that hands the current valid spec to the host on demand (for hosts that
- *    prefer an explicit save over live emission).
+ *  - Performs NO I/O beyond reading `/v1/meta` (via the slot pickers) and the preview's
+ *    own `<CubeChart>` fetch. The host decides where the emitted spec goes.
+ *  - MUST be rendered inside a `<CubeVizProvider>` (the Cube client). A `<DashboardProvider>`
+ *    ancestor, when present, resolves `{var}` tokens in the preview query.
+ *  - Every candidate is validated with the zod `ChartSpecSchema`. An invalid draft is held
+ *    (so input isn't lost) and surfaced inline, but NEVER emitted; the preview renders the
+ *    last VALID spec so it never issues a malformed `/v1/load`.
+ *  - `onSave` is an OPTIONAL explicit-commit hook; when set, a "Save" button appears.
  */
 
 export interface ChartEditorProps {
@@ -43,10 +37,6 @@ export interface ChartEditorProps {
   onSave?: (spec: ChartSpec) => void;
   /** Debounce for both `onChange` and the live preview (ms). Default 250. */
   debounceMs?: number;
-  /** Width of the config column in wide (two-pane) layout (px). Default 360. */
-  panelWidth?: number;
-  /** Min height so the preview can measure on first paint (px). Default 360. */
-  minHeight?: number;
   /** Fill the parent's height (full-screen editing) so the preview fills the screen. */
   fill?: boolean;
   className?: string;
@@ -59,82 +49,75 @@ export function ChartEditor({
   onChange,
   onSave,
   debounceMs = 250,
-  panelWidth = 360,
-  minHeight = 360,
   fill = false,
   className,
 }: ChartEditorProps): React.ReactElement {
   const { draft, issues, valid, committed, update } = useChartEditorState({
     spec,
-    // `onChange` is optional; fall back to a no-op so the engine still tracks `committed`.
     onChange: onChange ?? NOOP,
     debounceMs,
   });
 
-  // The preview always renders the last VALID spec, so an invalid mid-edit draft
-  // never triggers a malformed query. (When the draft is valid, committed === draft.)
+  // The preview renders the last VALID spec, so an invalid mid-edit draft never
+  // triggers a malformed query. (When the draft is valid, committed === draft.)
   const previewSpec = committed;
+  // A query is renderable when it groups by SOMETHING Cube will compute: a measure,
+  // a dimension, or a time dimension WITH A GRANULARITY. A granularity-less time
+  // dimension is only a date-range filter (the global date binding) and does not, by
+  // itself, make a valid query — matching Cube's own "timeDimensions with
+  // granularities" rule — so clearing the axes flips straight to the empty chooser.
+  const hasFields = (q: ChartSpec["query"]): boolean =>
+    (q.measures?.length ?? 0) > 0 ||
+    (q.dimensions?.length ?? 0) > 0 ||
+    (q.timeDimensions?.some((td) => typeof td.granularity === "string") ?? false);
+  // Show the chart only when BOTH the live draft and the committed spec have fields:
+  // gating on the draft means clearing every field flips straight to the empty
+  // chooser (a stale non-empty `committed` won't keep issuing a now-orphaned query).
+  const previewReady = hasFields(draft.query) && hasFields(previewSpec.query);
 
-  // Cube rejects a `/load` with nothing to compute; skip the preview fetch until the
-  // query has at least one measure, dimension, or time dimension.
-  const previewReady =
-    (previewSpec.query.measures?.length ?? 0) > 0 ||
-    (previewSpec.query.dimensions?.length ?? 0) > 0 ||
-    (previewSpec.query.timeDimensions?.length ?? 0) > 0;
+  const preview = previewReady ? (
+    <CubeChart query={previewSpec.query} chart={previewSpec.chart} />
+  ) : (
+    <div className="flex size-full items-center justify-center rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+      <span className="max-w-[16rem]">Add fields from the axes to build this chart.</span>
+    </div>
+  );
 
-  const panel = (
-    <div data-slot="chart-editor-config" className="flex flex-col gap-1">
-      {onSave ? (
-        <div className="flex items-center justify-end pb-1">
-          <Button size="sm" disabled={!valid} onClick={() => onSave(committed)}>
-            <Save className="size-4" />
-            Save
-          </Button>
-        </div>
-      ) : null}
+  const toolbar = onSave ? (
+    <Button size="sm" disabled={!valid} onClick={() => onSave(committed)}>
+      <Save className="size-4" />
+      Save
+    </Button>
+  ) : null;
+
+  return (
+    <div
+      data-slot="chart-editor"
+      className={cn("flex w-full flex-col gap-2", fill ? "h-full" : "min-h-[28rem]", className)}
+    >
       {!valid ? (
-        <Alert variant="destructive" className="mb-1">
+        <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Invalid chart spec</AlertTitle>
           <AlertDescription>
             <ul className="list-disc pl-4">
-              {issues.slice(0, 5).map((issue, i) => (
+              {issues.slice(0, 3).map((issue, i) => (
                 <li key={i}>
                   {issue.path ? <span className="font-mono text-xs">{issue.path}</span> : null}{" "}
                   {issue.message}
                 </li>
               ))}
-              {issues.length > 5 ? <li>…and {issues.length - 5} more</li> : null}
+              {issues.length > 3 ? <li>…and {issues.length - 3} more</li> : null}
             </ul>
           </AlertDescription>
         </Alert>
       ) : null}
-      <ChartBuilderPanel spec={draft} update={update} />
-    </div>
-  );
 
-  const canvas = (
-    <div data-slot="chart-editor-preview" className="flex size-full min-w-0 flex-col">
-      {previewReady ? (
-        <CubeChart query={previewSpec.query} chart={previewSpec.chart} />
-      ) : (
-        <div className="flex min-h-[inherit] flex-1 items-center justify-center rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Add a measure, dimension, or time dimension to preview this chart.
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div data-slot="chart-editor" className={cn("w-full", fill && "h-full", className)}>
-      <EditorShell
-        mode="two-pane"
-        panel={panel}
-        canvas={canvas}
-        panelWidth={panelWidth}
-        minHeight={minHeight}
-        fill={fill}
-      />
+      <div className="min-h-0 flex-1">
+        <ChartEditOverlay spec={draft} update={update} toolbar={toolbar}>
+          {preview}
+        </ChartEditOverlay>
+      </div>
     </div>
   );
 }

@@ -27,6 +27,7 @@ import {
   legendAlign,
   legendLayout,
   legendVerticalAlign,
+  pivotValueMember,
   seriesColorVar,
   tooltipValueFormatter,
 } from "./_shared";
@@ -51,12 +52,17 @@ export function LineChartFamily({
 
   const hasRight = data.series.some((s) => s.meta?.axis === "right");
   const curve = fo.curve ?? "monotone";
+  // In a color split every series is the same measure → units come from it, not the
+  // per-series (pivot-value) key.
+  const splitMember = pivotValueMember(options);
   // Representative member per axis so ticks render that axis's unit.
-  const leftMember = data.series.find((s) => s.meta?.axis !== "right")?.key;
+  const leftMember = splitMember ?? data.series.find((s) => s.meta?.axis !== "right")?.key;
   const rightMember = data.series.find((s) => s.meta?.axis === "right")?.key;
 
-  const dotProp = sparkline ? false : fo.dots === "active" ? false : Boolean(fo.dots);
-  const activeDotProp = sparkline ? false : fo.dots !== false;
+  // Visible points only when explicitly enabled; the hover dot stays on (for tooltips)
+  // unless this is a chrome-less sparkline.
+  const dotProp = !sparkline && fo.dots === true;
+  const activeDotProp = !sparkline;
 
   return (
     <ChartContainer
@@ -100,7 +106,7 @@ export function LineChartFamily({
               <ChartTooltipContent
                 labelFormatter={(label) => format.category(label as string | number)}
                 indicator={options.tooltip?.indicator ?? "line"}
-                valueFormatter={tooltipValueFormatter(format)}
+                valueFormatter={tooltipValueFormatter(format, splitMember)}
               />
             }
           />
@@ -133,7 +139,7 @@ export function LineChartFamily({
                 position="top"
                 className="fill-foreground text-[10px]"
                 formatter={(v: string | number | boolean | null | undefined) =>
-                  format.value(typeof v === "boolean" ? Number(v) : v, s.key, "label")
+                  format.value(typeof v === "boolean" ? Number(v) : v, splitMember ?? s.key, "label")
                 }
               />
             )}

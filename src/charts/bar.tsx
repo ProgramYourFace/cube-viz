@@ -33,6 +33,7 @@ import {
   primaryMember,
   seriesColorVar,
   tooltipValueFormatter,
+  pivotValueMember,
 } from "./_shared";
 
 /**
@@ -56,6 +57,10 @@ export function BarChartFamily({
   const valueFmt = (v: number | string | null | undefined, member?: string, role: FormatRole = "value") =>
     percent ? percentTick(v) : format.value(v, member, role);
   const catFmt = (v: string | number) => format.category(v);
+  // In a color split every series is the same measure → units come from it, not the
+  // per-series (pivot-value) key.
+  const splitMember = pivotValueMember(options);
+  const valueMember = splitMember ?? primaryMember(data);
 
   const catAxisHidden = horizontal ? options.axes?.y?.hide : options.axes?.x?.hide;
   const valAxis = horizontal ? options.axes?.x : options.axes?.y;
@@ -79,7 +84,7 @@ export function BarChartFamily({
               hide={valAxis?.hide}
               scale={axisScale(valAxis)}
               domain={axisDomain(valAxis)}
-              tickFormatter={(v: number) => valueFmt(v, primaryMember(data), "axis")}
+              tickFormatter={(v: number) => valueFmt(v, valueMember, "axis")}
             />
           </>
         ) : (
@@ -90,7 +95,7 @@ export function BarChartFamily({
               hide={valAxis?.hide}
               scale={axisScale(valAxis)}
               domain={axisDomain(valAxis)}
-              tickFormatter={(v: number) => valueFmt(v, primaryMember(data), "axis")}
+              tickFormatter={(v: number) => valueFmt(v, valueMember, "axis")}
             />
           </>
         )}
@@ -103,7 +108,7 @@ export function BarChartFamily({
                 valueFormatter={
                   percent
                     ? (value) => percentTick(value as number | string | null | undefined)
-                    : tooltipValueFormatter(format)
+                    : tooltipValueFormatter(format, splitMember)
                 }
               />
             }
@@ -133,7 +138,7 @@ export function BarChartFamily({
                 position={horizontal ? "right" : "top"}
                 className="fill-foreground text-[10px]"
                 formatter={(v: string | number | boolean | null | undefined) =>
-                  valueFmt(typeof v === "boolean" ? Number(v) : v, s.key, "label")
+                  valueFmt(typeof v === "boolean" ? Number(v) : v, splitMember ?? s.key, "label")
                 }
               />
             )}

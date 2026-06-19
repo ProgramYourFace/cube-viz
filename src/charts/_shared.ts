@@ -93,6 +93,18 @@ export function primaryMember(data: NormalizedChartData): string | undefined {
 }
 
 /**
+ * The measure whose unit the value axis / tooltip / labels should use. In PIVOT
+ * (color-split) mode every series IS the same measure (split into one series per
+ * category value), so units come from the pivot VALUE measure — NOT each series'
+ * key, which is a pivot value (e.g. a device name) and carries no unit meta.
+ * Returns undefined in measures mode (callers fall back to the per-series key).
+ */
+export function pivotValueMember(options: ChartOptions): string | undefined {
+  const s = options.mapping?.series;
+  return s && s.mode === "pivot" ? s.value : undefined;
+}
+
+/**
  * Adapt the injected {@link ChartFormat} for shadcn `ChartTooltipContent`'s
  * `valueFormatter` prop: formats ONLY the value text (keeping the swatch + label)
  * and threads the payload item's `dataKey` (the Cube member) so units/conversion

@@ -35,6 +35,12 @@ export interface MemberOption {
   quantity?: string;
   /** Cube `meta.unit` (e.g. "km", "L"), lifted for axis-unit checks. */
   unit?: string;
+  /**
+   * Cube's `connectedComponent` for the owning cube — cubes sharing a value are in
+   * the SAME join graph (mutually joinable). The only join signal `/v1/meta` gives
+   * us, so cross-table field selection keys off it. `undefined` = an isolated cube.
+   */
+  connectedComponent?: number;
 }
 
 /** A cube or view entry for the CubePicker. */
@@ -43,6 +49,13 @@ export interface CubeOption {
   title: string;
   /** "cube" | "view" — defaults to "cube" when meta omits `type`. */
   type: "cube" | "view";
+  /** Join-graph id (see {@link MemberOption.connectedComponent}). */
+  connectedComponent?: number;
+}
+
+/** The `connectedComponent` (join-graph id) of a cube/view, or undefined. */
+function componentOf(c: { connectedComponent?: number }): number | undefined {
+  return typeof c.connectedComponent === "number" ? c.connectedComponent : undefined;
 }
 
 function isPublic(m: { public?: boolean; isVisible?: boolean }): boolean {
@@ -60,8 +73,15 @@ export function listCubes(meta: CubeMeta | undefined): CubeOption[] {
     .map((c: Cube) => ({
       name: c.name,
       title: c.title ?? c.name,
-      type: c.type === "view" ? "view" : "cube",
+      type: c.type === "view" ? ("view" as const) : ("cube" as const),
+      connectedComponent: componentOf(c as { connectedComponent?: number }),
     }));
+}
+
+/** A single cube/view's option (title, type, join-graph id) by name. */
+export function findCube(meta: CubeMeta | undefined, name: string | undefined): CubeOption | undefined {
+  if (!meta || !name) return undefined;
+  return listCubes(meta).find((c) => c.name === name);
 }
 
 function toLabel(m: { shortTitle?: string; title?: string; name: string }): string {
@@ -138,20 +158,25 @@ export function listMembers(
   for (const c of meta.cubes) {
     if (!isPublic(c)) continue;
     if (cube && c.name !== cube) continue;
+    const comp = componentOf(c as { connectedComponent?: number });
+    const push = (o: MemberOption): void => {
+      o.connectedComponent = comp;
+      out.push(o);
+    };
 
     if (kind === "measure" || kind === "dimensionOrMeasure") {
       for (const m of c.measures) {
-        if (isPublic(m)) out.push(measureToOption(m, c.name));
+        if (isPublic(m)) push(measureToOption(m, c.name));
       }
     }
     if (kind === "dimension" || kind === "dimensionOrMeasure") {
       for (const d of c.dimensions) {
-        if (isPublic(d) && d.type !== "time") out.push(dimensionToOption(d, c.name));
+        if (isPublic(d) && d.type !== "time") push(dimensionToOption(d, c.name));
       }
     }
     if (kind === "time") {
       for (const d of c.dimensions) {
-        if (isPublic(d) && d.type === "time") out.push(dimensionToOption(d, c.name));
+        if (isPublic(d) && d.type === "time") push(dimensionToOption(d, c.name));
       }
     }
   }
@@ -166,18 +191,23 @@ export function findMember(
 ): MemberOption | undefined {
   if (!meta || !name) return undefined;
   for (const c of meta.cubes) {
+    const comp = componentOf(c as { connectedComponent?: number });
+    const tag = (o: MemberOption | undefined): MemberOption | undefined => {
+      if (o) o.connectedComponent = comp;
+      return o;
+    };
     const found =
       c.measures.find((m) => m.name === name) ??
       c.dimensions.find((d) => d.name === name);
     if (found) {
       return found.type
         ? "aggType" in found
-          ? measureToOption(found as TCubeMeasure, c.name)
-          : dimensionToOption(found as TCubeDimension, c.name)
+          ? tag(measureToOption(found as TCubeMeasure, c.name))
+          : tag(dimensionToOption(found as TCubeDimension, c.name))
         : undefined;
     }
     const seg = c.segments.find((s) => s.name === name);
-    if (seg) return segmentToOption(seg, c.name);
+    if (seg) return tag(segmentToOption(seg, c.name));
   }
   return undefined;
 }

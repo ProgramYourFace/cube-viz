@@ -5,7 +5,7 @@ import {
   type LayoutItem as RglLayoutItem,
   type ResponsiveLayouts,
 } from "react-grid-layout";
-import { Pencil, Trash2 } from "lucide-react";
+import { GripVertical, Pencil, Trash2 } from "lucide-react";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -218,6 +218,22 @@ export function EditorCanvas({
                       <Trash2 />
                     </button>
                   </div>
+                  {/* Frameless inputs have no title bar, so they get an explicit drag
+                      grip (charts/text use the full-body overlay below). */}
+                  {widget.type === "input" && (
+                    <div
+                      aria-hidden
+                      className={cn(
+                        DRAG_HANDLE_CLASS,
+                        "absolute left-1.5 top-1.5 z-[4] flex size-7 cursor-move items-center justify-center rounded-md",
+                        "bg-card/90 text-muted-foreground shadow-sm backdrop-blur [&_svg]:size-4",
+                        "opacity-0 transition-opacity group-hover:opacity-100",
+                        selected && "opacity-100",
+                      )}
+                    >
+                      <GripVertical />
+                    </div>
+                  )}
                   <RenderWidget widget={widget} editable />
                   {/* Drag-anywhere overlay: a plain div react-draggable can grab —
                       recharts' SVG otherwise swallows the mousedown so the chart

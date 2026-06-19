@@ -44,27 +44,59 @@ type PivotSeries = Extract<SeriesSpec, { mode: "pivot" }>;
 /* ──────────────────────────── color assignment ──────────────────────────── */
 
 /**
- * Assign a `colorToken` to each series. Explicit `colors.byKey[series.key]` wins;
- * everything else cycles the ramp (`colors.ramp` ?? {@link DEFAULT_COLOR_RAMP})
- * round-robin. Series that already carry a `colorToken` (e.g. from `SeriesMeta`)
- * keep it. Mutates and returns the same array for ergonomic chaining.
+ * Resolve the `colorToken` for each series position — the SINGLE source of truth
+ * for series color, shared by the renderer ({@link assignColors}) and the editor
+ * (the on-chart FieldPill swatch) so they NEVER disagree. Explicit colors
+ * (per-series `colorToken` or `colors.byKey[key]`) win; unset series take the next
+ * ramp colour (`colors.ramp` ?? {@link DEFAULT_COLOR_RAMP}) that isn't already
+ * CLAIMED — by an explicit colour anywhere or an earlier auto-assignment — so
+ * auto-coloured series stay distinct (e.g. an explicit `chart-1` won't make the
+ * next unset series also `chart-1`). Returns one token per input, index-aligned; pure.
+ */
+export function resolveSeriesColors(
+  series: ReadonlyArray<{ key: string; colorToken?: ChartColorToken }>,
+  colors?: ChartOptions["colors"],
+): ChartColorToken[] {
+  const ramp = colors?.ramp?.length ? colors.ramp : DEFAULT_COLOR_RAMP;
+  const byKey = colors?.byKey ?? {};
+  const explicitOf = (key: string, token?: ChartColorToken): ChartColorToken | undefined =>
+    byKey[key] ?? token;
+
+  // Pre-claim every explicit colour so the ramp can route around all of them.
+  const used = new Set<ChartColorToken>();
+  for (const s of series) {
+    const explicit = explicitOf(s.key, s.colorToken);
+    if (explicit) used.add(explicit);
+  }
+
+  let rampIndex = 0;
+  const nextRampColor = (): ChartColorToken => {
+    // Advance to the next unclaimed ramp colour; if all are claimed, plain-cycle.
+    for (let i = 0; i < ramp.length; i++) {
+      const token = ramp[rampIndex++ % ramp.length];
+      if (!used.has(token)) {
+        used.add(token);
+        return token;
+      }
+    }
+    return ramp[rampIndex++ % ramp.length];
+  };
+
+  return series.map((s) => explicitOf(s.key, s.colorToken) ?? nextRampColor());
+}
+
+/**
+ * Assign a `colorToken` to each series via {@link resolveSeriesColors}. Mutates and
+ * returns the same array for ergonomic chaining.
  */
 export function assignColors(
   series: NormalizedSeries[],
   colors?: ChartOptions["colors"],
 ): NormalizedSeries[] {
-  const ramp = colors?.ramp?.length ? colors.ramp : DEFAULT_COLOR_RAMP;
-  const byKey = colors?.byKey ?? {};
-  let rampIndex = 0;
-  for (const s of series) {
-    const explicit = byKey[s.key] ?? s.colorToken;
-    if (explicit) {
-      s.colorToken = explicit;
-    } else {
-      s.colorToken = ramp[rampIndex % ramp.length];
-      rampIndex += 1;
-    }
-  }
+  const resolved = resolveSeriesColors(series, colors);
+  series.forEach((s, i) => {
+    s.colorToken = resolved[i];
+  });
   return series;
 }
 
@@ -248,12 +280,19 @@ function normalizePivot(
   const { value, pivot: pivotMember } = series;
   const pivotConfig = { x: [categoryMember], y: [pivotMember, "measures"] };
 
-  const seriesNames = resultSet.seriesNames(pivotConfig) as Array<{
+  const allSeriesNames = resultSet.seriesNames(pivotConfig) as Array<{
     key: string;
     shortTitle?: string;
     title?: string;
     yValues?: string[];
   }>;
+  // A pivot has ONE value measure. If the query still carries extra measures, Cube
+  // emits a series per (pivot value × measure); keep only this value's series so we
+  // render one series per category value (the seam trims new specs; this heals old).
+  const seriesNames = allSeriesNames.filter((sn) => {
+    const measure = sn.yValues && sn.yValues.length >= 2 ? sn.yValues[sn.yValues.length - 1] : undefined;
+    return measure === undefined || measure === value;
+  });
   const chartRows = resultSet.chartPivot(pivotConfig) as Array<Record<string, unknown>>;
 
   // The plotted measure's meta drives formatting for every pivot series.

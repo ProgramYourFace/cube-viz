@@ -12,7 +12,8 @@
     { "i": "w_dateRange", "x": 0, "y": 0, "w": 4, "h": 2, "minW": 3, "minH": 2 },
     { "i": "w_granularity", "x": 4, "y": 0, "w": 4, "h": 2, "minW": 3, "minH": 2 },
     { "i": "w_distance", "x": 0, "y": 2, "w": 7, "h": 5, "minW": 3, "minH": 3 },
-    { "i": "w_trips", "x": 7, "y": 2, "w": 5, "h": 5, "minW": 3, "minH": 3 }
+    { "i": "w_trips", "x": 7, "y": 2, "w": 5, "h": 5, "minW": 3, "minH": 3 },
+    { "i": "w_text", "x": 0, "y": 7, "w": 12, "h": 4, "minW": 3, "minH": 2 }
   ],
   "widgets": [
     {
@@ -35,6 +36,23 @@
       "control": {
         "variable": "granularity",
         "control": { "kind": "granularity", "options": ["day", "week", "month"] }
+      }
+    },
+    {
+      "id": "w_text",
+      "type": "text",
+      "title": "Notes",
+      "doc": {
+        "type": "doc",
+        "content": [
+          { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "Fleet Overview" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "Key metrics for the selected period. " }, { "type": "text", "marks": [{ "type": "bold" }], "text": "Distance is in km." }] },
+          { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Highlights" }] },
+          { "type": "bulletList", "content": [
+            { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Total distance by vehicle" }] }] },
+            { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Trip counts per device" }] }] }
+          ] }
+        ]
       }
     },
     {

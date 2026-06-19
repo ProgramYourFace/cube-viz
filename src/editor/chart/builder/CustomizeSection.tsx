@@ -51,109 +51,122 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     </FieldRow>
   );
 
-  switch (family) {
-    case "bar":
-      return (
-        <div className="flex flex-col">
-          <SwitchRow
-            label="Horizontal"
-            checked={chart.orientation === "horizontal"}
-            onChange={(on) => setEnvelope({ orientation: on ? "horizontal" : "vertical" })}
-          />
-          {StackControl}
-        </div>
-      );
+  // Legend is shared by every family that draws one (not KPI / table). Defaults to on;
+  // a UI toggle matters most for color-split charts where colours map to categories.
+  const hasLegend = family !== "kpi" && family !== "table";
+  const LegendControl = hasLegend ? (
+    <SwitchRow
+      label="Legend"
+      checked={chart.legend?.show !== false}
+      onChange={(on) => setEnvelope({ legend: { ...chart.legend, show: on } })}
+    />
+  ) : null;
 
-    case "line":
-      return (
-        <div className="flex flex-col">
-          <SwitchRow
-            label="Curved"
-            checked={(fo.curve ?? "monotone") === "monotone"}
-            onChange={(on) => setFamilyOptions({ curve: on ? "monotone" : "linear" })}
-          />
-          <SwitchRow
-            label="Show points"
-            checked={fo.dots !== false}
-            onChange={(on) => setFamilyOptions({ dots: on ? "active" : false })}
-          />
-          <SwitchRow
-            label="Fill area"
-            checked={fo.showArea === true}
-            onChange={(on) => setFamilyOptions({ showArea: on })}
-          />
-        </div>
-      );
-
-    case "area":
-      return (
-        <div className="flex flex-col">
-          {StackControl}
-          <SwitchRow
-            label="Curved"
-            checked={(fo.curve ?? "monotone") === "monotone"}
-            onChange={(on) => setFamilyOptions({ curve: on ? "monotone" : "linear" })}
-          />
-        </div>
-      );
-
-    case "pie":
-      return (
-        <SwitchRow
-          label="Donut"
-          checked={typeof fo.innerRadiusPct === "number" && fo.innerRadiusPct > 0}
-          onChange={(on) => setFamilyOptions({ innerRadiusPct: on ? 55 : 0 })}
-        />
-      );
-
-    case "kpi": {
-      const comparison = fo.comparison as
-        | { mode: string; showAsPercent?: boolean }
-        | undefined;
-      const comparing = comparison !== undefined;
-      return (
-        <div className="flex flex-col">
-          <SwitchRow
-            label="Compare to previous period"
-            checked={comparing}
-            onChange={(on) =>
-              setFamilyOptions({
-                comparison: on ? { mode: "previousPeriod", showAsPercent: true } : undefined,
-              })
-            }
-          />
-          {comparing ? (
+  const body = ((): React.ReactNode => {
+    switch (family) {
+      case "bar":
+        return (
+          <>
             <SwitchRow
-              label="Show as %"
-              checked={comparison?.showAsPercent !== false}
+              label="Horizontal"
+              checked={chart.orientation === "horizontal"}
+              onChange={(on) => setEnvelope({ orientation: on ? "horizontal" : "vertical" })}
+            />
+            {StackControl}
+          </>
+        );
+
+      case "line":
+        return (
+          <>
+            <SwitchRow
+              label="Curved"
+              checked={(fo.curve ?? "monotone") === "monotone"}
+              onChange={(on) => setFamilyOptions({ curve: on ? "monotone" : "linear" })}
+            />
+            <SwitchRow
+              label="Show points"
+              checked={fo.dots === true}
+              onChange={(on) => setFamilyOptions({ dots: on })}
+            />
+          </>
+        );
+
+      case "area":
+        return (
+          <>
+            {StackControl}
+            <SwitchRow
+              label="Curved"
+              checked={(fo.curve ?? "monotone") === "monotone"}
+              onChange={(on) => setFamilyOptions({ curve: on ? "monotone" : "linear" })}
+            />
+          </>
+        );
+
+      case "pie":
+        return (
+          <SwitchRow
+            label="Donut"
+            checked={typeof fo.innerRadiusPct === "number" && fo.innerRadiusPct > 0}
+            onChange={(on) => setFamilyOptions({ innerRadiusPct: on ? 55 : 0 })}
+          />
+        );
+
+      case "kpi": {
+        const comparison = fo.comparison as { mode: string; showAsPercent?: boolean } | undefined;
+        const comparing = comparison !== undefined;
+        return (
+          <>
+            <SwitchRow
+              label="Compare to previous period"
+              checked={comparing}
               onChange={(on) =>
                 setFamilyOptions({
-                  comparison: { ...comparison, mode: "previousPeriod", showAsPercent: on },
+                  comparison: on ? { mode: "previousPeriod", showAsPercent: true } : undefined,
                 })
               }
             />
-          ) : null}
-        </div>
-      );
+            {comparing ? (
+              <SwitchRow
+                label="Show as %"
+                checked={comparison?.showAsPercent !== false}
+                onChange={(on) =>
+                  setFamilyOptions({
+                    comparison: { ...comparison, mode: "previousPeriod", showAsPercent: on },
+                  })
+                }
+              />
+            ) : null}
+          </>
+        );
+      }
+
+      case "table":
+        return (
+          <SwitchRow
+            label="Compact rows"
+            checked={fo.rowHeight === "compact"}
+            onChange={(on) => setFamilyOptions({ rowHeight: on ? "compact" : "default" })}
+          />
+        );
+
+      case "combo":
+        return (
+          <p className="py-1 text-xs text-muted-foreground">
+            Set bar / line / area per series on each Y-axis field above.
+          </p>
+        );
+
+      case "scatter":
+        return null;
     }
+  })();
 
-    case "table":
-      return (
-        <SwitchRow
-          label="Compact rows"
-          checked={fo.rowHeight === "compact"}
-          onChange={(on) => setFamilyOptions({ rowHeight: on ? "compact" : "default" })}
-        />
-      );
-
-    case "combo":
-    case "scatter":
-      return (
-        <p className="py-1 text-xs text-muted-foreground">
-          {family === "combo"
-            ? "Set bar / line / area per series on each Y-axis field above."
-            : "No extra options for this chart type."}
-        </p>
-      );
-  }
+  return (
+    <div className="flex flex-col">
+      {LegendControl}
+      {body}
+    </div>
+  );
 }

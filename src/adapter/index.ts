@@ -19,4 +19,10 @@ export { createCubeClient, fetchMeta } from "./cube-client";
 export type { CubeClient, CubeConnection, CubeMeta } from "./cube-client";
 
 // Normalizer.
-export { normalize, assignColors, toResultAnnotation, DEFAULT_COLOR_RAMP } from "./normalize";
+export {
+  normalize,
+  assignColors,
+  resolveSeriesColors,
+  toResultAnnotation,
+  DEFAULT_COLOR_RAMP,
+} from "./normalize";

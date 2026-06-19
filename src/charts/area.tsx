@@ -27,6 +27,7 @@ import {
   legendLayout,
   legendVerticalAlign,
   percentTick,
+  pivotValueMember,
   primaryMember,
   seriesColorVar,
   tooltipValueFormatter,
@@ -50,6 +51,10 @@ export function AreaChartFamily({
   const rows = buildRows(data);
   const catFmt = (v: string | number) => format.category(v);
   const curve = fo.curve ?? "monotone";
+  // In a color split every series is the same measure → units come from it, not the
+  // per-series (pivot-value) key.
+  const splitMember = pivotValueMember(options);
+  const valueMember = splitMember ?? primaryMember(data);
 
   return (
     <ChartContainer config={config} className="h-full w-full min-h-[200px]">
@@ -70,7 +75,7 @@ export function AreaChartFamily({
           scale={axisScale(options.axes?.y)}
           domain={axisDomain(options.axes?.y)}
           tickFormatter={(v: number) =>
-            percent ? percentTick(v) : format.value(v, primaryMember(data), "axis")
+            percent ? percentTick(v) : format.value(v, valueMember, "axis")
           }
         />
         {options.tooltip?.show !== false && (
@@ -82,7 +87,7 @@ export function AreaChartFamily({
                 valueFormatter={
                   percent
                     ? (value) => percentTick(value as number | string | null | undefined)
-                    : tooltipValueFormatter(format)
+                    : tooltipValueFormatter(format, splitMember)
                 }
               />
             }
