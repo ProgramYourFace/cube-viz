@@ -2,7 +2,6 @@ import type * as React from "react";
 import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts";
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 
-import { makeFormatter } from "@/format";
 import { cn } from "@/components/ui/utils";
 import { ChartContainer } from "@/components/ui/chart";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,9 +18,9 @@ import { LineChartFamily } from "./line";
  * Recharts RadialBarChart. `sparkline` reuses the line family with chrome:"none".
  */
 export function KpiFamily(props: ChartComponentProps): React.ReactElement {
-  const { data, options } = props;
+  const { data, options, format } = props;
   const fo = (options.familyOptions ?? {}) as KpiFamilyOptions;
-  const fmt = makeFormatter(options.format, data.raw.annotation);
+  const fmt = (v: number) => format.value(v, fo.measure, "kpi");
 
   const value = readMeasure(data.raw.rows, fo.measure) ?? 0;
   const label =
@@ -30,10 +29,10 @@ export function KpiFamily(props: ChartComponentProps): React.ReactElement {
     fo.measure;
 
   if (fo.display === "gauge") {
-    return <GaugeKpi value={value} label={label} fmt={(v) => fmt(v, fo.measure)} fo={fo} />;
+    return <GaugeKpi value={value} label={label} fmt={fmt} fo={fo} />;
   }
 
-  return <NumberKpi {...props} value={value} label={label} fo={fo} fmt={(v) => fmt(v, fo.measure)} />;
+  return <NumberKpi {...props} value={value} label={label} fo={fo} fmt={fmt} />;
 }
 
 /* ──────────────────────────────── number ─────────────────────────────────── */
@@ -41,6 +40,7 @@ export function KpiFamily(props: ChartComponentProps): React.ReactElement {
 function NumberKpi({
   data,
   config,
+  format,
   value,
   label,
   fo,
@@ -66,6 +66,7 @@ function NumberKpi({
             <LineChartFamily
               data={data}
               config={config}
+              format={format}
               options={{ family: "line", familyOptions: { chrome: "none" } }}
             />
           </div>

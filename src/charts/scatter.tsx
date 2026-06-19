@@ -10,7 +10,6 @@ import {
   ZAxis,
 } from "recharts";
 
-import { makeFormatter } from "@/format";
 import { DEFAULT_COLOR_RAMP } from "@/adapter";
 import {
   ChartContainer,
@@ -33,13 +32,13 @@ type Point = { x: number | null; y: number | null; z?: number | null };
  * {x,y,z} per point from members named in familyOptions. `size` ⇒ <ZAxis> bubble;
  * `groupBy` ⇒ one <Scatter> series per distinct value, each colored from the ramp.
  */
-export function ScatterChartFamily({ data, options }: ChartComponentProps): React.ReactElement {
+export function ScatterChartFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as ScatterFamilyOptions;
   const ann = data.raw.annotation;
   const rows = data.raw.rows;
 
-  const xFmt = makeFormatter(options.format, ann);
-  const yFmt = makeFormatter(options.format, ann);
+  // The scatter point keys (x/y/z) map back to their Cube members for formatting.
+  const memberForKey: Record<string, string | undefined> = { x: fo.x, y: fo.y, z: fo.size };
 
   const xLabel = ann?.measures[fo.x]?.shortTitle ?? ann?.dimensions[fo.x]?.shortTitle ?? fo.x;
   const yLabel = ann?.measures[fo.y]?.shortTitle ?? ann?.dimensions[fo.y]?.shortTitle ?? fo.y;
@@ -53,7 +52,7 @@ export function ScatterChartFamily({ data, options }: ChartComponentProps): Reac
   });
 
   return (
-    <ChartContainer config={config} className="min-h-[240px] w-full">
+    <ChartContainer config={config} className="h-full w-full min-h-[200px]">
       <ScatterChart accessibilityLayer margin={{ top: 12, right: 12, bottom: 12, left: 12 }}>
         <CartesianGrid />
         <XAxis
@@ -63,7 +62,7 @@ export function ScatterChartFamily({ data, options }: ChartComponentProps): Reac
           hide={options.axes?.x?.hide}
           scale={axisScale(options.axes?.x)}
           domain={axisDomain(options.axes?.x)}
-          tickFormatter={(v: number) => xFmt(v, fo.x)}
+          tickFormatter={(v: number) => format.value(v, fo.x, "axis")}
         />
         <YAxis
           type="number"
@@ -72,13 +71,23 @@ export function ScatterChartFamily({ data, options }: ChartComponentProps): Reac
           hide={options.axes?.y?.hide}
           scale={axisScale(options.axes?.y)}
           domain={axisDomain(options.axes?.y)}
-          tickFormatter={(v: number) => yFmt(v, fo.y)}
+          tickFormatter={(v: number) => format.value(v, fo.y, "axis")}
         />
         {fo.size && <ZAxis type="number" dataKey="z" range={fo.sizeRange ?? [40, 400]} name={fo.size} />}
         {options.tooltip?.show !== false && (
           <ChartTooltip
             cursor={{ strokeDasharray: "3 3" }}
-            content={<ChartTooltipContent indicator={options.tooltip?.indicator ?? "dot"} />}
+            content={
+              <ChartTooltipContent
+                indicator={options.tooltip?.indicator ?? "dot"}
+                valueFormatter={(value, item) => {
+                  const dk = item?.dataKey;
+                  const member =
+                    typeof dk === "string" ? memberForKey[dk] : undefined;
+                  return format.value(value as number | string | null | undefined, member, "tooltip");
+                }}
+              />
+            }
           />
         )}
         {options.legend?.show && groups.length > 1 && (

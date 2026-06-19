@@ -30,5 +30,8 @@ export * from "./hooks";
 // Render engine: Dashboard, CubeChart, widgets, chrome, container-width reflow.
 export * from "./render";
 
+// Editors: chart editor + dashboard editor (JSON-in/out, container-responsive).
+export * from "./editor";
+
 // Transport seam (browser / preview / WebView) — interface types for later milestones.
 export type * from "./transport/types";

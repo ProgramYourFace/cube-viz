@@ -17,9 +17,12 @@ export default defineConfig({
   },
   build: {
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
+      // Core (`cube-viz`) + the opt-in `cube-viz/presets` entry, emitted separately.
+      entry: {
+        index: resolve(__dirname, "src/index.ts"),
+        presets: resolve(__dirname, "src/presets/index.ts"),
+      },
       formats: ["es"],
-      fileName: () => "cube-viz.js",
     },
     rollupOptions: {
       external: [
@@ -33,10 +36,15 @@ export default defineConfig({
         /^@tiptap\//,
         "zod",
         "date-fns",
-        "convert-units",
         "lucide-react",
+        /^@radix-ui\//,
+        "react-day-picker",
+        "class-variance-authority",
+        "clsx",
+        "tailwind-merge",
       ],
       output: {
+        entryFileNames: "[name].js",
         // theme.css is emitted separately from the bundled component CSS.
         assetFileNames: (info) =>
           info.names?.some((n) => n.endsWith("theme.css")) ? "theme.css" : "[name][extname]",

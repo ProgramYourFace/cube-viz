@@ -8,7 +8,6 @@ import {
   YAxis,
 } from "recharts";
 
-import { makeFormatter, formatCategory } from "@/format";
 import {
   ChartContainer,
   ChartLegend,
@@ -27,6 +26,7 @@ import {
   legendAlign,
   legendLayout,
   legendVerticalAlign,
+  percentTick,
   primaryMember,
   seriesColorVar,
   tooltipValueFormatter,
@@ -37,18 +37,22 @@ import {
  * `stackMode` is the load-bearing input: none = overlapping areas, stacked =
  * shared stackId, percent = stackId + stackOffset="expand". orientation ignored.
  */
-export function AreaChartFamily({ data, options, config }: ChartComponentProps): React.ReactElement {
+export function AreaChartFamily({
+  data,
+  options,
+  config,
+  format,
+}: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as AreaFamilyOptions;
   const stacked = isStacked(options.stackMode);
   const percent = options.stackMode === "percent";
 
   const rows = buildRows(data);
-  const valueFmt = makeFormatter(percent ? { kind: "percent" } : options.format, data.raw.annotation);
-  const catFmt = (v: string | number) => formatCategory(v, { format: options.format });
+  const catFmt = (v: string | number) => format.category(v);
   const curve = fo.curve ?? "monotone";
 
   return (
-    <ChartContainer config={config} className="min-h-[240px] w-full">
+    <ChartContainer config={config} className="h-full w-full min-h-[200px]">
       <AreaChart accessibilityLayer data={rows} stackOffset={percent ? "expand" : undefined}>
         <CartesianGrid vertical={false} />
         <defs>
@@ -65,14 +69,21 @@ export function AreaChartFamily({ data, options, config }: ChartComponentProps):
           hide={options.axes?.y?.hide}
           scale={axisScale(options.axes?.y)}
           domain={axisDomain(options.axes?.y)}
-          tickFormatter={(v: number) => valueFmt(v, primaryMember(data))}
+          tickFormatter={(v: number) =>
+            percent ? percentTick(v) : format.value(v, primaryMember(data), "axis")
+          }
         />
         {options.tooltip?.show !== false && (
           <ChartTooltip
             content={
               <ChartTooltipContent
+                labelFormatter={(label) => format.category(label as string | number)}
                 indicator={options.tooltip?.indicator ?? "dot"}
-                valueFormatter={tooltipValueFormatter(valueFmt)}
+                valueFormatter={
+                  percent
+                    ? (value) => percentTick(value as number | string | null | undefined)
+                    : tooltipValueFormatter(format)
+                }
               />
             }
           />

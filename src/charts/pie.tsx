@@ -1,7 +1,6 @@
 import type * as React from "react";
 import { Cell, Label, Pie, PieChart } from "recharts";
 
-import { makeFormatter, formatCategory } from "@/format";
 import { DEFAULT_COLOR_RAMP } from "@/adapter";
 import {
   ChartContainer,
@@ -14,7 +13,12 @@ import {
 import type { ChartConfig } from "@/components/ui/chart";
 import type { ChartComponentProps } from "./types";
 import type { PieFamilyOptions } from "./defaults";
-import { legendAlign, legendLayout, legendVerticalAlign } from "./_shared";
+import {
+  legendAlign,
+  legendLayout,
+  legendVerticalAlign,
+  tooltipValueFormatter,
+} from "./_shared";
 
 interface Slice {
   key: string;
@@ -29,14 +33,13 @@ interface Slice {
  * `maxSlices` keeps the top-N and folds the remainder into an "Other" slice.
  * See docs/02-chart-options.md §2.4. Pie plots `categories` × the FIRST series.
  */
-export function PieChartFamily({ data, options }: ChartComponentProps): React.ReactElement {
+export function PieChartFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as PieFamilyOptions;
   const measure = data.series[0];
-  const valueFmt = makeFormatter(options.format, data.raw.annotation);
 
   // 1) categories × first series → raw slices (drop null/zero-less values).
   const raw: Slice[] = data.categories.map((cat, i) => {
-    const label = formatCategory(cat, { format: options.format });
+    const label = format.category(cat);
     return {
       key: `slice-${i}`,
       label,
@@ -73,7 +76,7 @@ export function PieChartFamily({ data, options }: ChartComponentProps): React.Re
       : ({ payload, percent }) => {
           const entry = payload;
           if (showLabels === "name") return entry?.label ?? "";
-          if (showLabels === "value") return valueFmt(entry?.value, measure?.key);
+          if (showLabels === "value") return format.value(entry?.value, measure?.key, "label");
           const pct =
             percent !== undefined
               ? percent
@@ -84,11 +87,18 @@ export function PieChartFamily({ data, options }: ChartComponentProps): React.Re
         };
 
   return (
-    <ChartContainer config={config} className="min-h-[240px] w-full [&_.recharts-pie-label-text]:fill-foreground">
+    <ChartContainer config={config} className="h-full w-full min-h-[200px] [&_.recharts-pie-label-text]:fill-foreground">
       <PieChart accessibilityLayer>
         {options.tooltip?.show !== false && (
           <ChartTooltip
-            content={<ChartTooltipContent nameKey="label" hideLabel indicator={options.tooltip?.indicator ?? "dot"} />}
+            content={
+              <ChartTooltipContent
+                nameKey="label"
+                hideLabel
+                indicator={options.tooltip?.indicator ?? "dot"}
+                valueFormatter={tooltipValueFormatter(format, measure?.key)}
+              />
+            }
           />
         )}
         <Pie
@@ -114,7 +124,7 @@ export function PieChartFamily({ data, options }: ChartComponentProps): React.Re
                 const { cx, cy } = viewBox as { cx: number; cy: number };
                 const big =
                   fo.centerLabel?.value === undefined || fo.centerLabel.value === "total"
-                    ? valueFmt(total, measure?.key)
+                    ? format.value(total, measure?.key, "label")
                     : fo.centerLabel.value;
                 return (
                   <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">

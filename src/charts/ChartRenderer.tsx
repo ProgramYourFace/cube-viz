@@ -64,7 +64,7 @@ export function ChartRenderer({
 
   // 1) loading — Skeleton sized to the container height; no Recharts mount yet.
   if (state?.loading) {
-    return <Skeleton className="min-h-[240px] w-full" />;
+    return <Skeleton className="h-full w-full min-h-[200px]" />;
   }
 
   // 2) error — destructive Alert; never leaks tenant data (message only).
@@ -81,7 +81,7 @@ export function ChartRenderer({
   // 3) empty — centered muted "No data"; Recharts not mounted (avoids 0-row glitches).
   if (data.empty) {
     return (
-      <div className="flex min-h-[240px] w-full items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full w-full min-h-[200px] items-center justify-center text-sm text-muted-foreground">
         No data
       </div>
     );

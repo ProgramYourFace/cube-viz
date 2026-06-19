@@ -9,7 +9,6 @@ import {
   YAxis,
 } from "recharts";
 
-import { makeFormatter, formatCategory } from "@/format";
 import {
   ChartContainer,
   ChartLegend,
@@ -18,6 +17,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
+import type { FormatRole } from "@/format";
 import type { ChartComponentProps } from "./types";
 import type { BarFamilyOptions } from "./defaults";
 import {
@@ -29,6 +29,7 @@ import {
   legendAlign,
   legendLayout,
   legendVerticalAlign,
+  percentTick,
   primaryMember,
   seriesColorVar,
   tooltipValueFormatter,
@@ -39,21 +40,28 @@ import {
  * (docs/02-chart-options.md §2.1). orientation→layout, stackMode→stackId/
  * stackOffset are translated HERE; the spec never carries a Recharts prop.
  */
-export function BarChartFamily({ data, options, config }: ChartComponentProps): React.ReactElement {
+export function BarChartFamily({
+  data,
+  options,
+  config,
+  format,
+}: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as BarFamilyOptions;
   const horizontal = options.orientation === "horizontal";
   const stacked = isStacked(options.stackMode);
   const percent = options.stackMode === "percent";
 
   const rows = buildRows(data);
-  const valueFmt = makeFormatter(percent ? { kind: "percent" } : options.format, data.raw.annotation);
-  const catFmt = (v: string | number) => formatCategory(v, { format: options.format });
+  // percent stackMode is chart geometry (0..1), not a host unit rule → local tick.
+  const valueFmt = (v: number | string | null | undefined, member?: string, role: FormatRole = "value") =>
+    percent ? percentTick(v) : format.value(v, member, role);
+  const catFmt = (v: string | number) => format.category(v);
 
   const catAxisHidden = horizontal ? options.axes?.y?.hide : options.axes?.x?.hide;
   const valAxis = horizontal ? options.axes?.x : options.axes?.y;
 
   return (
-    <ChartContainer config={config} className="min-h-[240px] w-full">
+    <ChartContainer config={config} className="h-full w-full min-h-[200px]">
       <BarChart
         accessibilityLayer
         data={rows}
@@ -71,7 +79,7 @@ export function BarChartFamily({ data, options, config }: ChartComponentProps): 
               hide={valAxis?.hide}
               scale={axisScale(valAxis)}
               domain={axisDomain(valAxis)}
-              tickFormatter={(v: number) => valueFmt(v, primaryMember(data))}
+              tickFormatter={(v: number) => valueFmt(v, primaryMember(data), "axis")}
             />
           </>
         ) : (
@@ -82,7 +90,7 @@ export function BarChartFamily({ data, options, config }: ChartComponentProps): 
               hide={valAxis?.hide}
               scale={axisScale(valAxis)}
               domain={axisDomain(valAxis)}
-              tickFormatter={(v: number) => valueFmt(v, primaryMember(data))}
+              tickFormatter={(v: number) => valueFmt(v, primaryMember(data), "axis")}
             />
           </>
         )}
@@ -90,8 +98,13 @@ export function BarChartFamily({ data, options, config }: ChartComponentProps): 
           <ChartTooltip
             content={
               <ChartTooltipContent
+                labelFormatter={(label) => format.category(label as string | number)}
                 indicator={options.tooltip?.indicator ?? "dot"}
-                valueFormatter={tooltipValueFormatter(valueFmt)}
+                valueFormatter={
+                  percent
+                    ? (value) => percentTick(value as number | string | null | undefined)
+                    : tooltipValueFormatter(format)
+                }
               />
             }
           />
@@ -120,7 +133,7 @@ export function BarChartFamily({ data, options, config }: ChartComponentProps): 
                 position={horizontal ? "right" : "top"}
                 className="fill-foreground text-[10px]"
                 formatter={(v: string | number | boolean | null | undefined) =>
-                  valueFmt(typeof v === "number" ? v : Number(v), s.key)
+                  valueFmt(typeof v === "boolean" ? Number(v) : v, s.key, "label")
                 }
               />
             )}

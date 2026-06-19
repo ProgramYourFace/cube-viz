@@ -17,6 +17,13 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { "@": resolve(__dirname, "src") },
     },
+    // react-draggable (via react-grid-layout) reads process.env.* at runtime; the
+    // browser has no `process`, so define the few it touches to avoid a thrown
+    // "process is not defined" that silently breaks drag/resize.
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(mode === "production" ? "production" : "development"),
+      "process.env.DRAGGABLE_DEBUG": "false",
+    },
     server: { port: 5180, host: true },
     build: { outDir: "dist-playground" },
   };

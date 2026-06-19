@@ -5,7 +5,7 @@
   "name": "Fleet Utilization",
   "grid": { "cols": 12, "rowHeight": 40, "margin": [12, 12] },
   "variables": [
-    { "name": "dateRange", "type": "dateRange", "label": "Date range", "default": "last 30 days" },
+    { "name": "dateRange", "type": "dateRange", "label": "Date range", "default": "last 7 days" },
     { "name": "granularity", "type": "granularity", "label": "Granularity", "default": "day" }
   ],
   "layout": [
@@ -73,7 +73,7 @@
       "title": "Trip Count by Device",
       "query": {
         "measures": ["device_trips.count"],
-        "dimensions": ["device_trips.device_id"],
+        "dimensions": ["devices.name"],
         "timeDimensions": [
           { "dimension": "device_trips.start_time", "dateRange": { "var": "dateRange" } }
         ],
@@ -85,7 +85,7 @@
         "orientation": "horizontal",
         "stackMode": "none",
         "mapping": {
-          "category": { "member": "device_trips.device_id" },
+          "category": { "member": "devices.name" },
           "series": {
             "mode": "measures",
             "members": ["device_trips.count"],

@@ -1,16 +1,28 @@
 import { createHmac } from "node:crypto";
-import type { Plugin } from "vite";
+import type { Connect, Plugin } from "vite";
 
 /**
- * DEV-ONLY Vite plugin: mint a Cube JWT locally from .env and proxy the Cube REST
- * API same-origin, so the playground previews real data without CORS or shipping
- * the secret to the browser. This is the "host mints the token" model realized for
- * local dev — exactly what the consuming app (aa-app) does in production, except
- * here the host is the Vite dev server reading a local .env.
+ * DEV-ONLY Vite plugin: mint a Cube JWT locally and proxy the Cube REST API
+ * same-origin, so the playground previews real data without CORS or shipping the
+ * secret to the browser. This is the "host mints the token" model for local dev —
+ * exactly what the consuming app (aa-app) does in production, except here the host
+ * is the Vite dev server.
  *
- *   client → /__cube/cubejs-api/v1/*  →  (this plugin adds Authorization)  → Cube
+ *   client → /__cube/cubejs-api/v1/*  →  (this plugin mints + adds Authorization)  → Cube
  *
- * The browser never sees CUBE_API_SECRET; it only ever calls same-origin /__cube.
+ * The browser never needs CUBE_API_SECRET. Defaults come from `.env`
+ * (CUBE_API_URL / CUBE_API_SECRET / optional CUBE_DEV_ROLES / CUBE_DEV_SYSTEM_IDS),
+ * but the preview's Settings panel can OVERRIDE the security context (and even the
+ * endpoint/secret) PER REQUEST via headers — so a user can edit the connection +
+ * securityContext in the UI and see rendering change live:
+ *
+ *   x-cube-systemids : CSV of systemIds            (securityContext.systemIds)
+ *   x-cube-roles     : CSV of roles                (securityContext.roles)
+ *   x-cube-endpoint  : full Cube URL               (override the .env endpoint)
+ *   x-cube-secret    : signing secret              (override the .env secret)
+ *
+ * GET /__cube/config returns the .env DEFAULTS (never the secret) so the UI can
+ * prefill its fields.
  */
 
 const PREFIX = "/__cube";
@@ -22,20 +34,31 @@ function b64url(s: string | Buffer): string {
 function signJwt(payload: Record<string, unknown>, secret: string): string {
   const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const now = Math.floor(Date.now() / 1000);
-  // Cube here reads the whole JWT payload as the security context, so roles +
-  // systemIds sit at the TOP LEVEL (verified empirically against the live model).
+  // Cube reads the whole JWT payload as the security context, so roles + systemIds
+  // sit at the TOP LEVEL (verified empirically against the live aa-cube model).
   const body = b64url(JSON.stringify({ iat: now, exp: now + 60 * 30, ...payload }));
   const data = `${header}.${body}`;
   const sig = createHmac("sha256", secret).update(data).digest("base64url");
   return `${data}.${sig}`;
 }
 
-function securityContext(): Record<string, unknown> {
-  const rolesEnv = process.env.CUBE_DEV_ROLES?.trim();
-  const sysEnv = process.env.CUBE_DEV_SYSTEM_IDS?.trim();
-  const roles = rolesEnv ? rolesEnv.split(",").map((s) => s.trim()).filter(Boolean) : ["admin"];
-  const systemIds = sysEnv ? sysEnv.split(",").map((s) => s.trim()).filter(Boolean) : [];
-  return { roles, systemIds };
+function header(req: Connect.IncomingMessage, name: string): string | undefined {
+  const v = req.headers[name];
+  const s = Array.isArray(v) ? v[0] : v;
+  return s && s.trim() ? s.trim() : undefined;
+}
+
+function csv(s: string | undefined): string[] {
+  return s ? s.split(",").map((x) => x.trim()).filter(Boolean) : [];
+}
+
+/** Resolve the security context from request headers, falling back to .env defaults. */
+function securityContext(req?: Connect.IncomingMessage): Record<string, unknown> {
+  const rolesHeader = req && header(req, "x-cube-roles");
+  const sysHeader = req && header(req, "x-cube-systemids");
+  const roles = rolesHeader !== undefined ? csv(rolesHeader) : csv(process.env.CUBE_DEV_ROLES) ;
+  const systemIds = sysHeader !== undefined ? csv(sysHeader) : csv(process.env.CUBE_DEV_SYSTEM_IDS);
+  return { roles: roles.length ? roles : ["admin"], systemIds };
 }
 
 export function cubeDevProxy(): Plugin {
@@ -43,43 +66,54 @@ export function cubeDevProxy(): Plugin {
     name: "cube-viz-dev-proxy",
     apply: "serve",
     configureServer(server) {
-      const url = process.env.CUBE_API_URL;
-      const secret = process.env.CUBE_API_SECRET;
-      if (!url || !secret) {
+      const envUrl = process.env.CUBE_API_URL;
+      const envSecret = process.env.CUBE_API_SECRET;
+      if (!envUrl || !envSecret) {
         server.config.logger.warn(
-          "[cube-dev-proxy] CUBE_API_URL / CUBE_API_SECRET not set — live data disabled (mock only).",
+          "[cube-dev-proxy] CUBE_API_URL / CUBE_API_SECRET not set — live data disabled.",
         );
-        return;
+      } else {
+        server.config.logger.info(`[cube-dev-proxy] live Cube enabled → ${new URL(envUrl).origin}`);
       }
-      const origin = new URL(url).origin;
-      const ctx = securityContext();
-      server.config.logger.info(
-        `[cube-dev-proxy] live Cube enabled → ${origin} (roles=${JSON.stringify(
-          (ctx.roles as string[]),
-        )}, systemIds=${(ctx.systemIds as string[]).length})`,
-      );
 
       server.middlewares.use(PREFIX, async (req, res) => {
+        const json = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify(body));
+        };
         try {
-          // Expose the minted token / connection info for the "direct" path too.
-          if (req.url === "/token" || req.url === "/token/") {
-            const token = signJwt(securityContext(), secret);
-            res.setHeader("Content-Type", "application/json");
-            res.end(JSON.stringify({ token, apiUrl: `${PREFIX}/cubejs-api/v1` }));
-            return;
+          // Per-request overrides (Settings panel) → fall back to .env.
+          const endpoint = header(req, "x-cube-endpoint") ?? envUrl;
+          const secret = header(req, "x-cube-secret") ?? envSecret;
+
+          // Config prefill: report defaults (NEVER the secret).
+          if (req.url === "/config" || req.url === "/config/") {
+            return json(200, {
+              endpoint: envUrl ?? "",
+              hasServerSecret: Boolean(envSecret),
+              defaultRoles: csv(process.env.CUBE_DEV_ROLES),
+              defaultSystemIds: csv(process.env.CUBE_DEV_SYSTEM_IDS),
+            });
           }
 
-          const target = origin + (req.url ?? "");
+          if (!endpoint || !secret) {
+            return json(503, { error: "No Cube endpoint/secret configured (set .env or send overrides)." });
+          }
+          const origin = new URL(endpoint).origin;
+          const ctx = securityContext(req);
+
+          if (req.url === "/token" || req.url === "/token/") {
+            return json(200, { token: signJwt(ctx, secret), apiUrl: `${PREFIX}/cubejs-api/v1` });
+          }
+
           const chunks: Buffer[] = [];
           for await (const c of req) chunks.push(c as Buffer);
           const body = chunks.length ? Buffer.concat(chunks) : undefined;
 
-          const upstream = await fetch(target, {
+          const upstream = await fetch(origin + (req.url ?? ""), {
             method: req.method,
-            headers: {
-              Authorization: signJwt(securityContext(), secret),
-              "Content-Type": "application/json",
-            },
+            headers: { Authorization: signJwt(ctx, secret), "Content-Type": "application/json" },
             body: req.method === "GET" || req.method === "HEAD" ? undefined : body,
           });
 
@@ -87,9 +121,7 @@ export function cubeDevProxy(): Plugin {
           res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "application/json");
           res.end(Buffer.from(await upstream.arrayBuffer()));
         } catch (e) {
-          res.statusCode = 502;
-          res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ error: `cube-dev-proxy: ${(e as Error).message}` }));
+          json(502, { error: `cube-dev-proxy: ${(e as Error).message}` });
         }
       });
     },

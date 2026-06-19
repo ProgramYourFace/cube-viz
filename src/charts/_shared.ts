@@ -1,6 +1,7 @@
 import type { ChartOptions, AxisOptions, LegendOptions } from "@/spec";
 import type { NormalizedChartData, NormalizedSeries } from "@/adapter/types";
 import type { ChartConfig } from "@/components/ui/chart";
+import type { ChartFormat } from "@/format";
 import { colorVarName } from "@/components/ui/utils";
 
 /**
@@ -92,17 +93,36 @@ export function primaryMember(data: NormalizedChartData): string | undefined {
 }
 
 /**
- * Adapt a value formatter for shadcn `ChartTooltipContent`'s `valueFormatter` prop:
- * formats ONLY the value text (keeping the swatch + label) and threads the payload
- * item's `dataKey` (the Cube member) so units/conversion are applied per series.
+ * Adapt the injected {@link ChartFormat} for shadcn `ChartTooltipContent`'s
+ * `valueFormatter` prop: formats ONLY the value text (keeping the swatch + label)
+ * and threads the payload item's `dataKey` (the Cube member) so units/conversion
+ * are applied per series. Pass `memberOverride` when the tooltip member is not the
+ * item's dataKey (e.g. pie, whose single measure is `data.series[0].key`).
  */
 export function tooltipValueFormatter(
-  fmt: (value: number | null | undefined, member?: string) => string,
+  format: ChartFormat,
+  memberOverride?: string,
 ): (value: unknown, item: { dataKey?: unknown; name?: unknown }) => string {
   return (value, item) => {
-    const n = typeof value === "number" ? value : Number(value);
     const dk = item?.dataKey;
-    const member = typeof dk === "string" || typeof dk === "number" ? String(dk) : undefined;
-    return fmt(Number.isFinite(n) ? n : null, member);
+    const member =
+      memberOverride ??
+      (typeof dk === "string" || typeof dk === "number" ? String(dk) : undefined);
+    return format.value(value as number | string | null | undefined, member, "tooltip");
   };
+}
+
+/**
+ * A percent tick for the `percent` stackMode (bar/area). The injected
+ * {@link ChartFormat} carries the spec's value-unit FormatOptions, which is the
+ * wrong scale for an expanded 0..1 stack — so the percent axis is a pure
+ * chart-geometry concern formatted locally via Intl (not a host unit rule).
+ */
+export function percentTick(value: number | string | null | undefined, locale?: string): string {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "";
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 0,
+  }).format(n);
 }

@@ -1,7 +1,6 @@
 import * as React from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
-import { makeFormatter, formatCategory } from "@/format";
 import { cn } from "@/components/ui/utils";
 import {
   Table,
@@ -13,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 
-import type { FormatOptions } from "@/spec";
+import type { ChartFormat } from "@/format";
 import type { ResultAnnotation } from "@/adapter/types";
 import type { ChartComponentProps } from "./types";
 import type { CondFormatRule, TableColumnOpt, TableFamilyOptions } from "./defaults";
@@ -24,12 +23,15 @@ import type { CondFormatRule, TableColumnOpt, TableFamilyOptions } from "./defau
  * Recharts. Columns default to every annotated member, overridable/orderable
  * via `familyOptions.columns`.
  */
-export function TableFamily({ data, options }: ChartComponentProps): React.ReactElement {
+export function TableFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as TableFamilyOptions;
   const rows = data.raw.rows;
   const ann = data.raw.annotation;
 
-  const columns = React.useMemo(() => resolveColumns(rows, ann, fo), [rows, ann, fo]);
+  const columns = React.useMemo(
+    () => resolveColumns(rows, ann, fo, format),
+    [rows, ann, fo, format],
+  );
 
   const [sort, setSort] = React.useState<{ member: string; dir: "asc" | "desc" } | null>(null);
   const [page, setPage] = React.useState(0);
@@ -166,6 +168,7 @@ function resolveColumns(
   rows: Record<string, unknown>[],
   ann: ResultAnnotation | undefined,
   fo: TableFamilyOptions,
+  format: ChartFormat,
 ): ResolvedColumn[] {
   const allMembers = rows.length > 0 ? Object.keys(rows[0]) : memberKeys(ann);
 
@@ -180,14 +183,13 @@ function resolveColumns(
       const meta = ann ? memberMeta(ann, member) : undefined;
       const isMeasure = ann ? member in ann.measures : false;
       const label = c.label ?? meta?.shortTitle ?? meta?.title ?? member;
-      const fmt = makeFormatter(c.format, ann);
       const align: TableColumnOpt["align"] = c.align ?? (isMeasure ? "right" : "left");
       return {
         member,
         label,
         align,
         width: c.width,
-        render: (value: unknown) => renderCell(value, isMeasure, member, c.format, fmt, ann),
+        render: (value: unknown) => renderCell(value, isMeasure, member, format),
       };
     });
 }
@@ -196,19 +198,15 @@ function renderCell(
   value: unknown,
   isMeasure: boolean,
   member: string,
-  _format: FormatOptions | undefined,
-  fmt: (v: number | null | undefined, member?: string) => string,
-  ann: ResultAnnotation | undefined,
+  format: ChartFormat,
 ): React.ReactNode {
   if (value === null || value === undefined || value === "") return "—";
   if (isMeasure) {
     const n = typeof value === "number" ? value : Number(value);
-    return Number.isFinite(n) ? fmt(n, member) : String(value);
+    return Number.isFinite(n) ? format.value(n, member) : String(value);
   }
-  // Dimension: format dates, pass everything else through.
-  const isTime = ann ? member in ann.timeDimensions : false;
-  if (isTime) return formatCategory(value as string, { format: _format });
-  return formatCategory(value as string | number, { format: _format });
+  // Dimension/time: route through the category formatter (handles date buckets).
+  return format.category(value as string | number);
 }
 
 function memberKeys(ann: ResultAnnotation | undefined): string[] {

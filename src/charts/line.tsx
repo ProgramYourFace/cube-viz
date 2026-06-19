@@ -10,7 +10,6 @@ import {
   YAxis,
 } from "recharts";
 
-import { makeFormatter, formatCategory } from "@/format";
 import {
   ChartContainer,
   ChartLegend,
@@ -38,13 +37,17 @@ import {
  * legend/tooltip); dual-axis = a series with `meta.axis:"right"`. Line ignores
  * orientation/stackMode (stacked lines use the `area` family).
  */
-export function LineChartFamily({ data, options, config }: ChartComponentProps): React.ReactElement {
+export function LineChartFamily({
+  data,
+  options,
+  config,
+  format,
+}: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as LineFamilyOptions;
   const sparkline = fo.chrome === "none";
 
   const rows = buildRows(data);
-  const valueFmt = makeFormatter(options.format, data.raw.annotation);
-  const catFmt = (v: string | number) => formatCategory(v, { format: options.format });
+  const catFmt = (v: string | number) => format.category(v);
 
   const hasRight = data.series.some((s) => s.meta?.axis === "right");
   const curve = fo.curve ?? "monotone";
@@ -58,7 +61,7 @@ export function LineChartFamily({ data, options, config }: ChartComponentProps):
   return (
     <ChartContainer
       config={config}
-      className={sparkline ? "aspect-[5/1] w-full" : "min-h-[240px] w-full"}
+      className={sparkline ? "aspect-[5/1] w-full" : "h-full w-full min-h-[200px]"}
     >
       <LineChart accessibilityLayer data={rows} margin={sparkline ? { top: 4, bottom: 4, left: 4, right: 4 } : undefined}>
         {!sparkline && <CartesianGrid vertical={false} />}
@@ -74,7 +77,7 @@ export function LineChartFamily({ data, options, config }: ChartComponentProps):
           hide={sparkline || options.axes?.y?.hide}
           scale={axisScale(options.axes?.y)}
           domain={axisDomain(options.axes?.y)}
-          tickFormatter={(v: number) => valueFmt(v, leftMember)}
+          tickFormatter={(v: number) => format.value(v, leftMember, "axis")}
         >
           {!sparkline && options.axes?.y?.label && (
             <Label value={options.axes.y.label} angle={-90} position="insideLeft" />
@@ -88,15 +91,16 @@ export function LineChartFamily({ data, options, config }: ChartComponentProps):
             hide={sparkline || options.axes?.y2?.hide}
             scale={axisScale(options.axes?.y2)}
             domain={axisDomain(options.axes?.y2)}
-            tickFormatter={(v: number) => valueFmt(v, rightMember)}
+            tickFormatter={(v: number) => format.value(v, rightMember, "axis")}
           />
         )}
         {!sparkline && options.tooltip?.show !== false && (
           <ChartTooltip
             content={
               <ChartTooltipContent
+                labelFormatter={(label) => format.category(label as string | number)}
                 indicator={options.tooltip?.indicator ?? "line"}
-                valueFormatter={tooltipValueFormatter(valueFmt)}
+                valueFormatter={tooltipValueFormatter(format)}
               />
             }
           />
@@ -129,7 +133,7 @@ export function LineChartFamily({ data, options, config }: ChartComponentProps):
                 position="top"
                 className="fill-foreground text-[10px]"
                 formatter={(v: string | number | boolean | null | undefined) =>
-                  valueFmt(typeof v === "number" ? v : Number(v), s.key)
+                  format.value(typeof v === "boolean" ? Number(v) : v, s.key, "label")
                 }
               />
             )}

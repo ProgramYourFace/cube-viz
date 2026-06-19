@@ -52,6 +52,12 @@ export interface EditorShellProps {
   className?: string;
   /** Min height so the canvas/preview can measure on first paint. Default 360px. */
   minHeight?: number;
+  /**
+   * `two-pane` only: fill the parent's height (for full-screen editing) instead of
+   * sizing to `minHeight`. WIDE → both panes `h-full` (preview fills the screen);
+   * NARROW → preview takes a fixed top band, the config scrolls below it.
+   */
+  fill?: boolean;
 }
 
 export function EditorShell({
@@ -66,6 +72,7 @@ export function EditorShell({
   panelSide = "right",
   className,
   minHeight = 360,
+  fill = false,
 }: EditorShellProps): React.ReactElement {
   const { ref, narrow } = useContainerBreakpoint<HTMLDivElement>();
 
@@ -84,20 +91,21 @@ export function EditorShell({
   /* ───────────────────────────── two-pane mode ──────────────────────────── */
   if (mode === "two-pane") {
     if (narrow) {
-      // Stacked: preview on top, config below. Both full width.
+      // Stacked: preview on top, config below. Both full width. When `fill`, the
+      // preview takes a fixed top band and the config scrolls below it.
       return (
         <div
           ref={ref}
           data-slot="editor-shell"
           data-mode="two-pane"
           data-layout="stacked"
-          className={cn("flex w-full flex-col", className)}
+          className={cn("flex w-full flex-col", fill && "h-full", className)}
         >
-          <div className="w-full" style={{ minHeight }}>
+          <div className={cn("w-full", fill && "shrink-0")} style={fill ? { height: "42vh" } : { minHeight }}>
             {canvas}
           </div>
           <Separator className="my-3" />
-          <div className="w-full">{panel}</div>
+          <div className={cn("w-full", fill && "min-h-0 flex-1 overflow-y-auto")}>{panel}</div>
         </div>
       );
     }
@@ -107,8 +115,8 @@ export function EditorShell({
         data-slot="editor-shell"
         data-mode="two-pane"
         data-layout="split"
-        className={cn("flex w-full items-stretch", className)}
-        style={{ minHeight }}
+        className={cn("flex w-full items-stretch", fill && "h-full", className)}
+        style={fill ? undefined : { minHeight }}
       >
         <div
           className="shrink-0 overflow-y-auto pr-3"

@@ -10,7 +10,6 @@ import {
   YAxis,
 } from "recharts";
 
-import { makeFormatter, formatCategory } from "@/format";
 import { DEFAULT_COLOR_RAMP } from "@/adapter";
 import {
   ChartContainer,
@@ -40,13 +39,12 @@ import { colorVarName } from "@/components/ui/utils";
  * (left|right → mounts a 2nd YAxis). `mapping.category` is the shared x. The
  * inline `series` list is the combo seam, so envelope `mapping.series` is ignored.
  */
-export function ComboChartFamily({ data, options }: ChartComponentProps): React.ReactElement {
+export function ComboChartFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as ComboFamilyOptions;
   const seriesOpts = fo.series ?? [];
 
   const rows = buildComboRows(data, seriesOpts);
-  const valueFmt = makeFormatter(options.format, data.raw.annotation);
-  const catFmt = (v: string | number) => formatCategory(v, { format: options.format });
+  const catFmt = (v: string | number) => format.category(v);
 
   const hasRight = seriesOpts.some((s) => s.axis === "right");
   const leftMember = seriesOpts.find((s) => s.axis !== "right")?.member;
@@ -62,7 +60,7 @@ export function ComboChartFamily({ data, options }: ChartComponentProps): React.
   });
 
   return (
-    <ChartContainer config={config} className="min-h-[240px] w-full">
+    <ChartContainer config={config} className="h-full w-full min-h-[200px]">
       <ComposedChart accessibilityLayer data={rows}>
         <CartesianGrid vertical={false} />
         <XAxis type="category" dataKey="__cat" hide={options.axes?.x?.hide} tickFormatter={catFmt} />
@@ -72,7 +70,7 @@ export function ComboChartFamily({ data, options }: ChartComponentProps): React.
           hide={options.axes?.y?.hide}
           scale={axisScale(options.axes?.y)}
           domain={axisDomain(options.axes?.y)}
-          tickFormatter={(v: number) => valueFmt(v, leftMember)}
+          tickFormatter={(v: number) => format.value(v, leftMember, "axis")}
         />
         {hasRight && (
           <YAxis
@@ -82,15 +80,16 @@ export function ComboChartFamily({ data, options }: ChartComponentProps): React.
             hide={options.axes?.y2?.hide}
             scale={axisScale(options.axes?.y2)}
             domain={axisDomain(options.axes?.y2)}
-            tickFormatter={(v: number) => valueFmt(v, rightMember)}
+            tickFormatter={(v: number) => format.value(v, rightMember, "axis")}
           />
         )}
         {options.tooltip?.show !== false && (
           <ChartTooltip
             content={
               <ChartTooltipContent
+                labelFormatter={(label) => format.category(label as string | number)}
                 indicator={options.tooltip?.indicator ?? "dot"}
-                valueFormatter={tooltipValueFormatter(valueFmt)}
+                valueFormatter={tooltipValueFormatter(format)}
               />
             }
           />
