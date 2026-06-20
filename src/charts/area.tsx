@@ -124,7 +124,7 @@ export function AreaChartFamily({
         {data.series.map((s) => (
           <Area
             key={s.key}
-            type={curve}
+            type={s.meta?.curve ?? curve}
             dataKey={s.key}
             name={s.label}
             stackId={stacked ? (s.meta?.stackId ?? "stack") : undefined}
@@ -132,7 +132,7 @@ export function AreaChartFamily({
             strokeWidth={fo.strokeWidth ?? 2}
             fill={`url(#fill-${s.key})`}
             fillOpacity={1}
-            dot={fo.dots ?? false}
+            dot={s.meta?.dots ?? (fo.dots ?? false)}
             connectNulls={fo.connectNulls ?? false}
           />
         ))}

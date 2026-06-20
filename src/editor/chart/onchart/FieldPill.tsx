@@ -9,10 +9,11 @@ import type { ChartColorToken, ChartSpec } from "@/spec";
 
 import { ColorTokenPicker } from "../../primitives/ColorTokenPicker";
 import { GranularityPicker } from "../../primitives/GranularityPicker";
+import { Switch } from "../../primitives/SwitchRow";
 import { memberTypeIcon } from "../../primitives/MemberPicker";
 import type { MemberOption } from "../../primitives/meta-helpers";
 import type { WellDef } from "../builder/wells";
-import { chipBindings, type ComboRender } from "./chip-bindings";
+import { chipBindings, type ComboRender, type LineCurve } from "./chip-bindings";
 import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
 import { ValueBinding } from "../binding/ValueBinding";
 
@@ -42,6 +43,12 @@ export interface FieldPillProps {
 }
 
 const RENDER_LABELS: Record<ComboRender, string> = { bar: "Bar", line: "Line", area: "Area" };
+const LINE_SHAPES: ReadonlyArray<readonly [LineCurve, string]> = [
+  ["monotone", "Smooth"],
+  ["linear", "Straight"],
+  ["step", "Step"],
+  ["natural", "Curved"],
+];
 
 /**
  * A placed-field token (on-chart). The body opens a context popover with every
@@ -65,7 +72,13 @@ export function FieldPill({
   const showSwatch = b.canColor && resolvedColor !== undefined;
   // Whether the field has anything to configure; if not, the pill is just a label + ×.
   const hasConfig =
-    b.canRename || showSwatch || b.isTimeField || (b.isComboY && !!b.render) || b.canAxis || !!reorder;
+    b.canRename ||
+    showSwatch ||
+    b.isTimeField ||
+    (b.isComboY && !!b.render) ||
+    b.canAxis ||
+    b.canLineStyle ||
+    !!reorder;
 
   const commitRename = (value: string): void => {
     const trimmed = value.trim();
@@ -206,6 +219,34 @@ export function FieldPill({
                   ))}
                 </div>
               </div>
+            ) : null}
+
+            {b.canLineStyle ? (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">Line shape</span>
+                  <div className="grid grid-cols-2 gap-1">
+                    {LINE_SHAPES.map(([v, lbl]) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => b.onCurve(v)}
+                        className={cn(
+                          "flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-xs",
+                          (b.curve ?? "monotone") === v ? "border-ring bg-accent" : "border-input hover:bg-accent/50",
+                        )}
+                      >
+                        {lbl}
+                        {(b.curve ?? "monotone") === v ? <Check className="size-3" /> : null}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-muted-foreground">Show points</span>
+                  <Switch checked={b.dots === true} onChange={b.onDots} aria-label="Show points" />
+                </label>
+              </>
             ) : null}
 
             {reorder ? (

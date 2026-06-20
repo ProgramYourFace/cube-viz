@@ -194,7 +194,8 @@ export const ComboSeriesOptSchema = z
     axis: z.enum(["left", "right"]).optional(),
     colorToken: ChartColorTokenSchema.optional(),
     stackId: z.string().optional(),
-    curve: z.enum(["linear", "monotone", "step"]).optional(),
+    curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
+    dots: z.boolean().optional(),
     label: z.string().optional(),
   })
   .strict();

@@ -14,6 +14,10 @@ export interface SeriesValueMeta {
   convert?: boolean;
   axis?: "left" | "right";
   stackId?: string;
+  /** Per-series line shape (line/area) carried from the spec's SeriesMeta. */
+  curve?: "linear" | "monotone" | "step" | "natural";
+  /** Per-series point markers (line/area) carried from the spec's SeriesMeta. */
+  dots?: boolean;
 }
 
 export interface NormalizedSeries {

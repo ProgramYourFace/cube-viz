@@ -21,6 +21,7 @@ import type { MemberOption } from "../../primitives/meta-helpers";
  */
 
 export type ComboRender = "bar" | "line" | "area";
+export type LineCurve = "linear" | "monotone" | "step" | "natural";
 
 type AxisSide = "left" | "right";
 
@@ -30,6 +31,8 @@ interface ComboSeriesEntry {
   label?: string;
   colorToken?: ChartColorToken;
   axis?: AxisSide;
+  curve?: LineCurve;
+  dots?: boolean;
 }
 
 interface TableColumnEntry {
@@ -52,6 +55,12 @@ export interface ChipBindings {
   render?: ComboRender;
   /** The value axis (left/right) this series is on — for dual-axis families. */
   axis?: AxisSide;
+  /** Per-series line shape, when this series draws a line/area. */
+  curve?: LineCurve;
+  /** Per-series point markers, when this series draws a line/area. */
+  dots?: boolean;
+  /** Whether per-series line style (shape + points) applies to this field. */
+  canLineStyle: boolean;
   /** Whether this field can be moved between left/right value axes (line + combo Y). */
   canAxis: boolean;
   canRename: boolean;
@@ -66,6 +75,8 @@ export interface ChipBindings {
   onDateRange: (range: DateRange | VarRef | undefined) => void;
   onRender: (r: ComboRender) => void;
   onAxis: (side: AxisSide) => void;
+  onCurve: (c: LineCurve) => void;
+  onDots: (on: boolean) => void;
   onRemove: () => void;
 }
 
@@ -136,6 +147,18 @@ export function chipBindings(
     ? ((isComboY ? comboSeries.find((s) => s.member === member)?.axis : meta?.axis) ?? "left")
     : undefined;
 
+  // Per-series line shape + points: line/area measures-mode Y, or a combo line/area series.
+  const isLineAreaY = (family === "line" || family === "area") && well.id === "y" && measuresMode;
+  const comboLineArea = isComboY && (render === "line" || render === "area");
+  const canLineStyle = isLineAreaY || comboLineArea;
+  const comboEntry = isComboY ? comboSeries.find((s) => s.member === member) : undefined;
+  const curve: LineCurve | undefined = canLineStyle
+    ? (isComboY ? comboEntry?.curve : (meta?.curve as LineCurve | undefined))
+    : undefined;
+  const dots: boolean | undefined = canLineStyle
+    ? (isComboY ? comboEntry?.dots : meta?.dots)
+    : undefined;
+
   /* ── writers ────────────────────────────────────────────────────────────── */
 
   const patchSeriesMeta = (next: SeriesMeta | undefined): void => {
@@ -202,6 +225,15 @@ export function chipBindings(
     else if (usesSeriesMeta) patchSeriesMeta({ ...meta, axis: side });
   };
 
+  const onCurve = (c: LineCurve): void => {
+    if (isComboY) patchComboSeries({ curve: c });
+    else if (usesSeriesMeta) patchSeriesMeta({ ...meta, curve: c });
+  };
+  const onDots = (on: boolean): void => {
+    if (isComboY) patchComboSeries({ dots: on });
+    else if (usesSeriesMeta) patchSeriesMeta({ ...meta, dots: on });
+  };
+
   const onRemove = (): void => update(removeField(spec, family, well.id, member));
 
   return {
@@ -212,6 +244,9 @@ export function chipBindings(
     dateRange,
     render,
     axis,
+    curve,
+    dots,
+    canLineStyle,
     canAxis,
     canRename: isComboY || isTableCol || usesSeriesMeta,
     // A color dot is meaningful only when one rendered series ↔ this field: a
@@ -226,6 +261,8 @@ export function chipBindings(
     onDateRange,
     onRender,
     onAxis,
+    onCurve,
+    onDots,
     onRemove,
   };
 }

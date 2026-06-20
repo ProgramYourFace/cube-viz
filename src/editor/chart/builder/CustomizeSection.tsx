@@ -26,7 +26,6 @@ export interface CustomizeSectionProps {
 }
 
 type StackChoice = "none" | "stacked" | "percent";
-type CurveChoice = "monotone" | "linear" | "step" | "natural";
 
 /**
  * The per-family option set — ONLY the meaning-changing knobs for each chart type
@@ -76,32 +75,6 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     </FieldRow>
   );
 
-  // A full curve picker (not a binary toggle) so step/natural survive editing.
-  const CurveControl = (
-    <FieldRow label="Line shape">
-      <SegmentedControl<CurveChoice>
-        aria-label="Line shape"
-        size="sm"
-        options={[
-          { value: "monotone", label: "Smooth" },
-          { value: "linear", label: "Straight" },
-          { value: "step", label: "Step" },
-          { value: "natural", label: "Curved" },
-        ]}
-        value={(fo.curve as CurveChoice) ?? "monotone"}
-        onChange={(v) => setFamilyOptions({ curve: v })}
-      />
-    </FieldRow>
-  );
-
-  const PointsControl = (
-    <SwitchRow
-      label="Show points"
-      checked={fo.dots === true}
-      onChange={(on) => setFamilyOptions({ dots: on })}
-    />
-  );
-
   // Remember the last comparison config so toggling KPI comparison off→on restores it.
   const lastComparison = React.useRef<Record<string, unknown> | undefined>(undefined);
 
@@ -119,22 +92,13 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           </>
         );
 
+      // Line shape + points are now per-measure (the field-pill popover), so a line
+      // chart needs no type-level options at all.
       case "line":
-        return (
-          <>
-            {CurveControl}
-            {PointsControl}
-          </>
-        );
+        return null;
 
       case "area":
-        return (
-          <>
-            {StackControl}
-            {CurveControl}
-            {PointsControl}
-          </>
-        );
+        return StackControl;
 
       case "pie":
         return (
@@ -369,16 +333,10 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           </>
         );
 
+      // Combo is configured entirely per-measure (render type, line shape, points,
+      // axis, color) on each Values field — no type-level options.
       case "combo":
-        return (
-          <>
-            {CurveControl}
-            {PointsControl}
-            <p className="py-1 text-xs text-muted-foreground">
-              Set bar / line / area and the axis per series on each Values field above.
-            </p>
-          </>
-        );
+        return null;
 
       case "scatter":
         return null;
@@ -386,6 +344,21 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
   })();
 
   return <div className="flex flex-col">{body}</div>;
+}
+
+/** Families that still have a type-level "Options" section. line / combo / scatter are
+ *  fully edited in context (per-measure pills + on-chart chrome), so they have none. */
+const FAMILIES_WITH_OPTIONS = new Set<ChartSpec["chart"]["family"]>([
+  "bar",
+  "area",
+  "pie",
+  "kpi",
+  "table",
+]);
+
+/** Whether the type picker should show an "Options" section for this family. */
+export function hasCustomizeOptions(family: ChartSpec["chart"]["family"]): boolean {
+  return FAMILIES_WITH_OPTIONS.has(family);
 }
 
 /** A vertical labeled field (caption above the control) for the option pickers. */

@@ -17,7 +17,7 @@ import { cn } from "@/components/ui/utils";
 import type { ChartFamily, ChartSpec } from "@/spec";
 
 import { FAMILY_LABELS, migrateToFamily } from "../helpers";
-import { CustomizeSection } from "../builder/CustomizeSection";
+import { CustomizeSection, hasCustomizeOptions } from "../builder/CustomizeSection";
 
 const FAMILY_ORDER: ChartFamily[] = [
   "bar",
@@ -97,11 +97,15 @@ export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps)
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Chart type</p>
             <TypeGrid family={family} onPick={setFamily} />
           </div>
-          {/* Options live WITH the type — they're per-family (stacking, curve, donut…). */}
-          <div className="flex flex-col gap-1.5 border-t border-border pt-2.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Options</p>
-            <CustomizeSection spec={spec} update={update} />
-          </div>
+          {/* The few remaining type-level options (stacking, donut, KPI, table…). Most
+              config is in-context: per-measure on the field pills, chrome on the chart.
+              Families with nothing left (line / combo / scatter) show no Options at all. */}
+          {hasCustomizeOptions(family) ? (
+            <div className="flex flex-col gap-1.5 border-t border-border pt-2.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Options</p>
+              <CustomizeSection spec={spec} update={update} />
+            </div>
+          ) : null}
         </PopoverContent>
       </Popover>
     </div>

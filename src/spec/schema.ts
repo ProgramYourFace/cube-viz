@@ -180,6 +180,10 @@ export const SeriesMetaSchema = z
     colorToken: ChartColorTokenSchema.optional(),
     stackId: z.string().optional(),
     axis: z.enum(["left", "right"]).optional(),
+    /** Per-series line shape (line/area) — overrides the family default. */
+    curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
+    /** Per-series point markers (line/area) — overrides the family default. */
+    dots: z.boolean().optional(),
     format: FormatOptionsSchema.optional(),
   })
   .strict();

@@ -154,6 +154,7 @@ function renderSeries(
   const name = s.label ?? labelOf(data, s.member);
   // Per-series option, then the family-level option, then a sensible default.
   const curve = s.curve ?? fo.curve ?? "monotone";
+  const dots = s.dots ?? fo.dots ?? false;
   const connectNulls = fo.connectNulls ?? false;
 
   if (s.render === "bar") {
@@ -182,7 +183,7 @@ function renderSeries(
         strokeWidth={fo.strokeWidth ?? 2}
         fill={color}
         fillOpacity={fo.fillOpacity ?? 0.25}
-        dot={fo.dots ?? false}
+        dot={dots}
         connectNulls={connectNulls}
       />
     );
@@ -196,7 +197,7 @@ function renderSeries(
       name={name}
       stroke={color}
       strokeWidth={fo.strokeWidth ?? 2}
-      dot={fo.dots ?? false}
+      dot={dots}
       connectNulls={connectNulls}
     />
   );

@@ -133,12 +133,12 @@ export function LineChartFamily({
           <Line
             key={s.key}
             yAxisId={hasRight && s.meta?.axis === "right" ? "right" : "left"}
-            type={curve}
+            type={s.meta?.curve ?? curve}
             dataKey={s.key}
             name={s.label}
             stroke={seriesColorVar(s)}
             strokeWidth={fo.strokeWidth ?? 2}
-            dot={dotProp}
+            dot={sparkline ? false : (s.meta?.dots ?? dotProp)}
             activeDot={activeDotProp}
             connectNulls={fo.connectNulls ?? false}
             isAnimationActive={!sparkline}
