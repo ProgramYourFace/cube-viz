@@ -93,6 +93,39 @@ export function primaryMember(data: NormalizedChartData): string | undefined {
 }
 
 /**
+ * The text for each axis label: the spec override (`axes.{x,y,y2}.label`) when set,
+ * else AUTO-derived from the mapped members — the category member for x, the left/right
+ * value series for y/y2 (the pivot value measure in color-split mode). The editor lets a
+ * user type an override directly on the chart; otherwise these sensible labels just show.
+ */
+export function resolvedAxisLabels(
+  data: NormalizedChartData,
+  options: ChartOptions,
+): { x?: string; left?: string; right?: string } {
+  const a = data.raw.annotation;
+  const lbl = (m?: string): string | undefined => {
+    if (!m) return undefined;
+    return (
+      a?.measures[m]?.shortTitle ??
+      a?.dimensions[m]?.shortTitle ??
+      a?.timeDimensions[m]?.shortTitle ??
+      a?.measures[m]?.title ??
+      a?.dimensions[m]?.title ??
+      a?.timeDimensions[m]?.title ??
+      m
+    );
+  };
+  const split = pivotValueMember(options);
+  const left = data.series.find((s) => (s.meta?.axis ?? "left") !== "right");
+  const right = data.series.find((s) => s.meta?.axis === "right");
+  return {
+    x: options.axes?.x?.label ?? lbl(options.mapping?.category?.member),
+    left: options.axes?.y?.label ?? (split ? lbl(split) : left?.label),
+    right: options.axes?.y2?.label ?? right?.label,
+  };
+}
+
+/**
  * The measure whose unit the value axis / tooltip / labels should use. In PIVOT
  * (color-split) mode every series IS the same measure (split into one series per
  * category value), so units come from the pivot VALUE measure — NOT each series'

@@ -31,6 +31,7 @@ import {
   legendVerticalAlign,
   percentTick,
   primaryMember,
+  resolvedAxisLabels,
   seriesColorVar,
   tooltipValueFormatter,
   pivotValueMember,
@@ -69,6 +70,14 @@ export function BarChartFamily({
   const hasRight = !horizontal && data.series.some((s) => s.meta?.axis === "right");
   const leftMember = splitMember ?? data.series.find((s) => s.meta?.axis !== "right")?.key ?? valueMember;
   const rightMember = data.series.find((s) => s.meta?.axis === "right")?.key;
+  // Axis labels (override → auto). Category=axl.x, value(left)=axl.left, value(right)=axl.right;
+  // for a horizontal bar the category sits on Y and the value on X, so they swap below.
+  const axl = resolvedAxisLabels(data, options);
+  const catLabel = axl.x ? { value: axl.x, position: "insideBottom" as const, offset: -2 } : undefined;
+  const catLabelV = axl.x ? { value: axl.x, angle: -90, position: "insideLeft" as const, style: { textAnchor: "middle" as const } } : undefined;
+  const valLabelH = axl.left ? { value: axl.left, position: "insideBottom" as const, offset: -2 } : undefined;
+  const valLabelL = axl.left ? { value: axl.left, angle: -90, position: "insideLeft" as const, style: { textAnchor: "middle" as const } } : undefined;
+  const valLabelR = axl.right ? { value: axl.right, angle: 90, position: "insideRight" as const, style: { textAnchor: "middle" as const } } : undefined;
 
   return (
     <ChartContainer config={config} className="h-full w-full min-h-[200px]">
@@ -83,18 +92,31 @@ export function BarChartFamily({
         <CartesianGrid vertical={horizontal} horizontal={!horizontal} />
         {horizontal ? (
           <>
-            <YAxis type="category" dataKey="__cat" hide={catAxisHidden} tickFormatter={catFmt} />
+            <YAxis
+              type="category"
+              dataKey="__cat"
+              hide={catAxisHidden}
+              tickFormatter={catFmt}
+              label={catLabelV}
+            />
             <XAxis
               type="number"
               hide={valAxis?.hide}
               scale={axisScale(valAxis)}
               domain={axisDomain(valAxis)}
               tickFormatter={(v: number) => valueFmt(v, valueMember, "axis")}
+              label={valLabelH}
             />
           </>
         ) : (
           <>
-            <XAxis type="category" dataKey="__cat" hide={catAxisHidden} tickFormatter={catFmt} />
+            <XAxis
+              type="category"
+              dataKey="__cat"
+              hide={catAxisHidden}
+              tickFormatter={catFmt}
+              label={catLabel}
+            />
             <YAxis
               yAxisId="left"
               type="number"
@@ -102,6 +124,7 @@ export function BarChartFamily({
               scale={axisScale(valAxis)}
               domain={axisDomain(valAxis)}
               tickFormatter={(v: number) => valueFmt(v, leftMember, "axis")}
+              label={valLabelL}
             />
             {hasRight && (
               <YAxis
@@ -112,6 +135,7 @@ export function BarChartFamily({
                 scale={axisScale(options.axes?.y2)}
                 domain={axisDomain(options.axes?.y2)}
                 tickFormatter={(v: number) => valueFmt(v, rightMember, "axis")}
+                label={valLabelR}
               />
             )}
           </>

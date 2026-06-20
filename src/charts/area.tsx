@@ -29,6 +29,7 @@ import {
   percentTick,
   pivotValueMember,
   primaryMember,
+  resolvedAxisLabels,
   seriesColorVar,
   tooltipValueFormatter,
 } from "./_shared";
@@ -60,6 +61,7 @@ export function AreaChartFamily({
   // per-series (pivot-value) key.
   const splitMember = pivotValueMember(options);
   const valueMember = splitMember ?? primaryMember(data);
+  const axl = resolvedAxisLabels(data, options);
 
   return (
     <ChartContainer config={config} className="h-full w-full min-h-[200px]">
@@ -73,7 +75,13 @@ export function AreaChartFamily({
             </linearGradient>
           ))}
         </defs>
-        <XAxis type="category" dataKey="__cat" hide={options.axes?.x?.hide} tickFormatter={catFmt} />
+        <XAxis
+          type="category"
+          dataKey="__cat"
+          hide={options.axes?.x?.hide}
+          tickFormatter={catFmt}
+          label={axl.x ? { value: axl.x, position: "insideBottom", offset: -2 } : undefined}
+        />
         <YAxis
           type="number"
           hide={options.axes?.y?.hide}
@@ -81,6 +89,11 @@ export function AreaChartFamily({
           domain={axisDomain(options.axes?.y)}
           tickFormatter={(v: number) =>
             percent ? percentTick(v) : format.value(v, valueMember, "axis")
+          }
+          label={
+            axl.left
+              ? { value: axl.left, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }
+              : undefined
           }
         />
         {options.tooltip?.show !== false && (

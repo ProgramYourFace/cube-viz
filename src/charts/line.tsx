@@ -1,7 +1,6 @@
 import type * as React from "react";
 import {
   CartesianGrid,
-  Label,
   LabelList,
   Line,
   LineChart,
@@ -28,6 +27,7 @@ import {
   legendLayout,
   legendVerticalAlign,
   pivotValueMember,
+  resolvedAxisLabels,
   seriesColorVar,
   tooltipValueFormatter,
 } from "./_shared";
@@ -58,6 +58,7 @@ export function LineChartFamily({
   // Representative member per axis so ticks render that axis's unit.
   const leftMember = splitMember ?? data.series.find((s) => s.meta?.axis !== "right")?.key;
   const rightMember = data.series.find((s) => s.meta?.axis === "right")?.key;
+  const axl = resolvedAxisLabels(data, options);
 
   // Visible points only when explicitly enabled; the hover dot stays on (for tooltips)
   // unless this is a chrome-less sparkline.
@@ -76,6 +77,7 @@ export function LineChartFamily({
           dataKey="__cat"
           hide={sparkline || options.axes?.x?.hide}
           tickFormatter={catFmt}
+          label={!sparkline && axl.x ? { value: axl.x, position: "insideBottom", offset: -2 } : undefined}
         />
         <YAxis
           yAxisId="left"
@@ -84,11 +86,12 @@ export function LineChartFamily({
           scale={axisScale(options.axes?.y)}
           domain={axisDomain(options.axes?.y)}
           tickFormatter={(v: number) => format.value(v, leftMember, "axis")}
-        >
-          {!sparkline && options.axes?.y?.label && (
-            <Label value={options.axes.y.label} angle={-90} position="insideLeft" />
-          )}
-        </YAxis>
+          label={
+            !sparkline && axl.left
+              ? { value: axl.left, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }
+              : undefined
+          }
+        />
         {hasRight && (
           <YAxis
             yAxisId="right"
@@ -98,6 +101,11 @@ export function LineChartFamily({
             scale={axisScale(options.axes?.y2)}
             domain={axisDomain(options.axes?.y2)}
             tickFormatter={(v: number) => format.value(v, rightMember, "axis")}
+            label={
+              !sparkline && axl.right
+                ? { value: axl.right, angle: 90, position: "insideRight", style: { textAnchor: "middle" } }
+                : undefined
+            }
           />
         )}
         {!sparkline && options.tooltip?.show !== false && (

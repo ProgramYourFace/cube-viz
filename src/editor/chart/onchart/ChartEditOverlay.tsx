@@ -10,6 +10,7 @@ import { axisKeyOf, axisLabelOf } from "../builder/axis";
 import { getWells, placeField, readWells, type FieldKind, type WellDef } from "../builder/wells";
 import { ChartFiltersPopover } from "./ChartFiltersPopover";
 import { ChartSourcePopover } from "./ChartSourcePopover";
+import { AxisChrome, LegendChrome } from "./ChartChrome";
 import { CenterTypePicker } from "./CenterTypePicker";
 import { withSeriesAxis } from "./chip-bindings";
 import { computeJoinScope } from "./join-scope";
@@ -259,6 +260,22 @@ export function ChartEditOverlay({
   // share one axis), so the Y well is locked to one field while the split is active.
   const pivotMode = chart.mapping?.series?.mode === "pivot";
 
+  // In-context chrome (axis labels + legend/axis visibility). Axis labels auto-fill from
+  // the mapped members; the user can type an override or hide an element on the chart.
+  const isCartesian = family === "bar" || family === "line" || family === "area" || family === "combo";
+  const hasLegend = family !== "kpi" && family !== "table";
+  const yMembers = placed.y ?? [];
+  const leftYMember = yMembers.find((m) => axisOfMember(m) !== "right");
+  const rightYMember = dualAxis ? yMembers.find((m) => axisOfMember(m) === "right") : undefined;
+  const autoLabel = (m: string | undefined): string | undefined => {
+    if (!m) return undefined;
+    // Prefer the series' display label (the chart's rendered auto-label) so the editor
+    // placeholder matches what shows on the axis; fall back to the member's meta label.
+    const s = chart.mapping?.series;
+    const seriesLabel = s && s.mode === "measures" ? s.meta?.[m]?.label : undefined;
+    return seriesLabel ?? findMember(meta, m)?.label;
+  };
+
   const renderGroup = (well: WellDef, orientation: "vertical" | "horizontal"): React.ReactElement => (
     <WellGroup
       key={well.id}
@@ -336,6 +353,23 @@ export function ChartEditOverlay({
           {bottomWells.length > 0 ? (
             <div className="flex flex-wrap items-start gap-x-5 gap-y-2 pl-1">
               {bottomWells.map((w) => renderGroup(w, "horizontal"))}
+            </div>
+          ) : null}
+
+          {/* In-context chrome: auto axis labels (override inline) + show/hide for axes
+              and the legend; a hidden element greys its control. */}
+          {isCartesian || hasLegend ? (
+            <div className="flex flex-wrap items-center gap-1.5 pl-1">
+              {isCartesian ? (
+                <>
+                  <AxisChrome spec={spec} update={update} axis="x" title="X" auto={autoLabel(chart.mapping?.category?.member)} />
+                  <AxisChrome spec={spec} update={update} axis="y" title="Y" auto={autoLabel(leftYMember)} />
+                  {rightYMember ? (
+                    <AxisChrome spec={spec} update={update} axis="y2" title="Right" auto={autoLabel(rightYMember)} />
+                  ) : null}
+                </>
+              ) : null}
+              {hasLegend ? <LegendChrome spec={spec} update={update} /> : null}
             </div>
           ) : null}
         </div>

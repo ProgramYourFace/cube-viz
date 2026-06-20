@@ -2,33 +2,20 @@ import * as React from "react";
 
 import { DEFAULTS } from "@/charts";
 import type {
-  AxisOptions,
   ChartOptions,
   ChartSpec,
   DateRange,
-  FormatKind,
-  FormatOptions,
   Granularity,
-  OrderSpec,
   TimeDimension,
   VarRef,
 } from "@/spec";
-import { useCubeMeta } from "@/hooks";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import { FieldRow } from "../../primitives/FieldRow";
 import { GranularityPicker } from "../../primitives/GranularityPicker";
 import { MemberPicker } from "../../primitives/MemberPicker";
 import { SegmentedControl } from "../../primitives/SegmentedControl";
 import { SwitchRow } from "../../primitives/SwitchRow";
-import { findMember } from "../../primitives/meta-helpers";
 import { inferCube } from "../helpers";
 import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
 import { ValueBinding } from "../binding/ValueBinding";
@@ -42,9 +29,15 @@ type StackChoice = "none" | "stacked" | "percent";
 type CurveChoice = "monotone" | "linear" | "step" | "natural";
 
 /**
- * The per-family option set (docs/05 §4) — the meaning-changing toggles for each chart
- * type, exposed so the UI covers what the renderers support (no spec hand-editing).
- * Lives under the chart-type picker since options are inherently per-type.
+ * The per-family option set — ONLY the meaning-changing knobs for each chart type
+ * (orientation, stacking, line shape, donut, KPI comparison…). Deliberately small:
+ *
+ *  - Number / unit / decimal formatting is AUTOMATIC (member meta + the host formatter),
+ *    never a per-chart knob.
+ *  - Axis labels, and legend / axis / label VISIBILITY, are edited IN CONTEXT on the
+ *    chart (see ChartEditOverlay), not here.
+ *
+ * Fewest knobs for sensible defaults.
  */
 export function CustomizeSection({ spec, update }: CustomizeSectionProps): React.ReactElement {
   const { chart } = spec;
@@ -58,8 +51,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     update({ ...spec, chart: { ...chart, familyOptions: { ...fo, ...patch } } });
 
   // Reflect the EFFECTIVE stack mode (an unset value renders with the family default).
-  // Area's default is shape-aware (a color-split pivot stacks; multiple measures overlap),
-  // matching the area renderer; other families use their static envelope default.
+  // Area's default is shape-aware (a color-split pivot stacks; multiple measures overlap).
   const areaDefault = chart.mapping?.series?.mode === "pivot" ? "stacked" : "none";
   const effectiveStack =
     chart.stackMode ??
@@ -109,30 +101,6 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
       onChange={(on) => setFamilyOptions({ dots: on })}
     />
   );
-  const ValueLabelsControl = (
-    <SwitchRow
-      label="Show value labels"
-      checked={fo.showValueLabels === true}
-      onChange={(on) => setFamilyOptions({ showValueLabels: on })}
-    />
-  );
-  const ConnectNullsControl = (
-    <SwitchRow
-      label="Connect gaps"
-      checked={fo.connectNulls === true}
-      onChange={(on) => setFamilyOptions({ connectNulls: on })}
-    />
-  );
-
-  // Legend is shared by every family that draws one (not KPI / table).
-  const hasLegend = family !== "kpi" && family !== "table";
-  const LegendControl = hasLegend ? (
-    <SwitchRow
-      label="Legend"
-      checked={chart.legend?.show !== false}
-      onChange={(on) => setEnvelope({ legend: { ...chart.legend, show: on } })}
-    />
-  ) : null;
 
   // Remember the last comparison config so toggling KPI comparison off→on restores it.
   const lastComparison = React.useRef<Record<string, unknown> | undefined>(undefined);
@@ -148,7 +116,6 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
               onChange={(on) => setEnvelope({ orientation: on ? "horizontal" : "vertical" })}
             />
             {StackControl}
-            {ValueLabelsControl}
           </>
         );
 
@@ -157,8 +124,6 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           <>
             {CurveControl}
             {PointsControl}
-            {ConnectNullsControl}
-            {ValueLabelsControl}
           </>
         );
 
@@ -168,7 +133,6 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
             {StackControl}
             {CurveControl}
             {PointsControl}
-            {ConnectNullsControl}
           </>
         );
 
@@ -410,7 +374,6 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           <>
             {CurveControl}
             {PointsControl}
-            {ConnectNullsControl}
             <p className="py-1 text-xs text-muted-foreground">
               Set bar / line / area and the axis per series on each Values field above.
             </p>
@@ -422,15 +385,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     }
   })();
 
-  return (
-    <div className="flex flex-col">
-      {LegendControl}
-      {body}
-      <AxisControls spec={spec} update={update} />
-      <FormatControls spec={spec} update={update} />
-      <DataControls spec={spec} update={update} />
-    </div>
-  );
+  return <div className="flex flex-col">{body}</div>;
 }
 
 /** A vertical labeled field (caption above the control) for the option pickers. */
@@ -440,173 +395,5 @@ function KField({ label, children }: { label: string; children: React.ReactNode 
       <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
       {children}
     </div>
-  );
-}
-
-/* ───────────────────────── shared cross-family controls ──────────────────── */
-
-const CARTESIAN = new Set<ChartOptions["family"]>(["bar", "line", "area", "combo"]);
-
-/** The first sort key as `{member, dir}`, from either OrderSpec shape (record | tuples). */
-function firstOrder(order: OrderSpec | undefined): { member: string; dir: "asc" | "desc" } | undefined {
-  if (!order) return undefined;
-  if (Array.isArray(order)) {
-    const e = order[0];
-    return e ? { member: e[0], dir: e[1] } : undefined;
-  }
-  const k = Object.keys(order)[0];
-  return k ? { member: k, dir: order[k] } : undefined;
-}
-
-/** Sort (order) + row limit — query-level controls that shape WHICH rows are plotted. */
-function DataControls({ spec, update }: CustomizeSectionProps): React.ReactElement | null {
-  const { meta } = useCubeMeta();
-  const { chart, query } = spec;
-  if (chart.family === "kpi" || chart.family === "scatter") return null;
-
-  const members = [
-    ...(query.measures ?? []),
-    ...(query.dimensions ?? []),
-    ...(query.timeDimensions?.map((t) => t.dimension) ?? []),
-  ];
-  if (members.length === 0) return null;
-
-  const sort = firstOrder(query.order);
-  const setOrder = (member: string | undefined, dir: "asc" | "desc"): void =>
-    update({ ...spec, query: { ...query, order: member ? [[member, dir]] : undefined } });
-  const limit = typeof query.limit === "number" ? query.limit : undefined;
-  const setLimit = (n: number | undefined): void =>
-    update({ ...spec, query: { ...query, limit: n } });
-
-  return (
-    <>
-      <KField label="Sort by">
-        <div className="flex gap-1">
-          <Select
-            value={sort?.member ?? "__none"}
-            onValueChange={(v) => setOrder(v === "__none" ? undefined : v, sort?.dir ?? "desc")}
-          >
-            <SelectTrigger className="h-8 flex-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none">Default order</SelectItem>
-              {members.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {findMember(meta, m)?.label ?? m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {sort?.member ? (
-            <SegmentedControl<"asc" | "desc">
-              aria-label="Sort direction"
-              size="sm"
-              options={[
-                { value: "asc", label: "Asc" },
-                { value: "desc", label: "Desc" },
-              ]}
-              value={sort.dir}
-              onChange={(d) => setOrder(sort.member, d)}
-            />
-          ) : null}
-        </div>
-      </KField>
-      <KField label="Row limit">
-        <Input
-          type="number"
-          min={1}
-          className="h-8"
-          value={limit ?? ""}
-          placeholder="Auto"
-          onChange={(e) => {
-            const n = parseInt(e.target.value, 10);
-            setLimit(Number.isFinite(n) && n > 0 ? n : undefined);
-          }}
-        />
-      </KField>
-    </>
-  );
-}
-
-/** Value-axis controls (scale / hide / label) for the cartesian families. */
-function AxisControls({ spec, update }: CustomizeSectionProps): React.ReactElement | null {
-  const { chart } = spec;
-  if (!CARTESIAN.has(chart.family)) return null;
-  const y = chart.axes?.y ?? {};
-  const setY = (patch: Partial<AxisOptions>): void =>
-    update({ ...spec, chart: { ...chart, axes: { ...chart.axes, y: { ...y, ...patch } } } });
-
-  return (
-    <>
-      <FieldRow label="Y scale">
-        <SegmentedControl<"linear" | "log">
-          aria-label="Y scale"
-          size="sm"
-          options={[
-            { value: "linear", label: "Linear" },
-            { value: "log", label: "Log" },
-          ]}
-          value={y.scale ?? "linear"}
-          onChange={(v) => setY({ scale: v })}
-        />
-      </FieldRow>
-      <SwitchRow label="Hide Y axis" checked={y.hide === true} onChange={(on) => setY({ hide: on })} />
-      <KField label="Y axis label">
-        <Input
-          className="h-8"
-          value={y.label ?? ""}
-          placeholder="Auto"
-          onChange={(e) => setY({ label: e.target.value || undefined })}
-        />
-      </KField>
-    </>
-  );
-}
-
-/** Number-format controls (kind / abbreviate / decimals) for value-bearing families. */
-function FormatControls({ spec, update }: CustomizeSectionProps): React.ReactElement | null {
-  const { chart } = spec;
-  if (chart.family === "table" || chart.family === "scatter") return null;
-  const f = chart.format ?? {};
-  const setF = (patch: Partial<FormatOptions>): void =>
-    update({ ...spec, chart: { ...chart, format: { ...f, ...patch } } });
-
-  return (
-    <>
-      <FieldRow label="Number format">
-        <SegmentedControl<FormatKind>
-          aria-label="Number format"
-          size="sm"
-          options={[
-            { value: "auto", label: "Auto" },
-            { value: "number", label: "123" },
-            { value: "currency", label: "$" },
-            { value: "percent", label: "%" },
-          ]}
-          value={f.kind ?? "auto"}
-          onChange={(v) => setF({ kind: v })}
-        />
-      </FieldRow>
-      <SwitchRow
-        label="Abbreviate (1.2k)"
-        checked={f.abbreviate === true}
-        onChange={(on) => setF({ abbreviate: on })}
-      />
-      <KField label="Decimals">
-        <Input
-          type="number"
-          min={0}
-          max={6}
-          className="h-8"
-          value={f.decimals ?? ""}
-          placeholder="Auto"
-          onChange={(e) => {
-            const n = parseInt(e.target.value, 10);
-            setF({ decimals: Number.isFinite(n) && n >= 0 ? n : undefined });
-          }}
-        />
-      </KField>
-    </>
   );
 }

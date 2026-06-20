@@ -29,6 +29,7 @@ import {
   legendAlign,
   legendLayout,
   legendVerticalAlign,
+  resolvedAxisLabels,
   tooltipValueFormatter,
 } from "./_shared";
 import { colorVarName } from "@/components/ui/utils";
@@ -49,6 +50,10 @@ export function ComboChartFamily({ data, options, format }: ChartComponentProps)
   const hasRight = seriesOpts.some((s) => s.axis === "right");
   const leftMember = seriesOpts.find((s) => s.axis !== "right")?.member;
   const rightMember = seriesOpts.find((s) => s.axis === "right")?.member;
+  // Axis labels: override → auto (x from the category; left/right from each axis' series).
+  const axl = resolvedAxisLabels(data, options);
+  const leftLabel = options.axes?.y?.label ?? (leftMember ? labelOf(data, leftMember) : undefined);
+  const rightLabel = options.axes?.y2?.label ?? (rightMember ? labelOf(data, rightMember) : undefined);
 
   const config: ChartConfig = {};
   seriesOpts.forEach((s, i) => {
@@ -63,7 +68,13 @@ export function ComboChartFamily({ data, options, format }: ChartComponentProps)
     <ChartContainer config={config} className="h-full w-full min-h-[200px]">
       <ComposedChart accessibilityLayer data={rows}>
         <CartesianGrid vertical={false} />
-        <XAxis type="category" dataKey="__cat" hide={options.axes?.x?.hide} tickFormatter={catFmt} />
+        <XAxis
+          type="category"
+          dataKey="__cat"
+          hide={options.axes?.x?.hide}
+          tickFormatter={catFmt}
+          label={axl.x ? { value: axl.x, position: "insideBottom", offset: -2 } : undefined}
+        />
         <YAxis
           yAxisId="left"
           type="number"
@@ -71,6 +82,11 @@ export function ComboChartFamily({ data, options, format }: ChartComponentProps)
           scale={axisScale(options.axes?.y)}
           domain={axisDomain(options.axes?.y)}
           tickFormatter={(v: number) => format.value(v, leftMember, "axis")}
+          label={
+            leftLabel
+              ? { value: leftLabel, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }
+              : undefined
+          }
         />
         {hasRight && (
           <YAxis
@@ -81,6 +97,11 @@ export function ComboChartFamily({ data, options, format }: ChartComponentProps)
             scale={axisScale(options.axes?.y2)}
             domain={axisDomain(options.axes?.y2)}
             tickFormatter={(v: number) => format.value(v, rightMember, "axis")}
+            label={
+              rightLabel
+                ? { value: rightLabel, angle: 90, position: "insideRight", style: { textAnchor: "middle" } }
+                : undefined
+            }
           />
         )}
         {options.tooltip?.show !== false && (
