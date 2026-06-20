@@ -341,6 +341,15 @@ export function ChartEditOverlay({
                 ? [renderAxisGroup("left"), renderAxisGroup("right")]
                 : [renderGroup(w, "vertical")],
             )}
+            {/* Y / right-axis label + show-hide, sitting beside the value axis. */}
+            {isCartesian ? (
+              <div className="mt-auto flex flex-col gap-1.5 border-t border-border pt-2">
+                <AxisChrome spec={spec} update={update} axis="y" title="Y" auto={autoLabel(leftYMember)} />
+                {rightYMember ? (
+                  <AxisChrome spec={spec} update={update} axis="y2" title="Right" auto={autoLabel(rightYMember)} />
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -356,18 +365,12 @@ export function ChartEditOverlay({
             </div>
           ) : null}
 
-          {/* In-context chrome: auto axis labels (override inline) + show/hide for axes
-              and the legend; a hidden element greys its control. */}
+          {/* In-context chrome by the x-axis / legend: X-axis label + show-hide, and the
+              legend show-hide (a hidden element greys its control + greys on the chart). */}
           {isCartesian || hasLegend ? (
             <div className="flex flex-wrap items-center gap-1.5 pl-1">
               {isCartesian ? (
-                <>
-                  <AxisChrome spec={spec} update={update} axis="x" title="X" auto={autoLabel(chart.mapping?.category?.member)} />
-                  <AxisChrome spec={spec} update={update} axis="y" title="Y" auto={autoLabel(leftYMember)} />
-                  {rightYMember ? (
-                    <AxisChrome spec={spec} update={update} axis="y2" title="Right" auto={autoLabel(rightYMember)} />
-                  ) : null}
-                </>
+                <AxisChrome spec={spec} update={update} axis="x" title="X" auto={autoLabel(chart.mapping?.category?.member)} />
               ) : null}
               {hasLegend ? <LegendChrome spec={spec} update={update} /> : null}
             </div>

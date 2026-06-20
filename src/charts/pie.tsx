@@ -15,6 +15,7 @@ import type { ChartComponentProps } from "./types";
 import type { PieFamilyOptions } from "./defaults";
 import {
   legendAlign,
+  legendDisplay,
   legendLayout,
   legendVerticalAlign,
   tooltipValueFormatter,
@@ -33,7 +34,7 @@ interface Slice {
  * `maxSlices` keeps the top-N and folds the remainder into an "Other" slice.
  * See docs/02-chart-options.md §2.4. Pie plots `categories` × the FIRST series.
  */
-export function PieChartFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
+export function PieChartFamily({ data, options, format, editing }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as PieFamilyOptions;
   const measure = data.series[0];
 
@@ -142,12 +143,17 @@ export function PieChartFamily({ data, options, format }: ChartComponentProps): 
             />
           )}
         </Pie>
-        {options.legend?.show && (
+        {legendDisplay(options, editing).show && (
           <ChartLegend
-            content={<ChartLegendContent nameKey="label" />}
-            verticalAlign={legendVerticalAlign(options.legend.position)}
-            layout={legendLayout(options.legend.position)}
-            align={legendAlign(options.legend.position)}
+            content={
+              <ChartLegendContent
+                nameKey="label"
+                className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined}
+              />
+            }
+            verticalAlign={legendVerticalAlign(options.legend?.position)}
+            layout={legendLayout(options.legend?.position)}
+            align={legendAlign(options.legend?.position)}
           />
         )}
       </PieChart>

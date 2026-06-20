@@ -90,7 +90,7 @@ export function ChartEditor({
       : "Add fields from the axes to build this chart.";
 
   const preview = previewReady ? (
-    <CubeChart query={previewSpec.query} chart={previewSpec.chart} />
+    <CubeChart query={previewSpec.query} chart={previewSpec.chart} editing />
   ) : (
     <div className="flex size-full items-center justify-center rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
       <span className="max-w-[16rem]">{emptyHint}</span>

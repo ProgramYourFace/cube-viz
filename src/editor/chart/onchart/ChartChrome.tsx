@@ -38,7 +38,7 @@ export function AxisChrome({
   auto?: string;
 }): React.ReactElement {
   const ax = (spec.chart.axes?.[axis] ?? {}) as AxisOptions;
-  const hidden = ax.hide === true;
+  const hidden = ax.labelHide === true;
   return (
     <div
       className={cn(
@@ -51,7 +51,7 @@ export function AxisChrome({
       </span>
       <input
         value={ax.label ?? ""}
-        placeholder={auto ?? "Auto"}
+        placeholder={auto ?? "Label"}
         disabled={hidden}
         onChange={(e) => patchAxis(spec, update, axis, { label: e.target.value || undefined })}
         title={`${title} axis label (blank = auto)`}
@@ -59,8 +59,8 @@ export function AxisChrome({
       />
       <EyeButton
         hidden={hidden}
-        what={`${title} axis`}
-        onClick={() => patchAxis(spec, update, axis, { hide: hidden ? undefined : true })}
+        what={`${title} axis label`}
+        onClick={() => patchAxis(spec, update, axis, { labelHide: hidden ? undefined : true })}
       />
     </div>
   );

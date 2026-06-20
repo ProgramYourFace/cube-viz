@@ -27,6 +27,7 @@ import {
   cornerRadius,
   isStacked,
   legendAlign,
+  legendDisplay,
   legendLayout,
   legendVerticalAlign,
   percentTick,
@@ -47,6 +48,7 @@ export function BarChartFamily({
   options,
   config,
   format,
+  editing,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as BarFamilyOptions;
   const horizontal = options.orientation === "horizontal";
@@ -155,12 +157,12 @@ export function BarChartFamily({
             }
           />
         )}
-        {options.legend?.show && (
+        {legendDisplay(options, editing).show && (
           <ChartLegend
-            content={<ChartLegendContent />}
-            verticalAlign={legendVerticalAlign(options.legend.position)}
-            layout={legendLayout(options.legend.position)}
-            align={legendAlign(options.legend.position)}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            verticalAlign={legendVerticalAlign(options.legend?.position)}
+            layout={legendLayout(options.legend?.position)}
+            align={legendAlign(options.legend?.position)}
           />
         )}
         {data.series.map((s) => (

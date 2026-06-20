@@ -24,6 +24,7 @@ import {
   axisScale,
   buildRows,
   legendAlign,
+  legendDisplay,
   legendLayout,
   legendVerticalAlign,
   pivotValueMember,
@@ -43,6 +44,7 @@ export function LineChartFamily({
   options,
   config,
   format,
+  editing,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as LineFamilyOptions;
   const sparkline = fo.chrome === "none";
@@ -119,12 +121,12 @@ export function LineChartFamily({
             }
           />
         )}
-        {!sparkline && options.legend?.show && (
+        {!sparkline && legendDisplay(options, editing).show && (
           <ChartLegend
-            content={<ChartLegendContent />}
-            verticalAlign={legendVerticalAlign(options.legend.position)}
-            layout={legendLayout(options.legend.position)}
-            align={legendAlign(options.legend.position)}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            verticalAlign={legendVerticalAlign(options.legend?.position)}
+            layout={legendLayout(options.legend?.position)}
+            align={legendAlign(options.legend?.position)}
           />
         )}
         {data.series.map((s) => (

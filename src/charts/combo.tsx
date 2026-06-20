@@ -27,6 +27,7 @@ import {
   axisDomain,
   axisScale,
   legendAlign,
+  legendDisplay,
   legendLayout,
   legendVerticalAlign,
   resolvedAxisLabels,
@@ -40,7 +41,7 @@ import { colorVarName } from "@/components/ui/utils";
  * (left|right → mounts a 2nd YAxis). `mapping.category` is the shared x. The
  * inline `series` list is the combo seam, so envelope `mapping.series` is ignored.
  */
-export function ComboChartFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
+export function ComboChartFamily({ data, options, format, editing }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as ComboFamilyOptions;
   const seriesOpts = fo.series ?? [];
 
@@ -52,8 +53,12 @@ export function ComboChartFamily({ data, options, format }: ChartComponentProps)
   const rightMember = seriesOpts.find((s) => s.axis === "right")?.member;
   // Axis labels: override → auto (x from the category; left/right from each axis' series).
   const axl = resolvedAxisLabels(data, options);
-  const leftLabel = options.axes?.y?.label ?? (leftMember ? labelOf(data, leftMember) : undefined);
-  const rightLabel = options.axes?.y2?.label ?? (rightMember ? labelOf(data, rightMember) : undefined);
+  const leftLabel = options.axes?.y?.labelHide
+    ? undefined
+    : (options.axes?.y?.label ?? (leftMember ? labelOf(data, leftMember) : undefined));
+  const rightLabel = options.axes?.y2?.labelHide
+    ? undefined
+    : (options.axes?.y2?.label ?? (rightMember ? labelOf(data, rightMember) : undefined));
 
   const config: ChartConfig = {};
   seriesOpts.forEach((s, i) => {
@@ -115,12 +120,12 @@ export function ComboChartFamily({ data, options, format }: ChartComponentProps)
             }
           />
         )}
-        {options.legend?.show && (
+        {legendDisplay(options, editing).show && (
           <ChartLegend
-            content={<ChartLegendContent />}
-            verticalAlign={legendVerticalAlign(options.legend.position)}
-            layout={legendLayout(options.legend.position)}
-            align={legendAlign(options.legend.position)}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            verticalAlign={legendVerticalAlign(options.legend?.position)}
+            layout={legendLayout(options.legend?.position)}
+            align={legendAlign(options.legend?.position)}
           />
         )}
         {seriesOpts.map((s) => renderSeries(s, data, fo))}

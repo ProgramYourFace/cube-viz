@@ -22,7 +22,7 @@ import {
 import type { ChartConfig } from "@/components/ui/chart";
 import type { ChartComponentProps } from "./types";
 import type { ScatterFamilyOptions } from "./defaults";
-import { axisDomain, axisScale, legendAlign, legendLayout, legendVerticalAlign } from "./_shared";
+import { axisDomain, axisScale, legendAlign, legendDisplay, legendLayout, legendVerticalAlign } from "./_shared";
 
 type Point = { x: number | null; y: number | null; z?: number | null };
 
@@ -32,7 +32,7 @@ type Point = { x: number | null; y: number | null; z?: number | null };
  * {x,y,z} per point from members named in familyOptions. `size` ⇒ <ZAxis> bubble;
  * `groupBy` ⇒ one <Scatter> series per distinct value, each colored from the ramp.
  */
-export function ScatterChartFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
+export function ScatterChartFamily({ data, options, format, editing }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as ScatterFamilyOptions;
   const ann = data.raw.annotation;
   const rows = data.raw.rows;
@@ -90,12 +90,12 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
             }
           />
         )}
-        {options.legend?.show && groups.length > 1 && (
+        {legendDisplay(options, editing).show && groups.length > 1 && (
           <ChartLegend
-            content={<ChartLegendContent />}
-            verticalAlign={legendVerticalAlign(options.legend.position)}
-            layout={legendLayout(options.legend.position)}
-            align={legendAlign(options.legend.position)}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            verticalAlign={legendVerticalAlign(options.legend?.position)}
+            layout={legendLayout(options.legend?.position)}
+            align={legendAlign(options.legend?.position)}
           />
         )}
         {groups.map((g, i) => (

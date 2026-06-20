@@ -32,6 +32,8 @@ export interface CubeChartProps {
   chart: ChartOptions;
   /** Lifts the resolved rows + a refetch up to the chrome (for export / refresh). */
   onState?: (state: { rows: Record<string, unknown>[]; refetch?: () => void; isLoading: boolean }) => void;
+  /** Editing surface: hidden chrome renders greyed (not removed) — see ChartComponentProps. */
+  editing?: boolean;
 }
 
 /** A normalized-but-empty placeholder so `ChartRenderer` can render state chrome before data arrives. */
@@ -42,7 +44,7 @@ const EMPTY_DATA: NormalizedChartData = {
   empty: true,
 };
 
-export function CubeChart({ query, chart, onState }: CubeChartProps): ReactElement {
+export function CubeChart({ query, chart, onState, editing }: CubeChartProps): ReactElement {
   const { registry, locale } = useCubeVizContext();
 
   // Inject the provider's unit system as the default so the pure families (which
@@ -127,6 +129,7 @@ export function CubeChart({ query, chart, onState }: CubeChartProps): ReactEleme
       format={format}
       state={{ loading: isLoading && !data, error }}
       components={components}
+      editing={editing}
     />
   );
 }

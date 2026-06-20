@@ -28,6 +28,12 @@ export interface ChartComponentProps {
   format: ChartFormat;
   /** Optional fetch state; families render their own loading/error chrome from it. */
   state?: { loading?: boolean; error?: Error };
+  /**
+   * Editing surface hint. When true, the chart is shown inside the on-chart editor:
+   * hidden chrome (e.g. a `legend.show:false` legend) renders GREYED rather than
+   * removed, so the in-context show/hide controls have something to toggle.
+   */
+  editing?: boolean;
 }
 
 /** A chart family is any component rendering {@link ChartComponentProps}. */

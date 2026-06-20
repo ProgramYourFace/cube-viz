@@ -229,6 +229,8 @@ const AxisBoundSchema = z.union([z.number(), z.literal("auto")]);
 export const AxisOptionsSchema = z
   .object({
     label: z.string().optional(),
+    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
+    labelHide: z.boolean().optional(),
     hide: z.boolean().optional(),
     scale: z.enum(["linear", "log"]).optional(),
     domain: z.tuple([AxisBoundSchema, AxisBoundSchema]).optional(),

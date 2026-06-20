@@ -45,6 +45,19 @@ export function legendAlign(_position?: LegendOptions["position"]): "left" | "ce
   return "center";
 }
 
+/**
+ * Whether to render the legend and whether to GREY it. In view mode the legend shows
+ * unless `legend.show:false`. In the editor (`editing`) a hidden legend still renders,
+ * greyed, so the in-context show/hide control has a visible element to toggle.
+ */
+export function legendDisplay(
+  options: ChartOptions,
+  editing?: boolean,
+): { show: boolean; greyed: boolean } {
+  const visible = options.legend?.show !== false;
+  return { show: visible || !!editing, greyed: !!editing && !visible };
+}
+
 /** Recharts numeric-axis `domain` from an AxisOptions (defaults to auto/auto). */
 export function axisDomain(
   axis?: AxisOptions,
@@ -119,9 +132,9 @@ export function resolvedAxisLabels(
   const left = data.series.find((s) => (s.meta?.axis ?? "left") !== "right");
   const right = data.series.find((s) => s.meta?.axis === "right");
   return {
-    x: options.axes?.x?.label ?? lbl(options.mapping?.category?.member),
-    left: options.axes?.y?.label ?? (split ? lbl(split) : left?.label),
-    right: options.axes?.y2?.label ?? right?.label,
+    x: options.axes?.x?.labelHide ? undefined : (options.axes?.x?.label ?? lbl(options.mapping?.category?.member)),
+    left: options.axes?.y?.labelHide ? undefined : (options.axes?.y?.label ?? (split ? lbl(split) : left?.label)),
+    right: options.axes?.y2?.labelHide ? undefined : (options.axes?.y2?.label ?? right?.label),
   };
 }
 

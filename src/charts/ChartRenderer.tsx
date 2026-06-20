@@ -59,6 +59,7 @@ export function ChartRenderer({
   format,
   state,
   components,
+  editing,
 }: ChartRendererProps): React.ReactElement {
   const resolved = resolveOptions(options);
 
@@ -99,6 +100,13 @@ export function ChartRenderer({
   // 4) dispatch.
   const Family = components?.[resolved.family] ?? builtinCharts[resolved.family];
   return (
-    <Family data={data} options={resolved} config={chartConfig} format={chartFormat} state={state} />
+    <Family
+      data={data}
+      options={resolved}
+      config={chartConfig}
+      format={chartFormat}
+      state={state}
+      editing={editing}
+    />
   );
 }
