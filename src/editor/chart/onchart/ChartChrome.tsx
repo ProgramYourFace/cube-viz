@@ -42,31 +42,37 @@ export function AxisChrome({
   return (
     <div
       className={cn(
-        "flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-1 transition-opacity",
+        "flex w-full min-w-[8rem] items-center gap-1 rounded-md border border-border bg-background px-1.5 py-1 transition-opacity",
         hidden && "opacity-50",
       )}
     >
-      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {title}
-      </span>
+      {title ? (
+        <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {title}
+        </span>
+      ) : null}
       <input
         value={ax.label ?? ""}
-        placeholder={auto ?? "Label"}
+        placeholder={auto ?? "Axis title"}
         disabled={hidden}
         onChange={(e) => patchAxis(spec, update, axis, { label: e.target.value || undefined })}
-        title={`${title} axis label (blank = auto)`}
-        className="h-6 w-24 min-w-0 rounded border border-input bg-background px-1.5 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
+        title={`Axis title${auto ? ` — defaults to “${auto}”` : ""} (leave blank for the default)`}
+        className="h-6 min-w-0 flex-1 rounded border border-input bg-background px-1.5 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
       />
       <EyeButton
         hidden={hidden}
-        what={`${title} axis label`}
+        what="axis title"
         onClick={() => patchAxis(spec, update, axis, { labelHide: hidden ? undefined : true })}
       />
     </div>
   );
 }
 
-/** The legend chrome control: a show/hide button (greyed when hidden). */
+/**
+ * The legend chrome control, rendered as a labeled column so it lines up beside the
+ * category / split wells: a header + a show/hide toggle that greys when the legend is
+ * hidden (the chart greys its legend to match in edit mode).
+ */
 export function LegendChrome({
   spec,
   update,
@@ -76,20 +82,22 @@ export function LegendChrome({
 }): React.ReactElement {
   const hidden = spec.chart.legend?.show === false;
   return (
-    <div
-      className={cn(
-        "flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-1 transition-opacity",
-        hidden && "opacity-50",
-      )}
-    >
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Legend</span>
-      <EyeButton
-        hidden={hidden}
-        what="legend"
+    <div className={cn("flex flex-col gap-1 transition-opacity", hidden && "opacity-50")}>
+      <span className="px-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        Show legend
+      </span>
+      <button
+        type="button"
         onClick={() =>
           update({ ...spec, chart: { ...spec.chart, legend: { ...spec.chart.legend, show: !hidden ? false : true } } })
         }
-      />
+        aria-label={hidden ? "Show legend" : "Hide legend"}
+        title={hidden ? "Show legend" : "Hide legend"}
+        className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        {hidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+        {hidden ? "Hidden" : "Shown"}
+      </button>
     </div>
   );
 }

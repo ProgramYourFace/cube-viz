@@ -69,7 +69,7 @@ export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps)
         <div className="pointer-events-auto w-full max-w-sm rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
           <p className="pb-0.5 text-center text-sm font-medium">Choose a chart type</p>
           <p className="pb-3 text-center text-xs text-muted-foreground">
-            Then add fields from the axes to build your chart.
+            Then add fields to the slots around the chart.
           </p>
           <TypeGrid family={family} onPick={setFamily} />
         </div>

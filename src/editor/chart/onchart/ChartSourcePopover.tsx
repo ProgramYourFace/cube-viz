@@ -90,7 +90,7 @@ export function ChartSourcePopover({ currentName, hasFields, onSelect }: ChartSo
             {views.length > 0 ? (
               <>
                 <p className="px-2 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Datasets (views)
+                  Saved datasets
                 </p>
                 {views.map((v) => (
                   <SourceItem

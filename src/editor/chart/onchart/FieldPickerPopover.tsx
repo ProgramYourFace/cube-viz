@@ -167,7 +167,7 @@ export function FieldPickerPopover({
                     <span className="truncate text-xs font-medium">{section.cube.title}</span>
                     {section.tag === "source" ? (
                       <span className="rounded-sm bg-primary/10 px-1 py-px text-[9px] font-medium uppercase text-primary">
-                        source
+                        Main table
                       </span>
                     ) : section.tag === "dataset" ? (
                       <span className="rounded-sm bg-muted px-1 py-px text-[9px] font-medium uppercase text-muted-foreground">
@@ -233,7 +233,7 @@ function SourceMenu({ browse, label, views, onBrowse }: SourceMenuProps): React.
         {views.length > 0 ? (
           <>
             <div className="px-2 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              Datasets (views)
+              Saved datasets
             </div>
             {views.map((v) => (
               <MenuItem
@@ -296,7 +296,7 @@ function PickerRow({ option, reason, onPick }: PickerRowProps): React.ReactEleme
         className="flex cursor-not-allowed items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm opacity-45 outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
         <span className="min-w-0 truncate">{option.label}</span>
-        <span className="shrink-0 text-[10px] text-muted-foreground">unavailable</span>
+        <span className="shrink-0 text-[10px] text-muted-foreground">Not available</span>
       </span>
     );
   }

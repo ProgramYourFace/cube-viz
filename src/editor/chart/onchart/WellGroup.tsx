@@ -41,6 +41,12 @@ export interface WellGroupProps {
   /** Popover anchoring for this well's add-slot. */
   pickerSide?: "top" | "bottom" | "left" | "right";
   pickerAlign?: "start" | "center" | "end";
+  /**
+   * An in-context control rendered directly beneath this well's fields — e.g. the
+   * axis-label text box for a value/category well, or the legend toggle for a split
+   * well. Keeps each chrome control next to the fields it describes.
+   */
+  footer?: React.ReactNode;
 }
 
 /**
@@ -67,6 +73,7 @@ export function WellGroup({
   label,
   pickerSide,
   pickerAlign,
+  footer,
 }: WellGroupProps): React.ReactElement {
   // A color split makes the Y axis single-measure; treat the well as one-cardinality.
   const many = well.cardinality === "many" && !lockedSingle;
@@ -141,6 +148,8 @@ export function WellGroup({
         ))}
         {showAdd ? addSlot : null}
       </div>
+
+      {footer ? <div className="pt-0.5">{footer}</div> : null}
     </div>
   );
 }

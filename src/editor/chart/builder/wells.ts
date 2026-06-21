@@ -53,12 +53,12 @@ export function getWells(family: ChartFamily): WellDef[] {
     case "line":
     case "area":
       return [
-        { id: "y", label: "Values", hint: "the numbers to plot", cardinality: "many", kinds: ["number"] },
+        { id: "y", label: "Values", hint: "the numbers to show", cardinality: "many", kinds: ["number"] },
         { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
         {
           id: "color",
-          label: "Color",
-          hint: "split into series",
+          label: "Split by",
+          hint: "one color per value",
           cardinality: "one",
           kinds: ["category"],
           optional: true,
@@ -67,7 +67,7 @@ export function getWells(family: ChartFamily): WellDef[] {
     case "combo":
       return [
         { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
-        { id: "y", label: "Values", hint: "the numbers to plot", cardinality: "many", kinds: ["number"] },
+        { id: "y", label: "Values", hint: "the numbers to show", cardinality: "many", kinds: ["number"] },
       ];
     case "pie":
       return [
@@ -76,10 +76,10 @@ export function getWells(family: ChartFamily): WellDef[] {
       ];
     case "scatter":
       return [
-        { id: "sx", label: "X axis", hint: "a number", cardinality: "one", kinds: ["number"] },
-        { id: "sy", label: "Y axis", hint: "a number", cardinality: "one", kinds: ["number"] },
+        { id: "sx", label: "Horizontal axis", hint: "a number", cardinality: "one", kinds: ["number"] },
+        { id: "sy", label: "Vertical axis", hint: "a number", cardinality: "one", kinds: ["number"] },
         { id: "size", label: "Bubble size", hint: "a number", cardinality: "one", kinds: ["number"], optional: true },
-        { id: "color", label: "Color", hint: "split into series", cardinality: "one", kinds: ["category"], optional: true },
+        { id: "color", label: "Split by", hint: "color points by category", cardinality: "one", kinds: ["category"], optional: true },
       ];
     case "kpi":
       return [{ id: "value", label: "Value", hint: "the number to show", cardinality: "one", kinds: ["number"] }];

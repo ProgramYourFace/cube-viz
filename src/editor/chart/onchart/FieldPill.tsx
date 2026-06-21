@@ -201,7 +201,7 @@ export function FieldPill({
 
             {b.canAxis ? (
               <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">Axis</span>
+                <span className="text-[11px] font-medium text-muted-foreground">Side</span>
                 <div className="flex gap-1">
                   {(["left", "right"] as const).map((side) => (
                     <button

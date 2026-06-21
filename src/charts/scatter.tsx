@@ -43,6 +43,11 @@ export function ScatterChartFamily({ data, options, format, editing }: ChartComp
   const xLabel = ann?.measures[fo.x]?.shortTitle ?? ann?.dimensions[fo.x]?.shortTitle ?? fo.x;
   const yLabel = ann?.measures[fo.y]?.shortTitle ?? ann?.dimensions[fo.y]?.shortTitle ?? fo.y;
 
+  // Axis titles: an explicit override (typed on the chart) wins, else the auto member
+  // label; `labelHide` blanks it. Mirrors resolvedAxisLabels for the cartesian families.
+  const xTitle = options.axes?.x?.labelHide ? undefined : (options.axes?.x?.label ?? xLabel);
+  const yTitle = options.axes?.y?.labelHide ? undefined : (options.axes?.y?.label ?? yLabel);
+
   // Build one or many series depending on groupBy.
   const groups = groupRows(rows, fo);
 
@@ -53,7 +58,7 @@ export function ScatterChartFamily({ data, options, format, editing }: ChartComp
 
   return (
     <ChartContainer config={config} className="h-full w-full min-h-[200px]">
-      <ScatterChart accessibilityLayer margin={{ top: 12, right: 12, bottom: 12, left: 12 }}>
+      <ScatterChart accessibilityLayer margin={{ top: 12, right: 16, bottom: 24, left: 12 }}>
         <CartesianGrid />
         <XAxis
           type="number"
@@ -63,6 +68,7 @@ export function ScatterChartFamily({ data, options, format, editing }: ChartComp
           scale={axisScale(options.axes?.x)}
           domain={axisDomain(options.axes?.x)}
           tickFormatter={(v: number) => format.value(v, fo.x, "axis")}
+          label={xTitle ? { value: xTitle, position: "insideBottom", offset: -12 } : undefined}
         />
         <YAxis
           type="number"
@@ -72,6 +78,7 @@ export function ScatterChartFamily({ data, options, format, editing }: ChartComp
           scale={axisScale(options.axes?.y)}
           domain={axisDomain(options.axes?.y)}
           tickFormatter={(v: number) => format.value(v, fo.y, "axis")}
+          label={yTitle ? { value: yTitle, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } } : undefined}
         />
         {fo.size && <ZAxis type="number" dataKey="z" range={fo.sizeRange ?? [40, 400]} name={fo.size} />}
         {options.tooltip?.show !== false && (

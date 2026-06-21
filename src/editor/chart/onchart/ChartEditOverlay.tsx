@@ -260,9 +260,10 @@ export function ChartEditOverlay({
   // share one axis), so the Y well is locked to one field while the split is active.
   const pivotMode = chart.mapping?.series?.mode === "pivot";
 
-  // In-context chrome (axis labels + legend/axis visibility). Axis labels auto-fill from
-  // the mapped members; the user can type an override or hide an element on the chart.
-  const isCartesian = family === "bar" || family === "line" || family === "area" || family === "combo";
+  // In-context chrome (axis-title boxes + legend visibility). Axis titles auto-fill from
+  // the mapped members; the user can type an override or hide an element on the chart. The
+  // value/category title boxes are attached to their wells as footers (axisTitleFooter /
+  // renderAxisGroup); the legend toggle sits in line with the bottom category / split wells.
   const hasLegend = family !== "kpi" && family !== "table";
   const yMembers = placed.y ?? [];
   const leftYMember = yMembers.find((m) => axisOfMember(m) !== "right");
@@ -274,6 +275,28 @@ export function ChartEditOverlay({
     const s = chart.mapping?.series;
     const seriesLabel = s && s.mode === "measures" ? s.meta?.[m]?.label : undefined;
     return seriesLabel ?? findMember(meta, m)?.label;
+  };
+
+  // The in-context axis-title control that sits directly beneath a well's fields. It is
+  // attached by WELL ID so it follows the well across zones (a horizontal bar swaps the
+  // value + category axes): the value well carries the value-axis title (axes.y), the
+  // category / X well carries the category title (axes.x). It appears only once the axis
+  // has a field. Dual value axes (line / combo) are handled per side in renderAxisGroup.
+  const axisTitleFooter = (wellId: string): React.ReactNode => {
+    const box = (axisKey: "x" | "y", member: string | undefined): React.ReactNode =>
+      member ? <AxisChrome spec={spec} update={update} axis={axisKey} title="Title" auto={autoLabel(member)} /> : null;
+    switch (wellId) {
+      case "y":
+        return box("y", leftYMember); // single value axis (bar / area)
+      case "x":
+        return box("x", chart.mapping?.category?.member);
+      case "sy":
+        return box("y", placed.sy?.[0]); // scatter Y axis
+      case "sx":
+        return box("x", placed.sx?.[0]); // scatter X axis
+      default:
+        return null;
+    }
   };
 
   const renderGroup = (well: WellDef, orientation: "vertical" | "horizontal"): React.ReactElement => (
@@ -292,20 +315,23 @@ export function ChartEditOverlay({
       badge={well.id === "y" ? valueBadge : undefined}
       orientation={orientation}
       lockedSingle={pivotMode && well.id === "y"}
+      footer={axisTitleFooter(well.id)}
     />
   );
 
   // Dual-axis families show the value well as two explicit axis sections (Left / Right),
   // each a filtered subset that forces its axis on add and enforces its own unit.
   const yWell = wellById.get("y");
-  const renderAxisGroup = (side: "left" | "right"): React.ReactElement | null =>
-    yWell ? (
+  const renderAxisGroup = (side: "left" | "right"): React.ReactElement | null => {
+    if (!yWell) return null;
+    const member = side === "left" ? leftYMember : rightYMember;
+    return (
       <WellGroup
         key={`y-${side}`}
         spec={spec}
         update={update}
         well={yWell}
-        label={side === "left" ? "Left axis" : "Right axis"}
+        label={side === "left" ? "Left values" : "Right values"}
         placed={(placed.y ?? []).filter((m) => axisOfMember(m) === side)}
         allPlaced={allPlaced}
         optionFor={(m) => findMember(meta, m)}
@@ -316,8 +342,20 @@ export function ChartEditOverlay({
         badge={side === "left" ? valueAxes.leftLabel : valueAxes.rightLabel}
         orientation="vertical"
         disableReorder
+        footer={
+          member ? (
+            <AxisChrome
+              spec={spec}
+              update={update}
+              axis={side === "left" ? "y" : "y2"}
+              title="Title"
+              auto={autoLabel(member)}
+            />
+          ) : null
+        }
       />
-    ) : null;
+    );
+  };
 
   return (
     <div data-slot="chart-edit-overlay" className="flex h-full w-full flex-col gap-2">
@@ -336,20 +374,13 @@ export function ChartEditOverlay({
       <div className="flex min-h-0 flex-1 gap-2">
         {leftWells.length > 0 ? (
           <div className="flex w-40 shrink-0 flex-col gap-3 overflow-y-auto pr-1">
+            {/* Each value well carries its axis-title box as a footer (see axisTitleFooter /
+                renderAxisGroup), so the label sits directly beneath the measures it names. */}
             {leftWells.flatMap((w) =>
               dualAxis && w.id === "y"
                 ? [renderAxisGroup("left"), renderAxisGroup("right")]
                 : [renderGroup(w, "vertical")],
             )}
-            {/* Y / right-axis label + show-hide, sitting beside the value axis. */}
-            {isCartesian ? (
-              <div className="mt-auto flex flex-col gap-1.5 border-t border-border pt-2">
-                <AxisChrome spec={spec} update={update} axis="y" title="Y" auto={autoLabel(leftYMember)} />
-                {rightYMember ? (
-                  <AxisChrome spec={spec} update={update} axis="y2" title="Right" auto={autoLabel(rightYMember)} />
-                ) : null}
-              </div>
-            ) : null}
           </div>
         ) : null}
 
@@ -359,20 +390,12 @@ export function ChartEditOverlay({
             <CenterTypePicker spec={spec} update={update} empty={isEmpty} />
           </div>
 
+          {/* The category / split wells (each carrying its own axis-title box as a footer),
+              with the legend show/hide sitting in line with them. */}
           {bottomWells.length > 0 ? (
             <div className="flex flex-wrap items-start gap-x-5 gap-y-2 pl-1">
               {bottomWells.map((w) => renderGroup(w, "horizontal"))}
-            </div>
-          ) : null}
-
-          {/* In-context chrome by the x-axis / legend: X-axis label + show-hide, and the
-              legend show-hide (a hidden element greys its control + greys on the chart). */}
-          {isCartesian || hasLegend ? (
-            <div className="flex flex-wrap items-center gap-1.5 pl-1">
-              {isCartesian ? (
-                <AxisChrome spec={spec} update={update} axis="x" title="X" auto={autoLabel(chart.mapping?.category?.member)} />
-              ) : null}
-              {hasLegend ? <LegendChrome spec={spec} update={update} /> : null}
+              {hasLegend && !isEmpty ? <LegendChrome spec={spec} update={update} /> : null}
             </div>
           ) : null}
         </div>
