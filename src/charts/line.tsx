@@ -27,9 +27,10 @@ import {
   legendDisplay,
   legendLayout,
   legendVerticalAlign,
-  pivotValueMember,
+  memberByKey,
   resolvedAxisLabels,
   seriesColorVar,
+  seriesMember,
   tooltipValueFormatter,
 } from "./_shared";
 
@@ -54,12 +55,11 @@ export function LineChartFamily({
 
   const hasRight = data.series.some((s) => s.meta?.axis === "right");
   const curve = fo.curve ?? "monotone";
-  // In a color split every series is the same measure → units come from it, not the
-  // per-series (pivot-value) key.
-  const splitMember = pivotValueMember(options);
-  // Representative member per axis so ticks render that axis's unit.
-  const leftMember = splitMember ?? data.series.find((s) => s.meta?.axis !== "right")?.key;
-  const rightMember = data.series.find((s) => s.meta?.axis === "right")?.key;
+  // Representative SOURCE measure per axis so ticks render that axis's unit. In a color
+  // split a series' own key is a pivot value (no unit); `meta.measure` is the real measure.
+  const keyToMember = memberByKey(data);
+  const leftMember = seriesMember(data.series.find((s) => s.meta?.axis !== "right"));
+  const rightMember = seriesMember(data.series.find((s) => s.meta?.axis === "right"));
   const axl = resolvedAxisLabels(data, options);
 
   // Visible points only when explicitly enabled; the hover dot stays on (for tooltips)
@@ -116,7 +116,7 @@ export function LineChartFamily({
               <ChartTooltipContent
                 labelFormatter={(label) => format.category(label as string | number)}
                 indicator={options.tooltip?.indicator ?? "line"}
-                valueFormatter={tooltipValueFormatter(format, splitMember)}
+                valueFormatter={tooltipValueFormatter(format, undefined, keyToMember)}
               />
             }
           />
@@ -138,7 +138,9 @@ export function LineChartFamily({
             name={s.label}
             stroke={seriesColorVar(s)}
             strokeWidth={fo.strokeWidth ?? 2}
-            dot={sparkline ? false : (s.meta?.dots ?? dotProp)}
+            strokeDasharray={s.meta?.companion ? "5 4" : undefined}
+            strokeOpacity={s.meta?.companion ? 0.55 : undefined}
+            dot={sparkline || s.meta?.companion ? false : (s.meta?.dots ?? dotProp)}
             activeDot={activeDotProp}
             connectNulls={fo.connectNulls ?? false}
             isAnimationActive={!sparkline}
@@ -149,7 +151,7 @@ export function LineChartFamily({
                 position="top"
                 className="fill-foreground text-[10px]"
                 formatter={(v: string | number | boolean | null | undefined) =>
-                  format.value(typeof v === "boolean" ? Number(v) : v, splitMember ?? s.key, "label")
+                  format.value(typeof v === "boolean" ? Number(v) : v, seriesMember(s), "label")
                 }
               />
             )}

@@ -55,7 +55,16 @@ const report = () =>
     const groupInfo = (g) => {
       const header = g.querySelector("div span")?.textContent?.trim() ?? "";
       const pills = [...g.querySelectorAll('[data-slot="field-pill"]')].map((p) => p.textContent?.trim().slice(0, 18));
-      return { header, pills, hasTitleBox: axisBox(g) };
+      // Is the Title box ABOVE the measures? Compare DOM order of the title input vs first pill.
+      const titleInput = [...g.querySelectorAll("input")].find(
+        (i) => /^title$/i.test(i.closest("div")?.querySelector("span")?.textContent?.trim() ?? ""),
+      );
+      const firstPill = g.querySelector('[data-slot="field-pill"]');
+      let titleAbovePills = null;
+      if (titleInput && firstPill) {
+        titleAbovePills = !!(titleInput.compareDocumentPosition(firstPill) & Node.DOCUMENT_POSITION_FOLLOWING);
+      }
+      return { header, pills, hasTitleBox: axisBox(g), titleAbovePills };
     };
 
     const strip = overlay.querySelector(".w-40");

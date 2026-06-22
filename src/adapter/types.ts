@@ -18,6 +18,12 @@ export interface SeriesValueMeta {
   curve?: "linear" | "monotone" | "step" | "natural";
   /** Per-series point markers (line/area) carried from the spec's SeriesMeta. */
   dots?: boolean;
+  /** This series is a previous-period overlay → renderers draw it muted + dashed. */
+  companion?: boolean;
+  /** The source Cube MEASURE this series derives from — the member whose unit/format
+   *  drives the value-axis tick + tooltip. In measures mode it equals `key`; in pivot
+   *  mode `key` is a pivot VALUE (no unit), so this points at the split measure. */
+  measure?: string;
 }
 
 export interface NormalizedSeries {

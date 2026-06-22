@@ -2,6 +2,8 @@ import * as React from "react";
 
 import { resolveSeriesColors } from "@/adapter";
 import { useCubeMeta } from "@/hooks";
+import { useCubeVizContext } from "@/provider";
+import { mergeUnitConversions } from "@/units";
 import type { ChartColorToken, ChartFamily, ChartSpec } from "@/spec";
 
 import { findMember, type MemberOption } from "../../primitives/meta-helpers";
@@ -55,9 +57,21 @@ export function ChartEditOverlay({
   children,
 }: ChartEditOverlayProps): React.ReactElement {
   const { meta } = useCubeMeta();
+  const { locale } = useCubeVizContext();
   const { chart } = spec;
   const family = chart.family;
   const cube = inferCube(spec);
+
+  // The unit shown in the value-axis badge follows the viewer's unit system, so the
+  // badge matches the converted axis on the chart (km storage → "mi" when imperial).
+  const conversions = React.useMemo(() => mergeUnitConversions(locale?.units), [locale?.units]);
+  const displayUnit = React.useCallback(
+    (unit?: string): string | undefined =>
+      unit && locale?.unitSystem === "imperial" && conversions[unit]
+        ? conversions[unit].imperialUnit
+        : unit,
+    [locale?.unitSystem, conversions],
+  );
 
   const wells = React.useMemo(() => getWells(family), [family]);
   const placed = React.useMemo(() => readWells(spec), [spec]);
@@ -111,7 +125,8 @@ export function ChartEditOverlay({
         return s?.axis === "right" ? "right" : "left";
       }
       const s = chart.mapping?.series;
-      const ax = s && s.mode === "measures" ? s.meta?.[m]?.axis : undefined;
+      // Per-member axis lives in the mapping meta for BOTH measures and pivot (color) mode.
+      const ax = s && (s.mode === "measures" || s.mode === "pivot") ? s.meta?.[m]?.axis : undefined;
       return ax === "right" ? "right" : "left";
     },
     [family, chart.familyOptions, chart.mapping],
@@ -126,10 +141,10 @@ export function ChartEditOverlay({
     return {
       leftKey: leftM ? axisKeyOf(opt(leftM)) : undefined,
       rightKey: rightM ? axisKeyOf(opt(rightM)) : undefined,
-      leftLabel: leftM ? axisBadgeLabel(opt(leftM)) : undefined,
-      rightLabel: rightM ? axisBadgeLabel(opt(rightM)) : undefined,
+      leftLabel: leftM ? axisBadgeLabel(opt(leftM), displayUnit(opt(leftM)?.unit)) : undefined,
+      rightLabel: rightM ? axisBadgeLabel(opt(rightM), displayUnit(opt(rightM)?.unit)) : undefined,
     };
-  }, [placed, dualAxis, axisOfMember, meta]);
+  }, [placed, dualAxis, axisOfMember, meta, displayUnit]);
 
   /** The value axis a freshly-added measure should land on (by its unit). */
   const targetAxis = React.useCallback(
@@ -255,15 +270,22 @@ export function ChartEditOverlay({
       : ZONES[family];
   const leftWells = zones.left.map((id) => wellById.get(id)).filter(Boolean) as WellDef[];
   const bottomWells = zones.bottom.map((id) => wellById.get(id)).filter(Boolean) as WellDef[];
-  // A color split puts the cartesian chart in pivot mode: the Y axis is then a SINGLE
-  // measure split into a series per category value (multiple measures + a split can't
-  // share one axis), so the Y well is locked to one field while the split is active.
-  const pivotMode = chart.mapping?.series?.mode === "pivot";
+  // A color split puts the cartesian chart in pivot mode. MULTIPLE measures may now
+  // coexist with a split: each measure is split into one series per category value
+  // (series = measure × value). The Y well stays multi; the color well shows a
+  // series-count note so the resulting fan-out is never a surprise.
+  const colorMember = placed.color?.[0];
+  const splitMeasureCount = placed.y?.length ?? 0;
+  const splitNote =
+    colorMember && splitMeasureCount > 1
+      ? `${splitMeasureCount} measures × ${findMember(meta, colorMember)?.label ?? "this split"} — one series per measure per value.`
+      : undefined;
 
   // In-context chrome (axis-title boxes + legend visibility). Axis titles auto-fill from
   // the mapped members; the user can type an override or hide an element on the chart. The
-  // value/category title boxes are attached to their wells as footers (axisTitleFooter /
-  // renderAxisGroup); the legend toggle sits in line with the bottom category / split wells.
+  // value/category title boxes are attached to their wells as controls above the fields
+  // (axisTitleControl / renderAxisGroup); the legend toggle sits in line with the bottom
+  // category / split wells.
   const hasLegend = family !== "kpi" && family !== "table";
   const yMembers = placed.y ?? [];
   const leftYMember = yMembers.find((m) => axisOfMember(m) !== "right");
@@ -277,12 +299,12 @@ export function ChartEditOverlay({
     return seriesLabel ?? findMember(meta, m)?.label;
   };
 
-  // The in-context axis-title control that sits directly beneath a well's fields. It is
+  // The in-context axis-title control that sits directly ABOVE a well's fields. It is
   // attached by WELL ID so it follows the well across zones (a horizontal bar swaps the
   // value + category axes): the value well carries the value-axis title (axes.y), the
   // category / X well carries the category title (axes.x). It appears only once the axis
   // has a field. Dual value axes (line / combo) are handled per side in renderAxisGroup.
-  const axisTitleFooter = (wellId: string): React.ReactNode => {
+  const axisTitleControl = (wellId: string): React.ReactNode => {
     const box = (axisKey: "x" | "y", member: string | undefined): React.ReactNode =>
       member ? <AxisChrome spec={spec} update={update} axis={axisKey} title="Title" auto={autoLabel(member)} /> : null;
     switch (wellId) {
@@ -314,8 +336,8 @@ export function ChartEditOverlay({
       onAdd={(name, kind) => place(well.id, name, kind)}
       badge={well.id === "y" ? valueBadge : undefined}
       orientation={orientation}
-      lockedSingle={pivotMode && well.id === "y"}
-      footer={axisTitleFooter(well.id)}
+      note={well.id === "color" ? splitNote : undefined}
+      control={axisTitleControl(well.id)}
     />
   );
 
@@ -331,7 +353,7 @@ export function ChartEditOverlay({
         spec={spec}
         update={update}
         well={yWell}
-        label={side === "left" ? "Left values" : "Right values"}
+        label={side === "left" ? "Left axis" : "Right axis"}
         placed={(placed.y ?? []).filter((m) => axisOfMember(m) === side)}
         allPlaced={allPlaced}
         optionFor={(m) => findMember(meta, m)}
@@ -342,7 +364,7 @@ export function ChartEditOverlay({
         badge={side === "left" ? valueAxes.leftLabel : valueAxes.rightLabel}
         orientation="vertical"
         disableReorder
-        footer={
+        control={
           member ? (
             <AxisChrome
               spec={spec}
@@ -374,8 +396,8 @@ export function ChartEditOverlay({
       <div className="flex min-h-0 flex-1 gap-2">
         {leftWells.length > 0 ? (
           <div className="flex w-40 shrink-0 flex-col gap-3 overflow-y-auto pr-1">
-            {/* Each value well carries its axis-title box as a footer (see axisTitleFooter /
-                renderAxisGroup), so the label sits directly beneath the measures it names. */}
+            {/* Each value well carries its axis-title box as a control above its fields (see
+                axisTitleControl / renderAxisGroup), so the title sits with the measures it names. */}
             {leftWells.flatMap((w) =>
               dualAxis && w.id === "y"
                 ? [renderAxisGroup("left"), renderAxisGroup("right")]
@@ -390,7 +412,7 @@ export function ChartEditOverlay({
             <CenterTypePicker spec={spec} update={update} empty={isEmpty} />
           </div>
 
-          {/* The category / split wells (each carrying its own axis-title box as a footer),
+          {/* The category / split wells (each carrying its own axis-title box above its field),
               with the legend show/hide sitting in line with them. */}
           {bottomWells.length > 0 ? (
             <div className="flex flex-wrap items-start gap-x-5 gap-y-2 pl-1">
@@ -404,8 +426,10 @@ export function ChartEditOverlay({
   );
 }
 
-/** The axis-well badge: quantity label plus unit in parens ("Distance (km)"). */
-function axisBadgeLabel(option: MemberOption | undefined): string {
+/** The axis-well badge: quantity label plus the DISPLAY unit in parens ("Distance (mi)").
+ *  `unitOverride` is the viewer-converted unit; falls back to the member's storage unit. */
+function axisBadgeLabel(option: MemberOption | undefined, unitOverride?: string): string {
   const base = axisLabelOf(option);
-  return option?.unit && option.unit !== base ? `${base} (${option.unit})` : base;
+  const unit = unitOverride ?? option?.unit;
+  return unit && unit !== base ? `${base} (${unit})` : base;
 }

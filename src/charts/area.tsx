@@ -27,11 +27,11 @@ import {
   legendDisplay,
   legendLayout,
   legendVerticalAlign,
+  memberByKey,
   percentTick,
-  pivotValueMember,
-  primaryMember,
   resolvedAxisLabels,
   seriesColorVar,
+  seriesMember,
   tooltipValueFormatter,
 } from "./_shared";
 
@@ -59,10 +59,10 @@ export function AreaChartFamily({
   const rows = buildRows(data);
   const catFmt = (v: string | number) => format.category(v);
   const curve = fo.curve ?? "monotone";
-  // In a color split every series is the same measure → units come from it, not the
-  // per-series (pivot-value) key.
-  const splitMember = pivotValueMember(options);
-  const valueMember = splitMember ?? primaryMember(data);
+  // The value-axis unit comes from the series' SOURCE measure (a pivot series' own key
+  // is a pivot value with no unit).
+  const keyToMember = memberByKey(data);
+  const valueMember = seriesMember(data.series[0]);
   const axl = resolvedAxisLabels(data, options);
 
   return (
@@ -107,7 +107,7 @@ export function AreaChartFamily({
                 valueFormatter={
                   percent
                     ? (value) => percentTick(value as number | string | null | undefined)
-                    : tooltipValueFormatter(format, splitMember)
+                    : tooltipValueFormatter(format, undefined, keyToMember)
                 }
               />
             }
@@ -127,12 +127,16 @@ export function AreaChartFamily({
             type={s.meta?.curve ?? curve}
             dataKey={s.key}
             name={s.label}
-            stackId={stacked ? (s.meta?.stackId ?? "stack") : undefined}
+            // A companion (previous period) never stacks — it overlays as a dashed,
+            // fill-less line so it reads as a reference, not part of the whole.
+            stackId={stacked && !s.meta?.companion ? (s.meta?.stackId ?? "stack") : undefined}
             stroke={seriesColorVar(s)}
             strokeWidth={fo.strokeWidth ?? 2}
-            fill={`url(#fill-${s.key})`}
+            strokeDasharray={s.meta?.companion ? "5 4" : undefined}
+            strokeOpacity={s.meta?.companion ? 0.55 : undefined}
+            fill={s.meta?.companion ? "none" : `url(#fill-${s.key})`}
             fillOpacity={1}
-            dot={s.meta?.dots ?? (fo.dots ?? false)}
+            dot={s.meta?.companion ? false : (s.meta?.dots ?? (fo.dots ?? false))}
             connectNulls={fo.connectNulls ?? false}
           />
         ))}

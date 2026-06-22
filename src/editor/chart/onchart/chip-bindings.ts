@@ -3,12 +3,13 @@ import type {
   ChartSpec,
   DateRange,
   Granularity,
+  OrderSpec,
   SeriesMeta,
   TimeDimension,
   VarRef,
 } from "@/spec";
 
-import { buildSeries, categoryOf, seriesMetaOf, timeDimensionOf } from "../helpers";
+import { buildSeries, categoryOf, measuresOf, seriesMetaOf, timeDimensionOf } from "../helpers";
 import { removeField, type FieldKind, type WellDef } from "../builder/wells";
 import type { MemberOption } from "../../primitives/meta-helpers";
 
@@ -24,6 +25,27 @@ export type ComboRender = "bar" | "line" | "area";
 export type LineCurve = "linear" | "monotone" | "step" | "natural";
 
 type AxisSide = "left" | "right";
+
+/** How the category axis is ordered (contextual: by value, by label, or chronological). */
+export type SortKey =
+  | "none"
+  | "value-desc"
+  | "value-asc"
+  | "label-asc"
+  | "label-desc"
+  | "time-asc"
+  | "time-desc";
+
+export interface SortOption {
+  key: SortKey;
+  label: string;
+}
+
+/** Normalize an {@link OrderSpec} (record OR tuple array) to ordered `[member, dir]` pairs. */
+function orderEntries(order: OrderSpec | undefined): [string, "asc" | "desc"][] {
+  if (!order) return [];
+  return Array.isArray(order) ? order : (Object.entries(order) as [string, "asc" | "desc"][]);
+}
 
 interface ComboSeriesEntry {
   member: string;
@@ -69,6 +91,27 @@ export interface ChipBindings {
   /** Whether this placed field IS the (groupable) time dimension → granularity + date range. */
   isTimeField: boolean;
   isComboY: boolean;
+  /** Whether this field IS the single category axis (x / pie slices) → sort + top-N apply. */
+  isCategoryField: boolean;
+  /** Whether a previous-period comparison toggle applies here (time field of bar/line/area). */
+  canComparePrevious: boolean;
+  /** Whether previous-period comparison is currently on. */
+  comparePrevious: boolean;
+  /** Whether a literal date range is set, so a previous period CAN be computed. When
+   *  false, turning comparison on does nothing (nothing to offset) — surface a hint. */
+  comparePreviousReady: boolean;
+  /** Toggle the previous-period companion overlay — writes `familyOptions.comparePrevious`. */
+  onComparePrevious: (on: boolean) => void;
+  /** The current category ordering (derived from `query.order`). */
+  sortValue: SortKey;
+  /** The contextual sort choices for this category (time vs label, ± by-value). */
+  sortOptions: SortOption[];
+  /** Set the category ordering — writes `query.order`. */
+  onSort: (key: SortKey) => void;
+  /** The current row cap (`query.limit`), if a literal number is set. */
+  limit?: number;
+  /** Set the top-N row cap — writes `query.limit` (undefined clears it). */
+  onLimit: (n: number | undefined) => void;
   onRename: (label: string | undefined) => void;
   onRecolor: (token: ChartColorToken | null) => void;
   onGranularity: (g: Granularity | VarRef | undefined) => void;
@@ -142,9 +185,18 @@ export function chipBindings(
   // value axis → no axis control.
   const isLineY = family === "line" && well.id === "y";
   const isBarY = family === "bar" && well.id === "y" && chart.orientation !== "horizontal";
-  const canAxis = ((isLineY || isBarY) && measuresMode) || isComboY;
+  // A color split (pivot) can also be dual-axis: each MEASURE owns an axis, stored in the
+  // pivot mapping's per-measure meta.
+  const isPivotMode = chart.mapping?.series?.mode === "pivot";
+  const pivotSeriesMeta =
+    chart.mapping?.series?.mode === "pivot" ? chart.mapping.series.meta : undefined;
+  const canAxis = ((isLineY || isBarY) && (measuresMode || isPivotMode)) || isComboY;
   const axis: AxisSide | undefined = canAxis
-    ? ((isComboY ? comboSeries.find((s) => s.member === member)?.axis : meta?.axis) ?? "left")
+    ? ((isComboY
+        ? comboSeries.find((s) => s.member === member)?.axis
+        : measuresMode
+          ? meta?.axis
+          : pivotSeriesMeta?.[member]?.axis) ?? "left")
     : undefined;
 
   // Per-series line shape + points: line/area measures-mode Y, or a combo line/area series.
@@ -223,6 +275,8 @@ export function chipBindings(
   const onAxis = (side: AxisSide): void => {
     if (isComboY) patchComboSeries({ axis: side });
     else if (usesSeriesMeta) patchSeriesMeta({ ...meta, axis: side });
+    // Pivot (color split): write the per-measure axis straight into the pivot mapping meta.
+    else if (chart.mapping?.series?.mode === "pivot") update(withSeriesAxis(spec, family, member, side));
   };
 
   const onCurve = (c: LineCurve): void => {
@@ -235,6 +289,93 @@ export function chipBindings(
   };
 
   const onRemove = (): void => update(removeField(spec, family, well.id, member));
+
+  /* ── category ordering (sort) + top-N (limit) ─────────────────────────────── */
+
+  // The single category axis: cartesian/combo "x" or pie "slices". Sort + top-N
+  // shape the whole query, but read most naturally pinned to this chip.
+  const isCategoryField = (well.id === "x" || well.id === "slices") && (kind === "category" || kind === "time");
+  // Order by the primary measure (the first one). In pivot mode that's the split value.
+  const pivotSeries = chart.mapping?.series;
+  const primaryMeasure =
+    (pivotSeries && pivotSeries.mode === "pivot" ? pivotSeries.value : measuresOf(chart)[0]) ??
+    query.measures?.[0];
+
+  const sortOptions: SortOption[] = isCategoryField
+    ? kind === "time"
+      ? [
+          { key: "none", label: "Default" },
+          { key: "time-asc", label: "Oldest first" },
+          { key: "time-desc", label: "Newest first" },
+          ...(primaryMeasure
+            ? ([
+                { key: "value-desc", label: "Highest first" },
+                { key: "value-asc", label: "Lowest first" },
+              ] as SortOption[])
+            : []),
+        ]
+      : [
+          { key: "none", label: "Default" },
+          ...(primaryMeasure
+            ? ([
+                { key: "value-desc", label: "Biggest first" },
+                { key: "value-asc", label: "Smallest first" },
+              ] as SortOption[])
+            : []),
+          { key: "label-asc", label: "A → Z" },
+          { key: "label-desc", label: "Z → A" },
+        ]
+    : [];
+
+  const sortValue: SortKey = ((): SortKey => {
+    const first = orderEntries(query.order)[0];
+    if (!first) return "none";
+    const [m, dir] = first;
+    if (primaryMeasure && m === primaryMeasure) return dir === "desc" ? "value-desc" : "value-asc";
+    if (m === member) {
+      if (kind === "time") return dir === "desc" ? "time-desc" : "time-asc";
+      return dir === "asc" ? "label-asc" : "label-desc";
+    }
+    return "none";
+  })();
+
+  const onSort = (key: SortKey): void => {
+    let order: OrderSpec | undefined;
+    switch (key) {
+      case "none":
+        order = undefined;
+        break;
+      case "value-desc":
+        order = primaryMeasure ? [[primaryMeasure, "desc"]] : undefined;
+        break;
+      case "value-asc":
+        order = primaryMeasure ? [[primaryMeasure, "asc"]] : undefined;
+        break;
+      case "label-asc":
+      case "time-asc":
+        order = [[member, "asc"]];
+        break;
+      case "label-desc":
+      case "time-desc":
+        order = [[member, "desc"]];
+        break;
+    }
+    update({ ...spec, query: { ...query, order } });
+  };
+
+  const limit = typeof query.limit === "number" ? query.limit : undefined;
+  const onLimit = (n: number | undefined): void =>
+    update({ ...spec, query: { ...query, limit: n && n > 0 ? n : undefined } });
+
+  /* ── previous-period comparison (on the time chip, for bar/line/area) ─────── */
+  const supportsCompare = family === "bar" || family === "line" || family === "area";
+  const canComparePrevious = supportsCompare && isTimeField;
+  const comparePrevious = canComparePrevious && fo.comparePrevious === true;
+  // A previous period needs a current window to offset. Any set range works — a literal
+  // preset/[from,to] OR a {var} binding (resolved at render). Only all-time can't compare.
+  const comparePreviousReady = canComparePrevious && dateRange !== undefined;
+  const onComparePrevious = (on: boolean): void =>
+    update({ ...spec, chart: { ...chart, familyOptions: { ...fo, comparePrevious: on || undefined } } });
 
   return {
     kind,
@@ -255,6 +396,16 @@ export function chipBindings(
     canColor: (isCartesianY && measuresMode) || isComboY,
     isTimeField,
     isComboY,
+    isCategoryField,
+    sortValue,
+    sortOptions,
+    onSort,
+    limit,
+    onLimit,
+    canComparePrevious,
+    comparePrevious,
+    comparePreviousReady,
+    onComparePrevious,
     onRename,
     onRecolor,
     onGranularity,
@@ -282,7 +433,9 @@ export function withSeriesAxis(spec: ChartSpec, family: string, member: string, 
     return { ...spec, chart: { ...chart, familyOptions: { ...fo, series } } };
   }
   const s = chart.mapping?.series;
-  if (s && s.mode === "measures") {
+  // Both measures-mode AND pivot-mode (color split) carry a per-member meta map, so a
+  // multi-measure color split can assign each MEASURE to its own value axis.
+  if (s && (s.mode === "measures" || s.mode === "pivot")) {
     const meta: Record<string, SeriesMeta> = { ...(s.meta ?? {}) };
     meta[member] = { ...(meta[member] ?? {}), axis: side };
     return { ...spec, chart: { ...chart, mapping: { ...chart.mapping!, series: { ...s, meta } } } };
@@ -335,12 +488,16 @@ export function reorderWell(
     return { ...spec, chart: { ...chart, familyOptions: { ...fo, columns } } };
   }
 
-  // cartesian Y (measures) — reorder measures + mapping series members in lockstep.
+  // cartesian Y — reorder measures + the mapping in lockstep (measures-mode members
+  // OR pivot-mode values, so multi-measure color splits reorder correctly too).
   const measures = move(query.measures ?? []);
   const series = chart.mapping?.series;
-  const mapping =
-    series && series.mode === "measures"
-      ? { ...chart.mapping!, series: { ...series, members: measures } }
-      : chart.mapping;
+  let mapping = chart.mapping;
+  if (series && series.mode === "measures") {
+    mapping = { ...chart.mapping!, series: { ...series, members: measures } };
+  } else if (series && series.mode === "pivot" && series.values && series.values.length > 1) {
+    const values = move(series.values);
+    mapping = { ...chart.mapping!, series: { ...series, value: values[0], values } };
+  }
   return { ...spec, query: { ...query, measures }, chart: { ...chart, mapping } };
 }

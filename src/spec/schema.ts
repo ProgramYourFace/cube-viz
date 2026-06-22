@@ -203,8 +203,18 @@ export const SeriesMappingSchema = z
       z
         .object({
           mode: z.literal("pivot"),
+          /** The primary split measure — drives the value-axis unit. Always set
+           *  (also the only value when a single measure is split by colour). */
           value: MemberSchema,
+          /** When MORE THAN ONE measure is split by the colour dimension, the full
+           *  ordered measure list (series = measure × pivot value). `value` is
+           *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
+          values: z.array(MemberSchema).optional(),
           pivot: MemberSchema,
+          /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
+           *  each measure's series sit on, so a multi-measure color split can be
+           *  dual-axis (each axis one unit). */
+          meta: z.record(MemberSchema, SeriesMetaSchema).optional(),
         })
         .strict(),
     ]),

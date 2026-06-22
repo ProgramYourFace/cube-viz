@@ -98,7 +98,18 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
         return null;
 
       case "area":
-        return StackControl;
+        return (
+          <>
+            {StackControl}
+            {chart.stackMode === undefined ? (
+              <p className="px-0.5 pt-1 text-[10px] leading-tight text-muted-foreground/80">
+                {chart.mapping?.series?.mode === "pivot"
+                  ? "Color-split areas stack into a whole by default — set this to change it."
+                  : "Separate measures overlap by default; stacking adds them into one band."}
+              </p>
+            ) : null}
+          </>
+        );
 
       case "pie":
         return (

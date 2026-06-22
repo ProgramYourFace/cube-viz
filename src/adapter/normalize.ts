@@ -14,6 +14,7 @@ import type {
   ResultAnnotation,
   SeriesValueMeta,
 } from "@/adapter/types";
+import type { UnitDef } from "@/units";
 
 /**
  * The resultSet → NormalizedChartData adapter — the single abstraction boundary
@@ -209,6 +210,70 @@ function resolveLabel(
   return specMeta?.label ?? memberMeta?.shortTitle ?? memberMeta?.title ?? fallback;
 }
 
+/* ───────────────────────────── unit conversion ──────────────────────────── */
+
+/** The viewer's unit system + the conversion table, threaded in from the provider. */
+export interface ConvertCtx {
+  unitSystem?: "metric" | "imperial";
+  conversions?: Record<string, UnitDef>;
+}
+
+/** A resolved per-measure conversion: how to convert a value + the display unit. */
+interface MemberConversion {
+  to: (v: number) => number;
+  unit: string;
+}
+
+/**
+ * Build the `measure → conversion` map for the active unit system. Conversion happens
+ * HERE at the adapter boundary (not at format time) so Recharts scales axes on the
+ * DISPLAY unit and picks round-number gridlines (e.g. 0/25/50 mi, not 0/31/62). Empty
+ * for metric viewers / unconvertible members, so the metric path is a pure no-op.
+ *
+ * Mutates `annotation` in place: a converted measure's `meta.unit` becomes the display
+ * unit, so the (display-only) formatter shows the right suffix and never re-converts.
+ */
+function buildConversions(annotation: ResultAnnotation, ctx?: ConvertCtx): Map<string, MemberConversion> {
+  const map = new Map<string, MemberConversion>();
+  if (ctx?.unitSystem !== "imperial" || !ctx.conversions) return map;
+  for (const [member, m] of Object.entries(annotation.measures)) {
+    const unit = m.meta?.unit;
+    if (!unit || m.meta?.convert === false) continue;
+    const def = ctx.conversions[unit];
+    if (!def) continue;
+    map.set(member, { to: def.toImperial, unit: def.imperialUnit });
+    // Reflect the display unit so the formatter suffixes "mi" (and doesn't re-convert).
+    annotation.measures[member] = { ...m, meta: { ...m.meta, unit: def.imperialUnit } };
+  }
+  return map;
+}
+
+/** Convert raw `tablePivot` rows for every convertible measure column (clone, not mutate). */
+function convertRows(
+  rows: Record<string, unknown>[],
+  conv: Map<string, MemberConversion>,
+): Record<string, unknown>[] {
+  if (conv.size === 0) return rows;
+  return rows.map((row) => {
+    const out = { ...row };
+    for (const [member, c] of conv) {
+      const v = coerceNumber(out[member]);
+      if (v !== null) out[member] = c.to(v);
+    }
+    return out;
+  });
+}
+
+/** Convert a built series' data in place, by its source measure (`meta.measure`). */
+function convertSeries(series: NormalizedSeries[], conv: Map<string, MemberConversion>): void {
+  if (conv.size === 0) return;
+  for (const s of series) {
+    const c = s.meta?.measure ? conv.get(s.meta.measure) : undefined;
+    if (!c) continue;
+    s.data = s.data.map((v) => (v === null ? null : c.to(v)));
+  }
+}
+
 /* ──────────────────────────────── normalize ─────────────────────────────── */
 
 /**
@@ -225,9 +290,14 @@ export function normalize(
   resultSet: AnyResultSet,
   options: ChartOptions,
   resolvedQuery: CubeQuery,
+  convertCtx?: ConvertCtx,
 ): NormalizedChartData {
   const annotation = toResultAnnotation(resultSet.annotation() as Parameters<typeof toResultAnnotation>[0]);
-  const rows = resultSet.tablePivot() as Record<string, unknown>[];
+  // Resolve unit conversion ONCE, at the boundary: rewrites convertible measures'
+  // annotation unit to the display unit and yields the value-conversion map applied to
+  // raw rows + series below (no-op for metric viewers).
+  const conv = buildConversions(annotation, convertCtx);
+  const rows = convertRows(resultSet.tablePivot() as Record<string, unknown>[], conv);
 
   const mapping = options.mapping;
 
@@ -239,12 +309,14 @@ export function normalize(
     // series list.
     if (MEASURE_ONLY_FAMILIES.has(options.family) && measures.length > 0) {
       const row = rows[0] ?? {};
+      // rows are already converted, but each datum here is a DIFFERENT measure (one mark
+      // per measure), so the per-row conversion above already applied — read directly.
       const series: NormalizedSeries[] = [
         {
           key: "value",
           label: "Value",
           data: measures.map((m) => coerceNumber(row[m])),
-          meta: resolveSeriesMeta(findMember(annotation, measures[0]), undefined, options.format),
+          meta: { ...resolveSeriesMeta(findMember(annotation, measures[0]), undefined, options.format), measure: measures[0] },
         },
       ];
       assignColors(series, options.colors);
@@ -270,6 +342,9 @@ export function normalize(
 
   const categories = readCategories(resultSet, mapping);
 
+  // Series are built from the ORIGINAL resultSet (storage units); convert their data to
+  // the display unit so the chart axis scales — and ticks round — in display units.
+  convertSeries(series, conv);
   assignColors(series, options.colors);
 
   return {
@@ -309,7 +384,7 @@ function normalizeMeasures(
       label: resolveLabel(memberMeta, specMeta, member),
       data,
       ...(specMeta?.colorToken ? { colorToken: specMeta.colorToken } : {}),
-      meta: resolveSeriesMeta(memberMeta, specMeta, options.format),
+      meta: { ...resolveSeriesMeta(memberMeta, specMeta, options.format), measure: member },
     };
   });
 }
@@ -322,7 +397,12 @@ function normalizePivot(
   options: ChartOptions,
   annotation: ResultAnnotation,
 ): NormalizedSeries[] {
-  const { value, pivot: pivotMember } = series;
+  const { value, values, pivot: pivotMember } = series;
+  // One or many split measures. `values` (when present) is the full ordered list;
+  // `value` is its first entry (the back-compat single-measure path).
+  const measures = values && values.length > 0 ? values : [value];
+  const measureSet = new Set(measures);
+  const multiMeasure = measures.length > 1;
   const pivotConfig = { x: [categoryMember], y: [pivotMember, "measures"] };
 
   const allSeriesNames = resultSet.seriesNames(pivotConfig) as Array<{
@@ -331,28 +411,39 @@ function normalizePivot(
     title?: string;
     yValues?: string[];
   }>;
-  // A pivot has ONE value measure. If the query still carries extra measures, Cube
-  // emits a series per (pivot value × measure); keep only this value's series so we
-  // render one series per category value (the seam trims new specs; this heals old).
+  // Keep only series whose measure is one we're splitting. Single-measure pivot →
+  // one series per pivot value; multi-measure → one series per (measure × value).
   const seriesNames = allSeriesNames.filter((sn) => {
     const measure = sn.yValues && sn.yValues.length >= 2 ? sn.yValues[sn.yValues.length - 1] : undefined;
-    return measure === undefined || measure === value;
+    return measure === undefined || measureSet.has(measure);
   });
   const chartRows = resultSet.chartPivot(pivotConfig) as Array<Record<string, unknown>>;
 
-  // The plotted measure's meta drives formatting for every pivot series.
+  // The primary measure's meta drives the value-axis unit (single-measure case).
   const valueMeta = findMember(annotation, value);
 
   const all = seriesNames.map((sn): NormalizedSeries => {
-    // For pivot, the leading yValue is the distinct pivot value — the natural label.
+    // yValues = [pivotValue, measure]. The pivot value is the natural label; in
+    // multi-measure mode we prefix the measure so series stay distinguishable.
     const pivotValue = sn.yValues?.[0];
-    const label = pivotValue ?? sn.shortTitle ?? sn.title ?? sn.key;
+    const measure = sn.yValues && sn.yValues.length >= 2 ? sn.yValues[sn.yValues.length - 1] : value;
+    const measureMeta = findMember(annotation, measure);
+    const measureLabel = measureMeta?.shortTitle ?? measureMeta?.title ?? measure;
+    const base = pivotValue ?? sn.shortTitle ?? sn.title ?? sn.key;
+    const label = multiMeasure ? `${measureLabel} · ${base}` : base;
     const data = chartRows.map((row) => coerceNumber(row[sn.key]));
+    // Per-MEASURE spec meta carries the value-axis (left/right) for dual-axis splits.
+    const measureSpecMeta = series.meta?.[measure];
     return {
       key: sn.key,
       label,
       data,
-      meta: resolveSeriesMeta(valueMeta, undefined, options.format),
+      // Each series formats by ITS OWN measure's unit meta (matters in multi-measure),
+      // and `meta.measure` lets the renderer resolve that measure's unit per axis/tooltip.
+      meta: {
+        ...resolveSeriesMeta(measureMeta ?? valueMeta, measureSpecMeta, options.format),
+        measure,
+      },
     };
   });
 
@@ -394,7 +485,7 @@ function rollupPivotSeries(
     key: "__other",
     label: `Other (${rest.length})`,
     data: otherData,
-    meta: resolveSeriesMeta(valueMeta, undefined, format),
+    meta: { ...resolveSeriesMeta(valueMeta, undefined, format), ...(top[0]?.meta?.measure ? { measure: top[0].meta.measure } : {}) },
   };
   return [...top, other];
 }

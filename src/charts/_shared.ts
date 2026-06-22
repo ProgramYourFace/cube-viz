@@ -46,16 +46,16 @@ export function legendAlign(_position?: LegendOptions["position"]): "left" | "ce
 }
 
 /**
- * Whether to render the legend and whether to GREY it. In view mode the legend shows
- * unless `legend.show:false`. In the editor (`editing`) a hidden legend still renders,
- * greyed, so the in-context show/hide control has a visible element to toggle.
+ * Whether to render the legend. The legend shows unless `legend.show:false` — in BOTH
+ * view and edit mode (a hidden legend is hidden, not greyed: the dedicated LegendChrome
+ * toggle in the editor is the re-enable affordance, so there's no need to keep a ghost
+ * legend on the chart). `greyed` is retained (always false) for call-site stability.
  */
 export function legendDisplay(
   options: ChartOptions,
-  editing?: boolean,
+  _editing?: boolean,
 ): { show: boolean; greyed: boolean } {
-  const visible = options.legend?.show !== false;
-  return { show: visible || !!editing, greyed: !!editing && !visible };
+  return { show: options.legend?.show !== false, greyed: false };
 }
 
 /** Recharts numeric-axis `domain` from an AxisOptions (defaults to auto/auto). */
@@ -128,14 +128,27 @@ export function resolvedAxisLabels(
       m
     );
   };
-  const split = pivotValueMember(options);
   const left = data.series.find((s) => (s.meta?.axis ?? "left") !== "right");
   const right = data.series.find((s) => s.meta?.axis === "right");
+  // Prefer the series' SOURCE measure for the axis title (a pivot series' own key is a
+  // pivot value — a device name — with no unit; its `meta.measure` is the real measure).
+  const axisLbl = (s?: NormalizedSeries): string | undefined =>
+    s ? (s.meta?.measure ? lbl(s.meta.measure) : s.label) : undefined;
   return {
     x: options.axes?.x?.labelHide ? undefined : (options.axes?.x?.label ?? lbl(options.mapping?.category?.member)),
-    left: options.axes?.y?.labelHide ? undefined : (options.axes?.y?.label ?? (split ? lbl(split) : left?.label)),
-    right: options.axes?.y2?.labelHide ? undefined : (options.axes?.y2?.label ?? right?.label),
+    left: options.axes?.y?.labelHide ? undefined : (options.axes?.y?.label ?? axisLbl(left)),
+    right: options.axes?.y2?.labelHide ? undefined : (options.axes?.y2?.label ?? axisLbl(right)),
   };
+}
+
+/** The Cube measure that drives a series' value-axis unit (`meta.measure` ?? its key). */
+export function seriesMember(series: NormalizedSeries | undefined): string | undefined {
+  return series?.meta?.measure ?? series?.key;
+}
+
+/** A `seriesKey → source measure` map so the tooltip resolves each row's unit correctly. */
+export function memberByKey(data: NormalizedChartData): Map<string, string> {
+  return new Map(data.series.map((s) => [s.key, s.meta?.measure ?? s.key]));
 }
 
 /**
@@ -160,12 +173,14 @@ export function pivotValueMember(options: ChartOptions): string | undefined {
 export function tooltipValueFormatter(
   format: ChartFormat,
   memberOverride?: string,
+  keyToMember?: Map<string, string>,
 ): (value: unknown, item: { dataKey?: unknown; name?: unknown }) => string {
   return (value, item) => {
     const dk = item?.dataKey;
-    const member =
-      memberOverride ??
-      (typeof dk === "string" || typeof dk === "number" ? String(dk) : undefined);
+    const key = typeof dk === "string" || typeof dk === "number" ? String(dk) : undefined;
+    // Per-series source measure wins (pivot rows key on a pivot value with no unit),
+    // then an explicit override, then the raw dataKey.
+    const member = (key ? keyToMember?.get(key) : undefined) ?? memberOverride ?? key;
     return format.value(value as number | string | null | undefined, member, "tooltip");
   };
 }

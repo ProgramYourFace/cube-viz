@@ -36,6 +36,9 @@ export type ReferenceLineOpt = z.infer<typeof ReferenceLineOptSchema>;
 
 /* ─────────────────────────── per-family schemas ──────────────────────────── */
 
+/** Overlay the immediately-preceding equal-length period as a muted companion series. */
+const ComparePreviousSchema = z.boolean().optional();
+
 export const BarFamilyOptionsSchema = z
   .object({
     barRadius: z.number().optional(),
@@ -44,6 +47,7 @@ export const BarFamilyOptionsSchema = z
     maxBarSize: z.number().optional(),
     showValueLabels: z.boolean().optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
+    comparePrevious: ComparePreviousSchema,
   })
   .strict();
 export type BarFamilyOptions = z.infer<typeof BarFamilyOptionsSchema>;
@@ -59,6 +63,7 @@ export const LineFamilyOptionsSchema = z
     chrome: z.enum(["full", "none"]).optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
     showValueLabels: z.boolean().optional(),
+    comparePrevious: ComparePreviousSchema,
   })
   .strict();
 export type LineFamilyOptions = z.infer<typeof LineFamilyOptionsSchema>;
@@ -71,6 +76,7 @@ export const AreaFamilyOptionsSchema = z
     connectNulls: z.boolean().optional(),
     dots: z.boolean().optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
+    comparePrevious: ComparePreviousSchema,
   })
   .strict();
 export type AreaFamilyOptions = z.infer<typeof AreaFamilyOptionsSchema>;

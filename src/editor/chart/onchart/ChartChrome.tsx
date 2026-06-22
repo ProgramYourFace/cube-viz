@@ -71,7 +71,8 @@ export function AxisChrome({
 /**
  * The legend chrome control, rendered as a labeled column so it lines up beside the
  * category / split wells: a header + a show/hide toggle that greys when the legend is
- * hidden (the chart greys its legend to match in edit mode).
+ * hidden. Hiding it removes the legend from the chart entirely (in edit mode too); this
+ * toggle is the re-enable affordance.
  */
 export function LegendChrome({
   spec,

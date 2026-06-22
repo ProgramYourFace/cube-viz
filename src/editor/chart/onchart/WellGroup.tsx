@@ -38,15 +38,17 @@ export interface WellGroupProps {
   disableReorder?: boolean;
   /** Label override (e.g. "Left axis" / "Right axis" for a split value well). */
   label?: string;
+  /** A small explanatory note rendered under the fields (e.g. the split series-count). */
+  note?: string;
   /** Popover anchoring for this well's add-slot. */
   pickerSide?: "top" | "bottom" | "left" | "right";
   pickerAlign?: "start" | "center" | "end";
   /**
-   * An in-context control rendered directly beneath this well's fields — e.g. the
-   * axis-label text box for a value/category well, or the legend toggle for a split
-   * well. Keeps each chrome control next to the fields it describes.
+   * An in-context control rendered directly ABOVE this well's fields (under the group
+   * label) — e.g. the axis-title text box for a value/category well. Keeps each chrome
+   * control next to the fields it describes.
    */
-  footer?: React.ReactNode;
+  control?: React.ReactNode;
 }
 
 /**
@@ -71,9 +73,10 @@ export function WellGroup({
   lockedSingle,
   disableReorder,
   label,
+  note,
   pickerSide,
   pickerAlign,
-  footer,
+  control,
 }: WellGroupProps): React.ReactElement {
   // A color split makes the Y axis single-measure; treat the well as one-cardinality.
   const many = well.cardinality === "many" && !lockedSingle;
@@ -123,6 +126,8 @@ export function WellGroup({
         ) : null}
       </div>
 
+      {control ? <div className="pb-0.5">{control}</div> : null}
+
       <div className={cn("flex gap-1", vertical ? "flex-col" : "flex-row flex-wrap items-center")}>
         {placed.map((member, i) => (
           <FieldPill
@@ -149,7 +154,9 @@ export function WellGroup({
         {showAdd ? addSlot : null}
       </div>
 
-      {footer ? <div className="pt-0.5">{footer}</div> : null}
+      {note ? (
+        <p className="px-0.5 text-[10px] leading-tight text-muted-foreground/80">{note}</p>
+      ) : null}
     </div>
   );
 }

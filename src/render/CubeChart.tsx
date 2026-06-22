@@ -10,6 +10,7 @@ import type { ChartFormat } from "@/format";
 import { createUnitsFormatter, mergeUnitConversions } from "@/units";
 import { resolveChart, useCubeVizContext } from "@/provider";
 import { kpiSparklineInput } from "./kpiSparkline";
+import { comparePreviousInput } from "./comparePrevious";
 
 /**
  * The data-fetching wrapper around the pure {@link ChartRenderer}
@@ -63,7 +64,7 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
     [query, locale?.timezone],
   );
 
-  const { data, isLoading, error, refetch } = useNormalizedSeries(tzQuery, resolvedChart);
+  const { data, isLoading, error, refetch, resolvedQuery } = useNormalizedSeries(tzQuery, resolvedChart);
 
   // KPI sparkline: a KPI's main query is an AGGREGATE (the headline number), so its
   // trend is fetched as a SEPARATE time-bucketed query and merged into the render data
@@ -74,6 +75,21 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
     sparkInput?.query ?? tzQuery,
     sparkInput?.chart ?? resolvedChart,
     { skip: !sparkInput },
+  );
+
+  // Previous-period comparison (bar/line/area): the immediately-preceding window is
+  // fetched as a SEPARATE query and merged below as muted, dashed companion series.
+  // Built from the RESOLVED query so a date range set via a {var} works the same as a
+  // literal one; fetched with skipResolve since it's already literal. Returns null when
+  // comparison is off / not applicable, so the hook is skipped (no extra request).
+  const compareInput = useMemo(
+    () => comparePreviousInput(resolvedQuery, resolvedChart),
+    [resolvedQuery, resolvedChart],
+  );
+  const compare = useNormalizedSeries(
+    compareInput?.query ?? tzQuery,
+    resolvedChart,
+    { skip: !compareInput, skipResolve: true },
   );
 
   // Resolve the family component once (registry override → builtin) and feed it to
@@ -93,8 +109,24 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
     if (sparkInput && sparkline.data) {
       return { ...base, series: sparkline.data.series, categories: sparkline.data.categories };
     }
+    // Merge previous-period companions: one muted/dashed series per current series,
+    // paired by key (so it inherits the same colour) and read positionally (bucket i)
+    // against the current categories — "this period vs last" overlaid.
+    if (compareInput && compare.data && base.series.length > 0) {
+      const companions = compare.data.series.map((s) => {
+        const paired = base.series.find((b) => b.key === s.key);
+        return {
+          ...s,
+          key: `${s.key}__prev`,
+          label: `${paired?.label ?? s.label} (prev)`,
+          colorToken: paired?.colorToken ?? s.colorToken,
+          meta: { ...s.meta, companion: true },
+        };
+      });
+      return { ...base, series: [...base.series, ...companions] };
+    }
     return base;
-  }, [data, sparkInput, sparkline.data]);
+  }, [data, sparkInput, sparkline.data, compareInput, compare.data]);
 
   // Lift the resolved rows + a refetch to the chrome (CSV export / Refresh actions).
   useEffect(() => {

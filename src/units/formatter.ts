@@ -111,15 +111,16 @@ export function createUnitsFormatter(
     if (quantity === "time") return humanizeDuration(value, meta?.unit);
     if (quantity === "count" || meta?.convert === false) return wrap(formatNumber(value, ctx), f?.prefix, f?.suffix);
 
-    let v = value;
-    let unit = meta?.unit;
-    if (unit && ctx.unitSystem === "imperial" && conversions[unit]) {
-      v = conversions[unit].toImperial(value);
-      unit = conversions[unit].imperialUnit;
-    }
+    // NOTE: metric↔imperial CONVERSION happens at the adapter boundary (see
+    // adapter/normalize `buildConversions`), NOT here — so the chart axis scales on the
+    // display unit and Recharts picks round-number ticks. By this point `value` is already
+    // in the display unit and `meta.unit` is the display unit; the formatter only formats
+    // and suffixes. (`conversions` is still accepted for back-compat but unused.)
+    void conversions;
+    const unit = meta?.unit;
     const a = unit ? affix(quantity, unit) : {};
     const prefix = f?.prefix ?? a.prefix ?? "";
     const suffix = f?.suffix !== undefined ? ` ${f.suffix}` : (a.suffix ?? "");
-    return `${prefix}${formatNumber(v, ctx)}${suffix}`;
+    return `${prefix}${formatNumber(value, ctx)}${suffix}`;
   };
 }

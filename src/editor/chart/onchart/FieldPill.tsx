@@ -75,6 +75,7 @@ export function FieldPill({
     b.canRename ||
     showSwatch ||
     b.isTimeField ||
+    b.isCategoryField ||
     (b.isComboY && !!b.render) ||
     b.canAxis ||
     b.canLineStyle ||
@@ -172,6 +173,67 @@ export function FieldPill({
                     )}
                   />
                 </div>
+                {b.canComparePrevious ? (
+                  <div className="flex flex-col gap-1">
+                    <label className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        Compare to previous period
+                      </span>
+                      <Switch
+                        checked={b.comparePrevious}
+                        onChange={b.onComparePrevious}
+                        aria-label="Compare to previous period"
+                      />
+                    </label>
+                    {b.comparePrevious && !b.comparePreviousReady ? (
+                      <p className="text-[10px] leading-tight text-muted-foreground/80">
+                        Set a date range above to show the previous period.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
+            {b.isCategoryField ? (
+              <>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">Sort</span>
+                  <select
+                    value={b.sortValue}
+                    onChange={(e) => b.onSort(e.target.value as typeof b.sortValue)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {b.sortOptions.map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Show top (leave blank for all)
+                  </span>
+                  <Input
+                    type="number"
+                    min={1}
+                    defaultValue={b.limit ?? ""}
+                    placeholder="All"
+                    className="h-8"
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      b.onLimit(v === "" ? undefined : Number(v));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const v = (e.target as HTMLInputElement).value.trim();
+                        b.onLimit(v === "" ? undefined : Number(v));
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                </label>
               </>
             ) : null}
 

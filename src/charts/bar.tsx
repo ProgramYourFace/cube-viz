@@ -30,12 +30,12 @@ import {
   legendDisplay,
   legendLayout,
   legendVerticalAlign,
+  memberByKey,
   percentTick,
-  primaryMember,
   resolvedAxisLabels,
   seriesColorVar,
+  seriesMember,
   tooltipValueFormatter,
-  pivotValueMember,
 } from "./_shared";
 
 /**
@@ -60,18 +60,18 @@ export function BarChartFamily({
   const valueFmt = (v: number | string | null | undefined, member?: string, role: FormatRole = "value") =>
     percent ? percentTick(v) : format.value(v, member, role);
   const catFmt = (v: string | number) => format.category(v);
-  // In a color split every series is the same measure → units come from it, not the
-  // per-series (pivot-value) key.
-  const splitMember = pivotValueMember(options);
-  const valueMember = splitMember ?? primaryMember(data);
+  // The value-axis unit comes from each series' SOURCE measure (a pivot series' own key
+  // is a pivot value with no unit); `meta.measure` points at the real measure.
+  const keyToMember = memberByKey(data);
+  const valueMember = seriesMember(data.series[0]);
 
   const catAxisHidden = horizontal ? options.axes?.y?.hide : options.axes?.x?.hide;
   const valAxis = horizontal ? options.axes?.x : options.axes?.y;
   // Dual value axis (VERTICAL bars only): a measure with meta.axis:"right" mounts a 2nd
-  // Y, so two same-unit measures of disparate magnitude stay readable side by side.
+  // Y, so two measures (each its own unit) stay readable side by side.
   const hasRight = !horizontal && data.series.some((s) => s.meta?.axis === "right");
-  const leftMember = splitMember ?? data.series.find((s) => s.meta?.axis !== "right")?.key ?? valueMember;
-  const rightMember = data.series.find((s) => s.meta?.axis === "right")?.key;
+  const leftMember = seriesMember(data.series.find((s) => s.meta?.axis !== "right")) ?? valueMember;
+  const rightMember = seriesMember(data.series.find((s) => s.meta?.axis === "right"));
   // Axis labels (override → auto). Category=axl.x, value(left)=axl.left, value(right)=axl.right;
   // for a horizontal bar the category sits on Y and the value on X, so they swap below.
   const axl = resolvedAxisLabels(data, options);
@@ -151,7 +151,7 @@ export function BarChartFamily({
                 valueFormatter={
                   percent
                     ? (value) => percentTick(value as number | string | null | undefined)
-                    : tooltipValueFormatter(format, splitMember)
+                    : tooltipValueFormatter(format, undefined, keyToMember)
                 }
               />
             }
@@ -171,8 +171,11 @@ export function BarChartFamily({
             yAxisId={horizontal ? undefined : s.meta?.axis === "right" && hasRight ? "right" : "left"}
             dataKey={s.key}
             name={s.label}
-            stackId={stacked ? (s.meta?.stackId ?? "stack") : undefined}
+            stackId={
+              stacked ? (s.meta?.companion ? "__prev" : (s.meta?.stackId ?? "stack")) : undefined
+            }
             fill={seriesColorVar(s)}
+            fillOpacity={s.meta?.companion ? 0.4 : undefined}
             radius={cornerRadius(fo.barRadius, horizontal)}
             maxBarSize={fo.maxBarSize}
           >
@@ -182,7 +185,7 @@ export function BarChartFamily({
                 position={horizontal ? "right" : "top"}
                 className="fill-foreground text-[10px]"
                 formatter={(v: string | number | boolean | null | undefined) =>
-                  valueFmt(typeof v === "boolean" ? Number(v) : v, splitMember ?? s.key, "label")
+                  valueFmt(typeof v === "boolean" ? Number(v) : v, seriesMember(s), "label")
                 }
               />
             )}

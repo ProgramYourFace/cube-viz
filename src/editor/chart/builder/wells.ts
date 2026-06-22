@@ -146,10 +146,15 @@ export function readWells(spec: ChartSpec): Record<string, string[]> {
     case "line":
     case "area": {
       const color = pivotColorOf(spec);
-      // In pivot mode the "value" lives in `series.value`; in measures mode it's `members`.
+      // In pivot mode the measures live in `series.values` (or the single `series.value`);
+      // in measures mode they're `members`.
       const series = chart.mapping?.series;
       const y =
-        series && series.mode === "pivot" ? one(series.value) : measuresOf(chart);
+        series && series.mode === "pivot"
+          ? series.values && series.values.length > 0
+            ? series.values
+            : one(series.value)
+          : measuresOf(chart);
       return { y, x: one(categoryOf(chart)), color: one(color) };
     }
     case "combo": {
@@ -244,14 +249,37 @@ function measuresMapping(
   return { category: { member: category }, series: buildSeries(members, meta) };
 }
 
-/** Compose a pivot-mode mapping (single value split by a color dimension). */
+/** The existing per-measure pivot meta (axis/etc.) on a chart, if it's in pivot mode. */
+function pivotMetaOf(chart: ChartOptions): Record<string, SeriesMeta> | undefined {
+  const s = chart.mapping?.series;
+  return s && s.mode === "pivot" ? s.meta : undefined;
+}
+
+/**
+ * Compose a pivot-mode mapping: one or more measures split by a color dimension.
+ * `value` stays the primary (first) measure for the axis unit; `values` is added
+ * only when more than one measure is split (series = measure × pivot value).
+ * `prevMeta` carries forward each still-present measure's meta (e.g. its value axis),
+ * so adding/removing a measure never wipes the others' axis assignments.
+ */
 function pivotMapping(
   category: string | undefined,
-  value: string,
+  measures: string[],
   pivot: string,
+  prevMeta?: Record<string, SeriesMeta>,
 ): SeriesMapping | undefined {
-  if (!category) return undefined;
-  return { category: { member: category }, series: { mode: "pivot", value, pivot } };
+  if (!category || measures.length === 0) return undefined;
+  const meta: Record<string, SeriesMeta> = {};
+  for (const m of measures) {
+    const entry = prevMeta?.[m];
+    if (entry && Object.keys(entry).length > 0) meta[m] = entry;
+  }
+  const hasMeta = Object.keys(meta).length > 0;
+  const series: SeriesMapping["series"] =
+    measures.length > 1
+      ? { mode: "pivot", value: measures[0], values: measures, pivot, ...(hasMeta ? { meta } : {}) }
+      : { mode: "pivot", value: measures[0], pivot, ...(hasMeta ? { meta } : {}) };
+  return { category: { member: category }, series };
 }
 
 /* ─────────────────────────────── writers ─────────────────────────────────── */
@@ -330,22 +358,16 @@ function placeCartesian(
 
   if (wellId === "y") {
     const measures = wells.y;
-    // Adding a 2nd Y while a Color split exists auto-clears Color (pivot needs one value).
     const next = withMember(measures, member);
-    if (color && next.length > 1) {
-      const cleared = dropDimension(query, color);
-      return {
-        ...spec,
-        query: { ...cleared, measures: next },
-        chart: { ...chart, mapping: measuresMapping(category, next, meta) },
-      };
-    }
     if (color) {
-      // Stay in pivot mode with the (still single) value.
+      // Multi-measure × color: every measure is split by the colour dimension
+      // (series = measure × value). The colour split is NO LONGER cleared when a
+      // 2nd measure is added — both coexist (the well shows a series-count note).
+      // Carry forward existing per-measure axis assignments.
       return {
         ...spec,
         query: { ...query, measures: next },
-        chart: { ...chart, mapping: pivotMapping(category, next[0], color) },
+        chart: { ...chart, mapping: pivotMapping(category, next, color, pivotMetaOf(chart)) },
       };
     }
     return {
@@ -360,17 +382,15 @@ function placeCartesian(
   }
 
   if (wellId === "color") {
-    // A color split = pivot = ONE measure split into a series per category value.
-    // Trim the query to that single value, else Cube pivots EVERY measure and emits
-    // one series per (value × measure) — duplicate series per category.
+    // A color split = pivot. Every selected measure is split into a series per
+    // category value (series = measure × value). All measures stay on the query.
     const measures = wells.y;
     if (measures.length === 0) return spec; // nothing to pivot yet
-    const value = measures[0];
-    const q = ensureDimension({ ...query, measures: [value] }, member);
+    const q = ensureDimension({ ...query, measures }, member);
     return {
       ...spec,
       query: q,
-      chart: { ...chart, mapping: pivotMapping(category, value, member) },
+      chart: { ...chart, mapping: pivotMapping(category, measures, member, pivotMetaOf(chart)) },
     };
   }
 
@@ -409,7 +429,7 @@ function placeCartesianX(
   }
 
   const mapping = color
-    ? pivotMapping(member, measures[0], color)
+    ? pivotMapping(member, measures, color, pivotMetaOf(chart))
     : measuresMapping(member, measures, meta);
   return { ...spec, query: q, chart: { ...chart, mapping } };
 }
@@ -424,11 +444,12 @@ function removeCartesian(spec: ChartSpec, wellId: string, member: string): Chart
   if (wellId === "y") {
     const measures = withoutMember(wells.y, member);
     if (color && measures.length >= 1) {
-      // Still a single value to pivot — stay in pivot mode.
+      // Still ≥1 measure to split — stay in pivot mode with the remaining measures
+      // (and their carried-forward axis assignments).
       return {
         ...spec,
         query: { ...query, measures },
-        chart: { ...chart, mapping: pivotMapping(category, measures[0], color) },
+        chart: { ...chart, mapping: pivotMapping(category, measures, color, pivotMetaOf(chart)) },
       };
     }
     // No measures left (or no color): drop the pivot dim if present, fall back to measures mode.
