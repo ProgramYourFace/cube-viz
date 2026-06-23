@@ -32,8 +32,6 @@ import type { ChartOptions, CubeQuery, DateRange } from "@/spec";
  * The companion is skipped only when there's no offsettable range at all (all-time).
  */
 
-const FAMILIES = new Set<ChartOptions["family"]>(["bar", "line", "area"]);
-
 const iso = (d: Date): string => formatDate(d, "yyyy-MM-dd");
 
 /**
@@ -109,18 +107,44 @@ export function previousDateRange(
   return undefined;
 }
 
+/** How the previous-period result is merged into the chart's render data. */
+export type ComparePreviousMode =
+  /** bar/line/area: add one muted/dashed companion SERIES per current series. */
+  | "series"
+  /** kpi: append the prior aggregate as a second ROW (the delta reads `rows[1]`). */
+  | "kpiRow";
+
+export interface ComparePreviousInput {
+  query: CubeQuery;
+  mode: ComparePreviousMode;
+}
+
 /**
- * The secondary query (same shape, previous date window) that feeds the
- * previous-period companion series — or `null` when comparison is off, the family
- * doesn't support it, there's no time dimension, or the range can't be offset.
+ * The secondary query (same shape, previous date window) that feeds previous-period
+ * comparison — companion SERIES for bar/line/area (`familyOptions.comparePrevious`), or
+ * the prior aggregate ROW for a KPI (`comparison.mode === "previousPeriod"`). Returns
+ * `null` when comparison is off, the family doesn't support it, there's no time
+ * dimension, or the range can't be offset. Pass a RESOLVED query (vars substituted).
  */
 export function comparePreviousInput(
   query: CubeQuery,
   chart: ChartOptions,
-): { query: CubeQuery } | null {
-  if (!FAMILIES.has(chart.family)) return null;
-  const fo = (chart.familyOptions ?? {}) as { comparePrevious?: boolean };
-  if (!fo.comparePrevious) return null;
+): ComparePreviousInput | null {
+  const fo = (chart.familyOptions ?? {}) as {
+    comparePrevious?: boolean;
+    comparison?: { mode?: string };
+  };
+
+  let mode: ComparePreviousMode;
+  if (chart.family === "bar" || chart.family === "line" || chart.family === "area") {
+    if (!fo.comparePrevious) return null;
+    mode = "series";
+  } else if (chart.family === "kpi") {
+    if (fo.comparison?.mode !== "previousPeriod") return null;
+    mode = "kpiRow";
+  } else {
+    return null;
+  }
 
   const td0 = query.timeDimensions?.[0];
   if (!td0) return null;
@@ -135,5 +159,5 @@ export function comparePreviousInput(
     ...query,
     timeDimensions: [{ ...td0, dateRange: prev, compareDateRange: undefined }],
   };
-  return { query: prevQuery };
+  return { query: prevQuery, mode };
 }

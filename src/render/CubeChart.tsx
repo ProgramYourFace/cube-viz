@@ -105,27 +105,44 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
   // For a KPI with a sparkline, merge the trend's series/categories onto the aggregate
   // data — the headline still reads `raw.rows` from the main aggregate query.
   const renderData = useMemo<NormalizedChartData>(() => {
-    const base = data ?? EMPTY_DATA;
+    let result = data ?? EMPTY_DATA;
+
+    // KPI sparkline: the trend's series/categories overlay the aggregate (headline reads raw).
     if (sparkInput && sparkline.data) {
-      return { ...base, series: sparkline.data.series, categories: sparkline.data.categories };
+      result = { ...result, series: sparkline.data.series, categories: sparkline.data.categories };
     }
-    // Merge previous-period companions: one muted/dashed series per current series,
-    // paired by key (so it inherits the same colour) and read positionally (bucket i)
-    // against the current categories — "this period vs last" overlaid.
-    if (compareInput && compare.data && base.series.length > 0) {
-      const companions = compare.data.series.map((s) => {
-        const paired = base.series.find((b) => b.key === s.key);
-        return {
-          ...s,
-          key: `${s.key}__prev`,
-          label: `${paired?.label ?? s.label} (prev)`,
-          colorToken: paired?.colorToken ?? s.colorToken,
-          meta: { ...s.meta, companion: true },
-        };
-      });
-      return { ...base, series: [...base.series, ...companions] };
+
+    // Previous-period comparison (applied AFTER the sparkline so a KPI can have both).
+    if (compareInput && compare.data) {
+      if (compareInput.mode === "kpiRow") {
+        // KPI: append the prior-period aggregate as the 2nd row, which the KPI delta
+        // (computeDelta) reads as the baseline. The headline still reads row 0.
+        const priorRow = compare.data.raw.rows[0];
+        if (priorRow) {
+          const current = result.raw.rows[0];
+          result = {
+            ...result,
+            raw: { ...result.raw, rows: current ? [current, priorRow] : [priorRow] },
+          };
+        }
+      } else if (result.series.length > 0) {
+        // bar/line/area: one muted/dashed companion series per current series, paired by
+        // key (so it inherits the same colour) and read positionally (bucket i) against the
+        // current categories — "this period vs last" overlaid.
+        const companions = compare.data.series.map((s) => {
+          const paired = result.series.find((b) => b.key === s.key);
+          return {
+            ...s,
+            key: `${s.key}__prev`,
+            label: `${paired?.label ?? s.label} (prev)`,
+            colorToken: paired?.colorToken ?? s.colorToken,
+            meta: { ...s.meta, companion: true },
+          };
+        });
+        result = { ...result, series: [...result.series, ...companions] };
+      }
     }
-    return base;
+    return result;
   }, [data, sparkInput, sparkline.data, compareInput, compare.data]);
 
   // Lift the resolved rows + a refetch to the chrome (CSV export / Refresh actions).

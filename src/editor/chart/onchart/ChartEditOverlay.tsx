@@ -4,6 +4,7 @@ import { resolveSeriesColors } from "@/adapter";
 import { useCubeMeta } from "@/hooks";
 import { useCubeVizContext } from "@/provider";
 import { mergeUnitConversions } from "@/units";
+import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartFamily, ChartSpec } from "@/spec";
 
 import { findMember, type MemberOption } from "../../primitives/meta-helpers";
@@ -17,6 +18,12 @@ import { CenterTypePicker } from "./CenterTypePicker";
 import { withSeriesAxis } from "./chip-bindings";
 import { computeJoinScope } from "./join-scope";
 import { WellGroup } from "./WellGroup";
+import {
+  KpiComparison,
+  KpiSectionPopover,
+  KpiSparklineConfig,
+  KpiValueFields,
+} from "./KpiValueConfig";
 
 export interface ChartEditOverlayProps {
   spec: ChartSpec;
@@ -379,6 +386,40 @@ export function ChartEditOverlay({
     );
   };
 
+  // The KPI config strip: three compact components, each opening its own options popover —
+  // Value (the measure pill + a "time, range & display" popover), then the optional
+  // Comparison and Sparkline. The popover entries appear once a measure is placed.
+  const renderKpiConfig = (): React.ReactNode => {
+    const valueWell = wellById.get("value");
+    const hasValue = (placed.value ?? []).length > 0;
+    const kfo = (chart.familyOptions ?? {}) as Record<string, unknown>;
+    return (
+      <>
+        <div className="flex flex-col gap-2">
+          {valueWell ? renderGroup(valueWell, "vertical") : null}
+          {hasValue ? (
+            <KpiSectionPopover
+              label="Time, range & display"
+              summary={kfo.display === "gauge" ? "Gauge" : "Number"}
+            >
+              <KpiValueFields spec={spec} update={update} />
+            </KpiSectionPopover>
+          ) : null}
+        </div>
+        {hasValue ? (
+          <>
+            <KpiSectionPopover label="Comparison" summary={kfo.comparison !== undefined ? "On" : "Off"}>
+              <KpiComparison spec={spec} update={update} />
+            </KpiSectionPopover>
+            <KpiSectionPopover label="Sparkline" summary={kfo.sparkline !== undefined ? "On" : "Off"}>
+              <KpiSparklineConfig spec={spec} update={update} />
+            </KpiSectionPopover>
+          </>
+        ) : null}
+      </>
+    );
+  };
+
   return (
     <div data-slot="chart-edit-overlay" className="flex h-full w-full flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
@@ -395,14 +436,18 @@ export function ChartEditOverlay({
 
       <div className="flex min-h-0 flex-1 gap-2">
         {leftWells.length > 0 ? (
-          <div className="flex w-40 shrink-0 flex-col gap-3 overflow-y-auto pr-1">
-            {/* Each value well carries its axis-title box as a control above its fields (see
-                axisTitleControl / renderAxisGroup), so the title sits with the measures it names. */}
-            {leftWells.flatMap((w) =>
-              dualAxis && w.id === "y"
-                ? [renderAxisGroup("left"), renderAxisGroup("right")]
-                : [renderGroup(w, "vertical")],
-            )}
+          <div className={cn("flex shrink-0 flex-col gap-3 overflow-y-auto pr-1", family === "kpi" ? "w-56" : "w-40")}>
+            {/* A KPI is three inline components — Value (measure + time/range/display),
+                Comparison, and Sparkline — each its own bordered block with its own config. */}
+            {family === "kpi"
+              ? renderKpiConfig()
+              : /* Each value well carries its axis-title box as a control above its fields (see
+                   axisTitleControl / renderAxisGroup), so the title sits with the measures it names. */
+                leftWells.flatMap((w) =>
+                  dualAxis && w.id === "y"
+                    ? [renderAxisGroup("left"), renderAxisGroup("right")]
+                    : [renderGroup(w, "vertical")],
+                )}
           </div>
         ) : null}
 

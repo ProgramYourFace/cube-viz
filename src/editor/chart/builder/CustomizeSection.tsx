@@ -1,24 +1,12 @@
 import * as React from "react";
 
 import { DEFAULTS } from "@/charts";
-import type {
-  ChartOptions,
-  ChartSpec,
-  DateRange,
-  Granularity,
-  TimeDimension,
-  VarRef,
-} from "@/spec";
+import type { ChartOptions, ChartSpec } from "@/spec";
 import { Input } from "@/components/ui/input";
 
 import { FieldRow } from "../../primitives/FieldRow";
-import { GranularityPicker } from "../../primitives/GranularityPicker";
-import { MemberPicker } from "../../primitives/MemberPicker";
 import { SegmentedControl } from "../../primitives/SegmentedControl";
 import { SwitchRow } from "../../primitives/SwitchRow";
-import { inferCube } from "../helpers";
-import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
-import { ValueBinding } from "../binding/ValueBinding";
 
 export interface CustomizeSectionProps {
   spec: ChartSpec;
@@ -42,7 +30,6 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
   const { chart } = spec;
   const family = chart.family;
   const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
-  const cube = inferCube(spec);
 
   const setEnvelope = (patch: Partial<ChartOptions>): void =>
     update({ ...spec, chart: { ...chart, ...patch } });
@@ -75,8 +62,6 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     </FieldRow>
   );
 
-  // Remember the last comparison config so toggling KPI comparison off→on restores it.
-  const lastComparison = React.useRef<Record<string, unknown> | undefined>(undefined);
 
   const body = ((): React.ReactNode => {
     switch (family) {
@@ -149,174 +134,11 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           </>
         );
 
-      case "kpi": {
-        const comparison = fo.comparison as Record<string, unknown> | undefined;
-        if (comparison) lastComparison.current = comparison;
-        const comparing = comparison !== undefined;
-        const sparkOn = fo.sparkline !== undefined;
-        const td = spec.query.timeDimensions?.[0];
-        // One direction drives BOTH the comparison delta and the sparkline color.
-        const goodDirection =
-          (fo.goodDirection as "up" | "down" | undefined) ??
-          (comparison?.goodDirection as "up" | "down" | undefined) ??
-          "up";
-        const sparkGranularity = (fo.sparkline as { granularity?: Granularity | VarRef } | undefined)
-          ?.granularity;
-        const display = (fo.display as "number" | "gauge" | undefined) ?? "number";
-        const gauge = fo.gauge as { min?: number; max?: number } | undefined;
-
-        // Edit the KPI's single time dimension. The MAIN query stays granularity-LESS so
-        // the headline is an aggregate over the full range; the sparkline adds the bucket.
-        const setTimeDim = (patch: Partial<TimeDimension>): void => {
-          const base: TimeDimension | undefined =
-            td ?? (patch.dimension ? { dimension: patch.dimension } : undefined);
-          if (!base) return;
-          const next: TimeDimension = { ...base };
-          for (const k of Object.keys(patch) as (keyof TimeDimension)[]) {
-            const v = patch[k];
-            if (v === undefined) delete next[k];
-            else (next as Record<string, unknown>)[k] = v;
-          }
-          delete (next as Record<string, unknown>).granularity;
-          update({ ...spec, query: { ...spec.query, timeDimensions: [next] } });
-        };
-
-        return (
-          <>
-            <KField label="Time field">
-              <MemberPicker
-                cube={cube}
-                kind="time"
-                value={td?.dimension}
-                onChange={(m) => setTimeDim({ dimension: m })}
-                placeholder="All time"
-                className="h-8"
-              />
-            </KField>
-            {td?.dimension ? (
-              <KField label="Date range">
-                <ValueBinding
-                  kind="dateRange"
-                  value={td.dateRange}
-                  onChange={(r) => setTimeDim({ dateRange: r as DateRange | VarRef | undefined })}
-                  renderFixed={(r, set) => <DateRangeValueEditor value={r} onChange={set} />}
-                />
-              </KField>
-            ) : null}
-
-            <FieldRow label="Display">
-              <SegmentedControl<"number" | "gauge">
-                aria-label="Display"
-                size="sm"
-                options={[
-                  { value: "number", label: "Number" },
-                  { value: "gauge", label: "Gauge" },
-                ]}
-                value={display}
-                onChange={(v) => setFamilyOptions({ display: v })}
-              />
-            </FieldRow>
-            {display === "gauge" ? (
-              <KField label="Gauge max">
-                <Input
-                  type="number"
-                  className="h-8"
-                  value={gauge?.max ?? ""}
-                  placeholder="Auto"
-                  onChange={(e) => {
-                    const n = parseFloat(e.target.value);
-                    setFamilyOptions({ gauge: Number.isFinite(n) ? { ...(gauge ?? {}), max: n } : undefined });
-                  }}
-                />
-              </KField>
-            ) : null}
-
-            <SwitchRow
-              label="Sparkline"
-              hint="An area trend under the number, colored by the direction."
-              checked={sparkOn}
-              onChange={(on) =>
-                setFamilyOptions({
-                  sparkline: on ? { granularity: sparkGranularity ?? "day" } : undefined,
-                })
-              }
-            />
-            {sparkOn ? (
-              <KField label="Trend granularity">
-                <ValueBinding
-                  kind="granularity"
-                  value={sparkGranularity}
-                  onChange={(g) =>
-                    setFamilyOptions({
-                      sparkline: { ...(fo.sparkline as object), granularity: g as Granularity | VarRef },
-                    })
-                  }
-                  renderFixed={(g, set) => (
-                    <GranularityPicker value={g} onChange={set} className="h-8 w-full" />
-                  )}
-                />
-              </KField>
-            ) : null}
-
-            <SwitchRow
-              label="Compare"
-              checked={comparing}
-              onChange={(on) =>
-                setFamilyOptions({
-                  comparison: on
-                    ? (lastComparison.current ?? { mode: "previousPeriod", showAsPercent: true })
-                    : undefined,
-                })
-              }
-            />
-            {comparing ? (
-              <>
-                <FieldRow label="Compare to">
-                  <SegmentedControl<"previousPeriod" | "value">
-                    aria-label="Compare to"
-                    size="sm"
-                    options={[
-                      { value: "previousPeriod", label: "Prev period" },
-                      { value: "value", label: "Fixed value" },
-                    ]}
-                    value={(comparison?.mode as "previousPeriod" | "value") ?? "previousPeriod"}
-                    onChange={(m) => setFamilyOptions({ comparison: { ...comparison, mode: m } })}
-                  />
-                </FieldRow>
-                {comparison?.mode === "value" ? (
-                  <KField label="Baseline value">
-                    <Input
-                      type="number"
-                      className="h-8"
-                      value={(comparison?.value as number | undefined) ?? ""}
-                      onChange={(e) => {
-                        const n = parseFloat(e.target.value);
-                        setFamilyOptions({
-                          comparison: { ...comparison, value: Number.isFinite(n) ? n : undefined },
-                        });
-                      }}
-                    />
-                  </KField>
-                ) : null}
-                <SwitchRow
-                  label="Show as %"
-                  checked={(comparison?.showAsPercent ?? true) !== false}
-                  onChange={(on) => setFamilyOptions({ comparison: { ...comparison, showAsPercent: on } })}
-                />
-              </>
-            ) : null}
-
-            {comparing || sparkOn ? (
-              <SwitchRow
-                label="Higher is better"
-                hint="Off = a decrease is good (inverts the up/down colors)."
-                checked={goodDirection !== "down"}
-                onChange={(on) => setFamilyOptions({ goodDirection: on ? "up" : "down" })}
-              />
-            ) : null}
-          </>
-        );
-      }
+      // KPI is configured by its three inline blocks in the config strip (Value /
+      // Comparison / Sparkline — see ChartEditOverlay), so the chart-type popover shows
+      // no Options for a KPI (no confusing split).
+      case "kpi":
+        return null;
 
       case "table":
         return (
@@ -363,7 +185,6 @@ const FAMILIES_WITH_OPTIONS = new Set<ChartSpec["chart"]["family"]>([
   "bar",
   "area",
   "pie",
-  "kpi",
   "table",
 ]);
 
