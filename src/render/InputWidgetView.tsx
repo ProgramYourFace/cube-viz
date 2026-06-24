@@ -54,9 +54,11 @@ export interface InputWidgetViewProps {
 /* ───────────────────────────── shared field styling ─────────────────────── */
 
 const fieldClass = cn(
-  "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm",
+  "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground",
   "shadow-sm transition-colors placeholder:text-muted-foreground",
   "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+  // Native <option> popups are OS-drawn; set readable colors so dark mode isn't black-on-black.
+  "[&>option]:bg-popover [&>option]:text-popover-foreground",
   "disabled:cursor-not-allowed disabled:opacity-50",
 );
 
@@ -67,8 +69,49 @@ const ISO_DATE = "yyyy-MM-dd";
 
 /* ───────────────────────────── built-in controls ────────────────────────── */
 
-/** Default date-range presets when the spec carries none. */
-const DEFAULT_PRESETS = ["This month", "last 7 days", "last 30 days", "last quarter"];
+/**
+ * Default date-range presets when the spec carries none. Values are Cube relative
+ * dateRange strings (Cube resolves them); friendly labels come from PRESET_LABELS.
+ * "last month" / "last year" are the previous full month / year.
+ */
+const DEFAULT_PRESETS = [
+  "today",
+  "yesterday",
+  "this week",
+  "this month",
+  "last 7 days",
+  "last 30 days",
+  "last 90 days",
+  "last week",
+  "last month",
+  "last quarter",
+  "this year",
+  "last year",
+];
+
+/** Pretty labels for the known Cube relative ranges (value stays the Cube string). */
+const PRESET_LABELS: Record<string, string> = {
+  today: "Today",
+  yesterday: "Yesterday",
+  "this week": "This week",
+  "this month": "This month",
+  "this quarter": "This quarter",
+  "this year": "This year",
+  "last 7 days": "Last 7 days",
+  "last 30 days": "Last 30 days",
+  "last 90 days": "Last 90 days",
+  "last week": "Last week (previous)",
+  "last month": "Last month (previous)",
+  "last quarter": "Last quarter (previous)",
+  "last year": "Last year (previous)",
+  "last 6 months": "Last 6 months",
+  "last 12 months": "Last 12 months",
+};
+
+/** Friendly label for a relative-range value (falls back to the raw string). */
+function presetLabel(value: string): string {
+  return PRESET_LABELS[value.trim().toLowerCase()] ?? value;
+}
 
 /** Read an absolute `[from, to]` pair out of a VariableValue, else `["", ""]`. */
 function asPair(value: VariableValue | undefined): [string, string] {
@@ -106,7 +149,7 @@ function DateRangeControl({
   // The trigger label: preset name, formatted absolute range, or a prompt.
   let triggerLabel: string;
   if (isRelative) {
-    triggerLabel = value as string;
+    triggerLabel = presetLabel(value as string);
   } else if (fromDate && toDate) {
     triggerLabel = `${format(fromDate, "MMM d, yyyy")} – ${format(toDate, "MMM d, yyyy")}`;
   } else if (fromDate) {
@@ -132,19 +175,19 @@ function DateRangeControl({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="flex w-auto gap-2 p-2" align="start">
-        <div className="flex flex-col gap-1 border-r pr-2">
+        <div className="flex max-h-80 flex-col gap-1 overflow-y-auto border-r pr-2">
           {presets.map((p) => (
             <Button
               key={p}
               variant="ghost"
               size="sm"
-              className="justify-start font-normal"
+              className="justify-start whitespace-nowrap font-normal"
               onClick={() => {
                 onChange(p);
                 setOpen(false);
               }}
             >
-              {p}
+              {presetLabel(p)}
             </Button>
           ))}
         </div>
