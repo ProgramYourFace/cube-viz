@@ -9,6 +9,7 @@ import {
   type WidgetSpec,
 } from "@/spec";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/utils";
 
 import { EditorToolbar } from "./dashboard/EditorToolbar";
 import { EditorCanvas } from "./dashboard/EditorCanvas";
@@ -61,6 +62,18 @@ export interface DashboardEditorProps {
   newId?: IdFactory;
   /** `onChange` debounce in ms. Default 300. */
   debounceMs?: number;
+  /**
+   * Edit-history controls, surfaced in the toolbar. cube-viz is intentionally
+   * history-less; the HOST owns the undo/redo stack (it re-seeds `spec` on
+   * undo/redo) and passes the handlers + enablement here so the controls live in
+   * the one unified toolbar. Buttons hidden when the handlers are omitted.
+   */
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  /** Throw away unsaved changes (host clears its draft + re-seeds the published spec). */
+  onDiscard?: () => void;
   className?: string;
 }
 
@@ -70,6 +83,11 @@ export function DashboardEditor({
   onSave,
   newId,
   debounceMs = 300,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  onDiscard,
   className,
 }: DashboardEditorProps): React.ReactElement {
   // Local working copy; the host's `spec` seeds it and re-seeds when its identity
@@ -202,31 +220,41 @@ export function DashboardEditor({
         : "";
 
   return (
-    <div data-slot="dashboard-editor" className={className}>
+    <div data-slot="dashboard-editor" className={cn("flex h-full flex-col gap-2", className)}>
       <EditorToolbar
         name={draft.name ?? ""}
         onNameChange={handleNameChange}
         onAdd={handleAdd}
         onEditVariables={() => setEditing({ kind: "variables" })}
+        onUndo={onUndo}
+        onRedo={onRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onDiscard={onDiscard}
         onSave={onSave ? handleSave : undefined}
         saveDisabled={!validation.success}
+        className="shrink-0"
       />
       {!validation.success ? (
-        <p className="mb-2 text-xs text-destructive">
+        <p className="shrink-0 text-xs text-destructive">
           {validation.error.issues.length} validation issue
           {validation.error.issues.length === 1 ? "" : "s"} — fix before saving.
         </p>
       ) : null}
 
-      <EditorCanvas
-        spec={draft}
-        selectedId={selectedId}
-        onSelect={handleSelect}
-        onEdit={handleEdit}
-        onDuplicate={handleDuplicate}
-        onDelete={handleDelete}
-        onLayoutChange={handleLayoutChange}
-      />
+      {/* The canvas scrolls — widgets below the fold are reachable (was clipped to
+          the viewport, so you couldn't scroll to edit lower charts). */}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+        <EditorCanvas
+          spec={draft}
+          selectedId={selectedId}
+          onSelect={handleSelect}
+          onEdit={handleEdit}
+          onDuplicate={handleDuplicate}
+          onDelete={handleDelete}
+          onLayoutChange={handleLayoutChange}
+        />
+      </div>
 
       {/* Full-screen editor — click a widget's edit (pencil) button (or the
           toolbar's Variables) to open. It takes over the whole surface (the

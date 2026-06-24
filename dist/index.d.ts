@@ -4930,7 +4930,7 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, onChange, onSave, newId, debounceMs, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, onDiscard, className, }: DashboardEditorProps): React_2.ReactElement;
 
 /**
  * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
@@ -4968,6 +4968,18 @@ export declare interface DashboardEditorProps {
     newId?: IdFactory;
     /** `onChange` debounce in ms. Default 300. */
     debounceMs?: number;
+    /**
+     * Edit-history controls, surfaced in the toolbar. cube-viz is intentionally
+     * history-less; the HOST owns the undo/redo stack (it re-seeds `spec` on
+     * undo/redo) and passes the handlers + enablement here so the controls live in
+     * the one unified toolbar. Buttons hidden when the handlers are omitted.
+     */
+    onUndo?: () => void;
+    onRedo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
+    /** Throw away unsaved changes (host clears its draft + re-seeds the published spec). */
+    onDiscard?: () => void;
     className?: string;
 }
 
@@ -7229,13 +7241,15 @@ export declare interface EditorCanvasProps {
     onLayoutChange: (layout: LayoutItem[]) => void;
 }
 
-export declare function EditorToolbar({ name, onNameChange, onAdd, onEditVariables, onSave, saveDisabled, className, }: EditorToolbarProps): React_2.ReactElement;
+export declare function EditorToolbar({ name, onNameChange, onAdd, onEditVariables, onUndo, onRedo, canUndo, canRedo, onDiscard, discardDisabled, onSave, saveDisabled, className, }: EditorToolbarProps): React_2.ReactElement;
 
 /**
- * The dashboard editor toolbar (docs/03 §A3.2): the dashboard name field, the
- * add-widget buttons (chart / text / input), and Save. Add buttons wrap to a second
- * row on a narrow container rather than overflowing, so it stays usable in a mobile
- * WebView. Purely presentational — every action is a callback.
+ * The dashboard editor toolbar (docs/03 §A3.2): the single, unified control bar for
+ * editing — the dashboard name, the add-widget buttons (chart / text / input /
+ * variables), and the edit-session actions (Undo / Redo / Discard / Save) grouped on
+ * the right. Wraps to extra rows on a narrow container so it stays usable in a mobile
+ * WebView. Purely presentational — every action is a callback; history (undo/redo) and
+ * persistence (save/discard) are owned by the host and surfaced here as props.
  */
 export declare interface EditorToolbarProps {
     name: string;
@@ -7243,6 +7257,15 @@ export declare interface EditorToolbarProps {
     onAdd: (type: WidgetSpec["type"]) => void;
     /** Open the dashboard-variables editor (full-screen). */
     onEditVariables?: () => void;
+    /** Step back/forward through edit history. Buttons hidden if the handler is omitted. */
+    onUndo?: () => void;
+    onRedo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
+    /** Throw away unsaved changes (revert to the last saved/published spec). */
+    onDiscard?: () => void;
+    /** Disable Discard when there's nothing to revert. */
+    discardDisabled?: boolean;
     /** Omit to hide the Save button (host saves elsewhere). */
     onSave?: () => void;
     /** Disables Save (e.g. while the spec fails validation). */
