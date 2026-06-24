@@ -17,6 +17,7 @@ import { VariablesPanel } from "./dashboard/VariablesPanel";
 import { useDebouncedCallback } from "./dashboard/useDebouncedCallback";
 import {
   appendWidget,
+  duplicateWidget,
   mergeLayout,
   removeWidget,
   replaceWidget,
@@ -136,6 +137,15 @@ export function DashboardEditor({
     [commit],
   );
 
+  const handleDuplicate = React.useCallback(
+    (id: string) => {
+      const copyId = mintId();
+      commit((d) => duplicateWidget(d, id, copyId));
+      setSelectedId(copyId);
+    },
+    [commit, mintId],
+  );
+
   const handleWidgetChange = React.useCallback(
     (widget: WidgetSpec) => commit((d) => replaceWidget(d, widget)),
     [commit],
@@ -213,6 +223,7 @@ export function DashboardEditor({
         selectedId={selectedId}
         onSelect={handleSelect}
         onEdit={handleEdit}
+        onDuplicate={handleDuplicate}
         onDelete={handleDelete}
         onLayoutChange={handleLayoutChange}
       />

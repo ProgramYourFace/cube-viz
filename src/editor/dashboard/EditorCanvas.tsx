@@ -5,7 +5,7 @@ import {
   type LayoutItem as RglLayoutItem,
   type ResponsiveLayouts,
 } from "react-grid-layout";
-import { Pencil, Trash2 } from "lucide-react";
+import { Copy, Pencil, Trash2 } from "lucide-react";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -67,6 +67,8 @@ export interface EditorCanvasProps {
   onSelect: (id: string) => void;
   /** A widget's edit button was clicked (opens the full-screen editor). */
   onEdit: (id: string) => void;
+  /** A widget's duplicate button was clicked. */
+  onDuplicate: (id: string) => void;
   /** A widget's delete button was clicked. */
   onDelete: (id: string) => void;
   /** Canonical (widest) layout captured from a drag/resize. */
@@ -78,6 +80,7 @@ export function EditorCanvas({
   selectedId,
   onSelect,
   onEdit,
+  onDuplicate,
   onDelete,
   onLayoutChange,
 }: EditorCanvasProps): React.ReactElement {
@@ -173,9 +176,11 @@ export function EditorCanvas({
                   }}
                   className={cn(
                     "group relative h-full w-full cursor-move rounded-xl ring-offset-2 ring-offset-background transition-shadow focus-visible:outline-none",
+                    // No idle/hover outline (it read as harsh); only the SELECTED
+                    // widget gets a ring. Keyboard focus still shows a faint ring.
                     selected
                       ? "ring-2 ring-primary"
-                      : "ring-1 ring-transparent hover:ring-border focus-visible:ring-border",
+                      : "ring-0 focus-visible:ring-2 focus-visible:ring-border",
                   )}
                 >
                   {/* Edit + delete actions — top-right corner, on hover/selection.
@@ -204,6 +209,21 @@ export function EditorCanvas({
                       )}
                     >
                       <Pencil />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Duplicate ${widget.title ?? widget.type}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDuplicate(widget.id);
+                      }}
+                      className={cn(
+                        "inline-flex size-7 items-center justify-center rounded-md",
+                        "bg-card/90 text-muted-foreground shadow-sm backdrop-blur",
+                        "hover:bg-accent hover:text-foreground [&_svg]:size-4",
+                      )}
+                    >
+                      <Copy />
                     </button>
                     <button
                       type="button"

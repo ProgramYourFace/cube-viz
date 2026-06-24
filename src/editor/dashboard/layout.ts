@@ -128,6 +128,19 @@ export function appendWidget(
   };
 }
 
+/**
+ * A dashboard spec with a COPY of one widget appended under `newId` (placed below
+ * everything, like a fresh add). Deep-clones via JSON so the copy shares no nested
+ * references with the original. Pure; returns the spec unchanged if `id` is unknown.
+ */
+export function duplicateWidget(spec: DashboardSpec, id: string, newId: string): DashboardSpec {
+  const src = spec.widgets.find((w) => w.id === id);
+  if (!src) return spec;
+  const copy = JSON.parse(JSON.stringify(src)) as WidgetSpec;
+  copy.id = newId;
+  return appendWidget(spec, copy);
+}
+
 /** A dashboard spec with one widget (+ its layout item) removed. Pure. */
 export function removeWidget(spec: DashboardSpec, id: string): DashboardSpec {
   return {

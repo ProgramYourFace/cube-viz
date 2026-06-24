@@ -1,0 +1,71 @@
+/*
+ * cube-viz LIBRARY stylesheet — the source of the shipped `cube-viz/styles.css`
+ * (dist/cube-viz.css). This is what makes rendering PREDICTABLE: cube-viz ships a
+ * COMPLETE, self-contained set of the utilities its components use, so a host that
+ * imports `cube-viz/styles.css` gets correct rendering WITHOUT relying on its own
+ * Tailwind build to (accidentally) generate cube-viz's classes — which misses
+ * arbitrary variants like `[&_h1]:…` and `z-[4]`, breaking rich text + the editor.
+ *
+ * `@source` is load-bearing: it forces Tailwind to scan every component file at
+ * build time so no class is purged. The lib build (vite.config.lib.ts) imports
+ * this via src/index.ts and extracts it to dist/cube-viz.css.
+ *
+ * Theme TOKENS live separately in theme/tokens.css (shipped as `cube-viz/theme.css`)
+ * so a host can override them by cascade; we only declare the `dark` variant here
+ * (needed at build time to compile `dark:` utilities into `&:is(.dark *)`).
+ */
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Scan ALL cube-viz source so every utility + arbitrary variant is emitted. */
+@source "./**/*.{ts,tsx}";
+
+/*
+ * Register the shadcn color/radius NAMES so utilities like bg-card / text-muted-
+ * foreground / ring-primary / rounded-lg actually compile here — they reference
+ * `var(--card)` etc., whose VALUES come from theme.css (or the host's own :root)
+ * at runtime. This is mappings ONLY (no token values), so a themed host still
+ * overrides freely by cascade and theme.css stays the optional defaults layer.
+ */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}

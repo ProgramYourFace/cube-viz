@@ -7212,7 +7212,7 @@ export declare const DEFAULTS: Record<ChartFamily, FamilyDefault>;
 /** The RGL drag-handle class — Dashboard passes this as `draggableHandle`. */
 export declare const DRAG_HANDLE_CLASS = "cube-viz-drag-handle";
 
-export declare function EditorCanvas({ spec, selectedId, onSelect, onEdit, onDelete, onLayoutChange, }: EditorCanvasProps): React_2.ReactElement;
+export declare function EditorCanvas({ spec, selectedId, onSelect, onEdit, onDuplicate, onDelete, onLayoutChange, }: EditorCanvasProps): React_2.ReactElement;
 
 export declare interface EditorCanvasProps {
     spec: DashboardSpec;
@@ -7221,6 +7221,8 @@ export declare interface EditorCanvasProps {
     onSelect: (id: string) => void;
     /** A widget's edit button was clicked (opens the full-screen editor). */
     onEdit: (id: string) => void;
+    /** A widget's duplicate button was clicked. */
+    onDuplicate: (id: string) => void;
     /** A widget's delete button was clicked. */
     onDelete: (id: string) => void;
     /** Canonical (widest) layout captured from a drag/resize. */
