@@ -6,11 +6,6 @@
  * adapter shape (`@/adapter`), never Cube/Recharts directly.
  */
 
-// The complete, self-contained component stylesheet (extracted to dist/cube-viz.css
-// by the lib build). Importing it here puts it in the build graph so Tailwind emits
-// every utility cube-viz uses; consumers still import `cube-viz/styles.css` to load it.
-import "./styles.css";
-
 // The spec contract (zod schemas + inferred types + load/migrate/validate).
 export * from "./spec";
 

@@ -126,7 +126,7 @@ export function EditorCanvas({
 
   return (
     <DashboardProvider spec={spec}>
-      <div ref={ref} className="w-full [&_.react-resizable-handle]:z-[3]">
+      <div ref={ref} className="w-full [&_.react-resizable-handle]:z-20">
         {width > 0 ? (
           <ResponsiveGridLayout
             width={width}
@@ -183,18 +183,19 @@ export function EditorCanvas({
                       : "ring-0 focus-visible:ring-2 focus-visible:ring-border",
                   )}
                 >
-                  {/* Edit + delete actions — top-right corner, on hover/selection.
-                      Idle = pointer-events-none so they never block dragging; the
-                      top-right resize corner is dropped so they don't conflict. */}
-                  <div
-                    className={cn(
-                      "absolute right-2 top-2 z-[4] flex items-center gap-1",
-                      "pointer-events-none opacity-0 transition-opacity",
-                      "focus-within:pointer-events-auto focus-within:opacity-100",
-                      "group-hover:pointer-events-auto group-hover:opacity-100",
-                      selected && "pointer-events-auto opacity-100",
-                    )}
-                  >
+                  <RenderWidget widget={widget} editable />
+                  {/* Drag-anywhere layer: the WHOLE widget is the drag handle (a plain
+                      div RGL can grab; recharts' SVG + input controls otherwise swallow
+                      the mousedown). z-[10] keeps it above the chart but BELOW the
+                      resize handles and the action buttons. Rendered before the actions
+                      so it never wins their hit-test. */}
+                  <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "absolute inset-0 z-10 cursor-move rounded-xl")} />
+                  {/* Edit / duplicate / delete — top-right, ALWAYS visible + clickable
+                      in edit mode, rendered LAST at z-[20] so they sit above the drag
+                      layer. (The old hover-revealed, pointer-events-none version was a
+                      flaky hit-test target the drag layer kept stealing — you couldn't
+                      click the buttons.) stopPropagation so a click doesn't also select. */}
+                  <div className="absolute right-2 top-2 z-20 flex items-center gap-1">
                     <button
                       type="button"
                       aria-label={`Edit ${widget.title ?? widget.type}`}
@@ -241,14 +242,6 @@ export function EditorCanvas({
                       <Trash2 />
                     </button>
                   </div>
-                  <RenderWidget widget={widget} editable />
-                  {/* Drag-anywhere: the WHOLE widget is the drag handle (a plain div
-                      RGL can grab; recharts' SVG and input controls otherwise swallow
-                      the mousedown). Covers every widget type — in edit mode you only
-                      position / resize / edit-via-buttons, never use a widget's own
-                      controls, so covering them is correct. Sits below the z-[3] resize
-                      handles + z-[4] action buttons; clicks bubble to the wrapper. */}
-                  <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "absolute inset-0 cursor-move rounded-xl")} />
                 </div>
               );
             })}
