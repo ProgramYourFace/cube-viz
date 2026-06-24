@@ -2,6 +2,7 @@ import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import {
+  DayButton as RdpDayButton,
   DayPicker,
   useDayPicker,
   type ChevronProps,
@@ -12,17 +13,24 @@ import { cn } from "@/components/ui/utils";
 import { buttonVariants } from "@/components/ui/button";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
+type DayButtonProps = React.ComponentProps<typeof RdpDayButton>;
 
 /**
- * shadcn Calendar wrapping react-day-picker v9 ({@link DayPicker}).
+ * shadcn-style Calendar wrapping react-day-picker v9.
  *
- * The month header is a CUSTOM `MonthCaption` (a simple flex row: prev · label ·
- * next) driven by react-day-picker's own `useDayPicker()` navigation — NOT the
- * default absolute-positioned `nav`. The default relied on `absolute inset-x-0
- * justify-between`, which a consumer's Tailwind build can purge, leaving the nav
- * mispositioned + hard/impossible to click. This layout uses only sturdy
- * utilities so month navigation works in any host. Day/range styling carries
- * explicit `text-foreground`/token colors so it stays legible in dark mode.
+ * Two things are deliberately NOT done the shadcn-classNames way, because a host
+ * app's Tailwind build (which is what styles cube-viz inside the WebView) purges
+ * arbitrary classes (`absolute inset-x-0`, `[&:has(...)]`, width utils) and the
+ * order of conflicting `text-*` classes is unreliable — both broke the calendar:
+ *   1. NAVIGATION + month label: a custom {@link MonthCaption} (prev · label ·
+ *      next) driven by react-day-picker's own `useDayPicker()` nav. No absolute
+ *      positioning, so it always renders + clicks.
+ *   2. DAY rendering: a custom {@link DayButton} that sets its colors via INLINE
+ *      CSS variables (`var(--foreground)` / `var(--primary-foreground)` …) — these
+ *      can't be purged and always win, so selected/range days stay legible in both
+ *      light and dark mode. Backgrounds use the sturdy `bg-primary`/`bg-accent`
+ *      utilities. The grid stays a native <table>, so weekday <th> and day <td>
+ *      columns always align (the old `flex` overrides were what misaligned them).
  */
 
 /** Prev · "Month YYYY" · Next, using react-day-picker's navigation context. */
@@ -30,7 +38,7 @@ function MonthCaption({ calendarMonth }: MonthCaptionProps): React.ReactElement 
   const { goToMonth, nextMonth, previousMonth } = useDayPicker();
   const navBtn = cn(buttonVariants({ variant: "outline" }), "size-7 shrink-0 p-0");
   return (
-    <div className="mb-1 flex items-center justify-between gap-1">
+    <div className="mb-2 flex items-center justify-between gap-1">
       <button
         type="button"
         aria-label="Go to previous month"
@@ -56,6 +64,31 @@ function MonthCaption({ calendarMonth }: MonthCaptionProps): React.ReactElement 
   );
 }
 
+/** A day cell whose colors are inline CSS vars (purge-proof, always legible). */
+function DayButton({ day: _day, modifiers, className, style, ...props }: DayButtonProps): React.ReactElement {
+  const selected = !!modifiers.selected && !modifiers.outside && !modifiers.disabled;
+  const muted = !!modifiers.outside || !!modifiers.disabled;
+  const color = selected
+    ? "var(--primary-foreground)"
+    : muted
+      ? "var(--muted-foreground)"
+      : "var(--foreground)";
+  return (
+    <button
+      {...props}
+      style={{ ...style, color }}
+      className={cn(
+        "flex size-9 items-center justify-center rounded-md text-sm font-normal transition-colors",
+        // size-9 cells touch edge-to-edge, so a contiguous range reads as one band.
+        selected ? "bg-primary hover:bg-primary" : "hover:bg-accent",
+        modifiers.today && !selected && "border border-primary",
+        modifiers.disabled && "opacity-40",
+        className,
+      )}
+    />
+  );
+}
+
 export function Calendar({
   className,
   classNames,
@@ -65,45 +98,24 @@ export function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      // Default nav is replaced by the custom MonthCaption below.
       hideNavigation
       className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row gap-2",
-        month: "flex flex-col gap-3",
+        month: "flex flex-col gap-2",
         month_caption: "",
-        month_grid: "w-full border-collapse",
-        weekdays: "flex",
-        weekday: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
-        week: "flex w-full mt-1",
-        day: cn(
-          "relative size-9 p-0 text-center text-sm focus-within:relative focus-within:z-20",
-          // Range band fill on the day CELL (sturdy: direct token utilities).
-          "[&:has(.range_middle)]:bg-accent",
-          "[&:has(.range_start)]:rounded-l-md [&:has(.range_start)]:bg-accent",
-          "[&:has(.range_end)]:rounded-r-md [&:has(.range_end)]:bg-accent",
-        ),
-        day_button: cn(
-          buttonVariants({ variant: "ghost" }),
-          "size-9 rounded-md p-0 font-normal text-foreground",
-        ),
-        // Single selection + range endpoints: solid primary chip, always legible.
-        selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
-        range_start:
-          "range_start rounded-md bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
-        range_end:
-          "range_end rounded-md bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
-        // Interior days: accent band; hover keeps the accent (no contrast loss).
-        range_middle:
-          "range_middle !bg-transparent text-accent-foreground hover:!bg-accent/70 hover:text-accent-foreground",
-        today: "rounded-md border border-primary text-foreground",
-        outside: "outside text-muted-foreground/60",
-        disabled: "text-muted-foreground opacity-40",
+        // Native table: <th> weekdays + <td> days share columns -> always aligned.
+        month_grid: "border-collapse",
+        weekdays: "",
+        weekday: "size-9 p-0 text-xs font-normal text-muted-foreground",
+        week: "",
+        day: "p-0 text-center align-middle",
         hidden: "invisible",
         ...classNames,
       }}
       components={{
         MonthCaption,
+        DayButton,
         Chevron: ({ orientation, className: chevronClassName, ...chevronProps }: ChevronProps) => {
           const Icon = orientation === "left" ? ChevronLeft : ChevronRight;
           return <Icon className={cn("size-4", chevronClassName)} {...chevronProps} />;
