@@ -11,6 +11,8 @@ import type {
 } from "@/spec";
 import { useDashboard } from "@/hooks";
 import { useCubeMeta } from "@/hooks";
+// Date-range preset catalog lives in one place (shared with the editor).
+import { DEFAULT_PRESETS, presetLabel } from "./dateRangePresets";
 import {
   useCubeVizContext,
   type InputControlComponent,
@@ -68,50 +70,6 @@ const labelClass = "mb-1 block text-xs font-medium text-muted-foreground";
 const ISO_DATE = "yyyy-MM-dd";
 
 /* ───────────────────────────── built-in controls ────────────────────────── */
-
-/**
- * Default date-range presets when the spec carries none. Values are Cube relative
- * dateRange strings (Cube resolves them); friendly labels come from PRESET_LABELS.
- * "last month" / "last year" are the previous full month / year.
- */
-const DEFAULT_PRESETS = [
-  "today",
-  "yesterday",
-  "this week",
-  "this month",
-  "last 7 days",
-  "last 30 days",
-  "last 90 days",
-  "last week",
-  "last month",
-  "last quarter",
-  "this year",
-  "last year",
-];
-
-/** Pretty labels for the known Cube relative ranges (value stays the Cube string). */
-const PRESET_LABELS: Record<string, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  "this week": "This week",
-  "this month": "This month",
-  "this quarter": "This quarter",
-  "this year": "This year",
-  "last 7 days": "Last 7 days",
-  "last 30 days": "Last 30 days",
-  "last 90 days": "Last 90 days",
-  "last week": "Last week (previous)",
-  "last month": "Last month (previous)",
-  "last quarter": "Last quarter (previous)",
-  "last year": "Last year (previous)",
-  "last 6 months": "Last 6 months",
-  "last 12 months": "Last 12 months",
-};
-
-/** Friendly label for a relative-range value (falls back to the raw string). */
-function presetLabel(value: string): string {
-  return PRESET_LABELS[value.trim().toLowerCase()] ?? value;
-}
 
 /** Read an absolute `[from, to]` pair out of a VariableValue, else `["", ""]`. */
 function asPair(value: VariableValue | undefined): [string, string] {

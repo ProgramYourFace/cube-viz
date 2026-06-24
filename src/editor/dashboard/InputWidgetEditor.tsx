@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 
 import {
   GranularitySchema,
@@ -10,8 +10,10 @@ import {
   type InputWidget,
   type VariableDecl,
 } from "@/spec";
+import { DATE_RANGE_PRESETS } from "@/render/dateRangePresets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -19,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/components/ui/utils";
 
 import { FieldRow } from "../primitives/FieldRow";
 import { SwitchRow } from "../primitives/SwitchRow";
@@ -174,20 +177,15 @@ function DateRangeOptions({
   control: ControlOf<"dateRange">;
   onChange: (next: Control) => void;
 }): React.ReactElement {
-  const presets = (control.presets ?? []).join(", ");
   return (
     <>
-      <FieldRow label="Presets" hint="Comma-separated relative ranges, e.g. This month, last 7 days.">
-        <Input
-          value={presets}
-          placeholder="This month, last 7 days, last 30 days"
-          onChange={(e) => {
-            const list = e.target.value
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
-            onChange({ ...control, presets: list.length > 0 ? list : undefined });
-          }}
+      <FieldRow
+        label="Presets"
+        hint="Which quick ranges appear in the picker. None selected ⇒ a sensible default set."
+      >
+        <PresetMultiSelect
+          selected={control.presets ?? []}
+          onChange={(list) => onChange({ ...control, presets: list.length > 0 ? list : undefined })}
         />
       </FieldRow>
       <SwitchRow
@@ -196,6 +194,71 @@ function DateRangeOptions({
         onChange={(allowFuture) => onChange({ ...control, allowFuture })}
       />
     </>
+  );
+}
+
+/** Multiselect dropdown over the full date-range preset catalog. Stores the chosen
+ *  `value`s in catalog order; empty = the dashboard's default set. */
+function PresetMultiSelect({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (next: string[]) => void;
+}): React.ReactElement {
+  const [open, setOpen] = React.useState(false);
+  const chosen = new Set(selected.map((s) => s.toLowerCase()));
+
+  const toggle = (value: string): void => {
+    const next = new Set(chosen);
+    if (next.has(value)) next.delete(value);
+    else next.add(value);
+    // Keep stored order = catalog order so the picker reads predictably.
+    onChange(DATE_RANGE_PRESETS.filter((p) => next.has(p.value)).map((p) => p.value));
+  };
+
+  const summary =
+    chosen.size === 0
+      ? "Default set"
+      : chosen.size === DATE_RANGE_PRESETS.length
+        ? "All presets"
+        : `${chosen.size} selected`;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="w-full justify-between font-normal">
+          <span className="truncate">{summary}</span>
+          <ChevronDown className="size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-1" align="start">
+        <div className="max-h-72 overflow-y-auto">
+          {DATE_RANGE_PRESETS.map((p) => {
+            const on = chosen.has(p.value);
+            return (
+              <button
+                key={p.value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(p.value)}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
+              >
+                <span
+                  className={cn(
+                    "flex size-4 shrink-0 items-center justify-center rounded border",
+                    on ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                  )}
+                >
+                  {on ? <Check className="size-3" /> : null}
+                </span>
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
