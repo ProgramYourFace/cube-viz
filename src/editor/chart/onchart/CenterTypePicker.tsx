@@ -48,67 +48,78 @@ export interface CenterTypePickerProps {
   empty: boolean;
 }
 
-/**
- * The on-chart chart-TYPE widget. Empty charts get a prominent centered chooser;
- * built charts get a compact pill pinned to the top-centre that opens the same tile
- * grid. Switching family resets `familyOptions` (each family has its own schema) but
- * keeps the query + generic mapping — matching the old TypePicker semantics.
- */
-export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps): React.ReactElement {
-  const family = spec.chart.family;
-  const setFamily = (next: ChartFamily): void => {
-    if (next === family) return;
-    // Carry the field bindings across families (kpi/scatter/table/combo store fields in
-    // familyOptions, so a plain reset would empty the new chart and hide its settings).
+/** Switch the chart family, carrying field bindings across (kpi/scatter/table/combo
+ *  store fields in familyOptions, so a plain reset would empty the new chart). */
+function useSetFamily(spec: ChartSpec, update: (next: ChartSpec) => void): (next: ChartFamily) => void {
+  return (next: ChartFamily): void => {
+    if (next === spec.chart.family) return;
     update(migrateToFamily(spec, next));
   };
+}
 
-  if (empty) {
-    return (
-      <div className="pointer-events-none absolute inset-0 grid place-items-center p-4">
-        <div className="pointer-events-auto w-full max-w-sm rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
-          <p className="pb-0.5 text-center text-sm font-medium">Choose a chart type</p>
-          <p className="pb-3 text-center text-xs text-muted-foreground">
-            Then add fields to the slots around the chart.
-          </p>
+/**
+ * The EMPTY-state chart-type chooser — a prominent centered card overlaid on the
+ * placeholder until the first field is placed. Built charts switch type via the
+ * {@link ChartTypePill} in the editor toolbar instead (an on-chart pill was hard to
+ * click — the live chart sat above it — so the control lives in real layout now).
+ */
+export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps): React.ReactElement | null {
+  const family = spec.chart.family;
+  const setFamily = useSetFamily(spec, update);
+
+  if (!empty) return null;
+  return (
+    <div className="pointer-events-none absolute inset-0 grid place-items-center p-4">
+      <div className="pointer-events-auto w-full max-w-sm rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
+        <p className="pb-0.5 text-center text-sm font-medium">Choose a chart type</p>
+        <p className="pb-3 text-center text-xs text-muted-foreground">
+          Then add fields to the slots around the chart.
+        </p>
+        <TypeGrid family={family} onPick={setFamily} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The compact chart-type pill for the editor's top toolbar (built charts). Opens the
+ * same tile grid + type-level Options popover the empty chooser uses. Rendered in normal
+ * layout (not over the chart) so it's always clickable.
+ */
+export function ChartTypePill({ spec, update }: { spec: ChartSpec; update: (next: ChartSpec) => void }): React.ReactElement {
+  const family = spec.chart.family;
+  const setFamily = useSetFamily(spec, update);
+  const Icon = FAMILY_ICON[family];
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium shadow-sm transition-colors hover:bg-accent"
+          title="Change chart type"
+        >
+          <Icon className="size-3.5 text-muted-foreground" />
+          {FAMILY_LABELS[family]}
+          <ChevronDown className="size-3 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="flex max-h-[70vh] w-72 flex-col gap-2.5 overflow-y-auto p-3">
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Chart type</p>
           <TypeGrid family={family} onPick={setFamily} />
         </div>
-      </div>
-    );
-  }
-
-  const Icon = FAMILY_ICON[family];
-  return (
-    <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-border bg-background/90 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur transition-colors hover:bg-accent"
-            title="Change chart type"
-          >
-            <Icon className="size-3.5 text-muted-foreground" />
-            {FAMILY_LABELS[family]}
-            <ChevronDown className="size-3 text-muted-foreground" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="center" className="flex max-h-[70vh] w-72 flex-col gap-2.5 overflow-y-auto p-3">
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Chart type</p>
-            <TypeGrid family={family} onPick={setFamily} />
+        {/* The few remaining type-level options (stacking, donut, KPI, table…). Most
+            config is in-context: per-measure on the field pills, chrome on the chart.
+            Families with nothing left (line / combo / scatter) show no Options at all. */}
+        {hasCustomizeOptions(family) ? (
+          <div className="flex flex-col gap-1.5 border-t border-border pt-2.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Options</p>
+            <CustomizeSection spec={spec} update={update} />
           </div>
-          {/* The few remaining type-level options (stacking, donut, KPI, table…). Most
-              config is in-context: per-measure on the field pills, chrome on the chart.
-              Families with nothing left (line / combo / scatter) show no Options at all. */}
-          {hasCustomizeOptions(family) ? (
-            <div className="flex flex-col gap-1.5 border-t border-border pt-2.5">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Options</p>
-              <CustomizeSection spec={spec} update={update} />
-            </div>
-          ) : null}
-        </PopoverContent>
-      </Popover>
-    </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   );
 }
 

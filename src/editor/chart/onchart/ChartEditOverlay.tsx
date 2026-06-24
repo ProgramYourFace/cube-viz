@@ -14,7 +14,7 @@ import { getWells, placeField, readWells, type FieldKind, type WellDef } from ".
 import { ChartFiltersPopover } from "./ChartFiltersPopover";
 import { ChartSourcePopover } from "./ChartSourcePopover";
 import { AxisChrome, LegendChrome } from "./ChartChrome";
-import { CenterTypePicker } from "./CenterTypePicker";
+import { CenterTypePicker, ChartTypePill } from "./CenterTypePicker";
 import { withSeriesAxis } from "./chip-bindings";
 import { computeJoinScope } from "./join-scope";
 import { WellGroup } from "./WellGroup";
@@ -423,8 +423,12 @@ export function ChartEditOverlay({
   return (
     <div data-slot="chart-edit-overlay" className="flex h-full w-full flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">{toolbar}</div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">{toolbar}</div>
+        {/* Chart-type picker lives here (top centre) rather than over the chart — an
+            on-chart pill was unclickable behind the live preview. Built charts only;
+            an empty chart shows the centred chooser overlay instead. */}
+        {!isEmpty ? <ChartTypePill spec={spec} update={update} /> : null}
+        <div className="flex flex-1 items-center justify-end gap-1.5">
           <ChartSourcePopover
             currentName={scope.viewLocked ?? scope.sourceCube?.name}
             hasFields={allPlaced.length > 0}
