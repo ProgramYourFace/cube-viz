@@ -4,7 +4,6 @@ import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 
 import { cn } from "@/components/ui/utils";
 import { ChartContainer } from "@/components/ui/chart";
-import { Card, CardContent } from "@/components/ui/card";
 
 import type { ChartConfig } from "@/components/ui/chart";
 import type { NormalizedSeries } from "@/adapter/types";
@@ -51,7 +50,6 @@ export function KpiFamily(props: ChartComponentProps): React.ReactElement {
 function NumberKpi({
   data,
   value,
-  label,
   fo,
   fmt,
 }: ChartComponentProps & {
@@ -68,19 +66,19 @@ function NumberKpi({
   const trendDiff = delta ? delta.diff : spark ? netChange(spark) : 0;
   const dirClass = directionClass(directionKind(trendDiff, goodDirection));
 
+  // No inner Card and no label line: the widget chrome already frames the KPI and
+  // its title IS the label (rendering both was a double border + duplicate text).
+  // Just the big number + delta + optional sparkline, inline like Embeddable.
   return (
-    <Card className="h-full w-full">
-      <CardContent className="flex h-full flex-col justify-center gap-1 pt-6">
-        <div className="text-sm font-medium text-muted-foreground">{label}</div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold tabular-nums text-foreground">{fmt(value)}</span>
-          {delta && <DeltaChip delta={delta} goodDirection={goodDirection} fo={fo} fmt={fmt} />}
-        </div>
-        {spark && spark.data.length > 0 && (
-          <KpiSparkline series={spark} categories={data.categories} colorClass={dirClass} />
-        )}
-      </CardContent>
-    </Card>
+    <div className="flex h-full w-full flex-col justify-center gap-1">
+      <div className="flex items-baseline gap-2">
+        <span className="text-4xl font-bold tabular-nums text-foreground">{fmt(value)}</span>
+        {delta && <DeltaChip delta={delta} goodDirection={goodDirection} fo={fo} fmt={fmt} />}
+      </div>
+      {spark && spark.data.length > 0 && (
+        <KpiSparkline series={spark} categories={data.categories} colorClass={dirClass} />
+      )}
+    </div>
   );
 }
 
