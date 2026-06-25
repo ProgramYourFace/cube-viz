@@ -84,7 +84,7 @@ export function WidgetEditPanel({
     : undefined;
 
   return (
-    <div data-slot="widget-edit-panel" className={cn("flex flex-col gap-2", fill && "h-full")}>
+    <div data-slot="widget-edit-panel" className={cn("cv:flex cv:flex-col cv:gap-2", fill && "cv:h-full")}>
       {/* A title for charts; the field label for inputs. Text carries its own headings. */}
       {widget.type !== "text" ? (
         <FieldRow
@@ -108,7 +108,7 @@ export function WidgetEditPanel({
         // Cube and 400s ("granularity must be a string").
         <DashboardProvider spec={previewDashboard(variables)}>
           <VariableAdminProvider createVariable={createVariable}>
-            <div className={cn(fill && "min-h-0 flex-1")}>
+            <div className={cn(fill && "cv:min-h-0 cv:flex-1")}>
               <ChartEditor
                 fill={fill}
                 spec={widgetToChartSpec(widget)}

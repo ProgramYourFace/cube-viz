@@ -90,14 +90,14 @@ export function FieldPill({
     <>
       {showSwatch ? (
         <span
-          className="size-3 shrink-0 rounded-full border border-black/10"
+          className="cv:size-3 cv:shrink-0 cv:rounded-full cv:border cv:border-black/10"
           style={{ backgroundColor: `var(--${resolvedColor})` }}
           aria-hidden
         />
       ) : option ? (
         memberTypeIcon(option.type)
       ) : null}
-      <span className="min-w-0 flex-1 truncate">{display}</span>
+      <span className="cv:min-w-0 cv:flex-1 cv:truncate">{display}</span>
     </>
   );
 
@@ -105,12 +105,12 @@ export function FieldPill({
     <div
       data-slot="field-pill"
       className={cn(
-        "flex items-center gap-1 rounded-md border border-border bg-background py-1 pl-2 pr-1 text-sm shadow-sm",
+        "cv:flex cv:items-center cv:gap-1 cv:rounded-md cv:border cv:border-border cv:bg-background cv:py-1 cv:pl-2 cv:pr-1 cv:text-sm cv:shadow-sm",
         className,
       )}
     >
       {!hasConfig ? (
-        <span className="flex min-w-0 flex-1 items-center gap-1.5" title={display}>
+        <span className="cv:flex cv:min-w-0 cv:flex-1 cv:items-center cv:gap-1.5" title={display}>
           {inner}
         </span>
       ) : (
@@ -118,21 +118,21 @@ export function FieldPill({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
+            className="cv:flex cv:min-w-0 cv:flex-1 cv:items-center cv:gap-1.5 cv:text-left cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:rounded-sm"
             title={`Edit ${display}`}
           >
             {inner}
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-60 p-3">
-          <div className="flex flex-col gap-3">
+        <PopoverContent align="start" className="cv:w-60 cv:p-3">
+          <div className="cv:flex cv:flex-col cv:gap-3">
             {b.canRename ? (
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium text-muted-foreground">Label</span>
+              <label className="cv:flex cv:flex-col cv:gap-1">
+                <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Label</span>
                 <Input
                   defaultValue={b.label ?? ""}
                   placeholder={defaultLabel}
-                  className="h-8"
+                  className="cv:h-8"
                   onBlur={(e) => commitRename(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -145,16 +145,16 @@ export function FieldPill({
             ) : null}
 
             {showSwatch ? (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">Color</span>
+              <div className="cv:flex cv:flex-col cv:gap-1.5">
+                <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Color</span>
                 <ColorTokenPicker value={b.colorToken} onChange={b.onRecolor} />
               </div>
             ) : null}
 
             {b.isTimeField ? (
               <>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground">Date range</span>
+                <div className="cv:flex cv:flex-col cv:gap-1.5">
+                  <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Date range</span>
                   <ValueBinding
                     kind="dateRange"
                     value={b.dateRange}
@@ -162,21 +162,21 @@ export function FieldPill({
                     renderFixed={(r, set) => <DateRangeValueEditor value={r} onChange={set} />}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground">Group dates by</span>
+                <div className="cv:flex cv:flex-col cv:gap-1.5">
+                  <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Group dates by</span>
                   <ValueBinding
                     kind="granularity"
                     value={b.granularity}
                     onChange={b.onGranularity}
                     renderFixed={(g, set) => (
-                      <GranularityPicker value={g} onChange={set} className="h-8 w-full" />
+                      <GranularityPicker value={g} onChange={set} className="cv:h-8 cv:w-full" />
                     )}
                   />
                 </div>
                 {b.canComparePrevious ? (
-                  <div className="flex flex-col gap-1">
-                    <label className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-medium text-muted-foreground">
+                  <div className="cv:flex cv:flex-col cv:gap-1">
+                    <label className="cv:flex cv:items-center cv:justify-between cv:gap-2">
+                      <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">
                         Compare to previous period
                       </span>
                       <Switch
@@ -186,7 +186,7 @@ export function FieldPill({
                       />
                     </label>
                     {b.comparePrevious && !b.comparePreviousReady ? (
-                      <p className="text-[10px] leading-tight text-muted-foreground/80">
+                      <p className="cv:text-[10px] cv:leading-tight cv:text-muted-foreground/80">
                         Set a date range above to show the previous period.
                       </p>
                     ) : null}
@@ -197,12 +197,12 @@ export function FieldPill({
 
             {b.isCategoryField ? (
               <>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground">Sort</span>
+                <label className="cv:flex cv:flex-col cv:gap-1.5">
+                  <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Sort</span>
                   <select
                     value={b.sortValue}
                     onChange={(e) => b.onSort(e.target.value as typeof b.sortValue)}
-                    className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="cv:h-8 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2 cv:text-sm cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring"
                   >
                     {b.sortOptions.map((o) => (
                       <option key={o.key} value={o.key}>
@@ -211,8 +211,8 @@ export function FieldPill({
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground">
+                <label className="cv:flex cv:flex-col cv:gap-1.5">
+                  <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">
                     Show top (leave blank for all)
                   </span>
                   <Input
@@ -220,7 +220,7 @@ export function FieldPill({
                     min={1}
                     defaultValue={b.limit ?? ""}
                     placeholder="All"
-                    className="h-8"
+                    className="cv:h-8"
                     onBlur={(e) => {
                       const v = e.target.value.trim();
                       b.onLimit(v === "" ? undefined : Number(v));
@@ -238,23 +238,23 @@ export function FieldPill({
             ) : null}
 
             {b.isComboY && b.render ? (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">Draw as</span>
-                <div className="flex gap-1">
+              <div className="cv:flex cv:flex-col cv:gap-1.5">
+                <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Draw as</span>
+                <div className="cv:flex cv:gap-1">
                   {(Object.keys(RENDER_LABELS) as ComboRender[]).map((r) => (
                     <button
                       key={r}
                       type="button"
                       onClick={() => b.onRender(r)}
                       className={cn(
-                        "flex flex-1 items-center justify-center gap-1 rounded-md border px-2 py-1 text-xs",
+                        "cv:flex cv:flex-1 cv:items-center cv:justify-center cv:gap-1 cv:rounded-md cv:border cv:px-2 cv:py-1 cv:text-xs",
                         b.render === r
-                          ? "border-ring bg-accent"
-                          : "border-input hover:bg-accent/50",
+                          ? "cv:border-ring cv:bg-accent"
+                          : "cv:border-input cv:hover:bg-accent/50",
                       )}
                     >
                       {RENDER_LABELS[r]}
-                      {b.render === r ? <Check className="size-3" /> : null}
+                      {b.render === r ? <Check className="cv:size-3" /> : null}
                     </button>
                   ))}
                 </div>
@@ -262,21 +262,21 @@ export function FieldPill({
             ) : null}
 
             {b.canAxis ? (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">Side</span>
-                <div className="flex gap-1">
+              <div className="cv:flex cv:flex-col cv:gap-1.5">
+                <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Side</span>
+                <div className="cv:flex cv:gap-1">
                   {(["left", "right"] as const).map((side) => (
                     <button
                       key={side}
                       type="button"
                       onClick={() => b.onAxis(side)}
                       className={cn(
-                        "flex flex-1 items-center justify-center gap-1 rounded-md border px-2 py-1 text-xs capitalize",
-                        b.axis === side ? "border-ring bg-accent" : "border-input hover:bg-accent/50",
+                        "cv:flex cv:flex-1 cv:items-center cv:justify-center cv:gap-1 cv:rounded-md cv:border cv:px-2 cv:py-1 cv:text-xs cv:capitalize",
+                        b.axis === side ? "cv:border-ring cv:bg-accent" : "cv:border-input cv:hover:bg-accent/50",
                       )}
                     >
                       {side}
-                      {b.axis === side ? <Check className="size-3" /> : null}
+                      {b.axis === side ? <Check className="cv:size-3" /> : null}
                     </button>
                   ))}
                 </div>
@@ -285,52 +285,52 @@ export function FieldPill({
 
             {b.canLineStyle ? (
               <>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground">Line shape</span>
-                  <div className="grid grid-cols-2 gap-1">
+                <div className="cv:flex cv:flex-col cv:gap-1.5">
+                  <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Line shape</span>
+                  <div className="cv:grid cv:grid-cols-2 cv:gap-1">
                     {LINE_SHAPES.map(([v, lbl]) => (
                       <button
                         key={v}
                         type="button"
                         onClick={() => b.onCurve(v)}
                         className={cn(
-                          "flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-xs",
-                          (b.curve ?? "monotone") === v ? "border-ring bg-accent" : "border-input hover:bg-accent/50",
+                          "cv:flex cv:items-center cv:justify-center cv:gap-1 cv:rounded-md cv:border cv:px-2 cv:py-1 cv:text-xs",
+                          (b.curve ?? "cv:monotone") === v ? "cv:border-ring cv:bg-accent" : "cv:border-input cv:hover:bg-accent/50",
                         )}
                       >
                         {lbl}
-                        {(b.curve ?? "monotone") === v ? <Check className="size-3" /> : null}
+                        {(b.curve ?? "monotone") === v ? <Check className="cv:size-3" /> : null}
                       </button>
                     ))}
                   </div>
                 </div>
-                <label className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-medium text-muted-foreground">Show points</span>
+                <label className="cv:flex cv:items-center cv:justify-between cv:gap-2">
+                  <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Show points</span>
                   <Switch checked={b.dots === true} onChange={b.onDots} aria-label="Show points" />
                 </label>
               </>
             ) : null}
 
             {reorder ? (
-              <div className="flex items-center gap-1">
+              <div className="cv:flex cv:items-center cv:gap-1">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 flex-1"
+                  className="cv:h-8 cv:flex-1"
                   disabled={!reorder.canUp}
                   onClick={reorder.onUp}
                 >
-                  <ArrowUp className="size-3.5" />
+                  <ArrowUp className="cv:size-3.5" />
                   Up
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 flex-1"
+                  className="cv:h-8 cv:flex-1"
                   disabled={!reorder.canDown}
                   onClick={reorder.onDown}
                 >
-                  <ArrowDown className="size-3.5" />
+                  <ArrowDown className="cv:size-3.5" />
                   Down
                 </Button>
               </div>
@@ -339,10 +339,10 @@ export function FieldPill({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 justify-start text-destructive hover:text-destructive"
+              className="cv:h-8 cv:justify-start cv:text-destructive cv:hover:text-destructive"
               onClick={b.onRemove}
             >
-              <X className="size-3.5" />
+              <X className="cv:size-3.5" />
               Remove
             </Button>
           </div>
@@ -353,11 +353,11 @@ export function FieldPill({
       <Button
         variant="ghost"
         size="icon"
-        className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+        className="cv:size-6 cv:shrink-0 cv:text-muted-foreground cv:hover:text-destructive"
         onClick={b.onRemove}
         aria-label={`Remove ${display}`}
       >
-        <X className="size-3.5" />
+        <X className="cv:size-3.5" />
       </Button>
     </div>
   );

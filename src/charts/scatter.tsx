@@ -57,7 +57,7 @@ export function ScatterChartFamily({ data, options, format, editing }: ChartComp
   });
 
   return (
-    <ChartContainer config={config} className="h-full w-full min-h-[200px]">
+    <ChartContainer config={config} className="cv:h-full cv:w-full cv:min-h-[200px]">
       <ScatterChart accessibilityLayer margin={{ top: 12, right: 16, bottom: 24, left: 12 }}>
         <CartesianGrid />
         <XAxis
@@ -99,7 +99,7 @@ export function ScatterChartFamily({ data, options, format, editing }: ChartComp
         )}
         {legendDisplay(options, editing).show && groups.length > 1 && (
           <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
             verticalAlign={legendVerticalAlign(options.legend?.position)}
             layout={legendLayout(options.legend?.position)}
             align={legendAlign(options.legend?.position)}

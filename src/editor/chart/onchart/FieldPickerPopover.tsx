@@ -27,9 +27,9 @@ export interface FieldPickerPopoverProps {
 }
 
 const GROUP_META: Record<FieldKind, { label: string; icon: React.ReactElement; metaKind: "measure" | "dimension" | "time" }> = {
-  number: { label: "Numbers", icon: <Hash className="size-3" />, metaKind: "measure" },
-  category: { label: "Categories", icon: <Type className="size-3" />, metaKind: "dimension" },
-  time: { label: "Dates", icon: <Calendar className="size-3" />, metaKind: "time" },
+  number: { label: "Numbers", icon: <Hash className="cv:size-3" />, metaKind: "measure" },
+  category: { label: "Categories", icon: <Type className="cv:size-3" />, metaKind: "dimension" },
+  time: { label: "Dates", icon: <Calendar className="cv:size-3" />, metaKind: "time" },
 };
 const KIND_ORDER: FieldKind[] = ["number", "category", "time"];
 
@@ -116,24 +116,24 @@ export function FieldPickerPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent align={align} side={side} className="w-80 p-2">
-        <div className="flex items-center gap-2 pb-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md border border-input bg-background px-2">
-            <Search className="size-3.5 shrink-0 text-muted-foreground" />
+      <PopoverContent align={align} side={side} className="cv:w-80 cv:p-2">
+        <div className="cv:flex cv:items-center cv:gap-2 cv:pb-1.5">
+          <div className="cv:flex cv:min-w-0 cv:flex-1 cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2">
+            <Search className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />
             <input
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={isLoading ? "Loading fields…" : "Search fields…"}
-              className="h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="cv:h-8 cv:w-full cv:bg-transparent cv:text-sm cv:outline-none cv:placeholder:text-muted-foreground"
             />
           </div>
           <SourceMenu browse={browse} label={browseLabel} views={scope.views} onBrowse={setBrowse} />
         </div>
 
-        <div className="max-h-80 overflow-y-auto">
+        <div className="cv:max-h-80 cv:overflow-y-auto">
           {!hasAny ? (
-            <p className="px-1 py-6 text-center text-xs text-muted-foreground">
+            <p className="cv:px-1 cv:py-6 cv:text-center cv:text-xs cv:text-muted-foreground">
               {isLoading ? "Loading fields…" : "No fields match."}
             </p>
           ) : (
@@ -147,7 +147,7 @@ export function FieldPickerPopover({
               return (
                 <div key={section.cube.name}>
                   {section.tag === "related" && idx > 0 && rendered[idx - 1].section.tag !== "related" ? (
-                    <div className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                    <div className="cv:px-1 cv:pb-1 cv:pt-2 cv:text-[10px] cv:font-semibold cv:uppercase cv:tracking-wide cv:text-muted-foreground/70">
                       Related tables
                     </div>
                   ) : null}
@@ -156,33 +156,33 @@ export function FieldPickerPopover({
                     onClick={() =>
                       setCollapsedOverride((m) => ({ ...m, [section.cube.name]: !effectiveCollapsed }))
                     }
-                    className="flex w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left hover:bg-accent/50"
+                    className="cv:flex cv:w-full cv:items-center cv:gap-1.5 cv:rounded-sm cv:px-1 cv:py-1 cv:text-left cv:hover:bg-accent/50"
                   >
                     {expanded ? (
-                      <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                      <ChevronDown className="cv:size-3 cv:shrink-0 cv:text-muted-foreground" />
                     ) : (
-                      <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                      <ChevronRight className="cv:size-3 cv:shrink-0 cv:text-muted-foreground" />
                     )}
-                    <Table2 className="size-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate text-xs font-medium">{section.cube.title}</span>
+                    <Table2 className="cv:size-3 cv:shrink-0 cv:text-muted-foreground" />
+                    <span className="cv:truncate cv:text-xs cv:font-medium">{section.cube.title}</span>
                     {section.tag === "source" ? (
-                      <span className="rounded-sm bg-primary/10 px-1 py-px text-[9px] font-medium uppercase text-primary">
+                      <span className="cv:rounded-sm cv:bg-primary/10 cv:px-1 cv:py-px cv:text-[9px] cv:font-medium cv:uppercase cv:text-primary">
                         Main table
                       </span>
                     ) : section.tag === "dataset" ? (
-                      <span className="rounded-sm bg-muted px-1 py-px text-[9px] font-medium uppercase text-muted-foreground">
+                      <span className="cv:rounded-sm cv:bg-muted cv:px-1 cv:py-px cv:text-[9px] cv:font-medium cv:uppercase cv:text-muted-foreground">
                         dataset
                       </span>
                     ) : null}
-                    <span className="ml-auto shrink-0 pr-1 text-[10px] tabular-nums text-muted-foreground/70">
+                    <span className="cv:ml-auto cv:shrink-0 cv:pr-1 cv:text-[10px] cv:tabular-nums cv:text-muted-foreground/70">
                       {count}
                     </span>
                   </button>
                   {expanded
                     ? groups.map((g) => (
-                        <div key={g.kind} className="pb-0.5 pl-4">
+                        <div key={g.kind} className="cv:pb-0.5 cv:pl-4">
                           {showKindHeaders ? (
-                            <div className="flex items-center gap-1.5 px-2 pb-0.5 pt-1 text-[9px] uppercase tracking-wide text-muted-foreground/70">
+                            <div className="cv:flex cv:items-center cv:gap-1.5 cv:px-2 cv:pb-0.5 cv:pt-1 cv:text-[9px] cv:uppercase cv:tracking-wide cv:text-muted-foreground/70">
                               {g.icon}
                               {g.label}
                             </div>
@@ -220,26 +220,26 @@ function SourceMenu({ browse, label, views, onBrowse }: SourceMenuProps): React.
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className="flex h-8 max-w-[9rem] shrink-0 items-center gap-1.5 rounded-md border border-input bg-background px-2 text-xs hover:bg-accent"
+        className="cv:flex cv:h-8 cv:max-w-[9rem] cv:shrink-0 cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2 cv:text-xs cv:hover:bg-accent"
         title={`Data source: ${label}`}
       >
-        <Database className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="truncate">{label}</span>
+        <Database className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />
+        <span className="cv:truncate">{label}</span>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-60 p-1">
-        <MenuItem active={browse === "tables"} icon={<Table2 className="size-3.5" />} onClick={() => choose("tables")}>
+      <PopoverContent align="end" className="cv:w-60 cv:p-1">
+        <MenuItem active={browse === "tables"} icon={<Table2 className="cv:size-3.5" />} onClick={() => choose("tables")}>
           All related tables
         </MenuItem>
         {views.length > 0 ? (
           <>
-            <div className="px-2 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="cv:px-2 cv:pb-0.5 cv:pt-1.5 cv:text-[10px] cv:uppercase cv:tracking-wide cv:text-muted-foreground">
               Saved datasets
             </div>
             {views.map((v) => (
               <MenuItem
                 key={v.name}
                 active={browse === v.name}
-                icon={<Layers className="size-3.5" />}
+                icon={<Layers className="cv:size-3.5" />}
                 onClick={() => choose(v.name)}
               >
                 {v.title}
@@ -268,13 +268,13 @@ function MenuItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-        active && "bg-accent/60",
+        "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent",
+        active && "cv:bg-accent/60",
       )}
     >
-      <span className="text-muted-foreground">{icon}</span>
-      <span className="min-w-0 flex-1 truncate">{children}</span>
-      {active ? <Check className="size-3.5 shrink-0" /> : null}
+      <span className="cv:text-muted-foreground">{icon}</span>
+      <span className="cv:min-w-0 cv:flex-1 cv:truncate">{children}</span>
+      {active ? <Check className="cv:size-3.5 cv:shrink-0" /> : null}
     </button>
   );
 }
@@ -293,10 +293,10 @@ function PickerRow({ option, reason, onPick }: PickerRowProps): React.ReactEleme
         tabIndex={0}
         aria-disabled
         title={reason}
-        className="flex cursor-not-allowed items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm opacity-45 outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="cv:flex cv:cursor-not-allowed cv:items-center cv:justify-between cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:opacity-45 cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring"
       >
-        <span className="min-w-0 truncate">{option.label}</span>
-        <span className="shrink-0 text-[10px] text-muted-foreground">Not available</span>
+        <span className="cv:min-w-0 cv:truncate">{option.label}</span>
+        <span className="cv:shrink-0 cv:text-[10px] cv:text-muted-foreground">Not available</span>
       </span>
     );
   }
@@ -305,9 +305,9 @@ function PickerRow({ option, reason, onPick }: PickerRowProps): React.ReactEleme
       type="button"
       onClick={onPick}
       title={option.description ?? option.name}
-      className="flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+      className="cv:flex cv:w-full cv:items-center cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent cv:hover:text-accent-foreground"
     >
-      <span className="min-w-0 truncate">{option.label}</span>
+      <span className="cv:min-w-0 cv:truncate">{option.label}</span>
     </button>
   );
 }

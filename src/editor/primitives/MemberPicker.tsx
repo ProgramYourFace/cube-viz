@@ -33,11 +33,11 @@ export interface MemberPickerProps {
 export function memberTypeIcon(type: MemberOption["type"]): React.ReactElement {
   switch (type) {
     case "time":
-      return <Calendar className="size-3.5 shrink-0 text-muted-foreground" />;
+      return <Calendar className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
     case "number":
-      return <Hash className="size-3.5 shrink-0 text-muted-foreground" />;
+      return <Hash className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
     default:
-      return <Type className="size-3.5 shrink-0 text-muted-foreground" />;
+      return <Type className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
   }
 }
 
@@ -75,9 +75,9 @@ export function MemberPicker({
       <SelectTrigger id={id} className={className}>
         <SelectValue placeholder={isLoading ? "Loading…" : placeholder}>
           {selected ? (
-            <span className="flex min-w-0 items-center gap-2">
+            <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
               {memberTypeIcon(selected.type)}
-              <span className="truncate">{selected.label}</span>
+              <span className="cv:truncate">{selected.label}</span>
             </span>
           ) : undefined}
         </SelectValue>
@@ -88,9 +88,9 @@ export function MemberPicker({
             {grouped.length > 1 ? <SelectLabel>{cubeName}</SelectLabel> : null}
             {items.map((m) => (
               <SelectItem key={m.name} value={m.name}>
-                <span className="flex min-w-0 items-center gap-2">
+                <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
                   {memberTypeIcon(m.type)}
-                  <span className="truncate">{m.label}</span>
+                  <span className="cv:truncate">{m.label}</span>
                 </span>
               </SelectItem>
             ))}

@@ -81,10 +81,10 @@ export function CubePicker({
 function CubeLabel({ option }: { option: CubeOption }): React.ReactElement {
   const Icon = option.type === "view" ? Layers : Box;
   return (
-    <span className="flex min-w-0 items-center gap-2">
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate">{option.title}</span>
-      <Badge variant="secondary" className="ml-auto shrink-0 px-1.5 py-0 text-[10px]">
+    <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
+      <Icon className="cv:size-4 cv:shrink-0 cv:text-muted-foreground" />
+      <span className="cv:truncate">{option.title}</span>
+      <Badge variant="secondary" className="cv:ml-auto cv:shrink-0 cv:px-1.5 cv:py-0 cv:text-[10px]">
         {option.type}
       </Badge>
     </span>

@@ -65,13 +65,13 @@ export function ChartRenderer({
 
   // 1) loading — Skeleton sized to the container height; no Recharts mount yet.
   if (state?.loading) {
-    return <Skeleton className="h-full w-full min-h-[200px]" />;
+    return <Skeleton className="cv:h-full cv:w-full cv:min-h-[200px]" />;
   }
 
   // 2) error — destructive Alert; never leaks tenant data (message only).
   if (state?.error) {
     return (
-      <Alert variant="destructive" className="w-full">
+      <Alert variant="destructive" className="cv:w-full">
         <AlertCircle />
         <AlertTitle>Failed to load chart</AlertTitle>
         <AlertDescription>{state.error.message}</AlertDescription>
@@ -82,7 +82,7 @@ export function ChartRenderer({
   // 3) empty — centered muted "No data"; Recharts not mounted (avoids 0-row glitches).
   if (data.empty) {
     return (
-      <div className="flex h-full w-full min-h-[200px] items-center justify-center text-sm text-muted-foreground">
+      <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
         No data
       </div>
     );

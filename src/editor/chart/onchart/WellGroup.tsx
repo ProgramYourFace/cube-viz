@@ -99,11 +99,11 @@ export function WellGroup({
       <button
         type="button"
         className={cn(
-          "flex items-center justify-center gap-1 rounded-md border border-dashed border-input bg-background/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-ring hover:text-foreground",
-          vertical && "w-full",
+          "cv:flex cv:items-center cv:justify-center cv:gap-1 cv:rounded-md cv:border cv:border-dashed cv:border-input cv:bg-background/60 cv:px-2 cv:py-1 cv:text-xs cv:text-muted-foreground cv:transition-colors cv:hover:border-ring cv:hover:text-foreground",
+          vertical && "cv:w-full",
         )}
       >
-        <Plus className="size-3.5" />
+        <Plus className="cv:size-3.5" />
         {placed.length === 0 ? groupLabel : "Add"}
       </button>
     </FieldPickerPopover>
@@ -112,23 +112,23 @@ export function WellGroup({
   return (
     <div
       data-slot="well-group"
-      className={cn("flex flex-col gap-1", !vertical && "min-w-0")}
+      className={cn("cv:flex cv:flex-col cv:gap-1", !vertical && "cv:min-w-0")}
     >
-      <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        <span className="truncate">{groupLabel}</span>
+      <div className="cv:flex cv:items-center cv:gap-1.5 cv:px-0.5 cv:text-[10px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">
+        <span className="cv:truncate">{groupLabel}</span>
         {badge ? (
-          <span className="truncate rounded-sm bg-muted px-1 py-px text-[9px] normal-case text-muted-foreground">
+          <span className="cv:truncate cv:rounded-sm cv:bg-muted cv:px-1 cv:py-px cv:text-[9px] cv:normal-case cv:text-muted-foreground">
             {badge}
           </span>
         ) : null}
         {well.optional && placed.length === 0 ? (
-          <span className="normal-case text-muted-foreground/70">(optional)</span>
+          <span className="cv:normal-case cv:text-muted-foreground/70">(optional)</span>
         ) : null}
       </div>
 
-      {control ? <div className="pb-0.5">{control}</div> : null}
+      {control ? <div className="cv:pb-0.5">{control}</div> : null}
 
-      <div className={cn("flex gap-1", vertical ? "flex-col" : "flex-row flex-wrap items-center")}>
+      <div className={cn("cv:flex cv:gap-1", vertical ? "cv:flex-col" : "cv:flex-row cv:flex-wrap cv:items-center")}>
         {placed.map((member, i) => (
           <FieldPill
             key={member}
@@ -138,7 +138,7 @@ export function WellGroup({
             member={member}
             option={optionFor(member)}
             resolvedColor={colorFor(member)}
-            className={vertical ? "w-full" : undefined}
+            className={vertical ? "cv:w-full" : undefined}
             reorder={
               many && total > 1 && !disableReorder
                 ? {
@@ -155,7 +155,7 @@ export function WellGroup({
       </div>
 
       {note ? (
-        <p className="px-0.5 text-[10px] leading-tight text-muted-foreground/80">{note}</p>
+        <p className="cv:px-0.5 cv:text-[10px] cv:leading-tight cv:text-muted-foreground/80">{note}</p>
       ) : null}
     </div>
   );

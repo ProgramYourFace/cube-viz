@@ -31,21 +31,21 @@ export function WidgetChrome(props: WidgetChromeProps): ReactElement {
   // rather than boxed-in. (Restyle every widget at once by overriding
   // `registry.chrome.widget`.)
   return (
-    <Card className="flex h-full w-full flex-col gap-0 overflow-hidden rounded-xl border-0 bg-muted/40 shadow-none">
+    <Card className="cv:flex cv:h-full cv:w-full cv:flex-col cv:gap-0 cv:overflow-hidden cv:rounded-xl cv:border-0 cv:bg-muted/40 cv:shadow-none">
       {title ? (
         <CardHeader
           {...dragHandleProps}
           className={cn(
             DRAG_HANDLE_CLASS,
-            "flex shrink-0 cursor-grab flex-row items-center justify-between gap-2",
-            "px-4 pb-1 pt-3 active:cursor-grabbing",
+            "cv:flex cv:shrink-0 cv:cursor-grab cv:flex-row cv:items-center cv:justify-between cv:gap-2",
+            "cv:px-4 cv:pb-1 cv:pt-3 cv:active:cursor-grabbing",
           )}
         >
-          <CardTitle className="truncate text-sm font-semibold">{title}</CardTitle>
+          <CardTitle className="cv:truncate cv:text-sm cv:font-semibold">{title}</CardTitle>
           {menu}
         </CardHeader>
       ) : null}
-      <CardContent className="min-h-0 flex-1 overflow-auto px-4 pb-4 pt-1">{children}</CardContent>
+      <CardContent className="cv:min-h-0 cv:flex-1 cv:overflow-auto cv:px-4 cv:pb-4 cv:pt-1">{children}</CardContent>
     </Card>
   );
 }

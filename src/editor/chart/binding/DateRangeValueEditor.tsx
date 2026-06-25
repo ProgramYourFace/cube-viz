@@ -47,21 +47,21 @@ export function DateRangeValueEditor({ value, onChange }: DateRangeValueEditorPr
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={cn("h-8 w-full justify-start gap-1.5 font-normal")}>
-          <CalendarIcon className="size-3.5 text-muted-foreground" />
-          <span className={cn("min-w-0 flex-1 truncate text-left", triggerLabel === "Any time" && "text-muted-foreground")}>
+        <Button variant="outline" size="sm" className={cn("cv:h-8 cv:w-full cv:justify-start cv:gap-1.5 cv:font-normal")}>
+          <CalendarIcon className="cv:size-3.5 cv:text-muted-foreground" />
+          <span className={cn("cv:min-w-0 cv:flex-1 cv:truncate cv:text-left", triggerLabel === "Any time" && "cv:text-muted-foreground")}>
             {triggerLabel}
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-auto gap-2 p-2">
-        <div className="flex w-32 flex-col gap-0.5 border-r pr-2">
+      <PopoverContent align="start" className="cv:flex cv:w-auto cv:gap-2 cv:p-2">
+        <div className="cv:flex cv:w-32 cv:flex-col cv:gap-0.5 cv:border-r cv:pr-2">
           {PRESETS.map((preset) => (
             <Button
               key={preset}
               variant="ghost"
               size="sm"
-              className={cn("justify-start font-normal", value === preset && "bg-accent")}
+              className={cn("cv:justify-start cv:font-normal", value === preset && "cv:bg-accent")}
               onClick={() => {
                 onChange(preset);
                 setOpen(false);
@@ -73,7 +73,7 @@ export function DateRangeValueEditor({ value, onChange }: DateRangeValueEditorPr
           <Button
             variant="ghost"
             size="sm"
-            className="justify-start font-normal text-muted-foreground"
+            className="cv:justify-start cv:font-normal cv:text-muted-foreground"
             onClick={() => {
               onChange(undefined);
               setOpen(false);

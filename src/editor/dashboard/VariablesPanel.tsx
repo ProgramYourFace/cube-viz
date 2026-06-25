@@ -84,11 +84,11 @@ export function VariablesPanel({
       }
     >
       {variables.length === 0 ? (
-        <p className="py-1 text-xs text-muted-foreground">
+        <p className="cv:py-1 cv:text-xs cv:text-muted-foreground">
           No variables. Variables bind input controls and `{"{var}"}` query tokens.
         </p>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="cv:flex cv:flex-col cv:gap-3">
           {variables.map((v, i) => (
             <VariableRow
               key={i}
@@ -131,11 +131,11 @@ function VariableRow({
   return (
     <div
       data-slot="variable-row"
-      className="rounded-md border border-border bg-card/40 p-2.5"
+      className="cv:rounded-md cv:border cv:border-border cv:bg-card/40 cv:p-2.5"
     >
-      <div className="mb-1 flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <FieldRow label="Name" error={nameError} className="py-0">
+      <div className="cv:mb-1 cv:flex cv:items-start cv:justify-between cv:gap-2">
+        <div className="cv:min-w-0 cv:flex-1">
+          <FieldRow label="Name" error={nameError} className="cv:py-0">
             <Input
               value={decl.name}
               placeholder="variable_name"
@@ -147,7 +147,7 @@ function VariableRow({
         <Button
           variant="ghost"
           size="icon"
-          className="mt-6 size-8 shrink-0 text-muted-foreground"
+          className="cv:mt-6 cv:size-8 cv:shrink-0 cv:text-muted-foreground"
           aria-label="Remove variable"
           onClick={onRemove}
         >
@@ -155,7 +155,7 @@ function VariableRow({
         </Button>
       </div>
 
-      <FieldRow label="Type" className="py-1">
+      <FieldRow label="Type" className="cv:py-1">
         <Select
           value={decl.type}
           onValueChange={(t) => onChange({ type: t as VariableType })}
@@ -173,7 +173,7 @@ function VariableRow({
         </Select>
       </FieldRow>
 
-      <FieldRow label="Label" hint="Optional human label for controls." className="py-1">
+      <FieldRow label="Label" hint="Optional human label for controls." className="cv:py-1">
         <Input
           value={decl.label ?? ""}
           placeholder={decl.name}
@@ -216,7 +216,7 @@ function DefaultField({
 
   if (decl.type === "number" && !decl.array) {
     return (
-      <FieldRow label="Default" className="py-1">
+      <FieldRow label="Default" className="cv:py-1">
         <Input
           type="number"
           value={typeof decl.default === "number" ? decl.default : ""}
@@ -240,7 +240,7 @@ function DefaultField({
     Array.isArray(decl.default) ? decl.default.join(", ") : stringifyScalar(decl.default);
 
   return (
-    <FieldRow label="Default" hint={hint} className="py-1">
+    <FieldRow label="Default" hint={hint} className="cv:py-1">
       <Input
         value={display}
         placeholder={defaultPlaceholder(decl.type)}

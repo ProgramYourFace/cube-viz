@@ -6,6 +6,13 @@
  * adapter shape (`@/adapter`), never Cube/Recharts directly.
  */
 
+// The self-contained, cv-prefixed Tailwind utility sheet + plain-CSS component
+// styles. This is the side-effecting CSS entry the lib build emits as
+// `dist/cube-viz.css` (exported as `cube-viz/styles.css`). Importing it here
+// guarantees the full prefixed utility set ships in dist rather than relying on
+// a host Tailwind to generate cube-viz's classes.
+import "./styles/cube-viz.css";
+
 // The spec contract (zod schemas + inferred types + load/migrate/validate).
 export * from "./spec";
 

@@ -1,0 +1,68 @@
+/*
+ * cube-viz SELF-CONTAINED stylesheet — the `cube-viz/styles.css` artifact.
+ *
+ * cube-viz is rendered inside an Expo "use dom" WebView in the aa-app host. The
+ * host ships its OWN (uniwind/nativewind) Tailwind build that only generates the
+ * utilities the host's React-Native source uses — it cannot and must not scan
+ * cube-viz's bundle. So cube-viz must ship a COMPLETE, self-contained utility
+ * sheet of its own.
+ *
+ * To coexist with the host's unprefixed utilities in the same WebView document,
+ * every cube-viz utility is generated with a `cv` PREFIX (`cv:grid-cols-4`, …)
+ * via `prefix(cv)`. Prefixed class names can never collide with the host's
+ * unprefixed ones, so the two stylesheets stack without conflict.
+ *
+ * PREFLIGHT: deliberately EXCLUDED. The host's preflight is already present in
+ * the same WebView document; a second global `*{margin:0;…}` reset would be a
+ * redundant (and potentially host-clobbering) double-reset. Instead of importing
+ * `tailwindcss` (which pulls in `base.css`/preflight), we import ONLY the `theme`
+ * and `utilities` layers explicitly, then re-add the two preflight bits the
+ * utilities actually depend on — `box-sizing: border-box` and the default
+ * border-style — scoped minimally below. `--tw-border-style` is initialized via
+ * `@property` by Tailwind itself, so `cv:border` works without preflight.
+ *
+ * TOKEN VARS: tokens.css maps the palette through `@theme inline`, so prefixed
+ * utilities resolve to the RAW token vars (`var(--background)`, `var(--border)`,
+ * …) — NOT `--color-*` and NOT `--cv-color-*`. tokens.css therefore needs no
+ * change to stay aligned; the `cv` prefix only renames Tailwind's own theme
+ * namespace (`--cv-spacing`, `--cv-font-sans`, …), which utilities reference
+ * internally and which never collide with the host.
+ */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme) prefix(cv);
+/* `source(none)` disables Tailwind's automatic filesystem scan (which would
+   otherwise pick up stray `cv:` example tokens in scripts/comments and even the
+   prior dist build); the explicit `@source` below scopes candidate extraction
+   to the component source only — making the emitted utility set deterministic. */
+@import "tailwindcss/utilities.css" layer(utilities) prefix(cv) source(none);
+@source "../**/*.{ts,tsx}";
+
+/* Token palette + `@theme inline` color mapping.
+   Imported AFTER the theme layer so its `@theme inline` extends the same theme. */
+@import "../theme/tokens.css";
+
+/* NOTE: the popover/select `data-[state]:animate-in/fade-in-0/zoom-in-95`
+   classes are `tailwindcss-animate` utilities; that plugin is not installed, so
+   (as today) they generate nothing and the popover renders without enter/exit
+   animation. Layout/sizing utilities — the ones that were actually broken — DO
+   generate. Adding tw-animate-css later is purely additive. */
+
+/* Minimal preflight surrogate — scoped to keep cube-viz components correct
+   without a second global reset. box-sizing is the one rule nearly every
+   utility silently assumes. */
+@layer base {
+  :where(.cube-viz-root, .cube-viz-root *),
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+  }
+}
+
+/* Plain-CSS component styles (NOT Tailwind) — bundled verbatim so rich text and
+   the grid render identically regardless of any host Tailwind. */
+@import "../render/richtext.css";
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";

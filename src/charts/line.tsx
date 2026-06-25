@@ -70,7 +70,7 @@ export function LineChartFamily({
   return (
     <ChartContainer
       config={config}
-      className={sparkline ? "aspect-[5/1] w-full" : "h-full w-full min-h-[200px]"}
+      className={sparkline ? "cv:aspect-[5/1] cv:w-full" : "cv:h-full cv:w-full cv:min-h-[200px]"}
     >
       <LineChart accessibilityLayer data={rows} margin={sparkline ? { top: 4, bottom: 4, left: 4, right: 4 } : undefined}>
         {!sparkline && <CartesianGrid vertical={false} />}
@@ -123,7 +123,7 @@ export function LineChartFamily({
         )}
         {!sparkline && legendDisplay(options, editing).show && (
           <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
             verticalAlign={legendVerticalAlign(options.legend?.position)}
             layout={legendLayout(options.legend?.position)}
             align={legendAlign(options.legend?.position)}
@@ -149,7 +149,7 @@ export function LineChartFamily({
               <LabelList
                 dataKey={s.key}
                 position="top"
-                className="fill-foreground text-[10px]"
+                className="cv:fill-foreground cv:text-[10px]"
                 formatter={(v: string | number | boolean | null | undefined) =>
                   format.value(typeof v === "boolean" ? Number(v) : v, seriesMember(s), "label")
                 }

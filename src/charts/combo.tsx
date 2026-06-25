@@ -70,7 +70,7 @@ export function ComboChartFamily({ data, options, format, editing }: ChartCompon
   });
 
   return (
-    <ChartContainer config={config} className="h-full w-full min-h-[200px]">
+    <ChartContainer config={config} className="cv:h-full cv:w-full cv:min-h-[200px]">
       <ComposedChart accessibilityLayer data={rows}>
         <CartesianGrid vertical={false} />
         <XAxis
@@ -122,7 +122,7 @@ export function ComboChartFamily({ data, options, format, editing }: ChartCompon
         )}
         {legendDisplay(options, editing).show && (
           <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
             verticalAlign={legendVerticalAlign(options.legend?.position)}
             layout={legendLayout(options.legend?.position)}
             align={legendAlign(options.legend?.position)}

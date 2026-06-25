@@ -97,7 +97,7 @@ export function Dashboard({ spec, editable = false }: DashboardProps): ReactElem
 
   return (
     <DashboardProvider spec={spec}>
-      <div ref={ref} className="w-full">
+      <div ref={ref} className="cv:w-full">
         {width > 0 ? (
           <ResponsiveGridLayout
             width={width}
@@ -114,7 +114,7 @@ export function Dashboard({ spec, editable = false }: DashboardProps): ReactElem
               const widget = widgetsById.get(item.i);
               if (!widget) return null;
               return (
-                <div key={item.i} className="h-full w-full">
+                <div key={item.i} className="cv:h-full cv:w-full">
                   <RenderWidget widget={widget} editable={editable} />
                 </div>
               );
@@ -138,7 +138,7 @@ export interface ChartViewProps {
  */
 export function ChartView({ spec }: ChartViewProps): ReactElement {
   return (
-    <div className="h-full w-full">
+    <div className="cv:h-full cv:w-full">
       <WidgetChrome
         widget={{
           id: spec.id,

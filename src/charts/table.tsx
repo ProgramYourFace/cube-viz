@@ -62,12 +62,12 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
   const compact = fo.rowHeight === "compact";
 
   return (
-    <div className="flex h-full w-full flex-col">
-      <div className={cn("w-full", fo.stickyHeader && "max-h-full overflow-auto")}>
+    <div className="cv:flex cv:h-full cv:w-full cv:flex-col">
+      <div className={cn("cv:w-full", fo.stickyHeader && "cv:max-h-full cv:overflow-auto")}>
         <Table>
-          <TableHeader className={cn(fo.stickyHeader && "sticky top-0 z-10 bg-background")}>
+          <TableHeader className={cn(fo.stickyHeader && "cv:sticky cv:top-0 cv:z-10 cv:bg-background")}>
             <TableRow>
-              {fo.showRowNumbers && <TableHead className="w-10 text-right">#</TableHead>}
+              {fo.showRowNumbers && <TableHead className="cv:w-10 cv:text-right">#</TableHead>}
               {columns.map((col) => (
                 <TableHead
                   key={col.member}
@@ -77,7 +77,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
                   {sortable ? (
                     <Button
                       variant="ghost"
-                      className="-ml-2 h-7 px-2 text-muted-foreground"
+                      className="cv:-ml-2 cv:h-7 cv:px-2 cv:text-muted-foreground"
                       onClick={() => onSort(col.member)}
                     >
                       {col.label}
@@ -94,7 +94,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
             {pageRows.map((row, ri) => (
               <TableRow key={ri}>
                 {fo.showRowNumbers && (
-                  <TableCell className={cn("text-right text-muted-foreground", compact && "py-1")}>
+                  <TableCell className={cn("cv:text-right cv:text-muted-foreground", compact && "cv:py-1")}>
                     {safePage * pageSize + ri + 1}
                   </TableCell>
                 )}
@@ -103,7 +103,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
                   return (
                     <TableCell
                       key={col.member}
-                      className={cn(alignClass(col.align), compact && "py-1")}
+                      className={cn(alignClass(col.align), compact && "cv:py-1")}
                       style={tint ? { color: tint } : undefined}
                     >
                       {col.render(row[col.member])}
@@ -116,7 +116,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
               <TableRow>
                 <TableCell
                   colSpan={columns.length + (fo.showRowNumbers ? 1 : 0)}
-                  className="h-24 text-center text-muted-foreground"
+                  className="cv:h-24 cv:text-center cv:text-muted-foreground"
                 >
                   No data
                 </TableCell>
@@ -126,15 +126,15 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
         </Table>
       </div>
       {sorted.length > pageSize && (
-        <div className="flex items-center justify-between gap-2 px-2 py-2 text-sm text-muted-foreground">
+        <div className="cv:flex cv:items-center cv:justify-between cv:gap-2 cv:px-2 cv:py-2 cv:text-sm cv:text-muted-foreground">
           <span>
             {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, sorted.length)} of{" "}
             {sorted.length}
           </span>
-          <div className="flex gap-2">
+          <div className="cv:flex cv:gap-2">
             <Button
               variant="outline"
-              className="h-7 px-2"
+              className="cv:h-7 cv:px-2"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
             >
@@ -142,7 +142,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
             </Button>
             <Button
               variant="outline"
-              className="h-7 px-2"
+              className="cv:h-7 cv:px-2"
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
             >
@@ -234,11 +234,11 @@ function alignClass(align?: TableColumnOpt["align"]): string {
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir?: "asc" | "desc" }): React.ReactElement {
-  if (!active) return <ChevronsUpDown className="ml-1 size-3.5 opacity-50" />;
+  if (!active) return <ChevronsUpDown className="cv:ml-1 cv:size-3.5 cv:opacity-50" />;
   return dir === "asc" ? (
-    <ArrowUp className="ml-1 size-3.5" />
+    <ArrowUp className="cv:ml-1 cv:size-3.5" />
   ) : (
-    <ArrowDown className="ml-1 size-3.5" />
+    <ArrowDown className="cv:ml-1 cv:size-3.5" />
   );
 }
 

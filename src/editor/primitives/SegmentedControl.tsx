@@ -47,7 +47,7 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        "flex flex-wrap gap-1 rounded-lg bg-muted p-1 text-muted-foreground",
+        "cv:flex cv:flex-wrap cv:gap-1 cv:rounded-lg cv:bg-muted cv:p-1 cv:text-muted-foreground",
         className,
       )}
     >
@@ -63,12 +63,12 @@ export function SegmentedControl<T extends string>({
             disabled={disabled || opt.disabled}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-              size === "sm" ? "h-7 px-2 text-xs" : "h-7 px-2.5 text-sm",
-              fullWidth && "flex-1",
+              "cv:inline-flex cv:items-center cv:justify-center cv:gap-1.5 cv:whitespace-nowrap cv:rounded-md cv:font-medium cv:transition-all cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:pointer-events-none cv:disabled:opacity-50",
+              size === "sm" ? "cv:h-7 cv:px-2 cv:text-xs" : "cv:h-7 cv:px-2.5 cv:text-sm",
+              fullWidth && "cv:flex-1",
               selected
-                ? "bg-background text-foreground shadow-sm"
-                : "hover:text-foreground",
+                ? "cv:bg-background cv:text-foreground cv:shadow-sm"
+                : "cv:hover:text-foreground",
             )}
           >
             {opt.icon}

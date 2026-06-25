@@ -8099,8 +8099,8 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
     icon: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     measure: string;
-    icon?: string | undefined;
     display?: "number" | "gauge" | undefined;
+    icon?: string | undefined;
     gauge?: {
         max: number;
         min?: number | undefined;
@@ -8128,8 +8128,8 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
     } | undefined;
 }, {
     measure: string;
-    icon?: string | undefined;
     display?: "number" | "gauge" | undefined;
+    icon?: string | undefined;
     gauge?: {
         max: number;
         min?: number | undefined;

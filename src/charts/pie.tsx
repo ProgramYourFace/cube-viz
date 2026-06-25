@@ -88,7 +88,7 @@ export function PieChartFamily({ data, options, format, editing }: ChartComponen
         };
 
   return (
-    <ChartContainer config={config} className="h-full w-full min-h-[200px] [&_.recharts-pie-label-text]:fill-foreground">
+    <ChartContainer config={config} className="cv:h-full cv:w-full cv:min-h-[200px] cv:[&_.recharts-pie-label-text]:fill-foreground">
       <PieChart accessibilityLayer>
         {options.tooltip?.show !== false && (
           <ChartTooltip
@@ -129,11 +129,11 @@ export function PieChartFamily({ data, options, format, editing }: ChartComponen
                     : fo.centerLabel.value;
                 return (
                   <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">
-                    <tspan x={cx} y={cy} className="fill-foreground text-2xl font-bold">
+                    <tspan x={cx} y={cy} className="cv:fill-foreground cv:text-2xl cv:font-bold">
                       {big}
                     </tspan>
                     {fo.centerLabel?.label && (
-                      <tspan x={cx} y={cy + 20} className="fill-muted-foreground text-xs">
+                      <tspan x={cx} y={cy + 20} className="cv:fill-muted-foreground cv:text-xs">
                         {fo.centerLabel.label}
                       </tspan>
                     )}
@@ -148,7 +148,7 @@ export function PieChartFamily({ data, options, format, editing }: ChartComponen
             content={
               <ChartLegendContent
                 nameKey="label"
-                className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined}
+                className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined}
               />
             }
             verticalAlign={legendVerticalAlign(options.legend?.position)}

@@ -58,7 +58,7 @@ function Tabs({
 
   return (
     <TabsContext.Provider value={ctx}>
-      <div data-slot="tabs" className={cn("flex flex-col gap-2", className)} {...props}>
+      <div data-slot="tabs" className={cn("cv:flex cv:flex-col cv:gap-2", className)} {...props}>
         {children}
       </div>
     </TabsContext.Provider>
@@ -74,7 +74,7 @@ function TabsList({
       role="tablist"
       data-slot="tabs-list"
       className={cn(
-        "inline-flex h-9 w-full items-center justify-start gap-1 rounded-lg bg-muted p-1 text-muted-foreground",
+        "cv:inline-flex cv:h-9 cv:w-full cv:items-center cv:justify-start cv:gap-1 cv:rounded-lg cv:bg-muted cv:p-1 cv:text-muted-foreground",
         className,
       )}
       {...props}
@@ -104,10 +104,10 @@ function TabsTrigger({
       data-state={selected ? "active" : "inactive"}
       onClick={() => setValue(value)}
       className={cn(
-        "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+        "cv:inline-flex cv:flex-1 cv:items-center cv:justify-center cv:gap-1.5 cv:whitespace-nowrap cv:rounded-md cv:px-2.5 cv:py-1 cv:text-sm cv:font-medium cv:transition-all cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:pointer-events-none cv:disabled:opacity-50",
         selected
-          ? "bg-background text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
+          ? "cv:bg-background cv:text-foreground cv:shadow-sm"
+          : "cv:text-muted-foreground cv:hover:text-foreground",
         className,
       )}
       {...props}
@@ -132,7 +132,7 @@ function TabsContent({
       id={`${baseId}-content-${value}`}
       aria-labelledby={`${baseId}-trigger-${value}`}
       data-slot="tabs-content"
-      className={cn("flex-1 outline-none", className)}
+      className={cn("cv:flex-1 cv:outline-none", className)}
       {...props}
     />
   );

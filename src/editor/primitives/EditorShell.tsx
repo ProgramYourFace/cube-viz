@@ -99,13 +99,13 @@ export function EditorShell({
           data-slot="editor-shell"
           data-mode="two-pane"
           data-layout="stacked"
-          className={cn("flex w-full flex-col", fill && "h-full", className)}
+          className={cn("cv:flex cv:w-full cv:flex-col", fill && "cv:h-full", className)}
         >
-          <div className={cn("w-full", fill && "shrink-0")} style={fill ? { height: "42vh" } : { minHeight }}>
+          <div className={cn("cv:w-full", fill && "cv:shrink-0")} style={fill ? { height: "42vh" } : { minHeight }}>
             {canvas}
           </div>
-          <Separator className="my-3" />
-          <div className={cn("w-full", fill && "min-h-0 flex-1 overflow-y-auto")}>{panel}</div>
+          <Separator className="cv:my-3" />
+          <div className={cn("cv:w-full", fill && "cv:min-h-0 cv:flex-1 cv:overflow-y-auto")}>{panel}</div>
         </div>
       );
     }
@@ -115,17 +115,17 @@ export function EditorShell({
         data-slot="editor-shell"
         data-mode="two-pane"
         data-layout="split"
-        className={cn("flex w-full items-stretch", fill && "h-full", className)}
+        className={cn("cv:flex cv:w-full cv:items-stretch", fill && "cv:h-full", className)}
         style={fill ? undefined : { minHeight }}
       >
         <div
-          className="shrink-0 overflow-y-auto pr-3"
+          className="cv:shrink-0 cv:overflow-y-auto cv:pr-3"
           style={{ width: panelWidth }}
         >
           {panel}
         </div>
         <Separator orientation="vertical" />
-        <div className="min-w-0 flex-1 pl-3">{canvas}</div>
+        <div className="cv:min-w-0 cv:flex-1 cv:pl-3">{canvas}</div>
       </div>
     );
   }
@@ -140,10 +140,10 @@ export function EditorShell({
         data-slot="editor-shell"
         data-mode="canvas-panel"
         data-layout="stacked"
-        className={cn("flex w-full flex-col", className)}
+        className={cn("cv:flex cv:w-full cv:flex-col", className)}
       >
         {!isControlled || onPanelOpenChange ? (
-          <div className="mb-2 flex items-center justify-end">
+          <div className="cv:mb-2 cv:flex cv:items-center cv:justify-end">
             <Button
               variant={open ? "secondary" : "outline"}
               size="sm"
@@ -158,15 +158,15 @@ export function EditorShell({
         {open ? (
           <div
             data-slot="editor-shell-panel"
-            className="mb-3 w-full rounded-lg border border-border bg-card"
+            className="cv:mb-3 cv:w-full cv:rounded-lg cv:border cv:border-border cv:bg-card"
           >
             {panelTitle ? (
-              <div className="flex items-center justify-between border-b border-border px-3 py-2">
-                <span className="text-sm font-medium">{panelTitle}</span>
+              <div className="cv:flex cv:items-center cv:justify-between cv:border-b cv:border-border cv:px-3 cv:py-2">
+                <span className="cv:text-sm cv:font-medium">{panelTitle}</span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7"
+                  className="cv:size-7"
                   onClick={() => setOpen(false)}
                   aria-label="Close panel"
                 >
@@ -174,10 +174,10 @@ export function EditorShell({
                 </Button>
               </div>
             ) : null}
-            <div className="p-3">{panel}</div>
+            <div className="cv:p-3">{panel}</div>
           </div>
         ) : null}
-        <div className="w-full" style={{ minHeight }}>
+        <div className="cv:w-full" style={{ minHeight }}>
           {canvas}
         </div>
       </div>
@@ -190,20 +190,20 @@ export function EditorShell({
   const panelNode = showPanel ? (
     <div
       data-slot="editor-shell-panel"
-      className="shrink-0 overflow-y-auto"
+      className="cv:shrink-0 cv:overflow-y-auto"
       style={{ width: panelWidth }}
     >
       {panelTitle ? (
-        <div className="flex items-center justify-between px-3 pb-2 pt-1">
-          <span className="flex items-center gap-1.5 text-sm font-medium">
-            <Settings2 className="size-4 text-muted-foreground" />
+        <div className="cv:flex cv:items-center cv:justify-between cv:px-3 cv:pb-2 cv:pt-1">
+          <span className="cv:flex cv:items-center cv:gap-1.5 cv:text-sm cv:font-medium">
+            <Settings2 className="cv:size-4 cv:text-muted-foreground" />
             {panelTitle}
           </span>
           {onPanelOpenChange ? (
             <Button
               variant="ghost"
               size="icon"
-              className="size-7"
+              className="cv:size-7"
               onClick={() => setOpen(false)}
               aria-label="Close panel"
             >
@@ -212,7 +212,7 @@ export function EditorShell({
           ) : null}
         </div>
       ) : null}
-      <div className={cn(panelSide === "right" ? "pl-3" : "pr-3")}>{panel}</div>
+      <div className={cn(panelSide === "right" ? "cv:pl-3" : "cv:pr-3")}>{panel}</div>
     </div>
   ) : null;
 
@@ -222,12 +222,12 @@ export function EditorShell({
       data-slot="editor-shell"
       data-mode="canvas-panel"
       data-layout="docked"
-      className={cn("flex w-full items-stretch", className)}
+      className={cn("cv:flex cv:w-full cv:items-stretch", className)}
       style={{ minHeight }}
     >
       {panelSide === "left" && panelNode}
       {panelSide === "left" && showPanel && <Separator orientation="vertical" />}
-      <div className={cn("min-w-0 flex-1", showPanel && panelSide === "right" && "pr-3", showPanel && panelSide === "left" && "pl-3")}>
+      <div className={cn("cv:min-w-0 cv:flex-1", showPanel && panelSide === "right" && "cv:pr-3", showPanel && panelSide === "left" && "cv:pl-3")}>
         {canvas}
       </div>
       {panelSide === "right" && showPanel && <Separator orientation="vertical" />}

@@ -37,17 +37,17 @@ export function KpiSectionPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors hover:bg-accent"
+          className="cv:flex cv:w-full cv:items-center cv:justify-between cv:gap-2 cv:rounded-md cv:border cv:border-border cv:bg-background cv:px-2.5 cv:py-1.5 cv:text-xs cv:font-medium cv:shadow-sm cv:transition-colors cv:hover:bg-accent"
           title={label}
         >
-          <span className="truncate">{label}</span>
-          <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
-            {summary ? <span className="text-[11px]">{summary}</span> : null}
-            <ChevronDown className="size-3.5" />
+          <span className="cv:truncate">{label}</span>
+          <span className="cv:flex cv:shrink-0 cv:items-center cv:gap-1 cv:text-muted-foreground">
+            {summary ? <span className="cv:text-[11px]">{summary}</span> : null}
+            <ChevronDown className="cv:size-3.5" />
           </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-[72vh] w-64 overflow-y-auto p-3">
+      <PopoverContent align="start" className="cv:max-h-[72vh] cv:w-64 cv:overflow-y-auto cv:p-3">
         {children}
       </PopoverContent>
     </Popover>
@@ -92,7 +92,7 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="cv:flex cv:flex-col cv:gap-2">
       <Field label="Time field">
         <MemberPicker
           cube={cube}
@@ -100,7 +100,7 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
           value={td?.dimension}
           onChange={(m) => setTimeDim({ dimension: m })}
           placeholder="All time"
-          className="h-8"
+          className="cv:h-8"
         />
       </Field>
       {td?.dimension ? (
@@ -129,7 +129,7 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
         <Field label="Gauge max">
           <Input
             type="number"
-            className="h-8"
+            className="cv:h-8"
             value={gauge?.max ?? ""}
             placeholder="Auto"
             onChange={(e) => {
@@ -159,7 +159,7 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
     "up";
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="cv:flex cv:flex-col cv:gap-1.5">
       <SwitchRow
         label="Show comparison"
         checked={comparing}
@@ -187,7 +187,7 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
             <Field label="Baseline value">
               <Input
                 type="number"
-                className="h-8"
+                className="cv:h-8"
                 value={(comparison?.value as number | undefined) ?? ""}
                 onChange={(e) => {
                   const n = parseFloat(e.target.value);
@@ -197,7 +197,7 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
             </Field>
           ) : null}
           {comparison?.mode === "previousPeriod" && !td?.dateRange ? (
-            <p className="text-[10px] leading-tight text-muted-foreground/80">
+            <p className="cv:text-[10px] cv:leading-tight cv:text-muted-foreground/80">
               Set a date range on the value to compute the prior period.
             </p>
           ) : null}
@@ -232,7 +232,7 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
   const granularity = sparkline?.granularity;
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="cv:flex cv:flex-col cv:gap-1.5">
       <SwitchRow
         label="Show sparkline"
         checked={sparkOn}
@@ -245,7 +245,7 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
               kind="granularity"
               value={granularity}
               onChange={(g) => setFO({ sparkline: { ...sparkline, granularity: g as Granularity | VarRef } })}
-              renderFixed={(g, set) => <GranularityPicker value={g} onChange={set} className="h-8 w-full" />}
+              renderFixed={(g, set) => <GranularityPicker value={g} onChange={set} className="cv:h-8 cv:w-full" />}
             />
           </Field>
           {!comparing ? (
@@ -267,8 +267,8 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
 /** A vertical labeled field (caption above the control). */
 function Field({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+    <div className="cv:flex cv:flex-col cv:gap-1">
+      <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">{label}</span>
       {children}
     </div>
   );

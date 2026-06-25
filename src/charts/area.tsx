@@ -66,7 +66,7 @@ export function AreaChartFamily({
   const axl = resolvedAxisLabels(data, options);
 
   return (
-    <ChartContainer config={config} className="h-full w-full min-h-[200px]">
+    <ChartContainer config={config} className="cv:h-full cv:w-full cv:min-h-[200px]">
       <AreaChart accessibilityLayer data={rows} stackOffset={percent ? "expand" : undefined}>
         <CartesianGrid vertical={false} />
         <defs>
@@ -115,7 +115,7 @@ export function AreaChartFamily({
         )}
         {legendDisplay(options, editing).show && (
           <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
             verticalAlign={legendVerticalAlign(options.legend?.position)}
             layout={legendLayout(options.legend?.position)}
             align={legendAlign(options.legend?.position)}

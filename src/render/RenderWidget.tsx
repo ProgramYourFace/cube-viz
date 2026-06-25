@@ -65,7 +65,7 @@ export function RenderWidget({ widget, dragHandleProps = {}, editable = false }:
   // Only data widgets (charts) get the bordered Card chrome + draggable title bar.
   if (widget.type === "text" || widget.type === "input") {
     return (
-      <div className="h-full w-full overflow-auto p-2">
+      <div className="cv:h-full cv:w-full cv:overflow-auto cv:p-2">
         <WidgetBody widget={widget} />
       </div>
     );

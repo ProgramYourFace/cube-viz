@@ -1,6 +1,6 @@
 {
   "name": "cube-viz",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Render and edit JSON dashboard/chart specs backed by Cube. shadcn/Recharts renderer, react-grid-layout, TipTap. Web-first, embeddable in a mobile WebView.",
   "type": "module",
   "license": "MIT",
@@ -46,7 +46,7 @@
     "react-day-picker": "^9",
     "react-grid-layout": "^2.2.3",
     "recharts": "^3.8.1",
-    "tailwind-merge": "^2.6.0",
+    "tailwind-merge": "^3.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

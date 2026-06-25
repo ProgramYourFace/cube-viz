@@ -85,10 +85,10 @@ export function MemberMultiPicker({
   }, [members, search]);
 
   return (
-    <div data-slot="member-multi-picker" className={cn("flex flex-col gap-2", className)}>
+    <div data-slot="member-multi-picker" className={cn("cv:flex cv:flex-col cv:gap-2", className)}>
       {/* Selected, ordered list */}
       {value.length > 0 ? (
-        <ul className="flex flex-col gap-1">
+        <ul className="cv:flex cv:flex-col cv:gap-1">
           {value.map((name, i) => {
             const opt = byName.get(name);
             return (
@@ -105,48 +105,48 @@ export function MemberMultiPicker({
                 }}
                 onDragEnd={() => setDragIndex(null)}
                 className={cn(
-                  "flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5 text-sm",
-                  dragIndex === i && "opacity-60",
+                  "cv:flex cv:items-center cv:gap-2 cv:rounded-md cv:border cv:border-border cv:bg-background cv:px-2 cv:py-1.5 cv:text-sm",
+                  dragIndex === i && "cv:opacity-60",
                 )}
               >
                 <GripVertical
-                  className="size-4 shrink-0 cursor-grab text-muted-foreground"
+                  className="cv:size-4 cv:shrink-0 cv:cursor-grab cv:text-muted-foreground"
                   aria-hidden
                 />
                 {opt ? memberTypeIcon(opt.type) : null}
-                <span className="min-w-0 flex-1 truncate" title={name}>
+                <span className="cv:min-w-0 cv:flex-1 cv:truncate" title={name}>
                   {opt?.label ?? name}
                 </span>
-                <div className="flex shrink-0 items-center gap-0.5">
+                <div className="cv:flex cv:shrink-0 cv:items-center cv:gap-0.5">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6"
+                    className="cv:size-6"
                     disabled={disabled || i === 0}
                     onClick={() => move(i, i - 1)}
                     aria-label={`Move ${opt?.label ?? name} up`}
                   >
-                    <ArrowUp className="size-3.5" />
+                    <ArrowUp className="cv:size-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6"
+                    className="cv:size-6"
                     disabled={disabled || i === value.length - 1}
                     onClick={() => move(i, i + 1)}
                     aria-label={`Move ${opt?.label ?? name} down`}
                   >
-                    <ArrowDown className="size-3.5" />
+                    <ArrowDown className="cv:size-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6 text-muted-foreground hover:text-destructive"
+                    className="cv:size-6 cv:text-muted-foreground cv:hover:text-destructive"
                     disabled={disabled}
                     onClick={() => remove(name)}
                     aria-label={`Remove ${opt?.label ?? name}`}
                   >
-                    <X className="size-3.5" />
+                    <X className="cv:size-3.5" />
                   </Button>
                 </div>
               </li>
@@ -161,26 +161,26 @@ export function MemberMultiPicker({
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-start"
+            className="cv:w-full cv:justify-start"
             disabled={disabled || isLoading || atMax}
           >
-            <Plus className="size-4" />
+            <Plus className="cv:size-4" />
             {isLoading ? "Loading…" : atMax ? `Max ${max} reached` : addLabel}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 p-0">
-          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-            <Search className="size-4 shrink-0 text-muted-foreground" />
+        <PopoverContent align="start" className="cv:w-72 cv:p-0">
+          <div className="cv:flex cv:items-center cv:gap-2 cv:border-b cv:border-border cv:px-3 cv:py-2">
+            <Search className="cv:size-4 cv:shrink-0 cv:text-muted-foreground" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search members…"
-              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="cv:w-full cv:bg-transparent cv:text-sm cv:outline-none cv:placeholder:text-muted-foreground"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto p-1">
+          <div className="cv:max-h-64 cv:overflow-y-auto cv:p-1">
             {filtered.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              <p className="cv:px-2 cv:py-6 cv:text-center cv:text-sm cv:text-muted-foreground">
                 No members found
               </p>
             ) : (
@@ -194,20 +194,20 @@ export function MemberMultiPicker({
                     disabled={disabledItem}
                     onClick={() => toggle(m.name)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
-                      checked && "bg-accent/50",
+                      "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:outline-none cv:hover:bg-accent cv:hover:text-accent-foreground cv:disabled:pointer-events-none cv:disabled:opacity-50",
+                      checked && "cv:bg-accent/50",
                     )}
                   >
                     <span
                       className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded-sm border",
-                        checked ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                        "cv:flex cv:size-4 cv:shrink-0 cv:items-center cv:justify-center cv:rounded-sm cv:border",
+                        checked ? "cv:border-primary cv:bg-primary cv:text-primary-foreground" : "cv:border-input",
                       )}
                     >
                       {checked ? <Check /> : null}
                     </span>
                     {memberTypeIcon(m.type)}
-                    <span className="min-w-0 flex-1 truncate" title={m.name}>
+                    <span className="cv:min-w-0 cv:flex-1 cv:truncate" title={m.name}>
                       {m.label}
                     </span>
                   </button>
@@ -216,15 +216,15 @@ export function MemberMultiPicker({
             )}
           </div>
           {value.length > 0 ? (
-            <div className="flex items-center justify-between border-t border-border px-3 py-1.5">
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+            <div className="cv:flex cv:items-center cv:justify-between cv:border-t cv:border-border cv:px-3 cv:py-1.5">
+              <Badge variant="secondary" className="cv:px-1.5 cv:py-0 cv:text-[10px]">
                 {value.length}
                 {max ? ` / ${max}` : ""} selected
               </Badge>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs"
+                className="cv:h-6 cv:px-2 cv:text-xs"
                 onClick={() => onChange([])}
               >
                 Clear
@@ -247,7 +247,7 @@ function Check(): React.ReactElement {
       strokeWidth={3}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="size-3"
+      className="cv:size-3"
       aria-hidden
     >
       <path d="M20 6 9 17l-5-5" />

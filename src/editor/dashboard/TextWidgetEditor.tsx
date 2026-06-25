@@ -72,20 +72,20 @@ export function TextWidgetEditor({
         // so WYSIWYG: what you type matches the final render exactly.
         class: cn(
           RICH_TEXT_CLASS,
-          "min-h-[8rem] rounded-md border border-input bg-background px-3 py-2",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "cv:min-h-[8rem] cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-3 cv:py-2",
+          "cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring",
         ),
       },
     },
   });
 
   if (!editor) {
-    return <div className="text-sm text-muted-foreground">Loading editor…</div>;
+    return <div className="cv:text-sm cv:text-muted-foreground">Loading editor…</div>;
   }
 
   return (
     <FieldRow label="Content" hint="Rich text — renders read-only at runtime.">
-      <div className="flex flex-col gap-2">
+      <div className="cv:flex cv:flex-col cv:gap-2">
         <Toolbar editor={editor} />
         <EditorContent editor={editor} />
       </div>
@@ -113,10 +113,10 @@ function ToolButton({ active, onClick, title, children }: ToolButtonProps): Reac
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={cn(
-        "inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors",
-        "hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-        "[&_svg]:size-4",
-        active && "bg-muted text-foreground",
+        "cv:inline-flex cv:size-7 cv:items-center cv:justify-center cv:rounded-md cv:text-muted-foreground cv:transition-colors",
+        "cv:hover:bg-muted cv:hover:text-foreground cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring",
+        "cv:[&_svg]:size-4",
+        active && "cv:bg-muted cv:text-foreground",
       )}
     >
       {children}
@@ -140,7 +140,7 @@ function Toolbar({ editor }: { editor: Editor }): React.ReactElement {
   return (
     <div
       data-slot="text-toolbar"
-      className="flex flex-wrap items-center gap-0.5 rounded-md border border-border bg-card p-1"
+      className="cv:flex cv:flex-wrap cv:items-center cv:gap-0.5 cv:rounded-md cv:border cv:border-border cv:bg-card cv:p-1"
     >
       <ToolButton
         title="Bold"
@@ -163,7 +163,7 @@ function Toolbar({ editor }: { editor: Editor }): React.ReactElement {
       >
         <Strikethrough />
       </ToolButton>
-      <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+      <span className="cv:mx-1 cv:h-5 cv:w-px cv:bg-border" aria-hidden />
       <ToolButton
         title="Heading 1"
         active={editor.isActive("heading", { level: 1 })}
@@ -178,7 +178,7 @@ function Toolbar({ editor }: { editor: Editor }): React.ReactElement {
       >
         <Heading2 />
       </ToolButton>
-      <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+      <span className="cv:mx-1 cv:h-5 cv:w-px cv:bg-border" aria-hidden />
       <ToolButton
         title="Bullet list"
         active={editor.isActive("bulletList")}

@@ -94,7 +94,7 @@ export function InputWidgetEditor({
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="cv:flex cv:flex-col">
       <FieldRow
         label="Variable"
         hint={
@@ -227,13 +227,13 @@ function PresetMultiSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full justify-between font-normal">
-          <span className="truncate">{summary}</span>
-          <ChevronDown className="size-4 shrink-0 opacity-50" />
+        <Button variant="outline" className="cv:w-full cv:justify-between cv:font-normal">
+          <span className="cv:truncate">{summary}</span>
+          <ChevronDown className="cv:size-4 cv:shrink-0 cv:opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-1" align="start">
-        <div className="max-h-72 overflow-y-auto">
+      <PopoverContent className="cv:w-64 cv:p-1" align="start">
+        <div className="cv:max-h-72 cv:overflow-y-auto">
           {DATE_RANGE_PRESETS.map((p) => {
             const on = chosen.has(p.value);
             return (
@@ -242,15 +242,15 @@ function PresetMultiSelect({
                 type="button"
                 aria-pressed={on}
                 onClick={() => toggle(p.value)}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
+                className="cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:hover:bg-accent"
               >
                 <span
                   className={cn(
-                    "flex size-4 shrink-0 items-center justify-center rounded border",
-                    on ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                    "cv:flex cv:size-4 cv:shrink-0 cv:items-center cv:justify-center cv:rounded cv:border",
+                    on ? "cv:border-primary cv:bg-primary cv:text-primary-foreground" : "cv:border-input",
                   )}
                 >
-                  {on ? <Check className="size-3" /> : null}
+                  {on ? <Check className="cv:size-3" /> : null}
                 </span>
                 {p.label}
               </button>
@@ -306,7 +306,7 @@ function GranularityOptions({
         </Select>
       </FieldRow>
       <FieldRow label="Granularities" hint="Leave all off to offer every granularity (or the proportioned set).">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="cv:flex cv:flex-wrap cv:gap-1.5">
           {GranularitySchema.options.map((g) => {
             const on = selected.has(g);
             return (
@@ -316,10 +316,10 @@ function GranularityOptions({
                 aria-pressed={on}
                 onClick={() => toggle(g)}
                 className={
-                  "rounded-md border px-2 py-1 text-xs capitalize transition-colors " +
+                  "cv:rounded-md cv:border cv:px-2 cv:py-1 cv:text-xs cv:capitalize cv:transition-colors" +
                   (on
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground")
+                    ? "cv:border-primary cv:bg-primary/10 cv:text-foreground"
+                    : "cv:border-border cv:text-muted-foreground cv:hover:text-foreground")
                 }
               >
                 {g}
@@ -366,20 +366,20 @@ function SelectOptions({
           </Button>
         }
       >
-        <div className="flex flex-col gap-1.5">
+        <div className="cv:flex cv:flex-col cv:gap-1.5">
           {control.options.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No options yet.</p>
+            <p className="cv:text-xs cv:text-muted-foreground">No options yet.</p>
           ) : (
             control.options.map((opt, i) => (
-              <div key={i} className="flex items-center gap-1.5">
+              <div key={i} className="cv:flex cv:items-center cv:gap-1.5">
                 <Input
-                  className="flex-1"
+                  className="cv:flex-1"
                   placeholder="Label"
                   value={opt.label}
                   onChange={(e) => setOption(i, { label: e.target.value })}
                 />
                 <Input
-                  className="flex-1"
+                  className="cv:flex-1"
                   placeholder="Value"
                   value={String(opt.value)}
                   onChange={(e) => setOption(i, { value: e.target.value })}
@@ -387,7 +387,7 @@ function SelectOptions({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8 shrink-0 text-muted-foreground"
+                  className="cv:size-8 cv:shrink-0 cv:text-muted-foreground"
                   aria-label="Remove option"
                   onClick={() => removeOption(i)}
                 >
@@ -436,7 +436,7 @@ function MemberSelectOptions({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-1.5 text-xs text-muted-foreground"
+              className="cv:h-6 cv:px-1.5 cv:text-xs cv:text-muted-foreground"
               onClick={() => onChange({ ...control, cube: undefined })}
             >
               Clear

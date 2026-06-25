@@ -59,35 +59,35 @@ export function VariablePicker({ kind, value, onChange, className }: VariablePic
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={cn("h-8 w-full justify-start gap-1.5", className)}>
-          <VariableIcon className="size-3.5 text-muted-foreground" />
-          <span className={cn("min-w-0 flex-1 truncate text-left", !selected && "text-muted-foreground")}>
+        <Button variant="outline" size="sm" className={cn("cv:h-8 cv:w-full cv:justify-start cv:gap-1.5", className)}>
+          <VariableIcon className="cv:size-3.5 cv:text-muted-foreground" />
+          <span className={cn("cv:min-w-0 cv:flex-1 cv:truncate cv:text-left", !selected && "cv:text-muted-foreground")}>
             {selected ? (selected.label ?? selected.name) : value || "Choose variable…"}
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-60 p-1">
+      <PopoverContent align="start" className="cv:w-60 cv:p-1">
         {options.length > 0 ? (
           options.map((d) => (
             <button
               key={d.name}
               type="button"
               onClick={() => pick(d.name)}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+              className="cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent"
             >
-              <span className="min-w-0 flex-1 truncate">{d.label ?? d.name}</span>
-              <span className="shrink-0 text-[10px] text-muted-foreground">{d.type}</span>
-              {d.name === value ? <Check className="size-3.5 shrink-0" /> : null}
+              <span className="cv:min-w-0 cv:flex-1 cv:truncate">{d.label ?? d.name}</span>
+              <span className="cv:shrink-0 cv:text-[10px] cv:text-muted-foreground">{d.type}</span>
+              {d.name === value ? <Check className="cv:size-3.5 cv:shrink-0" /> : null}
             </button>
           ))
         ) : (
-          <p className="px-2 py-1.5 text-xs text-muted-foreground">No matching variables yet.</p>
+          <p className="cv:px-2 cv:py-1.5 cv:text-xs cv:text-muted-foreground">No matching variables yet.</p>
         )}
 
         {createVariable ? (
-          <div className="mt-1 border-t border-border pt-1">
+          <div className="cv:mt-1 cv:border-t cv:border-border cv:pt-1">
             {creating ? (
-              <div className="flex items-center gap-1 p-1">
+              <div className="cv:flex cv:items-center cv:gap-1 cv:p-1">
                 <Input
                   autoFocus
                   value={label}
@@ -97,9 +97,9 @@ export function VariablePicker({ kind, value, onChange, className }: VariablePic
                     if (e.key === "Escape") setCreating(false);
                   }}
                   placeholder="Variable label…"
-                  className="h-7 text-sm"
+                  className="cv:h-7 cv:text-sm"
                 />
-                <Button size="sm" className="h-7 shrink-0" onClick={create}>
+                <Button size="sm" className="cv:h-7 cv:shrink-0" onClick={create}>
                   Add
                 </Button>
               </div>
@@ -107,9 +107,9 @@ export function VariablePicker({ kind, value, onChange, className }: VariablePic
               <button
                 type="button"
                 onClick={() => setCreating(true)}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-muted-foreground cv:hover:bg-accent cv:hover:text-foreground"
               >
-                <Plus className="size-3.5" />
+                <Plus className="cv:size-3.5" />
                 New variable
               </button>
             )}

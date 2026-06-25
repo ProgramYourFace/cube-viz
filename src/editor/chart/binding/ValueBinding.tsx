@@ -33,13 +33,13 @@ export function ValueBinding<T>({ kind, value, onChange, renderFixed }: ValueBin
 
   const seg = (active: boolean): string =>
     cn(
-      "flex-1 rounded-sm px-2 py-1 text-center transition-colors",
-      active ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+      "cv:flex-1 cv:rounded-sm cv:px-2 cv:py-1 cv:text-center cv:transition-colors",
+      active ? "cv:bg-background cv:font-medium cv:shadow-sm" : "cv:text-muted-foreground cv:hover:text-foreground",
     );
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex rounded-md bg-muted p-0.5 text-[11px]">
+    <div className="cv:flex cv:flex-col cv:gap-1.5">
+      <div className="cv:flex cv:rounded-md cv:bg-muted cv:p-0.5 cv:text-[11px]">
         <button
           type="button"
           className={seg(mode === "fixed")}

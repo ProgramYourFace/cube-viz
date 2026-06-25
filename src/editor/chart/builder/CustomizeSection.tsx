@@ -87,7 +87,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           <>
             {StackControl}
             {chart.stackMode === undefined ? (
-              <p className="px-0.5 pt-1 text-[10px] leading-tight text-muted-foreground/80">
+              <p className="cv:px-0.5 cv:pt-1 cv:text-[10px] cv:leading-tight cv:text-muted-foreground/80">
                 {chart.mapping?.series?.mode === "pivot"
                   ? "Color-split areas stack into a whole by default — set this to change it."
                   : "Separate measures overlap by default; stacking adds them into one band."}
@@ -122,7 +122,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
               <Input
                 type="number"
                 min={1}
-                className="h-8"
+                className="cv:h-8"
                 value={(fo.maxSlices as number | undefined) ?? ""}
                 placeholder="8"
                 onChange={(e) => {
@@ -176,7 +176,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     }
   })();
 
-  return <div className="flex flex-col">{body}</div>;
+  return <div className="cv:flex cv:flex-col">{body}</div>;
 }
 
 /** Families that still have a type-level "Options" section. line / combo / scatter are
@@ -196,8 +196,8 @@ export function hasCustomizeOptions(family: ChartSpec["chart"]["family"]): boole
 /** A vertical labeled field (caption above the control) for the option pickers. */
 function KField({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
   return (
-    <div className="flex flex-col gap-1 py-1">
-      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+    <div className="cv:flex cv:flex-col cv:gap-1 cv:py-1">
+      <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">{label}</span>
       {children}
     </div>
   );

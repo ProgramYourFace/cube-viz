@@ -56,15 +56,15 @@ export interface InputWidgetViewProps {
 /* ───────────────────────────── shared field styling ─────────────────────── */
 
 const fieldClass = cn(
-  "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground",
-  "shadow-sm transition-colors placeholder:text-muted-foreground",
-  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+  "cv:flex cv:h-9 cv:w-full cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-3 cv:py-1 cv:text-sm cv:text-foreground",
+  "cv:shadow-sm cv:transition-colors cv:placeholder:text-muted-foreground",
+  "cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring",
   // Native <option> popups are OS-drawn; set readable colors so dark mode isn't black-on-black.
-  "[&>option]:bg-popover [&>option]:text-popover-foreground",
-  "disabled:cursor-not-allowed disabled:opacity-50",
+  "cv:[&>option]:bg-popover cv:[&>option]:text-popover-foreground",
+  "cv:disabled:cursor-not-allowed cv:disabled:opacity-50",
 );
 
-const labelClass = "mb-1 block text-xs font-medium text-muted-foreground";
+const labelClass = "cv:mb-1 cv:block cv:text-xs cv:font-medium cv:text-muted-foreground";
 
 /** ISO date pattern used to parse/serialize absolute date-range bounds. */
 const ISO_DATE = "yyyy-MM-dd";
@@ -124,22 +124,22 @@ function DateRangeControl({
         <Button
           variant="outline"
           className={cn(
-            "w-full justify-start text-left font-normal",
-            triggerLabel === "Pick a date range" && "text-muted-foreground",
+            "cv:w-full cv:justify-start cv:text-left cv:font-normal",
+            triggerLabel === "Pick a date range" && "cv:text-muted-foreground",
           )}
         >
-          <CalendarIcon className="mr-2 size-4" />
+          <CalendarIcon className="cv:mr-2 cv:size-4" />
           {triggerLabel}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="flex w-auto gap-2 p-2" align="start">
-        <div className="flex max-h-80 flex-col gap-1 overflow-y-auto border-r pr-2">
+      <PopoverContent className="cv:flex cv:w-auto cv:gap-2 cv:p-2" align="start">
+        <div className="cv:flex cv:max-h-80 cv:flex-col cv:gap-1 cv:overflow-y-auto cv:border-r cv:pr-2">
           {presets.map((p) => (
             <Button
               key={p}
               variant="ghost"
               size="sm"
-              className="justify-start whitespace-nowrap font-normal"
+              className="cv:justify-start cv:whitespace-nowrap cv:font-normal"
               onClick={() => {
                 onChange(p);
                 setOpen(false);
@@ -262,7 +262,7 @@ function SelectControl({ value, onChange, control }: InputControlProps): ReactEl
     return (
       <select
         multiple
-        className={cn(fieldClass, "h-auto min-h-[6rem]")}
+        className={cn(fieldClass, "cv:h-auto cv:min-h-[6rem]")}
         value={[...selected]}
         onChange={(e) => {
           const picked = Array.from(e.target.selectedOptions, (o) => o.value);
@@ -379,14 +379,14 @@ function NumberControl({ value, onChange, control }: InputControlProps): ReactEl
 function ToggleControl({ value, onChange, decl }: InputControlProps): ReactElement {
   const checked = value === true;
   return (
-    <label className="inline-flex cursor-pointer items-center gap-2">
+    <label className="cv:inline-flex cv:cursor-pointer cv:items-center cv:gap-2">
       <input
         type="checkbox"
-        className="size-4 rounded border-input text-primary accent-primary focus-visible:ring-1 focus-visible:ring-ring"
+        className="cv:size-4 cv:rounded cv:border-input cv:text-primary cv:accent-primary cv:focus-visible:ring-1 cv:focus-visible:ring-ring"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      <span className="text-sm text-foreground">{decl.label ?? decl.name}</span>
+      <span className="cv:text-sm cv:text-foreground">{decl.label ?? decl.name}</span>
     </label>
   );
 }
@@ -415,7 +415,7 @@ export function InputWidgetView({ control, title }: InputWidgetViewProps): React
 
   if (!decl) {
     return (
-      <div className="text-sm text-muted-foreground">
+      <div className="cv:text-sm cv:text-muted-foreground">
         Unknown variable “{control.variable}”
       </div>
     );

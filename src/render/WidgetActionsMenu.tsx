@@ -57,8 +57,8 @@ export function WidgetActionsMenu({
 
   const itemClass = (enabled = true): string =>
     cn(
-      "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-      !enabled && "cursor-not-allowed opacity-50",
+      "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent",
+      !enabled && "cv:cursor-not-allowed cv:opacity-50",
     );
 
   return (
@@ -67,27 +67,27 @@ export function WidgetActionsMenu({
         onMouseDown={stop}
         onPointerDown={stop}
         onTouchStart={stop}
-        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="cv:rounded-md cv:p-1 cv:text-muted-foreground cv:transition-colors cv:hover:bg-accent cv:hover:text-foreground"
         aria-label="Chart actions"
         title="Actions"
       >
-        <MoreVertical className="size-4" />
+        <MoreVertical className="cv:size-4" />
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 p-1" onMouseDown={stop} onPointerDown={stop} onTouchStart={stop}>
+      <PopoverContent align="end" className="cv:w-44 cv:p-1" onMouseDown={stop} onPointerDown={stop} onTouchStart={stop}>
         {refetch ? (
           <button type="button" onClick={refetch} className={itemClass()}>
-            <RefreshCw className="size-3.5 text-muted-foreground" />
+            <RefreshCw className="cv:size-3.5 cv:text-muted-foreground" />
             Refresh
           </button>
         ) : null}
         {canImage ? (
           <button type="button" onClick={doPng} disabled={busy} className={itemClass(!busy)}>
-            <ImageIcon className="size-3.5 text-muted-foreground" />
+            <ImageIcon className="cv:size-3.5 cv:text-muted-foreground" />
             Export PNG
           </button>
         ) : null}
         <button type="button" onClick={exportCsv} disabled={!canCsv} className={itemClass(canCsv)}>
-          <Sheet className="size-3.5 text-muted-foreground" />
+          <Sheet className="cv:size-3.5 cv:text-muted-foreground" />
           Export CSV
         </button>
       </PopoverContent>

@@ -1,5 +1,21 @@
-@import "tailwindcss";
+/* Playground chrome (the gallery/editor host UI) keeps its OWN unprefixed
+   Tailwind pass — exactly like the aa-app host's uniwind utilities.
+   `source(none)` + an explicit playground-only `@source` keeps this pass from
+   scanning cube-viz's `src/` (the aa-app host can't and doesn't scan cube-viz's
+   bundle either). Without this, Tailwind's scanner would surface the BARE
+   utility of every `cv:`-prefixed token in src (e.g. `cv:w-72` -> a stray
+   `.w-72` rule) into the playground sheet — harmless (cube-viz only ever uses
+   the `cv:`-prefixed form) but un-host-like. Scoping it makes the playground a
+   faithful analog: cube-viz renders SOLELY from its own cv-prefixed dist. */
+@import "tailwindcss" source(none);
+@source "./**/*.{ts,tsx,html}";
 @import "../src/theme/tokens.css";
+
+/* cube-viz's OWN self-contained, cv-prefixed stylesheet — imported from the
+   BUILT dist artifact so the playground renders cube-viz precisely as the
+   aa-app host does (`import 'cube-viz/styles.css'`). Run `bun run build` after
+   editing components so this reflects the latest cv-prefixed utilities. */
+@import "../dist/cube-viz.css";
 
 html,
 body,

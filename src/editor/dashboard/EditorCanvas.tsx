@@ -126,7 +126,7 @@ export function EditorCanvas({
 
   return (
     <DashboardProvider spec={spec}>
-      <div ref={ref} className="w-full [&_.react-resizable-handle]:z-20">
+      <div ref={ref} className="cv:w-full cv:[&_.react-resizable-handle]:z-20">
         {width > 0 ? (
           <ResponsiveGridLayout
             width={width}
@@ -175,12 +175,12 @@ export function EditorCanvas({
                     }
                   }}
                   className={cn(
-                    "group relative h-full w-full cursor-move rounded-xl ring-offset-2 ring-offset-background transition-shadow focus-visible:outline-none",
+                    "group cv:relative cv:h-full cv:w-full cv:cursor-move cv:rounded-xl cv:ring-offset-2 cv:ring-offset-background cv:transition-shadow cv:focus-visible:outline-none",
                     // No idle/hover outline (it read as harsh); only the SELECTED
                     // widget gets a ring. Keyboard focus still shows a faint ring.
                     selected
-                      ? "ring-2 ring-primary"
-                      : "ring-0 focus-visible:ring-2 focus-visible:ring-border",
+                      ? "cv:ring-2 cv:ring-primary"
+                      : "cv:ring-0 cv:focus-visible:ring-2 cv:focus-visible:ring-border",
                   )}
                 >
                   <RenderWidget widget={widget} editable />
@@ -189,13 +189,13 @@ export function EditorCanvas({
                       the mousedown). z-[10] keeps it above the chart but BELOW the
                       resize handles and the action buttons. Rendered before the actions
                       so it never wins their hit-test. */}
-                  <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "absolute inset-0 z-10 cursor-move rounded-xl")} />
+                  <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "cv:absolute cv:inset-0 cv:z-10 cv:cursor-move cv:rounded-xl")} />
                   {/* Edit / duplicate / delete — top-right, ALWAYS visible + clickable
                       in edit mode, rendered LAST at z-[20] so they sit above the drag
                       layer. (The old hover-revealed, pointer-events-none version was a
                       flaky hit-test target the drag layer kept stealing — you couldn't
                       click the buttons.) stopPropagation so a click doesn't also select. */}
-                  <div className="absolute right-2 top-2 z-20 flex items-center gap-1">
+                  <div className="cv:absolute cv:right-2 cv:top-2 cv:z-20 cv:flex cv:items-center cv:gap-1">
                     <button
                       type="button"
                       aria-label={`Edit ${widget.title ?? widget.type}`}
@@ -204,9 +204,9 @@ export function EditorCanvas({
                         onEdit(widget.id);
                       }}
                       className={cn(
-                        "inline-flex size-7 items-center justify-center rounded-md",
-                        "bg-card/90 text-muted-foreground shadow-sm backdrop-blur",
-                        "hover:bg-accent hover:text-foreground [&_svg]:size-4",
+                        "cv:inline-flex cv:size-7 cv:items-center cv:justify-center cv:rounded-md",
+                        "cv:bg-card/90 cv:text-muted-foreground cv:shadow-sm cv:backdrop-blur",
+                        "cv:hover:bg-accent cv:hover:text-foreground cv:[&_svg]:size-4",
                       )}
                     >
                       <Pencil />
@@ -219,9 +219,9 @@ export function EditorCanvas({
                         onDuplicate(widget.id);
                       }}
                       className={cn(
-                        "inline-flex size-7 items-center justify-center rounded-md",
-                        "bg-card/90 text-muted-foreground shadow-sm backdrop-blur",
-                        "hover:bg-accent hover:text-foreground [&_svg]:size-4",
+                        "cv:inline-flex cv:size-7 cv:items-center cv:justify-center cv:rounded-md",
+                        "cv:bg-card/90 cv:text-muted-foreground cv:shadow-sm cv:backdrop-blur",
+                        "cv:hover:bg-accent cv:hover:text-foreground cv:[&_svg]:size-4",
                       )}
                     >
                       <Copy />
@@ -234,9 +234,9 @@ export function EditorCanvas({
                         onDelete(widget.id);
                       }}
                       className={cn(
-                        "inline-flex size-7 items-center justify-center rounded-md",
-                        "bg-card/90 text-muted-foreground shadow-sm backdrop-blur",
-                        "hover:bg-destructive hover:text-destructive-foreground [&_svg]:size-4",
+                        "cv:inline-flex cv:size-7 cv:items-center cv:justify-center cv:rounded-md",
+                        "cv:bg-card/90 cv:text-muted-foreground cv:shadow-sm cv:backdrop-blur",
+                        "cv:hover:bg-destructive cv:hover:text-destructive-foreground cv:[&_svg]:size-4",
                       )}
                     >
                       <Trash2 />

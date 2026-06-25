@@ -70,9 +70,9 @@ function NumberKpi({
   // its title IS the label (rendering both was a double border + duplicate text).
   // Just the big number + delta + optional sparkline, inline like Embeddable.
   return (
-    <div className="flex h-full w-full flex-col justify-center gap-1">
-      <div className="flex items-baseline gap-2">
-        <span className="text-4xl font-bold tabular-nums text-foreground">{fmt(value)}</span>
+    <div className="cv:flex cv:h-full cv:w-full cv:flex-col cv:justify-center cv:gap-1">
+      <div className="cv:flex cv:items-baseline cv:gap-2">
+        <span className="cv:text-4xl cv:font-bold cv:tabular-nums cv:text-foreground">{fmt(value)}</span>
         {delta && <DeltaChip delta={delta} goodDirection={goodDirection} fo={fo} fmt={fmt} />}
       </div>
       {spark && spark.data.length > 0 && (
@@ -95,7 +95,7 @@ function KpiSparkline({
 }): React.ReactElement {
   const rows = categories.map((c, i) => ({ x: typeof c === "number" ? c : String(c), v: series.data[i] ?? null }));
   return (
-    <div className={cn("mt-2 h-12 w-full", colorClass)}>
+    <div className={cn("cv:mt-2 cv:h-12 cv:w-full", colorClass)}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
           <Area
@@ -151,11 +151,11 @@ function DeltaChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-sm font-medium",
-        flat ? "text-muted-foreground" : isGood ? "text-emerald-600" : "text-destructive",
+        "cv:inline-flex cv:items-center cv:gap-0.5 cv:text-sm cv:font-medium",
+        flat ? "cv:text-muted-foreground" : isGood ? "cv:text-emerald-600" : "cv:text-destructive",
       )}
     >
-      <Icon className="size-3.5" />
+      <Icon className="cv:size-3.5" />
       {text}
     </span>
   );
@@ -183,8 +183,8 @@ function GaugeKpi({
   const config: ChartConfig = { value: { label, color: `var(--${colorToken})` } };
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center">
-      <ChartContainer config={config} className="aspect-square min-h-[180px] w-full">
+    <div className="cv:relative cv:flex cv:h-full cv:w-full cv:flex-col cv:items-center cv:justify-center">
+      <ChartContainer config={config} className="cv:aspect-square cv:min-h-[180px] cv:w-full">
         <RadialBarChart
           data={chartData}
           startAngle={210}
@@ -196,9 +196,9 @@ function GaugeKpi({
           <RadialBar dataKey="value" background cornerRadius={8} isAnimationActive={false} />
         </RadialBarChart>
       </ChartContainer>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold tabular-nums text-foreground">{fmt(value)}</span>
-        <span className="text-xs text-muted-foreground">{label}</span>
+      <div className="cv:pointer-events-none cv:absolute cv:inset-0 cv:flex cv:flex-col cv:items-center cv:justify-center">
+        <span className="cv:text-2xl cv:font-bold cv:tabular-nums cv:text-foreground">{fmt(value)}</span>
+        <span className="cv:text-xs cv:text-muted-foreground">{label}</span>
       </div>
     </div>
   );

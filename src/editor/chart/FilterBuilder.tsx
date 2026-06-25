@@ -159,13 +159,13 @@ export function FilterBuilder({
   };
 
   return (
-    <div data-slot="filter-builder" className={cn("flex flex-col gap-2", className)}>
+    <div data-slot="filter-builder" className={cn("cv:flex cv:flex-col cv:gap-2", className)}>
       {committed.length === 0 && !draft ? (
-        <p className="px-1 py-1 text-xs text-muted-foreground">No filters — the chart shows all rows.</p>
+        <p className="cv:px-1 cv:py-1 cv:text-xs cv:text-muted-foreground">No filters — the chart shows all rows.</p>
       ) : null}
 
       {showMatchToggle ? (
-        <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+        <div className="cv:flex cv:items-center cv:gap-2 cv:px-1 cv:text-xs cv:text-muted-foreground">
           <span>Match</span>
           <SegmentedControl<"all" | "any">
             aria-label="Match filters"
@@ -221,7 +221,7 @@ export function FilterBuilder({
       ) : null}
 
       {groups.length > 0 ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="cv:text-xs cv:text-muted-foreground">
           {groups.length} grouped filter{groups.length === 1 ? "" : "s"} preserved (edit as JSON).
         </p>
       ) : null}
@@ -229,14 +229,14 @@ export function FilterBuilder({
       <Button
         variant="outline"
         size="sm"
-        className="w-full justify-start"
+        className="cv:w-full cv:justify-start"
         disabled={disabled || !!draft}
         onClick={() => {
           setEditingIndex(null);
           setDraft({ member: "", operator: "equals", values: [] });
         }}
       >
-        <Plus className="size-4" />
+        <Plus className="cv:size-4" />
         Add filter
       </Button>
     </div>
@@ -258,11 +258,11 @@ function FilterSummaryRow({
   onRemove: () => void;
 }): React.ReactElement {
   return (
-    <div className="flex items-center gap-1 rounded-md border border-border bg-background">
+    <div className="cv:flex cv:items-center cv:gap-1 cv:rounded-md cv:border cv:border-border cv:bg-background">
       <button
         type="button"
         onClick={onEdit}
-        className="min-w-0 flex-1 truncate px-3 py-2 text-left text-sm hover:text-foreground"
+        className="cv:min-w-0 cv:flex-1 cv:truncate cv:px-3 cv:py-2 cv:text-left cv:text-sm cv:hover:text-foreground"
         title="Edit filter"
       >
         {text}
@@ -270,12 +270,12 @@ function FilterSummaryRow({
       <Button
         variant="ghost"
         size="icon"
-        className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+        className="cv:size-8 cv:shrink-0 cv:text-muted-foreground cv:hover:text-destructive"
         disabled={disabled}
         onClick={onRemove}
         aria-label="Remove filter"
       >
-        <Trash2 className="size-4" />
+        <Trash2 className="cv:size-4" />
       </Button>
     </div>
   );
@@ -308,30 +308,30 @@ function FilterEditRow({
   const needsValue = !VALUELESS_OPERATORS.has(operator);
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border border-ring/50 bg-muted/30 p-3">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Filter</span>
-        <div className="flex items-center gap-0.5">
+    <div className="cv:flex cv:flex-col cv:gap-2.5 cv:rounded-lg cv:border cv:border-ring/50 cv:bg-muted/30 cv:p-3">
+      <div className="cv:flex cv:items-center cv:justify-between">
+        <span className="cv:text-[10px] cv:font-semibold cv:uppercase cv:tracking-wide cv:text-muted-foreground">Filter</span>
+        <div className="cv:flex cv:items-center cv:gap-0.5">
           {onDone && leaf.member ? (
-            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={onDone}>
-              <Check className="size-3.5" /> Done
+            <Button variant="ghost" size="sm" className="cv:h-7 cv:gap-1 cv:px-2 cv:text-xs" onClick={onDone}>
+              <Check className="cv:size-3.5" /> Done
             </Button>
           ) : null}
           <Button
             variant="ghost"
             size="icon"
-            className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+            className="cv:size-7 cv:shrink-0 cv:text-muted-foreground cv:hover:text-destructive"
             disabled={disabled}
             onClick={onRemove}
             aria-label="Remove filter"
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 className="cv:size-3.5" />
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <span className="text-[11px] font-medium text-muted-foreground">Field</span>
+      <div className="cv:flex cv:flex-col cv:gap-1">
+        <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Field</span>
         {scope ? (
           // Same rich picker as the axis wells: grouped Numbers / Categories / Dates,
           // search, join-scope. Including Dates makes time dimensions filterable.
@@ -347,17 +347,17 @@ function FilterEditRow({
             <button
               type="button"
               disabled={disabled}
-              className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className="cv:flex cv:h-9 cv:w-full cv:items-center cv:justify-between cv:gap-2 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-3 cv:text-sm cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:cursor-not-allowed cv:disabled:opacity-50"
             >
               {member ? (
-                <span className="flex min-w-0 items-center gap-2">
+                <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
                   {memberTypeIcon(member.type)}
-                  <span className="truncate">{member.label}</span>
+                  <span className="cv:truncate">{member.label}</span>
                 </span>
               ) : (
-                <span className="text-muted-foreground">Choose a field…</span>
+                <span className="cv:text-muted-foreground">Choose a field…</span>
               )}
-              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+              <ChevronDown className="cv:size-4 cv:shrink-0 cv:text-muted-foreground" />
             </button>
           </FieldPickerPopover>
         ) : (
@@ -373,8 +373,8 @@ function FilterEditRow({
         )}
       </div>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-[11px] font-medium text-muted-foreground">Condition</span>
+      <label className="cv:flex cv:flex-col cv:gap-1">
+        <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Condition</span>
         <Select
           value={operator}
           onValueChange={(v) =>
@@ -385,7 +385,7 @@ function FilterEditRow({
           }
           disabled={disabled}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="cv:w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -399,8 +399,8 @@ function FilterEditRow({
       </label>
 
       {needsValue ? (
-        <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-muted-foreground">Value</span>
+        <label className="cv:flex cv:flex-col cv:gap-1">
+          <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Value</span>
           <FilterValueField
             values={leaf.values}
             memberType={member?.type}
@@ -480,7 +480,7 @@ function FilterValueField({ values, memberType, onChange }: FilterValueFieldProp
           value={(arr ?? []).map(String).join(", ")}
           onChange={(e) => set(splitValues(e.target.value))}
           placeholder="value, value…"
-          className="h-8"
+          className="cv:h-8"
         />
       )}
     />

@@ -37,14 +37,14 @@ export function SectionHeader({
       {collapsible ? (
         <ChevronRight
           className={cn(
-            "size-4 shrink-0 text-muted-foreground transition-transform",
-            open && "rotate-90",
+            "cv:size-4 cv:shrink-0 cv:text-muted-foreground cv:transition-transform",
+            open && "cv:rotate-90",
           )}
         />
       ) : null}
-      <span className="text-sm font-medium">{title}</span>
+      <span className="cv:text-sm cv:font-medium">{title}</span>
       {summary != null ? (
-        <span className="truncate text-xs text-muted-foreground">{summary}</span>
+        <span className="cv:truncate cv:text-xs cv:text-muted-foreground">{summary}</span>
       ) : null}
     </>
   );
@@ -52,7 +52,7 @@ export function SectionHeader({
   return (
     <div
       data-slot="section-header"
-      className={cn("flex items-center justify-between gap-2", className)}
+      className={cn("cv:flex cv:items-center cv:justify-between cv:gap-2", className)}
     >
       {collapsible ? (
         <button
@@ -60,16 +60,16 @@ export function SectionHeader({
           onClick={onToggle}
           aria-expanded={open}
           aria-controls={regionId}
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
+          className="cv:flex cv:min-w-0 cv:flex-1 cv:items-center cv:gap-1.5 cv:text-left cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:rounded-sm"
         >
           {content}
         </button>
       ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">{content}</div>
+        <div className="cv:flex cv:min-w-0 cv:flex-1 cv:items-center cv:gap-1.5">{content}</div>
       )}
       {actions ? (
         <div
-          className="flex shrink-0 items-center gap-1"
+          className="cv:flex cv:shrink-0 cv:items-center cv:gap-1"
           onClick={(e) => e.stopPropagation()}
         >
           {actions}
@@ -125,7 +125,7 @@ export function Section({
     <section
       data-slot="section"
       data-state={open ? "open" : "closed"}
-      className={cn("border-b border-border py-2 last:border-b-0", className)}
+      className={cn("cv:border-b cv:border-border cv:py-2 cv:last:border-b-0", className)}
     >
       <SectionHeader
         title={title}
@@ -137,7 +137,7 @@ export function Section({
         regionId={regionId}
       />
       {open ? (
-        <div id={regionId} data-slot="section-body" className="pt-2">
+        <div id={regionId} data-slot="section-body" className="cv:pt-2">
           {children}
         </div>
       ) : null}

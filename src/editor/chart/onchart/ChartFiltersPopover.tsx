@@ -35,24 +35,24 @@ export function ChartFiltersPopover({ spec, update, cube, scopeCubes, scope }: C
     <Popover>
       <PopoverTrigger
         className={cn(
-          "flex h-8 items-center gap-1.5 rounded-md border border-border bg-background/90 px-2.5 text-xs font-medium shadow-sm backdrop-blur transition-colors hover:bg-accent",
-          count > 0 ? "text-foreground" : "text-muted-foreground",
+          "cv:flex cv:h-8 cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-border cv:bg-background/90 cv:px-2.5 cv:text-xs cv:font-medium cv:shadow-sm cv:backdrop-blur cv:transition-colors cv:hover:bg-accent",
+          count > 0 ? "cv:text-foreground" : "cv:text-muted-foreground",
         )}
         title="Filters"
         aria-label="Filters"
       >
-        <ListFilter className="size-4" />
+        <ListFilter className="cv:size-4" />
         Filter
         {count > 0 ? (
-          <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+          <span className="cv:ml-0.5 cv:flex cv:h-4 cv:min-w-4 cv:items-center cv:justify-center cv:rounded-full cv:bg-primary cv:px-1 cv:text-[10px] cv:font-semibold cv:text-primary-foreground">
             {count}
           </span>
         ) : null}
       </PopoverTrigger>
-      <PopoverContent align="end" className="flex max-h-[72vh] w-96 flex-col gap-2 overflow-y-auto p-3">
-        <div className="flex flex-col gap-0.5">
-          <p className="text-sm font-medium">Filters</p>
-          <p className="text-xs text-muted-foreground">
+      <PopoverContent align="end" className="cv:flex cv:max-h-[72vh] cv:w-96 cv:flex-col cv:gap-2 cv:overflow-y-auto cv:p-3">
+        <div className="cv:flex cv:flex-col cv:gap-0.5">
+          <p className="cv:text-sm cv:font-medium">Filters</p>
+          <p className="cv:text-xs cv:text-muted-foreground">
             Narrow this chart. Each row reads as a sentence — click to edit.
           </p>
         </div>
@@ -85,9 +85,9 @@ function SegmentsControl({
     update({ ...spec, query: { ...spec.query, segments: arr.length ? arr : undefined } });
   };
   return (
-    <div className="flex flex-col gap-1.5 border-b border-border pb-2">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Segments</p>
-      <div className="flex flex-wrap gap-1.5">
+    <div className="cv:flex cv:flex-col cv:gap-1.5 cv:border-b cv:border-border cv:pb-2">
+      <p className="cv:text-[11px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">Segments</p>
+      <div className="cv:flex cv:flex-wrap cv:gap-1.5">
         {segs.map((s) => (
           <button
             key={s.name}
@@ -95,10 +95,10 @@ function SegmentsControl({
             onClick={() => toggle(s.name)}
             title={s.description ?? s.name}
             className={cn(
-              "rounded-full border px-2.5 py-1 text-xs transition-colors",
+              "cv:rounded-full cv:border cv:px-2.5 cv:py-1 cv:text-xs cv:transition-colors",
               active.has(s.name)
-                ? "border-ring bg-accent text-foreground"
-                : "border-input text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                ? "cv:border-ring cv:bg-accent cv:text-foreground"
+                : "cv:border-input cv:text-muted-foreground cv:hover:bg-accent/50 cv:hover:text-foreground",
             )}
           >
             {s.label}

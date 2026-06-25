@@ -57,7 +57,7 @@ export function EditorToolbar({
     <div
       data-slot="editor-toolbar"
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2",
+        "cv:flex cv:flex-wrap cv:items-center cv:gap-2 cv:rounded-lg cv:border cv:border-border cv:bg-card cv:p-2",
         className,
       )}
     >
@@ -66,9 +66,9 @@ export function EditorToolbar({
         placeholder="Untitled dashboard"
         aria-label="Dashboard name"
         onChange={(e) => onNameChange(e.target.value)}
-        className="h-8 w-full min-w-0 flex-1 sm:w-auto"
+        className="cv:h-8 cv:w-full cv:min-w-0 cv:flex-1 cv:sm:w-auto"
       />
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="cv:flex cv:flex-wrap cv:items-center cv:gap-1">
         <Button variant="outline" size="sm" onClick={() => onAdd("chart")}>
           <BarChart3 /> Chart
         </Button>
@@ -86,7 +86,7 @@ export function EditorToolbar({
       </div>
 
       {/* Edit-session actions — Undo / Redo / Discard / Save, right-aligned. */}
-      <div className="ml-auto flex items-center gap-1">
+      <div className="cv:ml-auto cv:flex cv:items-center cv:gap-1">
         {hasHistory ? (
           <>
             <Button
@@ -117,7 +117,7 @@ export function EditorToolbar({
             size="sm"
             onClick={onDiscard}
             disabled={discardDisabled}
-            className="text-muted-foreground hover:text-destructive"
+            className="cv:text-muted-foreground cv:hover:text-destructive"
           >
             <RotateCcw /> Discard
           </Button>

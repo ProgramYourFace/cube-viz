@@ -82,7 +82,7 @@ export function BarChartFamily({
   const valLabelR = axl.right ? { value: axl.right, angle: 90, position: "insideRight" as const, style: { textAnchor: "middle" as const } } : undefined;
 
   return (
-    <ChartContainer config={config} className="h-full w-full min-h-[200px]">
+    <ChartContainer config={config} className="cv:h-full cv:w-full cv:min-h-[200px]">
       <BarChart
         accessibilityLayer
         data={rows}
@@ -159,7 +159,7 @@ export function BarChartFamily({
         )}
         {legendDisplay(options, editing).show && (
           <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "opacity-40" : undefined} />}
+            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
             verticalAlign={legendVerticalAlign(options.legend?.position)}
             layout={legendLayout(options.legend?.position)}
             align={legendAlign(options.legend?.position)}
@@ -183,7 +183,7 @@ export function BarChartFamily({
               <LabelList
                 dataKey={s.key}
                 position={horizontal ? "right" : "top"}
-                className="fill-foreground text-[10px]"
+                className="cv:fill-foreground cv:text-[10px]"
                 formatter={(v: string | number | boolean | null | undefined) =>
                   valueFmt(typeof v === "boolean" ? Number(v) : v, seriesMember(s), "label")
                 }

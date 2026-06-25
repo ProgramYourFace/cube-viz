@@ -395,7 +395,7 @@ export function ChartEditOverlay({
     const kfo = (chart.familyOptions ?? {}) as Record<string, unknown>;
     return (
       <>
-        <div className="flex flex-col gap-2">
+        <div className="cv:flex cv:flex-col cv:gap-2">
           {valueWell ? renderGroup(valueWell, "vertical") : null}
           {hasValue ? (
             <KpiSectionPopover
@@ -421,14 +421,14 @@ export function ChartEditOverlay({
   };
 
   return (
-    <div data-slot="chart-edit-overlay" className="flex h-full w-full flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">{toolbar}</div>
+    <div data-slot="chart-edit-overlay" className="cv:flex cv:h-full cv:w-full cv:flex-col cv:gap-2">
+      <div className="cv:flex cv:items-center cv:justify-between cv:gap-2">
+        <div className="cv:flex cv:min-w-0 cv:flex-1 cv:items-center cv:gap-2">{toolbar}</div>
         {/* Chart-type picker lives here (top centre) rather than over the chart — an
             on-chart pill was unclickable behind the live preview. Built charts only;
             an empty chart shows the centred chooser overlay instead. */}
         {!isEmpty ? <ChartTypePill spec={spec} update={update} /> : null}
-        <div className="flex flex-1 items-center justify-end gap-1.5">
+        <div className="cv:flex cv:flex-1 cv:items-center cv:justify-end cv:gap-1.5">
           <ChartSourcePopover
             currentName={scope.viewLocked ?? scope.sourceCube?.name}
             hasFields={allPlaced.length > 0}
@@ -438,9 +438,9 @@ export function ChartEditOverlay({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-2">
+      <div className="cv:flex cv:min-h-0 cv:flex-1 cv:gap-2">
         {leftWells.length > 0 ? (
-          <div className={cn("flex shrink-0 flex-col gap-3 overflow-y-auto pr-1", family === "kpi" ? "w-56" : "w-40")}>
+          <div className={cn("cv:flex cv:shrink-0 cv:flex-col cv:gap-3 cv:overflow-y-auto cv:pr-1", family === "kpi" ? "cv:w-56" : "cv:w-40")}>
             {/* A KPI is three inline components — Value (measure + time/range/display),
                 Comparison, and Sparkline — each its own bordered block with its own config. */}
             {family === "kpi"
@@ -455,8 +455,8 @@ export function ChartEditOverlay({
           </div>
         ) : null}
 
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="relative min-h-0 flex-1">
+        <div className="cv:flex cv:min-w-0 cv:flex-1 cv:flex-col cv:gap-2">
+          <div className="cv:relative cv:min-h-0 cv:flex-1">
             {children}
             <CenterTypePicker spec={spec} update={update} empty={isEmpty} />
           </div>
@@ -464,7 +464,7 @@ export function ChartEditOverlay({
           {/* The category / split wells (each carrying its own axis-title box above its field),
               with the legend show/hide sitting in line with them. */}
           {bottomWells.length > 0 ? (
-            <div className="flex flex-wrap items-start gap-x-5 gap-y-2 pl-1">
+            <div className="cv:flex cv:flex-wrap cv:items-start cv:gap-x-5 cv:gap-y-2 cv:pl-1">
               {bottomWells.map((w) => renderGroup(w, "horizontal"))}
               {hasLegend && !isEmpty ? <LegendChrome spec={spec} update={update} /> : null}
             </div>
