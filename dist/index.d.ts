@@ -4930,7 +4930,7 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, onDiscard, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, onDiscard, className, }: DashboardEditorProps): React_2.ReactElement;
 
 /**
  * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
@@ -4949,8 +4949,24 @@ export declare function DashboardEditor({ spec, onChange, onSave, newId, debounc
  * `spec.layout`, preserving each item's `minW`/`minH`/`static`.
  */
 export declare interface DashboardEditorProps {
-    /** The dashboard spec to edit (JSON-in). */
+    /** The dashboard spec to edit (JSON-in). Identity change = a host re-seed (undo/
+     *  redo / discard / switching dashboards) — it fully replaces the working draft. */
     spec: DashboardSpec;
+    /**
+     * Live-collaboration channel: a merged spec from OTHER editors. The host passes it
+     * ONLY for genuine remote revisions (never this client's own echoes). When it
+     * changes, its widgets/layout are merged into the local draft once the user is
+     * momentarily idle — preserving the widget under active edit so a collaborator's
+     * change never yanks the widget out from under your cursor. In-place (no remount).
+     * Distinct from `spec`, which is a hard re-seed.
+     */
+    remoteSpec?: DashboardSpec;
+    /**
+     * Called when a {@link remoteSpec} is merged into the local draft, with the merged
+     * result. NOT a user edit (so it isn't echoed back out) — the host uses it to keep
+     * its diff base in sync with what the editor now shows.
+     */
+    onRemoteAdopted?: (spec: DashboardSpec) => void;
     /**
      * Called on every edit with the next spec (debounced by {@link debounceMs}). The
      * editor writes nothing itself — wire this to your store/preview.

@@ -43,8 +43,24 @@ import { createIdFactory, newWidget, type IdFactory } from "./dashboard/factorie
  */
 
 export interface DashboardEditorProps {
-  /** The dashboard spec to edit (JSON-in). */
+  /** The dashboard spec to edit (JSON-in). Identity change = a host re-seed (undo/
+   *  redo / discard / switching dashboards) — it fully replaces the working draft. */
   spec: DashboardSpec;
+  /**
+   * Live-collaboration channel: a merged spec from OTHER editors. The host passes it
+   * ONLY for genuine remote revisions (never this client's own echoes). When it
+   * changes, its widgets/layout are merged into the local draft once the user is
+   * momentarily idle — preserving the widget under active edit so a collaborator's
+   * change never yanks the widget out from under your cursor. In-place (no remount).
+   * Distinct from `spec`, which is a hard re-seed.
+   */
+  remoteSpec?: DashboardSpec;
+  /**
+   * Called when a {@link remoteSpec} is merged into the local draft, with the merged
+   * result. NOT a user edit (so it isn't echoed back out) — the host uses it to keep
+   * its diff base in sync with what the editor now shows.
+   */
+  onRemoteAdopted?: (spec: DashboardSpec) => void;
   /**
    * Called on every edit with the next spec (debounced by {@link debounceMs}). The
    * editor writes nothing itself — wire this to your store/preview.
@@ -79,6 +95,8 @@ export interface DashboardEditorProps {
 
 export function DashboardEditor({
   spec,
+  remoteSpec,
+  onRemoteAdopted,
   onChange,
   onSave,
   newId,
@@ -96,10 +114,24 @@ export function DashboardEditor({
   React.useEffect(() => setDraft(spec), [spec]);
 
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  // Wall-clock of the last LOCAL edit — the live-collab merge waits for a brief quiet
+  // gap before adopting a remote spec, so it never fires mid-drag / mid-edit.
+  const lastLocalEditRef = React.useRef(0);
   // Which editor is open full-screen: a specific widget, the variables, or none.
   const [editing, setEditing] = React.useState<
     { kind: "widget"; id: string } | { kind: "variables" } | null
   >(null);
+
+  // Latest selection / edit target, read by the live-collab merge so it protects the
+  // current widget without re-arming the effect on every select.
+  const selectedIdRef = React.useRef(selectedId);
+  const editingRef = React.useRef(editing);
+  const draftRef = React.useRef(draft);
+  React.useEffect(() => {
+    selectedIdRef.current = selectedId;
+    editingRef.current = editing;
+    draftRef.current = draft;
+  });
 
   // Default id factory: one counter per editor mount (stable identity).
   const idFactoryRef = React.useRef<IdFactory | null>(null);
@@ -116,6 +148,7 @@ export function DashboardEditor({
   // not clobber each other via a stale `draft` closure).
   const commit = React.useCallback(
     (update: (prev: DashboardSpec) => DashboardSpec) => {
+      lastLocalEditRef.current = Date.now();
       setDraft((prev) => {
         const next = update(prev);
         debouncedChange(next);
@@ -124,6 +157,37 @@ export function DashboardEditor({
     },
     [debouncedChange],
   );
+
+  /* ──────────────────── live collaboration (remote merge) ───────────────────
+   * Adopt a collaborator's merged spec into the local draft, but only once the user
+   * is momentarily idle (no local edit for QUIET_MS) so it never interrupts an active
+   * drag / edit, and ALWAYS keeping the local copy of the widget under active edit
+   * (the full-screen-edited widget + the selected one). Remote merges do NOT fire
+   * `onChange` — they aren't the local user's edits, so they don't loop back out. */
+  const adoptedRemoteRef = React.useRef<DashboardSpec | undefined>(remoteSpec);
+  React.useEffect(() => {
+    if (!remoteSpec || remoteSpec === adoptedRemoteRef.current) return;
+    const QUIET_MS = 500;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tryAdopt = (): void => {
+      const since = Date.now() - lastLocalEditRef.current;
+      if (since < QUIET_MS) {
+        timer = setTimeout(tryAdopt, QUIET_MS - since);
+        return;
+      }
+      adoptedRemoteRef.current = remoteSpec;
+      const protectedIds = new Set<string>();
+      if (editingRef.current?.kind === "widget") protectedIds.add(editingRef.current.id);
+      if (selectedIdRef.current) protectedIds.add(selectedIdRef.current);
+      const merged = mergeRemote(remoteSpec, draftRef.current, protectedIds);
+      setDraft(merged);
+      onRemoteAdopted?.(merged); // keep the host's diff base in sync (no echo-out)
+    };
+    tryAdopt();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [remoteSpec]);
 
   /* ─────────────────────────────── widgets ──────────────────────────────── */
 
@@ -320,4 +384,37 @@ export function DashboardEditor({
 /** Capitalize a widget type for the editor header. */
 function cap(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+/**
+ * Merge a collaborator's `remote` spec into the `local` working draft, per widget /
+ * layout item (last-write-wins), but always keeping the LOCAL copy of `protectedIds`
+ * (the widget under active edit) so live updates never clobber what you're touching.
+ * Remote deletes win for non-protected widgets; protected local-only widgets (e.g. a
+ * just-added one not yet round-tripped) are preserved.
+ */
+function mergeRemote(
+  remote: DashboardSpec,
+  local: DashboardSpec,
+  protectedIds: Set<string>,
+): DashboardSpec {
+  const localWidgetById = new Map(local.widgets.map((w) => [w.id, w]));
+  const remoteWidgetIds = new Set(remote.widgets.map((w) => w.id));
+  const widgets: WidgetSpec[] = remote.widgets.map((w) =>
+    protectedIds.has(w.id) && localWidgetById.has(w.id) ? localWidgetById.get(w.id)! : w,
+  );
+  for (const w of local.widgets) {
+    if (!remoteWidgetIds.has(w.id) && protectedIds.has(w.id)) widgets.push(w);
+  }
+
+  const localLayoutById = new Map(local.layout.map((l) => [l.i, l]));
+  const remoteLayoutIds = new Set(remote.layout.map((l) => l.i));
+  const layout: LayoutItem[] = remote.layout.map((l) =>
+    protectedIds.has(l.i) && localLayoutById.has(l.i) ? localLayoutById.get(l.i)! : l,
+  );
+  for (const l of local.layout) {
+    if (!remoteLayoutIds.has(l.i) && protectedIds.has(l.i)) layout.push(l);
+  }
+
+  return { ...remote, widgets, layout };
 }
