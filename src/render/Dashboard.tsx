@@ -76,7 +76,9 @@ export function Dashboard({ spec, editable = false }: DashboardProps): ReactElem
   const canonicalCols = grid.cols ?? 12;
   const rowHeight = grid.rowHeight ?? 40;
   const margin: readonly [number, number] = grid.margin ?? [12, 12];
-  const containerPadding: readonly [number, number] = grid.containerPadding ?? [0, 0];
+  // Edge padding defaults to the inter-widget gap, so widgets don't sit flush to
+  // the container edge (and don't get clipped). Override via grid.containerPadding.
+  const containerPadding: readonly [number, number] = grid.containerPadding ?? margin;
 
   const { breakpoints, cols } = useMemo(
     () => responsiveCols(canonicalCols),

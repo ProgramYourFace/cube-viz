@@ -284,7 +284,15 @@ export function DashboardEditor({
         : "";
 
   return (
-    <div data-slot="dashboard-editor" className={cn("cv:flex cv:h-full cv:flex-col cv:gap-2", className)}>
+    <div
+      data-slot="dashboard-editor"
+      // Inset the whole editor by the grid's gap so the toolbar AND the canvas
+      // charts sit a consistent gap-width from the edge (the charts were getting
+      // clipped by an outer host padding; the edge padding belongs here, matching
+      // the inter-widget gap).
+      style={{ paddingInline: draft.grid?.margin?.[0] ?? 12 }}
+      className={cn("cv:flex cv:h-full cv:flex-col cv:gap-2", className)}
+    >
       <EditorToolbar
         name={draft.name ?? ""}
         onNameChange={handleNameChange}

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 
 import {
   VariableTypeSchema,
@@ -72,30 +72,48 @@ export function VariablesPanel({
   };
   const remove = (idx: number): void => onChange(variables.filter((_, i) => i !== idx));
   const add = (): void => onChange([...variables, newVariable(mintName())]);
+  // Reorder a variable up (-1) / down (+1) — declaration order drives the order
+  // controls render in.
+  const move = (idx: number, dir: -1 | 1): void => {
+    const j = idx + dir;
+    if (j < 0 || j >= variables.length) return;
+    const next = variables.slice();
+    [next[idx], next[j]] = [next[j], next[idx]];
+    onChange(next);
+  };
 
   return (
     <Section
       title="Variables"
       summary={variables.length > 0 ? `${variables.length}` : undefined}
       actions={
-        <Button variant="ghost" size="sm" onClick={add}>
-          <Plus /> Add
+        <Button variant="outline" size="sm" onClick={add}>
+          <Plus /> Add variable
         </Button>
       }
     >
       {variables.length === 0 ? (
-        <p className="cv:py-1 cv:text-xs cv:text-muted-foreground">
-          No variables. Variables bind input controls and `{"{var}"}` query tokens.
-        </p>
+        <div className="cv:rounded-md cv:border cv:border-dashed cv:border-border cv:p-4 cv:text-center">
+          <p className="cv:text-sm cv:font-medium">No variables yet</p>
+          <p className="cv:mt-0.5 cv:text-xs cv:text-muted-foreground">
+            Variables bind input controls and resolve {"{var}"} tokens in queries.
+          </p>
+          <Button variant="outline" size="sm" className="cv:mt-3" onClick={add}>
+            <Plus /> Add variable
+          </Button>
+        </div>
       ) : (
-        <div className="cv:flex cv:flex-col cv:gap-3">
+        <div className="cv:flex cv:flex-col cv:gap-2">
           {variables.map((v, i) => (
             <VariableRow
               key={i}
               decl={v}
+              index={i}
+              total={variables.length}
               duplicate={variables.some((o, j) => j !== i && o.name === v.name && v.name !== "")}
               onChange={(patch) => update(i, patch)}
               onRemove={() => remove(i)}
+              onMove={(dir) => move(i, dir)}
             />
           ))}
         </div>
@@ -118,77 +136,123 @@ function mergeDecl(decl: VariableDecl, patch: Partial<VariableDecl>): VariableDe
 
 function VariableRow({
   decl,
+  index,
+  total,
   duplicate,
   onChange,
   onRemove,
+  onMove,
 }: {
   decl: VariableDecl;
+  index: number;
+  total: number;
   duplicate: boolean;
   onChange: (patch: Partial<VariableDecl>) => void;
   onRemove: () => void;
+  onMove: (dir: -1 | 1) => void;
 }): React.ReactElement {
+  const [open, setOpen] = React.useState(true);
   const nameError = decl.name === "" ? "Name required" : duplicate ? "Duplicate name" : undefined;
+
   return (
     <div
       data-slot="variable-row"
-      className="cv:rounded-md cv:border cv:border-border cv:bg-card/40 cv:p-2.5"
+      className="cv:overflow-hidden cv:rounded-md cv:border cv:border-border cv:bg-card/40"
     >
-      <div className="cv:mb-1 cv:flex cv:items-start cv:justify-between cv:gap-2">
-        <div className="cv:min-w-0 cv:flex-1">
-          <FieldRow label="Name" error={nameError} className="cv:py-0">
+      {/* Header: collapse toggle · name · type badge · reorder · remove. */}
+      <div className="cv:flex cv:items-center cv:gap-1.5 cv:px-2 cv:py-1.5">
+        <button
+          type="button"
+          aria-label={open ? "Collapse variable" : "Expand variable"}
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          className="cv:flex cv:size-6 cv:shrink-0 cv:items-center cv:justify-center cv:rounded cv:text-muted-foreground cv:hover:bg-accent cv:hover:text-foreground cv:[&_svg]:size-4"
+        >
+          {open ? <ChevronDown /> : <ChevronRight />}
+        </button>
+        <Input
+          value={decl.name}
+          placeholder="variable_name"
+          aria-label="Variable name"
+          aria-invalid={nameError ? true : undefined}
+          onChange={(e) => onChange({ name: e.target.value })}
+          className="cv:h-7 cv:min-w-0 cv:flex-1 cv:font-mono cv:text-xs"
+        />
+        <span className="cv:hidden cv:shrink-0 cv:rounded cv:bg-muted cv:px-1.5 cv:py-0.5 cv:text-[10px] cv:font-medium cv:text-muted-foreground cv:sm:inline">
+          {TYPE_LABELS[decl.type]}
+        </span>
+        <div className="cv:flex cv:shrink-0 cv:items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="cv:size-7 cv:text-muted-foreground"
+            aria-label="Move variable up"
+            disabled={index === 0}
+            onClick={() => onMove(-1)}
+          >
+            <ArrowUp />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="cv:size-7 cv:text-muted-foreground"
+            aria-label="Move variable down"
+            disabled={index === total - 1}
+            onClick={() => onMove(1)}
+          >
+            <ArrowDown />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="cv:size-7 cv:text-muted-foreground cv:hover:text-destructive"
+            aria-label="Remove variable"
+            onClick={onRemove}
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      </div>
+      {nameError ? (
+        <p className="cv:px-2 cv:pb-1.5 cv:text-[11px] cv:text-destructive">{nameError}</p>
+      ) : null}
+
+      {/* Body: the variable's full configuration (collapsible to manage long lists). */}
+      {open ? (
+        <div className="cv:flex cv:flex-col cv:gap-1 cv:border-t cv:border-border/60 cv:p-2.5">
+          <FieldRow label="Type" className="cv:py-1">
+            <Select value={decl.type} onValueChange={(t) => onChange({ type: t as VariableType })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VariableTypeSchema.options.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {TYPE_LABELS[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldRow>
+
+          <FieldRow label="Label" hint="Optional human label for controls." className="cv:py-1">
             <Input
-              value={decl.name}
-              placeholder="variable_name"
-              aria-invalid={nameError ? true : undefined}
-              onChange={(e) => onChange({ name: e.target.value })}
+              value={decl.label ?? ""}
+              placeholder={decl.name}
+              onChange={(e) => onChange({ label: e.target.value })}
             />
           </FieldRow>
+
+          <SwitchRow
+            label="Array"
+            hint="Holds multiple values (multi-select)."
+            checked={decl.array ?? false}
+            onChange={(array) => onChange({ array })}
+          />
+
+          <DefaultField decl={decl} onChange={(def) => onChange({ default: def })} />
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="cv:mt-6 cv:size-8 cv:shrink-0 cv:text-muted-foreground"
-          aria-label="Remove variable"
-          onClick={onRemove}
-        >
-          <Trash2 />
-        </Button>
-      </div>
-
-      <FieldRow label="Type" className="cv:py-1">
-        <Select
-          value={decl.type}
-          onValueChange={(t) => onChange({ type: t as VariableType })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {VariableTypeSchema.options.map((t) => (
-              <SelectItem key={t} value={t}>
-                {TYPE_LABELS[t]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FieldRow>
-
-      <FieldRow label="Label" hint="Optional human label for controls." className="cv:py-1">
-        <Input
-          value={decl.label ?? ""}
-          placeholder={decl.name}
-          onChange={(e) => onChange({ label: e.target.value })}
-        />
-      </FieldRow>
-
-      <SwitchRow
-        label="Array"
-        hint="Holds multiple values (multi-select)."
-        checked={decl.array ?? false}
-        onChange={(array) => onChange({ array })}
-      />
-
-      <DefaultField decl={decl} onChange={(def) => onChange({ default: def })} />
+      ) : null}
     </div>
   );
 }

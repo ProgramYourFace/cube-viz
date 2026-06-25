@@ -59,6 +59,16 @@
   ::after {
     box-sizing: border-box;
   }
+
+  /* Tailwind v4 dropped Preflight's `button { cursor: pointer }`, so the host's
+     v4 reset leaves cube-viz's buttons on the default arrow. Restore the pointer
+     for enabled interactive elements (a `cv:cursor-*` utility still wins — it's
+     in the later `utilities` layer — so the canvas's `cursor-move` widgets are
+     unaffected). */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 }
 
 /* Plain-CSS component styles (NOT Tailwind) — bundled verbatim so rich text and
