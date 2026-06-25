@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactElement, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactElement, type ReactNode } from "react";
 
 import type { WidgetSpec } from "@/spec";
 
@@ -57,6 +57,8 @@ export function RenderWidget({ widget, dragHandleProps = {}, editable = false }:
     (s) => setChartState({ rows: s.rows, refetch: s.refetch }),
     [],
   );
+  // The chart body node, captured for PNG / SVG image export from the menu.
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   // Text + input are FRAMELESS: no card, no title header — they sit directly on the
   // dashboard (text carries its own headings; an input's title is its field label).
@@ -73,7 +75,12 @@ export function RenderWidget({ widget, dragHandleProps = {}, editable = false }:
   // lays a drag overlay over each widget and authoring is the focus, so omit the menu
   // there (it would be intercepted by the overlay anyway).
   const menu: ReactNode = editable ? null : (
-    <WidgetActionsMenu title={widget.title} rows={chartState.rows} refetch={chartState.refetch} />
+    <WidgetActionsMenu
+      title={widget.title}
+      rows={chartState.rows}
+      refetch={chartState.refetch}
+      captureRef={bodyRef}
+    />
   );
 
   return (
@@ -84,7 +91,11 @@ export function RenderWidget({ widget, dragHandleProps = {}, editable = false }:
       dragHandleProps={dragHandleProps}
       state={{ loading: false, empty: false }}
     >
-      <WidgetBody widget={widget} onState={onState} />
+      {/* Inline style (not a utility) so the capture wrapper fills regardless of
+          the host's Tailwind — it's the node PNG/SVG export rasterizes. */}
+      <div ref={bodyRef} style={{ height: "100%", width: "100%" }}>
+        <WidgetBody widget={widget} onState={onState} />
+      </div>
     </WidgetChrome>
   );
 }
