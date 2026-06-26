@@ -10,14 +10,7 @@ import { defaultFormatter, makeChartFormat } from "@/format";
 import type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
 import { resolveOptions } from "./defaults";
 import { configFromSeries } from "./_shared";
-import { BarChartFamily } from "./bar";
-import { LineChartFamily } from "./line";
-import { AreaChartFamily } from "./area";
-import { PieChartFamily } from "./pie";
-import { ScatterChartFamily } from "./scatter";
-import { KpiFamily } from "./kpi";
-import { TableFamily } from "./table";
-import { ComboChartFamily } from "./combo";
+import { builtinFamilyDescriptors } from "./familyDescriptors";
 
 /**
  * The pure family dispatcher (docs/02-chart-options.md §2.0, §3). It:
@@ -29,17 +22,13 @@ import { ComboChartFamily } from "./combo";
  * It NEVER fetches and NEVER sees a Cube ResultSet.
  */
 
-/** The builtin family → component table. Override any entry via `components`. */
-export const builtinCharts: Record<ChartFamily, ChartComponent> = {
-  bar: BarChartFamily,
-  line: LineChartFamily,
-  area: AreaChartFamily,
-  pie: PieChartFamily,
-  scatter: ScatterChartFamily,
-  kpi: KpiFamily,
-  table: TableFamily,
-  combo: ComboChartFamily,
-};
+/**
+ * The builtin family → component table, DERIVED from the descriptor registry
+ * (the single source of truth). Override any entry via `components`.
+ */
+export const builtinCharts: Record<ChartFamily, ChartComponent> = Object.fromEntries(
+  Object.entries(builtinFamilyDescriptors).map(([family, d]) => [family, d.component]),
+) as Record<ChartFamily, ChartComponent>;
 
 export interface ChartRendererProps extends Omit<ChartComponentProps, "format"> {
   /**

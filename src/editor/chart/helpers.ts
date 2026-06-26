@@ -8,6 +8,7 @@ import type {
   SeriesMeta,
   TimeDimension,
 } from "@/spec";
+import { builtinFamilyDescriptors, familyDescriptor } from "@/charts";
 
 /**
  * Pure, side-effect-free helpers for the ChartEditor (docs/03 §A3.1). They derive
@@ -96,31 +97,18 @@ export function buildMapping(
 
 /** Whether a family consumes the generic `mapping` envelope (vs. its own familyOptions). */
 export function familyUsesMapping(family: ChartFamily): boolean {
-  return (
-    family === "bar" ||
-    family === "line" ||
-    family === "area" ||
-    family === "pie" ||
-    family === "combo"
-  );
+  return familyDescriptor(family).supportsMapping;
 }
 
 /** Whether a family exposes the cross-family display envelope (orientation/stack/axes). */
 export function familyHasCartesianAxes(family: ChartFamily): boolean {
-  return family === "bar" || family === "line" || family === "area" || family === "combo";
+  return familyDescriptor(family).supportsCartesianAxes;
 }
 
-/** Human labels for the chart families (the family SegmentedControl). */
-export const FAMILY_LABELS: Record<ChartFamily, string> = {
-  bar: "Bar",
-  line: "Line",
-  area: "Area",
-  pie: "Pie",
-  scatter: "Scatter",
-  kpi: "KPI",
-  table: "Table",
-  combo: "Combo",
-};
+/** Human labels for the chart families — derived from the descriptor registry. */
+export const FAMILY_LABELS: Record<ChartFamily, string> = Object.fromEntries(
+  Object.entries(builtinFamilyDescriptors).map(([family, d]) => [family, d.label]),
+) as Record<ChartFamily, string>;
 
 /** Default granularity offered when a time dimension is first selected. */
 export const DEFAULT_GRANULARITY: Granularity = "day";
@@ -181,5 +169,27 @@ export function migrateToFamily(spec: ChartSpec, next: ChartFamily): ChartSpec {
       ].map((m) => ({ member: m }));
       return withChart({ familyOptions: cols.length ? { columns: cols } : undefined });
     }
+    case "map": {
+      // Best-effort: bind two numeric measures to lat/lng so a re-typed chart isn't
+      // empty, preferring members whose name hints at latitude/longitude. The user
+      // can always re-pick. Other geo fields stay empty.
+      const lat = pickGeo(measures, ["lat", "latitude"]) ?? measures[0];
+      const lng = pickGeo(measures, ["lng", "lon", "long", "longitude"]) ?? measures[1];
+      return withChart({
+        familyOptions: {
+          mode: "points",
+          ...(lat ? { lat } : {}),
+          ...(lng && lng !== lat ? { lng } : {}),
+        },
+      });
+    }
   }
+}
+
+/** Find the first member whose lowercased name contains any hint substring. */
+function pickGeo(members: string[], hints: string[]): string | undefined {
+  return members.find((m) => {
+    const lower = m.toLowerCase();
+    return hints.some((h) => lower.includes(h));
+  });
 }

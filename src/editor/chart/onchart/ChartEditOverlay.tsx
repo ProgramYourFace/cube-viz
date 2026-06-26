@@ -1,11 +1,12 @@
 import * as React from "react";
 
 import { resolveSeriesColors } from "@/adapter";
+import { familyDescriptor } from "@/charts";
 import { useCubeMeta } from "@/hooks";
 import { useCubeVizContext } from "@/provider";
 import { mergeUnitConversions } from "@/units";
 import { cn } from "@/components/ui/utils";
-import type { ChartColorToken, ChartFamily, ChartSpec } from "@/spec";
+import type { ChartColorToken, ChartSpec } from "@/spec";
 
 import { findMember, type MemberOption } from "../../primitives/meta-helpers";
 import { inferCube } from "../helpers";
@@ -34,21 +35,6 @@ export interface ChartEditOverlayProps {
   children: React.ReactNode;
 }
 
-/** Which wells anchor to the LEFT (value axis) vs the BOTTOM (category + splits). */
-const ZONES: Record<ChartFamily, { left: string[]; bottom: string[] }> = {
-  bar: { left: ["y"], bottom: ["x", "color"] },
-  line: { left: ["y"], bottom: ["x", "color"] },
-  area: { left: ["y"], bottom: ["x", "color"] },
-  combo: { left: ["y"], bottom: ["x"] },
-  pie: { left: ["size"], bottom: ["slices"] },
-  scatter: { left: ["sy"], bottom: ["sx", "size", "color"] },
-  kpi: { left: ["value"], bottom: [] },
-  table: { left: ["columns"], bottom: [] },
-};
-
-/** Value-axis families with TWO renderer-supported value axes (left + right). */
-const DUAL_AXIS = new Set<ChartFamily>(["line", "combo"]);
-
 /**
  * The panel-less, on-chart chart editor (replaces ChartBuilderPanel). The preview IS
  * the editing surface: a left Y-axis strip of selectable field slots, a bottom X-axis
@@ -67,6 +53,7 @@ export function ChartEditOverlay({
   const { locale } = useCubeVizContext();
   const { chart } = spec;
   const family = chart.family;
+  const descriptor = familyDescriptor(family);
   const cube = inferCube(spec);
 
   // The unit shown in the value-axis badge follows the viewer's unit system, so the
@@ -120,7 +107,7 @@ export function ChartEditOverlay({
    * single value axis (one unit). line/combo have TWO (left/right), each its own unit —
    * so a measure with a new unit auto-lands on the free axis, and only a THIRD unit is
    * rejected. The member's axis lives in SeriesMeta.axis (cartesian) / series.axis (combo). */
-  const dualAxis = DUAL_AXIS.has(family);
+  const dualAxis = descriptor.dualAxisY;
 
   const axisOfMember = React.useCallback(
     (m: string): "left" | "right" => {
@@ -274,7 +261,7 @@ export function ChartEditOverlay({
   const zones =
     family === "bar" && chart.orientation === "horizontal"
       ? { left: ["x"], bottom: ["y", "color"] }
-      : ZONES[family];
+      : descriptor.zones;
   const leftWells = zones.left.map((id) => wellById.get(id)).filter(Boolean) as WellDef[];
   const bottomWells = zones.bottom.map((id) => wellById.get(id)).filter(Boolean) as WellDef[];
   // A color split puts the cartesian chart in pivot mode. MULTIPLE measures may now
@@ -293,7 +280,7 @@ export function ChartEditOverlay({
   // value/category title boxes are attached to their wells as controls above the fields
   // (axisTitleControl / renderAxisGroup); the legend toggle sits in line with the bottom
   // category / split wells.
-  const hasLegend = family !== "kpi" && family !== "table";
+  const hasLegend = descriptor.hasLegend;
   const yMembers = placed.y ?? [];
   const leftYMember = yMembers.find((m) => axisOfMember(m) !== "right");
   const rightYMember = dualAxis ? yMembers.find((m) => axisOfMember(m) === "right") : undefined;
@@ -440,7 +427,7 @@ export function ChartEditOverlay({
 
       <div className="cv:flex cv:min-h-0 cv:flex-1 cv:gap-2">
         {leftWells.length > 0 ? (
-          <div className={cn("cv:flex cv:shrink-0 cv:flex-col cv:gap-3 cv:overflow-y-auto cv:pr-1", family === "kpi" ? "cv:w-56" : "cv:w-40")}>
+          <div className={cn("cv:flex cv:shrink-0 cv:flex-col cv:gap-3 cv:overflow-y-auto cv:pr-1", descriptor.sidebarWidthClass)}>
             {/* A KPI is three inline components — Value (measure + time/range/display),
                 Comparison, and Sparkline — each its own bordered block with its own config. */}
             {family === "kpi"

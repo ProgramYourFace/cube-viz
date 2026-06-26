@@ -349,6 +349,9 @@ export function App() {
       cube={connection}
       locale={{ unitSystem: settings.unitSystem, locale: settings.locale }}
       theme={{ mode: settings.theme }}
+      // The host injects its Google Maps key here (e.g. GOOGLE_API_KEY). The
+      // playground has none, so the `map` family renders its graceful placeholder.
+      maps={{ apiKey: undefined }}
     >
       <div className="mx-auto max-w-7xl space-y-6 p-6">
         <header className="flex flex-wrap items-center justify-between gap-3">

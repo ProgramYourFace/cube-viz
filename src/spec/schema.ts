@@ -145,6 +145,7 @@ export const ChartFamilySchema = z.enum([
   "kpi",
   "table",
   "combo",
+  "map",
 ]);
 export type ChartFamily = z.infer<typeof ChartFamilySchema>;
 

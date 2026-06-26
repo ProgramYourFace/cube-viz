@@ -10,6 +10,7 @@ export type {
   CubeVizProviderProps,
   CubeVizThemeConfig,
   CubeVizLocaleConfig,
+  CubeVizMapsConfig,
 } from "./CubeVizProvider";
 
 // Context + accessor.
@@ -17,6 +18,7 @@ export { CubeVizContext, useCubeVizContext } from "./context";
 export type {
   CubeVizContextValue,
   ResolvedLocale,
+  ResolvedMaps,
   ResolvedTheme,
   MemberFormatMeta,
 } from "./context";

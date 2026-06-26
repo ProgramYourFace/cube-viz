@@ -2,6 +2,7 @@ import { Context } from 'react';
 import { Cube } from '@cubejs-client/core';
 import { CubeApi } from '@cubejs-client/core';
 import { Layout } from 'react-grid-layout';
+import { LucideIcon } from 'lucide-react';
 import { Meta } from '@cubejs-client/core';
 import * as React_2 from 'react';
 import { ReactElement } from 'react';
@@ -531,8 +532,13 @@ export declare interface BridgeError {
     detail?: unknown;
 }
 
-/** The builtin family → component table. Override any entry via `components`. */
+/**
+ * The builtin family → component table, DERIVED from the descriptor registry
+ * (the single source of truth). Override any entry via `components`.
+ */
 export declare const builtinCharts: Record<ChartFamily, ChartComponent>;
+
+export declare const builtinFamilyDescriptors: Record<ChartFamily, ChartFamilyDescriptor>;
 
 /** The breakpoint key under which {@link Dashboard} stores the canonical layout. */
 export declare const CANONICAL_BREAKPOINT: "lg";
@@ -658,7 +664,73 @@ export declare interface ChartEditOverlayProps {
 
 export declare type ChartFamily = z.infer<typeof ChartFamilySchema>;
 
-export declare const ChartFamilySchema: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"]>;
+/**
+ * The SINGLE SOURCE OF TRUTH for per-chart-family behaviour.
+ *
+ * Before this registry, each family's identity was smeared across ~10 scattered
+ * tables/switches/Sets (icon + label in the picker, component in the dispatcher,
+ * option schema + defaults in `defaults.ts`, wells + zones + dual-axis + legend in
+ * the editor overlay, customize-options Set, mapping/cartesian/measure-only/compare
+ * booleans, axis-enforcement). A {@link ChartFamilyDescriptor} centralizes all of
+ * that DATA + dispatch so adding a family later is "write one descriptor (+ its
+ * procedural field writers)" rather than editing every table.
+ *
+ * What is INTENTIONALLY NOT absorbed (Phase 1): the procedural per-family bodies —
+ * `placeField`/`removeField` impls (`wells.ts`), `migrateToFamily`, the
+ * `CustomizeSection` per-family control JSX, the chip-binding patch writers, and
+ * `readWells`. Those READ descriptor flags but their bodies stay; the DATA/dispatch
+ * is what centralizes here.
+ */
+export declare interface ChartFamilyDescriptor {
+    /** The family key (the discriminator). */
+    family: ChartFamily;
+    /** Human label (the type picker tiles + the chart-type pill). */
+    label: string;
+    /** The picker tile / pill icon. */
+    icon: LucideIcon;
+    /** UI ordering in the type picker grid (ascending). */
+    order: number;
+    /** The family component (overridable per-slot via the {@link ComponentRegistry}). */
+    component: ChartComponent;
+    /** The zod schema validating this family's `familyOptions` (after default-merge). */
+    optionsSchema: z.ZodTypeAny;
+    /** Total defaults (envelope slice + familyOptions) for this family. */
+    defaults: FamilyDefault;
+    /** The typed wells (top→bottom), as the editor's pure shape. */
+    wells: WellDef[];
+    /** Which wells anchor LEFT (value axis) vs BOTTOM (category + splits) in the overlay. */
+    zones: {
+        left: string[];
+        bottom: string[];
+    };
+    /** Has TWO renderer-supported value axes (left + right). */
+    dualAxisY: boolean;
+    /** Consumes the generic `mapping` envelope (vs. storing fields in `familyOptions`). */
+    supportsMapping: boolean;
+    /** Exposes the cross-family display envelope (orientation/stack/axes). */
+    supportsCartesianAxes: boolean;
+    /** Enforces per-axis unit consistency on the multi-number value ("y") well. */
+    enforcesAxisUnit: boolean;
+    /** Still renders from a measure-only (category-less) query (mapping families). */
+    measureOnly: boolean;
+    /** Has a chart legend (everything except kpi/table). */
+    hasLegend: boolean;
+    /** Shows a type-level "Options" section in the chart-type picker. */
+    hasCustomizeOptions: boolean;
+    /** Supports previous-period comparison (bar/line/area series, kpi row). */
+    supportsComparePrevious: boolean;
+    /**
+     * HOW the previous-period result merges into render data, when supported:
+     *  - "series": one muted/dashed companion series per current series (bar/line/area).
+     *  - "kpiRow": the prior aggregate appended as a second row (kpi delta).
+     * `undefined` ⇔ `supportsComparePrevious === false`.
+     */
+    comparePreviousMode?: "series" | "kpiRow";
+    /** Editor left-strip width class — KPI needs a wider strip for its config blocks. */
+    sidebarWidthClass: string;
+}
+
+export declare const ChartFamilySchema: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
 
 /**
  * The bound, member-aware formatter every chart family consumes. Built by
@@ -683,7 +755,7 @@ export declare interface ChartFormat {
 export declare type ChartOptions = z.infer<typeof ChartOptionsSchema>;
 
 export declare const ChartOptionsSchema: z.ZodObject<{
-    family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"]>;
+    family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
     /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
      carry their own mapping inside familyOptions, so this is optional at the envelope. */
     mapping: z.ZodOptional<z.ZodObject<{
@@ -1376,7 +1448,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
     familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
 }, "strict", z.ZodTypeAny, {
-    family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+    family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
     format?: {
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
@@ -1501,7 +1573,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     } | undefined;
     familyOptions?: Record<string, unknown> | undefined;
 }, {
-    family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+    family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
     format?: {
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
@@ -1752,7 +1824,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         timezone?: string | undefined;
     }>;
     chart: z.ZodObject<{
-        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"]>;
+        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
@@ -2445,7 +2517,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -2570,7 +2642,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -2704,7 +2776,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "chart";
     chart: {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -2863,7 +2935,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
 }, {
     kind: "chart";
     chart: {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -3145,7 +3217,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         timezone?: string | undefined;
     }>;
     chart: z.ZodObject<{
-        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"]>;
+        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
@@ -3838,7 +3910,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -3963,7 +4035,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -4093,7 +4165,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     type: "chart";
     chart: {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -4248,7 +4320,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
 }, {
     type: "chart";
     chart: {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -4859,12 +4931,25 @@ export declare interface CubeVizContextValue {
     locale: ResolvedLocale;
     /** Resolved theme config. */
     theme: ResolvedTheme;
+    /**
+     * Host-injected Google Maps config for the `map` chart family. `undefined` (or an
+     * absent `apiKey`) ⇒ the map renders a graceful placeholder instead of crashing.
+     */
+    maps?: ResolvedMaps;
 }
 
 /** Host-supplied locale / formatting config. */
 export declare type CubeVizLocaleConfig = ResolvedLocale;
 
-export declare function CubeVizProvider({ cube, theme, locale, registry, children, }: CubeVizProviderProps): React_2.ReactElement;
+/**
+ * Host-supplied Google Maps config for the `map` chart family. The host injects its
+ * own Google Maps JS API key here (e.g. from `GOOGLE_API_KEY`); the library never
+ * hardcodes, stores, or logs it — it only forwards it to `<APIProvider>`. Omit it
+ * (or its `apiKey`) and the map family renders a graceful placeholder.
+ */
+export declare type CubeVizMapsConfig = ResolvedMaps;
+
+export declare function CubeVizProvider({ cube, theme, locale, maps, registry, children, }: CubeVizProviderProps): React_2.ReactElement;
 
 export declare interface CubeVizProviderProps {
     /**
@@ -4877,6 +4962,11 @@ export declare interface CubeVizProviderProps {
     theme?: CubeVizThemeConfig;
     /** Locale / formatting / unit-system / timezone config. */
     locale?: CubeVizLocaleConfig;
+    /**
+     * Google Maps config (api key / map id) for the `map` chart family. Host-owned;
+     * the library only forwards it. Absent ⇒ maps degrade to a placeholder.
+     */
+    maps?: CubeVizMapsConfig;
     /** Component overrides; absent slots fall back to the built-ins. */
     registry?: ComponentRegistry;
     children: React_2.ReactNode;
@@ -5155,7 +5245,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             timezone?: string | undefined;
         }>;
         chart: z.ZodObject<{
-            family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"]>;
+            family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
             /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
              carry their own mapping inside familyOptions, so this is optional at the envelope. */
             mapping: z.ZodOptional<z.ZodObject<{
@@ -5848,7 +5938,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
             familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         }, "strict", z.ZodTypeAny, {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -5973,7 +6063,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }, {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -6103,7 +6193,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         type: "chart";
         chart: {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -6258,7 +6348,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     }, {
         type: "chart";
         chart: {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -6742,7 +6832,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     widgets: ({
         type: "chart";
         chart: {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -6974,7 +7064,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     widgets: ({
         type: "chart";
         chart: {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -7323,8 +7413,14 @@ export declare interface FamilyDefault {
     familyOptions: Record<string, unknown>;
 }
 
+/** Accessor: the descriptor for a family (the single dispatch point). */
+export declare function familyDescriptor(family: ChartFamily): ChartFamilyDescriptor;
+
 /** Accessor: the zod schema validating a family's `familyOptions`. */
 export declare function familyOptionsSchema(family: ChartFamily): z.ZodTypeAny;
+
+/** The families in their UI (picker) order. */
+export declare const familyOrder: ChartFamily[];
 
 /**
  * Fetch `/v1/meta` and return the cubes/views list alongside the raw `Meta`
@@ -7332,6 +7428,15 @@ export declare function familyOptionsSchema(family: ChartFamily): z.ZodTypeAny;
  * reads real member names from here — they are never guessed.
  */
 export declare function fetchMeta(api: CubeClient): Promise<CubeMeta>;
+
+/**
+ * Chart Builder v2 — the PURE seam (no React). It is the single place that knows
+ * the typed-well ↔ {@link ChartSpec} mapping (docs/05 §2). Every writer returns a
+ * FULL `ChartSpec`, so the panel funnels each edit through the unchanged
+ * `update → validate → debounce-emit` engine. Unit-testable in isolation.
+ */
+/** A field's primitive role: a measure / a non-time dimension / a time dimension. */
+declare type FieldKind = "number" | "category" | "time";
 
 export declare function FilterBuilder({ cube, cubes, scope, value, onChange, disabled, className, }: FilterBuilderProps): React_2.ReactElement;
 
@@ -8333,6 +8438,70 @@ export declare function makeChartFormat(annotation: ResultAnnotation | undefined
 
 /* Excluded from this release type: makeFormatter */
 
+/**
+ * `map` — renders Cube query ROWS on a Google Map (docs/02-chart-options.md §2.8).
+ * Unlike the Recharts families it consumes `raw.rows` directly, projecting a
+ * `(lat,lng)` per row from members named in `familyOptions`, and reads the Google
+ * Maps key/mapId from the {@link useCubeVizContext} `maps` config (host-injected —
+ * NEVER hardcoded). Three modes:
+ *   - points:  one marker per row, colored by `series`.
+ *   - paths:   one polyline per series, vertices ordered by `time`.
+ *   - heatmap: a weighted HeatmapLayer (`weight` member, default 1).
+ *
+ * Degrades GRACEFULLY: no api key → a centered placeholder; no lat/lng → a
+ * "pick a field" placeholder; zero/invalid rows → an empty placeholder. It never
+ * crashes, so the playground (which has no key) renders the placeholder cleanly.
+ */
+export declare function MapChartFamily({ data, options }: ChartComponentProps): React_2.ReactElement;
+
+export declare type MapFamilyOptions = z.infer<typeof MapFamilyOptionsSchema>;
+
+/**
+ * `map` familyOptions. Like scatter/kpi, the field bindings live HERE as Cube member
+ * names (lat/lng/weight/series/time) rather than in the generic `mapping` envelope —
+ * a map isn't cartesian. `mode` picks the layer; `zoom`/`heatmapRadius` are render knobs.
+ */
+export declare const MapFamilyOptionsSchema: z.ZodObject<{
+    mode: z.ZodDefault<z.ZodEnum<["points", "paths", "heatmap"]>>;
+    /** Latitude member (numeric). */
+    lat: z.ZodOptional<z.ZodString>;
+    /** Longitude member (numeric). */
+    lng: z.ZodOptional<z.ZodString>;
+    /** Heatmap point weight member (numeric); default weight 1 when unset. */
+    weight: z.ZodOptional<z.ZodString>;
+    /** Split rows into colored series / polylines by this category member. */
+    series: z.ZodOptional<z.ZodString>;
+    /** Order path vertices by this (usually time) member; falls back to row order. */
+    time: z.ZodOptional<z.ZodString>;
+    /** Initial zoom when the data has no extent (a single point / empty). */
+    zoom: z.ZodOptional<z.ZodNumber>;
+    /** Heatmap influence radius in pixels. */
+    heatmapRadius: z.ZodOptional<z.ZodNumber>;
+}, "strict", z.ZodTypeAny, {
+    mode: "points" | "paths" | "heatmap";
+    series?: string | undefined;
+    time?: string | undefined;
+    zoom?: number | undefined;
+    lat?: string | undefined;
+    lng?: string | undefined;
+    weight?: string | undefined;
+    heatmapRadius?: number | undefined;
+}, {
+    series?: string | undefined;
+    mode?: "points" | "paths" | "heatmap" | undefined;
+    time?: string | undefined;
+    zoom?: number | undefined;
+    lat?: string | undefined;
+    lng?: string | undefined;
+    weight?: string | undefined;
+    heatmapRadius?: number | undefined;
+}>;
+
+export declare type MapMode = z.infer<typeof MapModeSchema>;
+
+/** The render modes for the `map` family. */
+export declare const MapModeSchema: z.ZodEnum<["points", "paths", "heatmap"]>;
+
 export declare type Member = z.infer<typeof MemberSchema>;
 
 /**
@@ -8621,6 +8790,20 @@ export declare interface ResolvedLocale {
      * supplies `formatValue` (that fully overrides the core formatter).
      */
     units?: Record<string, UnitDef>;
+}
+
+/**
+ * Google Maps config for the `map` chart family. The HOST injects its Google Maps
+ * JavaScript API key (and optional Cloud `mapId` for vector/styled maps) — the
+ * library NEVER hardcodes or stores a key. When `apiKey` is absent the map family
+ * degrades to a graceful placeholder (it never crashes), so the rest of cube-viz
+ * works with no maps config at all.
+ */
+export declare interface ResolvedMaps {
+    /** Google Maps JS API key (host-owned; the library only forwards it). */
+    apiKey?: string;
+    /** Optional Cloud-based Map ID (enables vector maps + AdvancedMarker). */
+    mapId?: string;
 }
 
 /** Resolved theme config (defaults applied in the provider). */
@@ -9298,7 +9481,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         timezone?: string | undefined;
     }>;
     chart: z.ZodObject<{
-        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"]>;
+        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
@@ -9991,7 +10174,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -10116,7 +10299,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -10250,7 +10433,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "chart";
     chart: {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -10409,7 +10592,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, {
     kind: "chart";
     chart: {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -10696,7 +10879,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             timezone?: string | undefined;
         }>;
         chart: z.ZodObject<{
-            family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"]>;
+            family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
             /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
              carry their own mapping inside familyOptions, so this is optional at the envelope. */
             mapping: z.ZodOptional<z.ZodObject<{
@@ -11389,7 +11572,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
             familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         }, "strict", z.ZodTypeAny, {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -11514,7 +11697,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }, {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -11644,7 +11827,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         type: "chart";
         chart: {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -11799,7 +11982,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     }, {
         type: "chart";
         chart: {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -12283,7 +12466,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     widgets: ({
         type: "chart";
         chart: {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -12515,7 +12698,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     widgets: ({
         type: "chart";
         chart: {
-            family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -13440,6 +13623,17 @@ export declare const VarRefSchema: z.ZodObject<{
     var: string;
 }>;
 
+/** A typed slot in the builder. `kinds` gates which fields may be dropped/clicked in. */
+declare interface WellDef {
+    id: string;
+    label: string;
+    hint?: string;
+    cardinality: "one" | "many";
+    kinds: FieldKind[];
+    /** Optional wells render a muted "(optional)" affordance. */
+    optional?: boolean;
+}
+
 export declare function WidgetChrome(props: WidgetChromeProps): ReactElement;
 
 /** A widget-chrome override component. */
@@ -13615,7 +13809,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         timezone?: string | undefined;
     }>;
     chart: z.ZodObject<{
-        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"]>;
+        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
@@ -14308,7 +14502,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -14433,7 +14627,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -14563,7 +14757,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, "strict", z.ZodTypeAny, {
     type: "chart";
     chart: {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -14718,7 +14912,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, {
     type: "chart";
     chart: {
-        family: "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;

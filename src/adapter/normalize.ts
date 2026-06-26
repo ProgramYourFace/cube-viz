@@ -15,6 +15,7 @@ import type {
   SeriesValueMeta,
 } from "@/adapter/types";
 import type { UnitDef } from "@/units";
+import { familyDescriptor } from "@/charts";
 
 /**
  * The resultSet → NormalizedChartData adapter — the single abstraction boundary
@@ -33,9 +34,6 @@ export const DEFAULT_COLOR_RAMP: ChartColorToken[] = [
   "chart-4",
   "chart-5",
 ];
-
-/** Mapping families that should still render from a measure-only (category-less) query. */
-const MEASURE_ONLY_FAMILIES = new Set<string>(["bar", "line", "area", "pie"]);
 
 /** Max distinct series a pivot renders before the tail is rolled into an "Other" series,
  *  so a high-cardinality split stays legible (mirrors the pie family's slice rollup). */
@@ -307,7 +305,7 @@ export function normalize(
     // blank, plot one mark per measure from the single aggregate row (categories = the
     // measure labels). scatter/kpi/table intentionally read raw, so they keep the empty
     // series list.
-    if (MEASURE_ONLY_FAMILIES.has(options.family) && measures.length > 0) {
+    if (familyDescriptor(options.family).measureOnly && measures.length > 0) {
       const row = rows[0] ?? {};
       // rows are already converted, but each datum here is a DIFFERENT measure (one mark
       // per measure), so the per-row conversion above already applied — read directly.

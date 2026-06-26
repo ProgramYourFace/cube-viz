@@ -1,17 +1,7 @@
 import * as React from "react";
-import {
-  AreaChart,
-  BarChart3,
-  BarChart4,
-  ChevronDown,
-  Gauge,
-  LineChart,
-  PieChart,
-  ScatterChart,
-  Table,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
+import { familyDescriptor, familyOrder } from "@/charts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
 import type { ChartFamily, ChartSpec } from "@/spec";
@@ -19,27 +9,8 @@ import type { ChartFamily, ChartSpec } from "@/spec";
 import { FAMILY_LABELS, migrateToFamily } from "../helpers";
 import { CustomizeSection, hasCustomizeOptions } from "../builder/CustomizeSection";
 
-const FAMILY_ORDER: ChartFamily[] = [
-  "bar",
-  "line",
-  "area",
-  "pie",
-  "scatter",
-  "kpi",
-  "table",
-  "combo",
-];
-
-const FAMILY_ICON: Record<ChartFamily, LucideIcon> = {
-  bar: BarChart3,
-  line: LineChart,
-  area: AreaChart,
-  pie: PieChart,
-  scatter: ScatterChart,
-  kpi: Gauge,
-  table: Table,
-  combo: BarChart4,
-};
+/** The picker's family order — straight from the descriptor registry. */
+const FAMILY_ORDER: ChartFamily[] = familyOrder;
 
 export interface CenterTypePickerProps {
   spec: ChartSpec;
@@ -89,7 +60,7 @@ export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps)
 export function ChartTypePill({ spec, update }: { spec: ChartSpec; update: (next: ChartSpec) => void }): React.ReactElement {
   const family = spec.chart.family;
   const setFamily = useSetFamily(spec, update);
-  const Icon = FAMILY_ICON[family];
+  const Icon = familyDescriptor(family).icon;
 
   return (
     <Popover>
@@ -133,7 +104,7 @@ function TypeGrid({ family, onPick }: TypeGridProps): React.ReactElement {
   return (
     <div className="cv:grid cv:grid-cols-4 cv:gap-1.5">
       {FAMILY_ORDER.map((f) => {
-        const Icon = FAMILY_ICON[f];
+        const Icon = familyDescriptor(f).icon;
         const active = f === family;
         return (
           <button

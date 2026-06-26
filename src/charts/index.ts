@@ -11,6 +11,14 @@
 export { ChartRenderer, builtinCharts } from "./ChartRenderer";
 export type { ChartRendererProps } from "./ChartRenderer";
 
+// The per-family descriptor registry (single source of truth for family DATA/dispatch).
+export {
+  builtinFamilyDescriptors,
+  familyDescriptor,
+  familyOrder,
+} from "./familyDescriptors";
+export type { ChartFamilyDescriptor } from "./familyDescriptors";
+
 // Family components.
 export { BarChartFamily } from "./bar";
 export { LineChartFamily } from "./line";
@@ -20,6 +28,7 @@ export { ScatterChartFamily } from "./scatter";
 export { KpiFamily } from "./kpi";
 export { TableFamily } from "./table";
 export { ComboChartFamily } from "./combo";
+export { MapChartFamily } from "./map";
 
 // Types.
 export type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
@@ -42,6 +51,8 @@ export {
   TableColumnOptSchema,
   CondFormatRuleSchema,
   ComboSeriesOptSchema,
+  MapFamilyOptionsSchema,
+  MapModeSchema,
 } from "./defaults";
 export type {
   FamilyDefault,
@@ -57,4 +68,6 @@ export type {
   CondFormatRule,
   ComboFamilyOptions,
   ComboSeriesOpt,
+  MapFamilyOptions,
+  MapMode,
 } from "./defaults";

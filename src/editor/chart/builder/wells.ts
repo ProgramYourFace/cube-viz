@@ -9,6 +9,8 @@ import type {
   TimeDimension,
 } from "@/spec";
 
+import { familyDescriptor } from "@/charts";
+
 import {
   buildSeries,
   categoryOf,
@@ -41,59 +43,13 @@ export interface WellDef {
 
 /* ─────────────────────────── per-family well sets ─────────────────────────── */
 
-const X_AXIS_HINT = "a date or category";
-
 /**
  * The typed wells for a family, top→bottom (docs/05 §2). Plain, axis-oriented
- * names. Reads NOTHING from the spec — pure shape.
+ * names. Reads NOTHING from the spec — pure shape. The well DATA now lives on the
+ * {@link ChartFamilyDescriptor} (single source of truth); this is the accessor.
  */
 export function getWells(family: ChartFamily): WellDef[] {
-  switch (family) {
-    case "bar":
-    case "line":
-    case "area":
-      return [
-        { id: "y", label: "Values", hint: "the numbers to show", cardinality: "many", kinds: ["number"] },
-        { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
-        {
-          id: "color",
-          label: "Split by",
-          hint: "one color per value",
-          cardinality: "one",
-          kinds: ["category"],
-          optional: true,
-        },
-      ];
-    case "combo":
-      return [
-        { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
-        { id: "y", label: "Values", hint: "the numbers to show", cardinality: "many", kinds: ["number"] },
-      ];
-    case "pie":
-      return [
-        { id: "slices", label: "Slices", hint: "one slice per value", cardinality: "one", kinds: ["category", "time"] },
-        { id: "size", label: "Size", hint: "size of each slice", cardinality: "one", kinds: ["number"] },
-      ];
-    case "scatter":
-      return [
-        { id: "sx", label: "Horizontal axis", hint: "a number", cardinality: "one", kinds: ["number"] },
-        { id: "sy", label: "Vertical axis", hint: "a number", cardinality: "one", kinds: ["number"] },
-        { id: "size", label: "Bubble size", hint: "a number", cardinality: "one", kinds: ["number"], optional: true },
-        { id: "color", label: "Split by", hint: "color points by category", cardinality: "one", kinds: ["category"], optional: true },
-      ];
-    case "kpi":
-      return [{ id: "value", label: "Value", hint: "the number to show", cardinality: "one", kinds: ["number"] }];
-    case "table":
-      return [
-        {
-          id: "columns",
-          label: "Columns",
-          hint: "any field, in order",
-          cardinality: "many",
-          kinds: ["number", "category", "time"],
-        },
-      ];
-  }
+  return familyDescriptor(family).wells;
 }
 
 /* ─────────────────────────────── read model ──────────────────────────────── */
@@ -181,6 +137,16 @@ export function readWells(spec: ChartSpec): Record<string, string[]> {
     }
     case "table": {
       return { columns: tableColumns(spec).map((c) => c.member) };
+    }
+    case "map": {
+      const fo = familyOptions(spec);
+      return {
+        lat: one(fo.lat as string | undefined),
+        lng: one(fo.lng as string | undefined),
+        weight: one(fo.weight as string | undefined),
+        series: one(fo.series as string | undefined),
+        time: one(fo.time as string | undefined),
+      };
     }
   }
 }
@@ -311,6 +277,8 @@ export function placeField(
       return placeKpi(spec, member);
     case "table":
       return placeTable(spec, member, kind);
+    case "map":
+      return placeMap(spec, wellId, member);
   }
 }
 
@@ -339,6 +307,8 @@ export function removeField(
       return removeKpi(spec, member);
     case "table":
       return removeTable(spec, member);
+    case "map":
+      return removeMap(spec, wellId, member);
   }
 }
 
@@ -724,5 +694,62 @@ function removeTable(spec: ChartSpec, member: string): ChartSpec {
   }
 
   const fo = { ...familyOptions(spec), columns: cols };
+  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
+}
+
+/* ── map ───────────────────────────────────────────────────────────────────── */
+
+/** Map wells ↔ familyOptions keys (mirrors the scatter pattern). */
+const MAP_WELL_TO_KEY: Record<string, "lat" | "lng" | "weight" | "series" | "time"> = {
+  lat: "lat",
+  lng: "lng",
+  weight: "weight",
+  series: "series",
+  time: "time",
+};
+
+function placeMap(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+  const key = MAP_WELL_TO_KEY[wellId];
+  if (!key) return spec;
+  const { query, chart } = spec;
+  const fo = { ...familyOptions(spec) };
+  const prev = fo[key] as string | undefined;
+  fo[key] = member;
+
+  // lat/lng/weight are measures (numbers); series is a dimension; time is a time dim.
+  let q = query;
+  if (key === "series") {
+    if (prev && prev !== member) q = dropDimension(q, prev);
+    q = ensureDimension(q, member);
+  } else if (key === "time") {
+    const prevTime = timeDimensionOf(query);
+    const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
+    const others = (query.timeDimensions ?? []).filter((t) => t.dimension !== prev && t.dimension !== member);
+    q = { ...query, timeDimensions: [...others, { dimension: member, granularity }] };
+  } else {
+    // lat / lng / weight — measures.
+    const measures = prev ? withoutMember(query.measures, prev) : query.measures;
+    q = { ...query, measures: withMember(measures, member) };
+  }
+  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
+}
+
+function removeMap(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+  const key = MAP_WELL_TO_KEY[wellId];
+  if (!key) return spec;
+  const { query, chart } = spec;
+  const fo = { ...familyOptions(spec) };
+  delete fo[key];
+
+  let q = query;
+  if (key === "series") {
+    q = dropDimension(query, member);
+  } else if (key === "time") {
+    const tds = (query.timeDimensions ?? []).filter((t) => t.dimension !== member);
+    q = { ...query, timeDimensions: tds.length ? tds : undefined };
+  } else {
+    const measures = withoutMember(query.measures, member);
+    q = { ...query, measures: measures.length ? measures : undefined };
+  }
   return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
 }

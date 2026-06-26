@@ -35,20 +35,14 @@ import { CANONICAL_BREAKPOINT, pickCanonicalLayout } from "./layout";
 
 const CANONICAL_COLS_DEFAULT = 12;
 
-function responsiveCols(canonicalCols: number): {
-  breakpoints: Record<string, number>;
-  cols: Record<string, number>;
-} {
-  return {
-    breakpoints: { lg: 996, md: 768, sm: 480, xs: 0 },
-    cols: {
-      lg: canonicalCols,
-      md: Math.max(1, Math.round(canonicalCols * 0.66)),
-      sm: Math.max(1, Math.round(canonicalCols * 0.5)),
-      xs: 1,
-    },
-  };
-}
+// The edit canvas keeps the CANONICAL column count at every width and scales the cell
+// SIZE down to fit, instead of reflowing to responsive breakpoints — so you always
+// see and edit the true canonical layout. RGL's column width already tracks the
+// container; we scale rowHeight + gaps in proportion so the whole grid shrinks
+// uniformly (cells keep their aspect ratio). Drag/resize stay accurate because the
+// layout is still in canonical grid units.
+const EDIT_DESIGN_WIDTH = 900;
+const EDIT_MIN_SCALE = 0.4;
 
 function toRglLayout(items: LayoutItem[]): RglLayoutItem[] {
   return items.map((it) => {
@@ -92,10 +86,17 @@ export function EditorCanvas({
   const margin: readonly [number, number] = grid.margin ?? [12, 12];
   const containerPadding: readonly [number, number] = grid.containerPadding ?? [0, 0];
 
-  const { breakpoints, cols } = React.useMemo(
-    () => responsiveCols(canonicalCols),
-    [canonicalCols],
-  );
+  // One canonical breakpoint (no responsive reflow); scale the cell metrics to fit.
+  const scale = Math.max(EDIT_MIN_SCALE, Math.min(1, width / EDIT_DESIGN_WIDTH));
+  const rowHeightEff = Math.max(8, Math.round(rowHeight * scale));
+  const marginEff: [number, number] = [
+    Math.round(margin[0] * scale),
+    Math.round(margin[1] * scale),
+  ];
+  const paddingEff: [number, number] = [
+    Math.round(containerPadding[0] * scale),
+    Math.round(containerPadding[1] * scale),
+  ];
 
   const layouts = React.useMemo<ResponsiveLayouts>(
     () => ({ [CANONICAL_BREAKPOINT]: toRglLayout(spec.layout) as Layout }),
@@ -131,11 +132,11 @@ export function EditorCanvas({
           <ResponsiveGridLayout
             width={width}
             layouts={layouts}
-            breakpoints={breakpoints}
-            cols={cols}
-            rowHeight={rowHeight}
-            margin={margin}
-            containerPadding={containerPadding}
+            breakpoints={{ lg: 0 }}
+            cols={{ lg: canonicalCols }}
+            rowHeight={rowHeightEff}
+            margin={marginEff}
+            containerPadding={paddingEff}
             // Drag is gated to the handle class — which the chrome header AND the
             // full-body overlay (added below for chart/text widgets) both carry, so
             // you can drag anywhere on a chart even when it has no title bar.

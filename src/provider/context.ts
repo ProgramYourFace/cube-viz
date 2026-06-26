@@ -60,6 +60,20 @@ export interface ResolvedLocale {
   units?: Record<string, UnitDef>;
 }
 
+/**
+ * Google Maps config for the `map` chart family. The HOST injects its Google Maps
+ * JavaScript API key (and optional Cloud `mapId` for vector/styled maps) — the
+ * library NEVER hardcodes or stores a key. When `apiKey` is absent the map family
+ * degrades to a graceful placeholder (it never crashes), so the rest of cube-viz
+ * works with no maps config at all.
+ */
+export interface ResolvedMaps {
+  /** Google Maps JS API key (host-owned; the library only forwards it). */
+  apiKey?: string;
+  /** Optional Cloud-based Map ID (enables vector maps + AdvancedMarker). */
+  mapId?: string;
+}
+
 /** Resolved theme config (defaults applied in the provider). */
 export interface ResolvedTheme {
   /** Series color ramp as token *names* (never raw colors); cycles when exhausted. */
@@ -78,6 +92,11 @@ export interface CubeVizContextValue {
   locale: ResolvedLocale;
   /** Resolved theme config. */
   theme: ResolvedTheme;
+  /**
+   * Host-injected Google Maps config for the `map` chart family. `undefined` (or an
+   * absent `apiKey`) ⇒ the map renders a graceful placeholder instead of crashing.
+   */
+  maps?: ResolvedMaps;
 }
 
 /** The React context. `null` until a {@link CubeVizProvider} mounts above. */

@@ -223,6 +223,36 @@ export const ComboFamilyOptionsSchema = z
   .strict();
 export type ComboFamilyOptions = z.infer<typeof ComboFamilyOptionsSchema>;
 
+/** The render modes for the `map` family. */
+export const MapModeSchema = z.enum(["points", "paths", "heatmap"]);
+export type MapMode = z.infer<typeof MapModeSchema>;
+
+/**
+ * `map` familyOptions. Like scatter/kpi, the field bindings live HERE as Cube member
+ * names (lat/lng/weight/series/time) rather than in the generic `mapping` envelope —
+ * a map isn't cartesian. `mode` picks the layer; `zoom`/`heatmapRadius` are render knobs.
+ */
+export const MapFamilyOptionsSchema = z
+  .object({
+    mode: MapModeSchema.default("points"),
+    /** Latitude member (numeric). */
+    lat: MemberSchema.optional(),
+    /** Longitude member (numeric). */
+    lng: MemberSchema.optional(),
+    /** Heatmap point weight member (numeric); default weight 1 when unset. */
+    weight: MemberSchema.optional(),
+    /** Split rows into colored series / polylines by this category member. */
+    series: MemberSchema.optional(),
+    /** Order path vertices by this (usually time) member; falls back to row order. */
+    time: MemberSchema.optional(),
+    /** Initial zoom when the data has no extent (a single point / empty). */
+    zoom: z.number().optional(),
+    /** Heatmap influence radius in pixels. */
+    heatmapRadius: z.number().optional(),
+  })
+  .strict();
+export type MapFamilyOptions = z.infer<typeof MapFamilyOptionsSchema>;
+
 /** Map a family to its `familyOptions` zod schema (validated AFTER default-merge). */
 const FAMILY_OPTION_SCHEMAS = {
   bar: BarFamilyOptionsSchema,
@@ -233,6 +263,7 @@ const FAMILY_OPTION_SCHEMAS = {
   kpi: KpiFamilyOptionsSchema,
   table: TableFamilyOptionsSchema,
   combo: ComboFamilyOptionsSchema,
+  map: MapFamilyOptionsSchema,
 } as const satisfies Record<ChartFamily, z.ZodTypeAny>;
 
 /** Accessor: the zod schema validating a family's `familyOptions`. */
@@ -344,6 +375,12 @@ export const DEFAULTS: Record<ChartFamily, FamilyDefault> = {
     },
     // series is required from the spec; an empty combo renders the empty state.
     familyOptions: { series: [] } satisfies ComboFamilyOptions,
+  },
+  map: {
+    // No Recharts envelope (legend/tooltip/format don't apply to a Google Map);
+    // lat/lng are picked by the user, so they're absent from the default skeleton.
+    envelope: {},
+    familyOptions: { mode: "points" } satisfies MapFamilyOptions,
   },
 };
 

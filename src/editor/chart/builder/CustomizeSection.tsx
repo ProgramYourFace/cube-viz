@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { DEFAULTS } from "@/charts";
+import { DEFAULTS, familyDescriptor } from "@/charts";
 import type { ChartOptions, ChartSpec } from "@/spec";
 import { Input } from "@/components/ui/input";
 
@@ -173,24 +173,55 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
 
       case "scatter":
         return null;
+
+      case "map": {
+        const mode = (fo.mode as "points" | "paths" | "heatmap") ?? "points";
+        return (
+          <>
+            <FieldRow label="Mode">
+              <SegmentedControl<"points" | "paths" | "heatmap">
+                aria-label="Map mode"
+                size="sm"
+                options={[
+                  { value: "points", label: "Points" },
+                  { value: "paths", label: "Paths" },
+                  { value: "heatmap", label: "Heatmap" },
+                ]}
+                value={mode}
+                onChange={(v) => setFamilyOptions({ mode: v })}
+              />
+            </FieldRow>
+            {mode === "heatmap" && (
+              <KField label="Heatmap radius">
+                <Input
+                  type="number"
+                  min={1}
+                  className="cv:h-8"
+                  value={(fo.heatmapRadius as number | undefined) ?? ""}
+                  placeholder="20"
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    setFamilyOptions({ heatmapRadius: Number.isFinite(n) && n > 0 ? n : undefined });
+                  }}
+                />
+              </KField>
+            )}
+          </>
+        );
+      }
     }
   })();
 
   return <div className="cv:flex cv:flex-col">{body}</div>;
 }
 
-/** Families that still have a type-level "Options" section. line / combo / scatter are
- *  fully edited in context (per-measure pills + on-chart chrome), so they have none. */
-const FAMILIES_WITH_OPTIONS = new Set<ChartSpec["chart"]["family"]>([
-  "bar",
-  "area",
-  "pie",
-  "table",
-]);
-
-/** Whether the type picker should show an "Options" section for this family. */
+/**
+ * Whether the type picker should show an "Options" section for this family — a
+ * descriptor flag. line / combo / scatter / kpi are fully edited in context
+ * (per-measure pills + on-chart chrome / the KPI strip), so they have none.
+ */
 export function hasCustomizeOptions(family: ChartSpec["chart"]["family"]): boolean {
-  return FAMILIES_WITH_OPTIONS.has(family);
+  return familyDescriptor(family).hasCustomizeOptions;
 }
 
 /** A vertical labeled field (caption above the control) for the option pickers. */

@@ -10,6 +10,7 @@ import {
   CubeVizContext,
   type CubeVizContextValue,
   type ResolvedLocale,
+  type ResolvedMaps,
   type ResolvedTheme,
 } from "./context";
 import type { ComponentRegistry } from "./registry";
@@ -36,6 +37,14 @@ export interface CubeVizThemeConfig {
 /** Host-supplied locale / formatting config. */
 export type CubeVizLocaleConfig = ResolvedLocale;
 
+/**
+ * Host-supplied Google Maps config for the `map` chart family. The host injects its
+ * own Google Maps JS API key here (e.g. from `GOOGLE_API_KEY`); the library never
+ * hardcodes, stores, or logs it — it only forwards it to `<APIProvider>`. Omit it
+ * (or its `apiKey`) and the map family renders a graceful placeholder.
+ */
+export type CubeVizMapsConfig = ResolvedMaps;
+
 export interface CubeVizProviderProps {
   /**
    * Cube access — either a fully-built {@link CubeClient} (a `@cubejs-client/core`
@@ -47,6 +56,11 @@ export interface CubeVizProviderProps {
   theme?: CubeVizThemeConfig;
   /** Locale / formatting / unit-system / timezone config. */
   locale?: CubeVizLocaleConfig;
+  /**
+   * Google Maps config (api key / map id) for the `map` chart family. Host-owned;
+   * the library only forwards it. Absent ⇒ maps degrade to a placeholder.
+   */
+  maps?: CubeVizMapsConfig;
   /** Component overrides; absent slots fall back to the built-ins. */
   registry?: ComponentRegistry;
   children: React.ReactNode;
@@ -69,6 +83,7 @@ export function CubeVizProvider({
   cube,
   theme,
   locale,
+  maps,
   registry,
   children,
 }: CubeVizProviderProps): React.ReactElement {
@@ -100,14 +115,20 @@ export function CubeVizProvider({
 
   const resolvedRegistry = useMemo<ComponentRegistry>(() => registry ?? {}, [registry]);
 
+  const resolvedMaps = useMemo<ResolvedMaps | undefined>(
+    () => (maps?.apiKey || maps?.mapId ? { apiKey: maps.apiKey, mapId: maps.mapId } : undefined),
+    [maps?.apiKey, maps?.mapId],
+  );
+
   const value = useMemo<CubeVizContextValue>(
     () => ({
       cubeClient,
       registry: resolvedRegistry,
       locale: resolvedLocale,
       theme: resolvedTheme,
+      maps: resolvedMaps,
     }),
-    [cubeClient, resolvedRegistry, resolvedLocale, resolvedTheme],
+    [cubeClient, resolvedRegistry, resolvedLocale, resolvedTheme, resolvedMaps],
   );
 
   // Apply theme.mode by scoping the `.dark` token set to the provider subtree.

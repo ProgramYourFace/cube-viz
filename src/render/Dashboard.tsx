@@ -33,22 +33,16 @@ import { WidgetChrome, DRAG_HANDLE_CLASS } from "./WidgetChrome";
 
 const CANONICAL_BREAKPOINT = "lg";
 
-/** Container-width thresholds (px) → derived column counts, scaled off the canonical cols. */
-function responsiveCols(canonicalCols: number): {
-  breakpoints: Record<string, number>;
-  cols: Record<string, number>;
-} {
-  // `lg` is the canonical (widest) layout; narrower breakpoints get progressively
-  // fewer columns so RGL clamps + compacts the canonical layout into them.
-  return {
-    breakpoints: { lg: 996, md: 768, sm: 480, xs: 0 },
-    cols: {
-      lg: canonicalCols,
-      md: Math.max(1, Math.round(canonicalCols * 0.66)),
-      sm: Math.max(1, Math.round(canonicalCols * 0.5)),
-      xs: 1,
-    },
-  };
+// Below this container width, PREVIEW mode stacks every widget into one full-width
+// column (in reading order) instead of reflowing the canonical grid — simpler and far
+// more legible on phones than squeezing the columns. (EDIT mode scales the canonical
+// grid down to fit instead; see EditorCanvas.) Above it, the canonical layout renders
+// at the container width with the canonical column count.
+const STACK_THRESHOLD = 640;
+
+/** Reading order for the stacked (small-screen) preview: top-to-bottom, then left-to-right. */
+function stackOrder(items: LayoutItem[]): LayoutItem[] {
+  return [...items].sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
 /** Map the spec's `LayoutItem[]` to RGL `LayoutItem[]` (drops absent optional fields cleanly). */
@@ -80,11 +74,6 @@ export function Dashboard({ spec, editable = false }: DashboardProps): ReactElem
   // the container edge (and don't get clipped). Override via grid.containerPadding.
   const containerPadding: readonly [number, number] = grid.containerPadding ?? margin;
 
-  const { breakpoints, cols } = useMemo(
-    () => responsiveCols(canonicalCols),
-    [canonicalCols],
-  );
-
   // ONE canonical layout under `lg`; RGL derives narrower breakpoints from it.
   const layouts = useMemo<ResponsiveLayouts>(
     () => ({ [CANONICAL_BREAKPOINT]: toRglLayout(spec.layout) as Layout }),
@@ -97,15 +86,39 @@ export function Dashboard({ spec, editable = false }: DashboardProps): ReactElem
     [spec.widgets],
   );
 
+  // Preview-only: stack into a single full-width column below the threshold.
+  const stacked = !editable && width > 0 && width < STACK_THRESHOLD;
+
   return (
     <DashboardProvider spec={spec}>
       <div ref={ref} className="cv:w-full">
-        {width > 0 ? (
+        {width <= 0 ? null : stacked ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: margin[1],
+              padding: `${containerPadding[1]}px ${containerPadding[0]}px`,
+            }}
+          >
+            {stackOrder(spec.layout).map((item) => {
+              const widget = widgetsById.get(item.i);
+              if (!widget) return null;
+              // Preserve each widget's canonical pixel height so charts stay readable.
+              const h = item.h * rowHeight + (item.h - 1) * margin[1];
+              return (
+                <div key={item.i} style={{ height: h }}>
+                  <RenderWidget widget={widget} editable={false} />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
           <ResponsiveGridLayout
             width={width}
             layouts={layouts}
-            breakpoints={breakpoints}
-            cols={cols}
+            breakpoints={{ lg: 0 }}
+            cols={{ lg: canonicalCols }}
             rowHeight={rowHeight}
             margin={margin}
             containerPadding={containerPadding}
@@ -122,7 +135,7 @@ export function Dashboard({ spec, editable = false }: DashboardProps): ReactElem
               );
             })}
           </ResponsiveGridLayout>
-        ) : null}
+        )}
       </div>
     </DashboardProvider>
   );
