@@ -9,7 +9,7 @@ import type {
   WidgetSpec,
 } from "@/spec";
 import type { ChartComponent } from "@/charts";
-import { builtinCharts } from "@/charts";
+import { familyDescriptor } from "@/charts";
 
 /**
  * The component-override surface (docs/03-override-theme-preview.md §A2). A host
@@ -114,12 +114,15 @@ export interface ComponentRegistry {
 }
 
 /**
- * Resolve the chart component for `family`: the registry override if present,
- * else the built-in. This is the per-slot resolution every renderer uses.
+ * Resolve the chart component for `family`: the {@link ComponentRegistry} override
+ * if present, else the family's registered component (builtin OR host-registered via
+ * {@link import("@/charts").registerChartFamily}). This is the per-slot resolution
+ * every renderer uses. Throws on an unknown family (a spec referencing an
+ * unregistered family is a programming error).
  */
 export function resolveChart(
   registry: ComponentRegistry | undefined,
   family: ChartFamily,
 ): ChartComponent {
-  return registry?.charts?.[family] ?? builtinCharts[family];
+  return registry?.charts?.[family] ?? familyDescriptor(family).component;
 }

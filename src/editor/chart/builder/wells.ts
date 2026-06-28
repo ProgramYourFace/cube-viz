@@ -97,6 +97,10 @@ export function readWells(spec: ChartSpec): Record<string, string[]> {
   const family = chart.family;
   const one = (m: string | undefined): string[] => (m ? [m] : []);
 
+  // Host families read their own wells off the descriptor.
+  const hostRead = familyDescriptor(family).readWells;
+  if (hostRead) return hostRead(spec);
+
   switch (family) {
     case "bar":
     case "line":
@@ -138,16 +142,8 @@ export function readWells(spec: ChartSpec): Record<string, string[]> {
     case "table": {
       return { columns: tableColumns(spec).map((c) => c.member) };
     }
-    case "map": {
-      const fo = familyOptions(spec);
-      return {
-        lat: one(fo.lat as string | undefined),
-        lng: one(fo.lng as string | undefined),
-        weight: one(fo.weight as string | undefined),
-        series: one(fo.series as string | undefined),
-        time: one(fo.time as string | undefined),
-      };
-    }
+    default:
+      return {};
   }
 }
 
@@ -262,6 +258,10 @@ export function placeField(
   member: string,
   kind: FieldKind,
 ): ChartSpec {
+  // Host families supply their own placement writer on the descriptor.
+  const hostPlace = familyDescriptor(family).placeField;
+  if (hostPlace) return hostPlace(spec, wellId, member, kind);
+
   switch (family) {
     case "bar":
     case "line":
@@ -277,8 +277,8 @@ export function placeField(
       return placeKpi(spec, member);
     case "table":
       return placeTable(spec, member, kind);
-    case "map":
-      return placeMap(spec, wellId, member);
+    default:
+      return spec;
   }
 }
 
@@ -292,6 +292,10 @@ export function removeField(
   wellId: string,
   member: string,
 ): ChartSpec {
+  // Host families supply their own removal writer on the descriptor.
+  const hostRemove = familyDescriptor(family).removeField;
+  if (hostRemove) return hostRemove(spec, wellId, member);
+
   switch (family) {
     case "bar":
     case "line":
@@ -307,8 +311,8 @@ export function removeField(
       return removeKpi(spec, member);
     case "table":
       return removeTable(spec, member);
-    case "map":
-      return removeMap(spec, wellId, member);
+    default:
+      return spec;
   }
 }
 
@@ -694,62 +698,5 @@ function removeTable(spec: ChartSpec, member: string): ChartSpec {
   }
 
   const fo = { ...familyOptions(spec), columns: cols };
-  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
-}
-
-/* ── map ───────────────────────────────────────────────────────────────────── */
-
-/** Map wells ↔ familyOptions keys (mirrors the scatter pattern). */
-const MAP_WELL_TO_KEY: Record<string, "lat" | "lng" | "weight" | "series" | "time"> = {
-  lat: "lat",
-  lng: "lng",
-  weight: "weight",
-  series: "series",
-  time: "time",
-};
-
-function placeMap(spec: ChartSpec, wellId: string, member: string): ChartSpec {
-  const key = MAP_WELL_TO_KEY[wellId];
-  if (!key) return spec;
-  const { query, chart } = spec;
-  const fo = { ...familyOptions(spec) };
-  const prev = fo[key] as string | undefined;
-  fo[key] = member;
-
-  // lat/lng/weight are measures (numbers); series is a dimension; time is a time dim.
-  let q = query;
-  if (key === "series") {
-    if (prev && prev !== member) q = dropDimension(q, prev);
-    q = ensureDimension(q, member);
-  } else if (key === "time") {
-    const prevTime = timeDimensionOf(query);
-    const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
-    const others = (query.timeDimensions ?? []).filter((t) => t.dimension !== prev && t.dimension !== member);
-    q = { ...query, timeDimensions: [...others, { dimension: member, granularity }] };
-  } else {
-    // lat / lng / weight — measures.
-    const measures = prev ? withoutMember(query.measures, prev) : query.measures;
-    q = { ...query, measures: withMember(measures, member) };
-  }
-  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
-}
-
-function removeMap(spec: ChartSpec, wellId: string, member: string): ChartSpec {
-  const key = MAP_WELL_TO_KEY[wellId];
-  if (!key) return spec;
-  const { query, chart } = spec;
-  const fo = { ...familyOptions(spec) };
-  delete fo[key];
-
-  let q = query;
-  if (key === "series") {
-    q = dropDimension(query, member);
-  } else if (key === "time") {
-    const tds = (query.timeDimensions ?? []).filter((t) => t.dimension !== member);
-    q = { ...query, timeDimensions: tds.length ? tds : undefined };
-  } else {
-    const measures = withoutMember(query.measures, member);
-    q = { ...query, measures: measures.length ? measures : undefined };
-  }
   return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
 }

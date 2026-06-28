@@ -28,7 +28,6 @@ export default defineConfig({
         /^react-dom\//,
         "recharts",
         "react-grid-layout",
-        "@vis.gl/react-google-maps",
         "@cubejs-client/core",
         /^@tiptap\//,
         "zod",

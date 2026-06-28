@@ -136,7 +136,18 @@ export type CubeQuery = z.infer<typeof CubeQuerySchema>;
 
 /* ───────────────────────────── chart options ────────────────────────────── */
 
-export const ChartFamilySchema = z.enum([
+/**
+ * The chart-family discriminator is an OPEN string, not a closed enum: a host can
+ * register an entirely new family (see `registerChartFamily`) and its specs must
+ * validate. The builtin families ship in {@link BUILTIN_CHART_FAMILIES}; unknown
+ * (host) families are dispatched through the family registry before any builtin
+ * switch. `map` is no longer builtin — it moved to the host app.
+ */
+export const ChartFamilySchema = z.string().min(1);
+export type ChartFamily = z.infer<typeof ChartFamilySchema>;
+
+/** The families cube-viz ships in-box (the picker order). `map` REMOVED. */
+export const BUILTIN_CHART_FAMILIES = [
   "bar",
   "line",
   "area",
@@ -145,9 +156,8 @@ export const ChartFamilySchema = z.enum([
   "kpi",
   "table",
   "combo",
-  "map",
-]);
-export type ChartFamily = z.infer<typeof ChartFamilySchema>;
+] as const;
+export type BuiltinChartFamily = (typeof BUILTIN_CHART_FAMILIES)[number];
 
 export const ChartColorTokenSchema = z.enum(["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]);
 export type ChartColorToken = z.infer<typeof ChartColorTokenSchema>;

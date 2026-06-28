@@ -8,7 +8,7 @@ import type {
   SeriesMeta,
   TimeDimension,
 } from "@/spec";
-import { builtinFamilyDescriptors, familyDescriptor } from "@/charts";
+import { familyDescriptor } from "@/charts";
 
 /**
  * Pure, side-effect-free helpers for the ChartEditor (docs/03 §A3.1). They derive
@@ -105,10 +105,14 @@ export function familyHasCartesianAxes(family: ChartFamily): boolean {
   return familyDescriptor(family).supportsCartesianAxes;
 }
 
-/** Human labels for the chart families — derived from the descriptor registry. */
-export const FAMILY_LABELS: Record<ChartFamily, string> = Object.fromEntries(
-  Object.entries(builtinFamilyDescriptors).map(([family, d]) => [family, d.label]),
-) as Record<ChartFamily, string>;
+/**
+ * Human label for a chart family — routed through the registry, so a host-registered
+ * family resolves correctly (a builtin-only snapshot map would return `undefined` for
+ * host families and contradict the registry being the single source of truth).
+ */
+export function familyLabel(family: ChartFamily): string {
+  return familyDescriptor(family).label;
+}
 
 /** Default granularity offered when a time dimension is first selected. */
 export const DEFAULT_GRANULARITY: Granularity = "day";
@@ -169,27 +173,13 @@ export function migrateToFamily(spec: ChartSpec, next: ChartFamily): ChartSpec {
       ].map((m) => ({ member: m }));
       return withChart({ familyOptions: cols.length ? { columns: cols } : undefined });
     }
-    case "map": {
-      // Best-effort: bind two numeric measures to lat/lng so a re-typed chart isn't
-      // empty, preferring members whose name hints at latitude/longitude. The user
-      // can always re-pick. Other geo fields stay empty.
-      const lat = pickGeo(measures, ["lat", "latitude"]) ?? measures[0];
-      const lng = pickGeo(measures, ["lng", "lon", "long", "longitude"]) ?? measures[1];
-      return withChart({
-        familyOptions: {
-          mode: "points",
-          ...(lat ? { lat } : {}),
-          ...(lng && lng !== lat ? { lng } : {}),
-        },
-      });
-    }
+    default:
+      // A host-registered family has no builtin migration recipe — switch the family
+      // and clear the builtin-shaped familyOptions. If the host family consumes the
+      // generic `mapping` envelope (supportsMapping), carry the current category +
+      // measures across so switching TO it is lossless (it reads `mapping.category` /
+      // series directly); otherwise clear mapping too and let its wells/placement
+      // re-derive structure as the user (re)binds fields.
+      return familyDescriptor(next).supportsMapping ? withChart({ mapping: cartesianMapping }) : base;
   }
-}
-
-/** Find the first member whose lowercased name contains any hint substring. */
-function pickGeo(members: string[], hints: string[]): string | undefined {
-  return members.find((m) => {
-    const lower = m.toLowerCase();
-    return hints.some((h) => lower.includes(h));
-  });
 }

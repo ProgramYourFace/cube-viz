@@ -11,13 +11,23 @@
 export { ChartRenderer, builtinCharts } from "./ChartRenderer";
 export type { ChartRendererProps } from "./ChartRenderer";
 
-// The per-family descriptor registry (single source of truth for family DATA/dispatch).
-export {
-  builtinFamilyDescriptors,
-  familyDescriptor,
-  familyOrder,
-} from "./familyDescriptors";
+// The per-family descriptor TYPE + the builtin descriptor table (DATA leaf).
+export { builtinFamilyDescriptors } from "./familyDescriptors";
 export type { ChartFamilyDescriptor } from "./familyDescriptors";
+
+// The MODULE family registry — the runtime single source of truth + host extension
+// point. `familyDescriptor`/`resolveOptions`/`familyOptionsSchema` are registry-routed
+// (they support host-registered families).
+export {
+  registerChartFamily,
+  getFamilyDescriptor,
+  familyDescriptor,
+  listFamilyDescriptors,
+  chartFamilies,
+  familyDefaults,
+  familyOptionsSchema,
+  resolveOptions,
+} from "./familyRegistry";
 
 // Family components.
 export { BarChartFamily } from "./bar";
@@ -28,17 +38,17 @@ export { ScatterChartFamily } from "./scatter";
 export { KpiFamily } from "./kpi";
 export { TableFamily } from "./table";
 export { ComboChartFamily } from "./combo";
-export { MapChartFamily } from "./map";
 
 // Types.
 export type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
 
-// Options framework: defaults, default-merge, per-family zod schemas.
+// Options framework: builtin defaults, default-merge, per-family zod schemas.
 export {
-  DEFAULTS,
-  resolveOptions,
+  BUILTIN_DEFAULTS,
+  BUILTIN_FAMILY_OPTION_SCHEMAS,
+  EMPTY_FAMILY_DEFAULT,
+  resolveOptionsWith,
   deepMerge,
-  familyOptionsSchema,
   ReferenceLineOptSchema,
   BarFamilyOptionsSchema,
   LineFamilyOptionsSchema,
@@ -51,8 +61,6 @@ export {
   TableColumnOptSchema,
   CondFormatRuleSchema,
   ComboSeriesOptSchema,
-  MapFamilyOptionsSchema,
-  MapModeSchema,
 } from "./defaults";
 export type {
   FamilyDefault,
@@ -68,6 +76,4 @@ export type {
   CondFormatRule,
   ComboFamilyOptions,
   ComboSeriesOpt,
-  MapFamilyOptions,
-  MapMode,
 } from "./defaults";
