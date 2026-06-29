@@ -1,0 +1,72 @@
+# -----------------------------------------------------------------------------
+# Release — keep the committed dist in sync with src and auto-tag each version.
+#
+# cube-viz is consumed as a GitHub dependency with a COMMITTED dist/ bundle, so
+# every published version must (a) ship a freshly-built dist and (b) carry a
+# `v<version>` git tag that consumers pin. This workflow does both on every push
+# to master:
+#   1. install + build → if dist/ changed, commit it back ([skip ci] so the
+#      resulting push doesn't re-trigger CI).
+#   2. read package.json `version`; if `v<version>` doesn't exist yet (i.e. the
+#      version was just bumped), create + push the tag — pointing at the commit
+#      that carries the matching dist.
+#
+# Runs with the built-in GITHUB_TOKEN (contents: write) — tag/branch pushes from
+# inside Actions are not subject to any external egress policy.
+# -----------------------------------------------------------------------------
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-master
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build (regenerate dist)
+        run: bun run build
+
+      - name: Commit rebuilt dist if it changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- dist; then
+            echo "dist/ unchanged — nothing to commit."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add dist
+            git commit -m "build: rebuild dist [skip ci]"
+            git push origin HEAD:master
+            echo "Committed + pushed a fresh dist."
+          fi
+
+      - name: Tag the version if it's new
+        run: |
+          set -euo pipefail
+          VERSION="v$(jq -r .version package.json)"
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "Tag ${VERSION} already exists — skipping."
+          else
+            git tag "${VERSION}"
+            git push origin "${VERSION}"
+            echo "Created and pushed tag ${VERSION} at $(git rev-parse --short HEAD)."
+          fi
