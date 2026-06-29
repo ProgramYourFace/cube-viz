@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { useId } from "react";
 import { Area, AreaChart, PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 
@@ -60,30 +61,68 @@ function NumberKpi({
 }): React.ReactElement {
   const goodDirection = fo.goodDirection ?? fo.comparison?.goodDirection ?? "up";
   const delta = computeDelta(data.raw.rows, value, fo);
+  // Comparison is CONFIGURED on this KPI (the user turned it on). We render something for
+  // it even when no baseline is available — e.g. the prior period has no data, there's no
+  // time dimension, or the range can't be offset — instead of silently dropping the chip
+  // (which read as "broken"). `delta === null` with comparison on ⇒ the graceful no-data
+  // placeholder.
+  const comparisonOn = !!fo.comparison;
   const spark = fo.sparkline ? data.series[0] : undefined;
+  const hasSpark = !!spark && spark.data.some((v) => v !== null);
   // The trend area is colored by the SAME good/bad direction as the delta: prefer the
   // comparison change, else the sparkline's own net movement across the range.
   const trendDiff = delta ? delta.diff : spark ? netChange(spark) : 0;
   const dirClass = directionClass(directionKind(trendDiff, goodDirection));
 
-  // No inner Card and no label line: the widget chrome already frames the KPI and
-  // its title IS the label (rendering both was a double border + duplicate text).
-  // Just the big number + delta + optional sparkline, inline like Embeddable.
+  // The widget chrome already frames the KPI + supplies the title, so this is just the
+  // big number, the comparison chip, and an optional trend footer — CENTERED and sized to
+  // the cell. `container-type: size` lets the headline scale via container-query units so
+  // it fills whatever cell the KPI lands in (small tile → small number, big tile → big).
   return (
-    <div className="cv:flex cv:h-full cv:w-full cv:flex-col cv:justify-center cv:gap-1">
-      <div className="cv:flex cv:items-baseline cv:gap-2">
-        <span className="cv:text-4xl cv:font-bold cv:tabular-nums cv:text-foreground">{fmt(value)}</span>
-        {delta && <DeltaChip delta={delta} goodDirection={goodDirection} fo={fo} fmt={fmt} />}
+    <div className="cv:flex cv:h-full cv:w-full cv:flex-col" style={{ containerType: "size" }}>
+      <div className="cv:flex cv:min-h-0 cv:flex-1 cv:flex-col cv:items-center cv:justify-center cv:gap-1.5 cv:overflow-hidden cv:px-3 cv:text-center">
+        <span
+          className="cv:max-w-full cv:font-bold cv:leading-none cv:tabular-nums cv:text-foreground"
+          style={{ fontSize: "clamp(1.25rem, min(16cqw, 30cqh), 3.5rem)", whiteSpace: "nowrap" }}
+        >
+          {fmt(value)}
+        </span>
+        {comparisonOn &&
+          (delta ? (
+            <DeltaChip delta={delta} goodDirection={goodDirection} fo={fo} fmt={fmt} />
+          ) : (
+            <NoComparison />
+          ))}
       </div>
-      {spark && spark.data.length > 0 && (
-        <KpiSparkline series={spark} categories={data.categories} colorClass={dirClass} />
+      {hasSpark && (
+        <div className="cv:shrink-0 cv:px-1 cv:pb-1">
+          <KpiSparkline series={spark} categories={data.categories} colorClass={dirClass} />
+        </div>
       )}
     </div>
   );
 }
 
-/** The inline area trend. Stroke + fill inherit `currentColor` from `colorClass`, so the
- *  trend always matches the delta's good/bad color. No axes/grid/tooltip (a sparkline). */
+/**
+ * Shown when comparison is enabled but NO baseline is available — most commonly the prior
+ * period simply has no data, but also covers "no time dimension" / "range can't be offset".
+ * A muted, honest placeholder beats a missing chip (which looks broken) or a phantom 0%.
+ */
+function NoComparison(): React.ReactElement {
+  return (
+    <span
+      className="cv:inline-flex cv:max-w-full cv:items-center cv:gap-1 cv:rounded-full cv:bg-muted cv:px-2 cv:py-0.5 cv:text-xs cv:font-medium cv:text-muted-foreground"
+      title="No data in the comparison period"
+    >
+      <Minus className="cv:size-3 cv:shrink-0" />
+      <span className="cv:truncate">no prior data</span>
+    </span>
+  );
+}
+
+/** The inline area trend footer. Stroke + a vertical fade fill inherit `currentColor` from
+ *  `colorClass`, so the trend always matches the delta's good/bad color. The gradient id is
+ *  per-instance (useId) so multiple KPIs on a board don't collide on a shared <defs> id. */
 function KpiSparkline({
   series,
   categories,
@@ -93,18 +132,24 @@ function KpiSparkline({
   categories: (string | number)[];
   colorClass: string;
 }): React.ReactElement {
+  const gradId = useId();
   const rows = categories.map((c, i) => ({ x: typeof c === "number" ? c : String(c), v: series.data[i] ?? null }));
   return (
-    <div className={cn("cv:mt-2 cv:h-12 cv:w-full", colorClass)}>
+    <div className={cn("cv:h-12 cv:w-full", colorClass)}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+        <AreaChart data={rows} margin={{ top: 3, right: 0, bottom: 0, left: 0 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="currentColor" stopOpacity={0.28} />
+              <stop offset="100%" stopColor="currentColor" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
           <Area
             dataKey="v"
             type="monotone"
             stroke="currentColor"
-            strokeWidth={1.5}
-            fill="currentColor"
-            fillOpacity={0.15}
+            strokeWidth={1.75}
+            fill={`url(#${gradId})`}
             dot={false}
             isAnimationActive={false}
             connectNulls
@@ -151,12 +196,17 @@ function DeltaChip({
   return (
     <span
       className={cn(
-        "cv:inline-flex cv:items-center cv:gap-0.5 cv:text-sm cv:font-medium",
-        flat ? "cv:text-muted-foreground" : isGood ? "cv:text-emerald-600" : "cv:text-destructive",
+        "cv:inline-flex cv:max-w-full cv:items-center cv:gap-1 cv:rounded-full cv:px-2 cv:py-0.5 cv:text-sm cv:font-semibold cv:leading-none cv:tabular-nums",
+        flat
+          ? "cv:bg-muted cv:text-muted-foreground"
+          : isGood
+            ? "cv:bg-emerald-500/10 cv:text-emerald-600"
+            : "cv:bg-destructive/10 cv:text-destructive",
       )}
+      title={`vs prior period: ${delta.diff > 0 ? "+" : ""}${fmt(delta.diff)}`}
     >
-      <Icon className="cv:size-3.5" />
-      {text}
+      <Icon className="cv:size-3.5 cv:shrink-0" />
+      <span className="cv:truncate">{text}</span>
     </span>
   );
 }
