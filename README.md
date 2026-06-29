@@ -456,6 +456,28 @@ export function App({ spec, cube }) {
 }
 ```
 
+## Field picker member grouping
+
+The editor's field pickers (the well/axis `FieldPickerPopover` and the `MemberPicker`)
+group a cube's members into intuitive, **authored sections** instead of one long flat
+list. Tag any dimension/measure with a `meta.group` in your Cube model and the picker
+renders members under that label (case-insensitive; members without a group fall back to
+their data-type bucket — Numbers / Categories / Dates):
+
+```yaml
+measures:
+  - name: idle_fuel
+    type: sum
+    sql: idleFuel
+    title: Idle Fuel
+    meta:
+      group: Fuel        # ← renders under a "Fuel" section in the picker
+```
+
+`meta.group` is read verbatim from `/v1/meta`, so no library wiring is needed — it works
+the moment your model exposes it. Pair with `public: false` to hide internal/RLS members
+from the picker entirely while keeping them available for joins and row-level security.
+
 ## Breaking changes
 
 ### Immutable, injected family registry (semver-major)

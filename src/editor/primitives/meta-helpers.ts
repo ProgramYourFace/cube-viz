@@ -94,6 +94,44 @@ function metaString(meta: Record<string, unknown> | undefined, key: string): str
   return typeof v === "string" ? v : undefined;
 }
 
+/**
+ * A member's semantic GROUP label, read from Cube member `meta.group` (e.g. "Fuel",
+ * "Safety", "Location"). The model authors this to organize a long member list into
+ * intuitive sections; the field pickers render it as collapsible/labelled groups.
+ * Undefined when the member carries no `meta.group` — callers fall back to a kind /
+ * cube bucket so ungrouped members still appear.
+ */
+export function memberGroup(o: { meta?: Record<string, unknown> }): string | undefined {
+  return metaString(o.meta, "group");
+}
+
+/**
+ * Group members by their {@link memberGroup} (`meta.group`), preserving first-appearance
+ * order. Grouping is case-INSENSITIVE (so "Trip metrics" and "Trip Metrics" merge under
+ * the first-seen label). Members without a group fall under `fallbackLabel(member)`
+ * (e.g. their kind label, or the owning cube). Returns `[label, members][]` in a stable
+ * order — group label first-seen order, members in their incoming (meta) order.
+ */
+export function groupMembersByMeta(
+  members: MemberOption[],
+  fallbackLabel: (m: MemberOption) => string,
+): [string, MemberOption[]][] {
+  const order: string[] = [];
+  const byKey = new Map<string, { label: string; items: MemberOption[] }>();
+  for (const m of members) {
+    const g = memberGroup(m);
+    const key = g ? `g:${g.toLowerCase()}` : `f:${fallbackLabel(m)}`;
+    let entry = byKey.get(key);
+    if (!entry) {
+      entry = { label: g ?? fallbackLabel(m), items: [] };
+      byKey.set(key, entry);
+      order.push(key);
+    }
+    entry.items.push(m);
+  }
+  return order.map((k) => [byKey.get(k)!.label, byKey.get(k)!.items] as [string, MemberOption[]]);
+}
+
 function measureToOption(m: TCubeMeasure, cube: string): MemberOption {
   const meta = m.meta as Record<string, unknown> | undefined;
   return {

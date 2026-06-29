@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/components/ui/utils";
 import { useCubeMeta } from "@/hooks";
 
-import { findCube, listMembers, type CubeOption, type MemberOption } from "../../primitives/meta-helpers";
+import { findCube, listMembers, memberGroup, type CubeOption, type MemberOption } from "../../primitives/meta-helpers";
 import type { FieldKind, WellDef } from "../builder/wells";
 import type { JoinScope } from "./join-scope";
 
@@ -36,6 +36,16 @@ const KIND_ORDER: FieldKind[] = ["number", "category", "time"];
 interface TableSection {
   cube: CubeOption;
   tag?: "source" | "related" | "dataset";
+}
+
+/** A rendered group within a table: a semantic `meta.group` or a data-type fallback bucket. */
+interface PickGroup {
+  /** Stable key (lowercased semantic group, or `k:<kind>` fallback). */
+  key: string;
+  label: string;
+  /** Data-type icon — set only for kind-fallback buckets (semantic groups may mix kinds). */
+  headerIcon?: React.ReactElement;
+  items: { option: MemberOption; kind: FieldKind }[];
 }
 
 /**
@@ -84,21 +94,42 @@ export function FieldPickerPopover({
     return out;
   }, [browse, scope, meta]);
 
-  const showKindHeaders = well.kinds.length > 1;
+  // Show a per-row data-type icon only when the well mixes kinds (e.g. a table's
+  // columns) — single-kind wells don't need it, and it would clutter the semantic groups.
+  const showRowIcon = well.kinds.length > 1;
 
-  const kindGroupsFor = (cubeName: string): { kind: FieldKind; label: string; icon: React.ReactElement; items: MemberOption[] }[] =>
-    KIND_ORDER.filter((k) => well.kinds.includes(k))
-      .map((k) => {
-        const m = GROUP_META[k];
-        const items = listMembers(meta, m.metaKind, cubeName)
-          .filter((o) => !placedSet.has(o.name))
-          .filter((o) => (q ? o.label.toLowerCase().includes(q) || o.name.toLowerCase().includes(q) : true));
-        return { kind: k, label: m.label, icon: m.icon, items };
-      })
-      .filter((g) => g.items.length > 0);
+  // Members for `cubeName` (across the well's allowed kinds, minus already-placed and
+  // non-matching-search), grouped by their SEMANTIC `meta.group` (Fuel / Safety /
+  // Location …) in first-appearance order. Members without a `meta.group` fall back to
+  // their data-type bucket (Numbers / Categories / Dates) so nothing is dropped. This is
+  // the upgrade that turns a long flat member list into intuitive, authored sections.
+  const groupsFor = (cubeName: string): PickGroup[] => {
+    const order: string[] = [];
+    const byKey = new Map<string, PickGroup>();
+    for (const k of KIND_ORDER) {
+      if (!well.kinds.includes(k)) continue;
+      const gm = GROUP_META[k];
+      for (const o of listMembers(meta, gm.metaKind, cubeName)) {
+        if (placedSet.has(o.name)) continue;
+        if (q && !(o.label.toLowerCase().includes(q) || o.name.toLowerCase().includes(q))) continue;
+        const group = memberGroup(o);
+        const key = group ? `g:${group.toLowerCase()}` : `k:${k}`;
+        let grp = byKey.get(key);
+        if (!grp) {
+          // Semantic groups can mix kinds, so they carry no header icon; the kind-fallback
+          // buckets keep their data-type icon + label.
+          grp = { key, label: group ?? gm.label, headerIcon: group ? undefined : gm.icon, items: [] };
+          byKey.set(key, grp);
+          order.push(key);
+        }
+        grp.items.push({ option: o, kind: k });
+      }
+    }
+    return order.map((key) => byKey.get(key)!);
+  };
 
   const rendered = sections
-    .map((s) => ({ section: s, groups: kindGroupsFor(s.cube.name) }))
+    .map((s) => ({ section: s, groups: groupsFor(s.cube.name) }))
     .filter((r) => r.groups.length > 0);
   const hasAny = rendered.length > 0;
 
@@ -180,15 +211,21 @@ export function FieldPickerPopover({
                   </button>
                   {expanded
                     ? groups.map((g) => (
-                        <div key={g.kind} className="cv:pb-0.5 cv:pl-4">
-                          {showKindHeaders ? (
+                        <div key={g.key} className="cv:pb-0.5 cv:pl-4">
+                          {groups.length > 1 ? (
                             <div className="cv:flex cv:items-center cv:gap-1.5 cv:px-2 cv:pb-0.5 cv:pt-1 cv:text-[9px] cv:uppercase cv:tracking-wide cv:text-muted-foreground/70">
-                              {g.icon}
+                              {g.headerIcon}
                               {g.label}
                             </div>
                           ) : null}
-                          {g.items.map((o) => (
-                            <PickerRow key={o.name} option={o} reason={blockReason(o)} onPick={() => pick(o.name, g.kind)} />
+                          {g.items.map(({ option, kind }) => (
+                            <PickerRow
+                              key={option.name}
+                              option={option}
+                              kindIcon={showRowIcon ? GROUP_META[kind].icon : undefined}
+                              reason={blockReason(option)}
+                              onPick={() => pick(option.name, kind)}
+                            />
                           ))}
                         </div>
                       ))
@@ -283,10 +320,12 @@ interface PickerRowProps {
   option: MemberOption;
   reason?: string;
   onPick: () => void;
+  /** Data-type icon, shown only for mixed-kind wells (semantic groups can mix kinds). */
+  kindIcon?: React.ReactElement;
 }
 
 /** One member row; disabled-with-reason rows stay focusable so the hint is reachable. */
-function PickerRow({ option, reason, onPick }: PickerRowProps): React.ReactElement {
+function PickerRow({ option, reason, onPick, kindIcon }: PickerRowProps): React.ReactElement {
   if (reason) {
     return (
       <span
@@ -295,7 +334,10 @@ function PickerRow({ option, reason, onPick }: PickerRowProps): React.ReactEleme
         title={reason}
         className="cv:flex cv:cursor-not-allowed cv:items-center cv:justify-between cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:opacity-45 cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring"
       >
-        <span className="cv:min-w-0 cv:truncate">{option.label}</span>
+        <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-1.5">
+          {kindIcon}
+          <span className="cv:truncate">{option.label}</span>
+        </span>
         <span className="cv:shrink-0 cv:text-[10px] cv:text-muted-foreground">Not available</span>
       </span>
     );
@@ -305,8 +347,9 @@ function PickerRow({ option, reason, onPick }: PickerRowProps): React.ReactEleme
       type="button"
       onClick={onPick}
       title={option.description ?? option.name}
-      className="cv:flex cv:w-full cv:items-center cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent cv:hover:text-accent-foreground"
+      className="cv:flex cv:w-full cv:items-center cv:gap-1.5 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent cv:hover:text-accent-foreground"
     >
+      {kindIcon}
       <span className="cv:min-w-0 cv:truncate">{option.label}</span>
     </button>
   );

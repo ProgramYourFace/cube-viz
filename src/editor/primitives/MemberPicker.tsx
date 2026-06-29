@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useCubeMeta } from "@/hooks";
 
-import { listMembers, type MemberKind, type MemberOption } from "./meta-helpers";
+import { groupMembersByMeta, listMembers, type MemberKind, type MemberOption } from "./meta-helpers";
 
 export interface MemberPickerProps {
   /** Restrict to a single cube/view; omit to allow any visible member. */
@@ -67,7 +67,26 @@ export function MemberPicker({
     }
     return listMembers(meta, kind, cube);
   }, [meta, kind, cube, cubes]);
-  const grouped = React.useMemo(() => groupByCube(members), [members]);
+  // Sections = one per (cube, semantic meta.group), so a long member list splits into
+  // intuitive groups (Fuel / Safety / …) authored on the Cube model. Members without a
+  // `meta.group` bucket under "Other". The label combines cube (when >1 cube) and group.
+  const sections = React.useMemo(() => {
+    const byCube = groupByCube(members);
+    const multiCube = byCube.length > 1;
+    const out: { key: string; label?: string; items: MemberOption[] }[] = [];
+    for (const [cubeName, items] of byCube) {
+      for (const [groupLabel, groupItems] of groupMembersByMeta(items, () => "Other")) {
+        const label = multiCube
+          ? groupLabel === "Other"
+            ? cubeName
+            : `${cubeName} · ${groupLabel}`
+          : groupLabel;
+        out.push({ key: `${cubeName}:${groupLabel}`, label, items: groupItems });
+      }
+    }
+    return out;
+  }, [members]);
+  const showLabels = sections.length > 1;
   const selected = members.find((m) => m.name === value);
 
   return (
@@ -83,10 +102,10 @@ export function MemberPicker({
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {grouped.map(([cubeName, items]) => (
-          <SelectGroup key={cubeName}>
-            {grouped.length > 1 ? <SelectLabel>{cubeName}</SelectLabel> : null}
-            {items.map((m) => (
+        {sections.map((section) => (
+          <SelectGroup key={section.key}>
+            {showLabels && section.label ? <SelectLabel>{section.label}</SelectLabel> : null}
+            {section.items.map((m) => (
               <SelectItem key={m.name} value={m.name}>
                 <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
                   {memberTypeIcon(m.type)}
