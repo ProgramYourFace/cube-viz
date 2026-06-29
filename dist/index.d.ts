@@ -532,13 +532,822 @@ export declare interface BridgeError {
     detail?: unknown;
 }
 
-/**
- * The builtin family → component table, DERIVED from the descriptor registry
- * (the single source of truth). Override any entry via `components`.
- */
-export declare const builtinCharts: Record<ChartFamily, ChartComponent>;
+/** The families cube-viz ships in-box (the picker order). `map` REMOVED. */
+export declare const BUILTIN_CHART_FAMILIES: readonly ["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"];
 
-export declare const builtinFamilyDescriptors: Record<ChartFamily, ChartFamilyDescriptor>;
+/**
+ * Total defaults per family (docs/02-chart-options.md §4). Stored specs carry
+ * only overrides, deep-merged over these. Rationale per family is in the doc.
+ */
+export declare const BUILTIN_DEFAULTS: {
+    bar: {
+        envelope: {
+            orientation: "vertical";
+            stackMode: "none";
+            legend: {
+                show: true;
+                position: "bottom";
+            };
+            tooltip: {
+                show: true;
+                indicator: "dot";
+            };
+            format: {
+                kind: "auto";
+            };
+        };
+        familyOptions: {
+            barRadius: number;
+            maxBarSize: number;
+            showValueLabels: false;
+        };
+    };
+    line: {
+        envelope: {
+            legend: {
+                show: true;
+                position: "bottom";
+            };
+            tooltip: {
+                show: true;
+                indicator: "line";
+            };
+            format: {
+                kind: "auto";
+            };
+        };
+        familyOptions: {
+            curve: "monotone";
+            strokeWidth: number;
+            dots: "active";
+            connectNulls: false;
+            chrome: "full";
+        };
+    };
+    area: {
+        envelope: {
+            legend: {
+                show: true;
+                position: "bottom";
+            };
+            tooltip: {
+                show: true;
+                indicator: "dot";
+            };
+            format: {
+                kind: "auto";
+            };
+        };
+        familyOptions: {
+            curve: "monotone";
+            fillOpacity: number;
+            strokeWidth: number;
+            connectNulls: false;
+        };
+    };
+    pie: {
+        envelope: {
+            legend: {
+                show: true;
+                position: "right";
+            };
+            tooltip: {
+                show: true;
+                indicator: "dot";
+            };
+            format: {
+                kind: "auto";
+            };
+        };
+        familyOptions: {
+            innerRadiusPct: number;
+            outerRadiusPct: number;
+            showLabels: "percent";
+            maxSlices: number;
+        };
+    };
+    scatter: {
+        envelope: {
+            legend: {
+                show: true;
+                position: "bottom";
+            };
+            tooltip: {
+                show: true;
+                indicator: "dot";
+            };
+            format: {
+                kind: "auto";
+            };
+        };
+        familyOptions: Record<string, unknown>;
+    };
+    kpi: {
+        envelope: {
+            format: {
+                kind: "auto";
+            };
+        };
+        familyOptions: Record<string, unknown>;
+    };
+    table: {
+        envelope: {};
+        familyOptions: {
+            pageSize: number;
+            sortable: true;
+            stickyHeader: true;
+            rowHeight: "default";
+        };
+    };
+    combo: {
+        envelope: {
+            legend: {
+                show: true;
+                position: "bottom";
+            };
+            tooltip: {
+                show: true;
+                indicator: "dot";
+            };
+            format: {
+                kind: "auto";
+            };
+        };
+        familyOptions: {
+            series: never[];
+        };
+    };
+};
+
+/**
+ * The builtin family → `familyOptions` zod schemas (validated AFTER default-merge).
+ * RAW DATA ONLY — this module is a registry leaf (the family registry seeds itself
+ * from here; routing the other way would create a module cycle). The public
+ * accessor that tolerates host families lives on the registry
+ * ({@link import("./familyRegistry").getFamilyOptionsSchema}).
+ */
+export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
+    bar: z.ZodObject<{
+        barRadius: z.ZodOptional<z.ZodNumber>;
+        barCategoryGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
+        barGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
+        maxBarSize: z.ZodOptional<z.ZodNumber>;
+        showValueLabels: z.ZodOptional<z.ZodBoolean>;
+        referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            axis: z.ZodEnum<["x", "y"]>;
+            value: z.ZodNumber;
+            label: z.ZodOptional<z.ZodString>;
+            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+        }, "strict", z.ZodTypeAny, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }>, "many">>;
+        comparePrevious: z.ZodOptional<z.ZodBoolean>;
+    }, "strict", z.ZodTypeAny, {
+        barRadius?: number | undefined;
+        barCategoryGap?: string | number | undefined;
+        barGap?: string | number | undefined;
+        maxBarSize?: number | undefined;
+        showValueLabels?: boolean | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        comparePrevious?: boolean | undefined;
+    }, {
+        barRadius?: number | undefined;
+        barCategoryGap?: string | number | undefined;
+        barGap?: string | number | undefined;
+        maxBarSize?: number | undefined;
+        showValueLabels?: boolean | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        comparePrevious?: boolean | undefined;
+    }>;
+    line: z.ZodObject<{
+        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
+        strokeWidth: z.ZodOptional<z.ZodNumber>;
+        dots: z.ZodOptional<z.ZodUnion<[z.ZodBoolean, z.ZodLiteral<"active">]>>;
+        connectNulls: z.ZodOptional<z.ZodBoolean>;
+        chrome: z.ZodOptional<z.ZodEnum<["full", "none"]>>;
+        referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            axis: z.ZodEnum<["x", "y"]>;
+            value: z.ZodNumber;
+            label: z.ZodOptional<z.ZodString>;
+            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+        }, "strict", z.ZodTypeAny, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }>, "many">>;
+        showValueLabels: z.ZodOptional<z.ZodBoolean>;
+        comparePrevious: z.ZodOptional<z.ZodBoolean>;
+    }, "strict", z.ZodTypeAny, {
+        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+        dots?: boolean | "active" | undefined;
+        strokeWidth?: number | undefined;
+        showValueLabels?: boolean | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        comparePrevious?: boolean | undefined;
+        connectNulls?: boolean | undefined;
+        chrome?: "none" | "full" | undefined;
+    }, {
+        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+        dots?: boolean | "active" | undefined;
+        strokeWidth?: number | undefined;
+        showValueLabels?: boolean | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        comparePrevious?: boolean | undefined;
+        connectNulls?: boolean | undefined;
+        chrome?: "none" | "full" | undefined;
+    }>;
+    area: z.ZodObject<{
+        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
+        fillOpacity: z.ZodOptional<z.ZodNumber>;
+        strokeWidth: z.ZodOptional<z.ZodNumber>;
+        connectNulls: z.ZodOptional<z.ZodBoolean>;
+        dots: z.ZodOptional<z.ZodBoolean>;
+        referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            axis: z.ZodEnum<["x", "y"]>;
+            value: z.ZodNumber;
+            label: z.ZodOptional<z.ZodString>;
+            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+        }, "strict", z.ZodTypeAny, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }>, "many">>;
+        comparePrevious: z.ZodOptional<z.ZodBoolean>;
+    }, "strict", z.ZodTypeAny, {
+        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+        dots?: boolean | undefined;
+        fillOpacity?: number | undefined;
+        strokeWidth?: number | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        comparePrevious?: boolean | undefined;
+        connectNulls?: boolean | undefined;
+    }, {
+        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+        dots?: boolean | undefined;
+        fillOpacity?: number | undefined;
+        strokeWidth?: number | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        comparePrevious?: boolean | undefined;
+        connectNulls?: boolean | undefined;
+    }>;
+    pie: z.ZodObject<{
+        innerRadiusPct: z.ZodOptional<z.ZodNumber>;
+        outerRadiusPct: z.ZodOptional<z.ZodNumber>;
+        padAngle: z.ZodOptional<z.ZodNumber>;
+        cornerRadius: z.ZodOptional<z.ZodNumber>;
+        showLabels: z.ZodOptional<z.ZodEnum<["none", "value", "percent", "name"]>>;
+        centerLabel: z.ZodOptional<z.ZodObject<{
+            value: z.ZodOptional<z.ZodString>;
+            label: z.ZodOptional<z.ZodString>;
+        }, "strict", z.ZodTypeAny, {
+            value?: string | undefined;
+            label?: string | undefined;
+        }, {
+            value?: string | undefined;
+            label?: string | undefined;
+        }>>;
+        maxSlices: z.ZodOptional<z.ZodNumber>;
+    }, "strict", z.ZodTypeAny, {
+        innerRadiusPct?: number | undefined;
+        outerRadiusPct?: number | undefined;
+        padAngle?: number | undefined;
+        cornerRadius?: number | undefined;
+        showLabels?: "value" | "percent" | "none" | "name" | undefined;
+        centerLabel?: {
+            value?: string | undefined;
+            label?: string | undefined;
+        } | undefined;
+        maxSlices?: number | undefined;
+    }, {
+        innerRadiusPct?: number | undefined;
+        outerRadiusPct?: number | undefined;
+        padAngle?: number | undefined;
+        cornerRadius?: number | undefined;
+        showLabels?: "value" | "percent" | "none" | "name" | undefined;
+        centerLabel?: {
+            value?: string | undefined;
+            label?: string | undefined;
+        } | undefined;
+        maxSlices?: number | undefined;
+    }>;
+    scatter: z.ZodObject<{
+        x: z.ZodString;
+        y: z.ZodString;
+        size: z.ZodOptional<z.ZodString>;
+        sizeRange: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+        groupBy: z.ZodOptional<z.ZodString>;
+        shape: z.ZodOptional<z.ZodEnum<["circle", "square", "triangle", "diamond"]>>;
+        referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            axis: z.ZodEnum<["x", "y"]>;
+            value: z.ZodNumber;
+            label: z.ZodOptional<z.ZodString>;
+            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+        }, "strict", z.ZodTypeAny, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }>, "many">>;
+    }, "strict", z.ZodTypeAny, {
+        x: string;
+        y: string;
+        shape?: "circle" | "square" | "triangle" | "diamond" | undefined;
+        size?: string | undefined;
+        groupBy?: string | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        sizeRange?: [number, number] | undefined;
+    }, {
+        x: string;
+        y: string;
+        shape?: "circle" | "square" | "triangle" | "diamond" | undefined;
+        size?: string | undefined;
+        groupBy?: string | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        sizeRange?: [number, number] | undefined;
+    }>;
+    kpi: z.ZodObject<{
+        display: z.ZodOptional<z.ZodEnum<["number", "gauge"]>>;
+        measure: z.ZodString;
+        comparison: z.ZodOptional<z.ZodObject<{
+            mode: z.ZodEnum<["previousPeriod", "value"]>;
+            value: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodNumber]>>;
+            showAsPercent: z.ZodOptional<z.ZodBoolean>;
+            goodDirection: z.ZodOptional<z.ZodEnum<["up", "down"]>>;
+        }, "strict", z.ZodTypeAny, {
+            mode: "value" | "previousPeriod";
+            value?: string | number | undefined;
+            showAsPercent?: boolean | undefined;
+            goodDirection?: "up" | "down" | undefined;
+        }, {
+            mode: "value" | "previousPeriod";
+            value?: string | number | undefined;
+            showAsPercent?: boolean | undefined;
+            goodDirection?: "up" | "down" | undefined;
+        }>>;
+        /** Inline AREA trend under the headline. TIED to the KPI: its measure defaults to
+         *  `measure` and its time dimension / range to the KPI's own query — only the
+         *  granularity (the trend bucket) is sparkline-specific. Its area is colored by the
+         *  same good/bad direction as the comparison delta (see `goodDirection`). */
+        sparkline: z.ZodOptional<z.ZodObject<{
+            member: z.ZodOptional<z.ZodString>;
+            timeDimension: z.ZodOptional<z.ZodString>;
+            granularity: z.ZodOptional<z.ZodUnion<[z.ZodEnum<["second", "minute", "hour", "day", "week", "month", "quarter", "year"]>, z.ZodObject<{
+                var: z.ZodString;
+            }, "strict", z.ZodTypeAny, {
+                var: string;
+            }, {
+                var: string;
+            }>]>>;
+            dateRange: z.ZodOptional<z.ZodUnion<[z.ZodUnion<[z.ZodTuple<[z.ZodString, z.ZodString], null>, z.ZodString]>, z.ZodObject<{
+                var: z.ZodString;
+            }, "strict", z.ZodTypeAny, {
+                var: string;
+            }, {
+                var: string;
+            }>]>>;
+        }, "strict", z.ZodTypeAny, {
+            member?: string | undefined;
+            granularity?: {
+                var: string;
+            } | "second" | "minute" | "hour" | "day" | "week" | "month" | "quarter" | "year" | undefined;
+            dateRange?: string | {
+                var: string;
+            } | [string, string] | undefined;
+            timeDimension?: string | undefined;
+        }, {
+            member?: string | undefined;
+            granularity?: {
+                var: string;
+            } | "second" | "minute" | "hour" | "day" | "week" | "month" | "quarter" | "year" | undefined;
+            dateRange?: string | {
+                var: string;
+            } | [string, string] | undefined;
+            timeDimension?: string | undefined;
+        }>>;
+        /** The change direction that counts as "good" — drives BOTH the comparison delta
+         *  color and the sparkline area color. Configured once for the KPI. */
+        goodDirection: z.ZodOptional<z.ZodEnum<["up", "down"]>>;
+        gauge: z.ZodOptional<z.ZodObject<{
+            min: z.ZodOptional<z.ZodNumber>;
+            max: z.ZodNumber;
+            thresholds: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                at: z.ZodNumber;
+                colorToken: z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>;
+            }, "strict", z.ZodTypeAny, {
+                at: number;
+                colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
+            }, {
+                at: number;
+                colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
+            }>, "many">>;
+        }, "strict", z.ZodTypeAny, {
+            max: number;
+            min?: number | undefined;
+            thresholds?: {
+                at: number;
+                colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
+            }[] | undefined;
+        }, {
+            max: number;
+            min?: number | undefined;
+            thresholds?: {
+                at: number;
+                colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
+            }[] | undefined;
+        }>>;
+        icon: z.ZodOptional<z.ZodString>;
+    }, "strict", z.ZodTypeAny, {
+        measure: string;
+        display?: "number" | "gauge" | undefined;
+        icon?: string | undefined;
+        gauge?: {
+            max: number;
+            min?: number | undefined;
+            thresholds?: {
+                at: number;
+                colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
+            }[] | undefined;
+        } | undefined;
+        goodDirection?: "up" | "down" | undefined;
+        comparison?: {
+            mode: "value" | "previousPeriod";
+            value?: string | number | undefined;
+            showAsPercent?: boolean | undefined;
+            goodDirection?: "up" | "down" | undefined;
+        } | undefined;
+        sparkline?: {
+            member?: string | undefined;
+            granularity?: {
+                var: string;
+            } | "second" | "minute" | "hour" | "day" | "week" | "month" | "quarter" | "year" | undefined;
+            dateRange?: string | {
+                var: string;
+            } | [string, string] | undefined;
+            timeDimension?: string | undefined;
+        } | undefined;
+    }, {
+        measure: string;
+        display?: "number" | "gauge" | undefined;
+        icon?: string | undefined;
+        gauge?: {
+            max: number;
+            min?: number | undefined;
+            thresholds?: {
+                at: number;
+                colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
+            }[] | undefined;
+        } | undefined;
+        goodDirection?: "up" | "down" | undefined;
+        comparison?: {
+            mode: "value" | "previousPeriod";
+            value?: string | number | undefined;
+            showAsPercent?: boolean | undefined;
+            goodDirection?: "up" | "down" | undefined;
+        } | undefined;
+        sparkline?: {
+            member?: string | undefined;
+            granularity?: {
+                var: string;
+            } | "second" | "minute" | "hour" | "day" | "week" | "month" | "quarter" | "year" | undefined;
+            dateRange?: string | {
+                var: string;
+            } | [string, string] | undefined;
+            timeDimension?: string | undefined;
+        } | undefined;
+    }>;
+    table: z.ZodObject<{
+        columns: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            member: z.ZodString;
+            label: z.ZodOptional<z.ZodString>;
+            format: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
+                decimals: z.ZodOptional<z.ZodNumber>;
+                abbreviate: z.ZodOptional<z.ZodBoolean>;
+                prefix: z.ZodOptional<z.ZodString>;
+                suffix: z.ZodOptional<z.ZodString>;
+                unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
+                dateFormat: z.ZodOptional<z.ZodString>;
+            }, "strict", z.ZodTypeAny, {
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            }, {
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            }>>;
+            align: z.ZodOptional<z.ZodEnum<["left", "right", "center"]>>;
+            width: z.ZodOptional<z.ZodNumber>;
+            hidden: z.ZodOptional<z.ZodBoolean>;
+        }, "strict", z.ZodTypeAny, {
+            member: string;
+            label?: string | undefined;
+            format?: {
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            hidden?: boolean | undefined;
+            width?: number | undefined;
+            align?: "left" | "right" | "center" | undefined;
+        }, {
+            member: string;
+            label?: string | undefined;
+            format?: {
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            hidden?: boolean | undefined;
+            width?: number | undefined;
+            align?: "left" | "right" | "center" | undefined;
+        }>, "many">>;
+        pageSize: z.ZodOptional<z.ZodNumber>;
+        sortable: z.ZodOptional<z.ZodBoolean>;
+        stickyHeader: z.ZodOptional<z.ZodBoolean>;
+        rowHeight: z.ZodOptional<z.ZodEnum<["compact", "default"]>>;
+        showRowNumbers: z.ZodOptional<z.ZodBoolean>;
+        conditionalFormat: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            member: z.ZodString;
+            when: z.ZodObject<{
+                op: z.ZodEnum<["gt", "lt", "gte", "lte", "eq"]>;
+                value: z.ZodNumber;
+            }, "strict", z.ZodTypeAny, {
+                value: number;
+                op: "gt" | "gte" | "lt" | "lte" | "eq";
+            }, {
+                value: number;
+                op: "gt" | "gte" | "lt" | "lte" | "eq";
+            }>;
+            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+        }, "strict", z.ZodTypeAny, {
+            member: string;
+            when: {
+                value: number;
+                op: "gt" | "gte" | "lt" | "lte" | "eq";
+            };
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }, {
+            member: string;
+            when: {
+                value: number;
+                op: "gt" | "gte" | "lt" | "lte" | "eq";
+            };
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }>, "many">>;
+    }, "strict", z.ZodTypeAny, {
+        rowHeight?: "default" | "compact" | undefined;
+        columns?: {
+            member: string;
+            label?: string | undefined;
+            format?: {
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            hidden?: boolean | undefined;
+            width?: number | undefined;
+            align?: "left" | "right" | "center" | undefined;
+        }[] | undefined;
+        pageSize?: number | undefined;
+        sortable?: boolean | undefined;
+        stickyHeader?: boolean | undefined;
+        showRowNumbers?: boolean | undefined;
+        conditionalFormat?: {
+            member: string;
+            when: {
+                value: number;
+                op: "gt" | "gte" | "lt" | "lte" | "eq";
+            };
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+    }, {
+        rowHeight?: "default" | "compact" | undefined;
+        columns?: {
+            member: string;
+            label?: string | undefined;
+            format?: {
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            hidden?: boolean | undefined;
+            width?: number | undefined;
+            align?: "left" | "right" | "center" | undefined;
+        }[] | undefined;
+        pageSize?: number | undefined;
+        sortable?: boolean | undefined;
+        stickyHeader?: boolean | undefined;
+        showRowNumbers?: boolean | undefined;
+        conditionalFormat?: {
+            member: string;
+            when: {
+                value: number;
+                op: "gt" | "gte" | "lt" | "lte" | "eq";
+            };
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+    }>;
+    combo: z.ZodObject<{
+        series: z.ZodArray<z.ZodObject<{
+            member: z.ZodString;
+            render: z.ZodEnum<["bar", "line", "area"]>;
+            axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
+            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+            stackId: z.ZodOptional<z.ZodString>;
+            curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
+            dots: z.ZodOptional<z.ZodBoolean>;
+            label: z.ZodOptional<z.ZodString>;
+        }, "strict", z.ZodTypeAny, {
+            member: string;
+            render: "bar" | "line" | "area";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            stackId?: string | undefined;
+            axis?: "left" | "right" | undefined;
+            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+            dots?: boolean | undefined;
+        }, {
+            member: string;
+            render: "bar" | "line" | "area";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            stackId?: string | undefined;
+            axis?: "left" | "right" | undefined;
+            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+            dots?: boolean | undefined;
+        }>, "many">;
+        referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            axis: z.ZodEnum<["x", "y"]>;
+            value: z.ZodNumber;
+            label: z.ZodOptional<z.ZodString>;
+            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+        }, "strict", z.ZodTypeAny, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }, {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }>, "many">>;
+        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
+        dots: z.ZodOptional<z.ZodBoolean>;
+        connectNulls: z.ZodOptional<z.ZodBoolean>;
+        strokeWidth: z.ZodOptional<z.ZodNumber>;
+        fillOpacity: z.ZodOptional<z.ZodNumber>;
+        barRadius: z.ZodOptional<z.ZodNumber>;
+    }, "strict", z.ZodTypeAny, {
+        series: {
+            member: string;
+            render: "bar" | "line" | "area";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            stackId?: string | undefined;
+            axis?: "left" | "right" | undefined;
+            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+            dots?: boolean | undefined;
+        }[];
+        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+        dots?: boolean | undefined;
+        fillOpacity?: number | undefined;
+        strokeWidth?: number | undefined;
+        barRadius?: number | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        connectNulls?: boolean | undefined;
+    }, {
+        series: {
+            member: string;
+            render: "bar" | "line" | "area";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            stackId?: string | undefined;
+            axis?: "left" | "right" | undefined;
+            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+            dots?: boolean | undefined;
+        }[];
+        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
+        dots?: boolean | undefined;
+        fillOpacity?: number | undefined;
+        strokeWidth?: number | undefined;
+        barRadius?: number | undefined;
+        referenceLines?: {
+            value: number;
+            axis: "x" | "y";
+            label?: string | undefined;
+            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        }[] | undefined;
+        connectNulls?: boolean | undefined;
+    }>;
+};
+
+export declare type BuiltinChartFamily = (typeof BUILTIN_CHART_FAMILIES)[number];
+
+/**
+ * The builtin family → component table, DERIVED from the builtin descriptors. Note
+ * this is BUILTIN-ONLY (host-registered families are NOT here); dispatch resolves
+ * the component from the live family registry via {@link familyDescriptor}, so a
+ * host family still renders. Override any entry via `components`.
+ */
+export declare const builtinCharts: Record<string, ChartComponent>;
+
+export declare const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDescriptor>;
 
 /** The breakpoint key under which {@link Dashboard} stores the canonical layout. */
 export declare const CANONICAL_BREAKPOINT: "lg";
@@ -662,6 +1471,9 @@ export declare interface ChartEditOverlayProps {
     children: React_2.ReactNode;
 }
 
+/** All registered family keys, in picker order — supersedes the static `familyOrder`. */
+export declare function chartFamilies(): ChartFamily[];
+
 export declare type ChartFamily = z.infer<typeof ChartFamilySchema>;
 
 /**
@@ -728,9 +1540,36 @@ export declare interface ChartFamilyDescriptor {
     comparePreviousMode?: "series" | "kpiRow";
     /** Editor left-strip width class — KPI needs a wider strip for its config blocks. */
     sidebarWidthClass: string;
+    /** The type-level "Options" panel for this family (rendered in the type picker). */
+    Customize?: React_2.ComponentType<{
+        spec: ChartSpec;
+        update: (next: ChartSpec) => void;
+    }>;
+    /** Place `member` (of `kind`) into well `wellId`, returning a FULL next spec. */
+    placeField?: (spec: ChartSpec, wellId: string, member: string, kind: FieldKind) => ChartSpec;
+    /** Remove `member` from well `wellId`, returning a FULL next spec. */
+    removeField?: (spec: ChartSpec, wellId: string, member: string) => ChartSpec;
+    /** Derive each well's current member name(s) from the spec (inverse of place/remove). */
+    readWells?: (spec: ChartSpec) => Record<string, string[]>;
+    /**
+     * Assign `member` to a value axis (`"left"`/`"right"`) for a `dualAxisY` family,
+     * returning a FULL next spec. The editor calls this after `placeField` on a
+     * dual-axis family so the axis lands in the SAME shape the host's own
+     * placeField/readWells read. Builtins leave this unset and the editor falls back to
+     * the builtin `withSeriesAxis` (combo / cartesian `mapping.series` meta) — so a host
+     * with its own field storage must supply this to control dual-axis assignment.
+     */
+    assignSeriesAxis?: (spec: ChartSpec, member: string, side: "left" | "right") => ChartSpec;
 }
 
-export declare const ChartFamilySchema: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
+/**
+ * The chart-family discriminator is an OPEN string, not a closed enum: a host can
+ * register an entirely new family (see `registerChartFamily`) and its specs must
+ * validate. The builtin families ship in {@link BUILTIN_CHART_FAMILIES}; unknown
+ * (host) families are dispatched through the family registry before any builtin
+ * switch. `map` is no longer builtin — it moved to the host app.
+ */
+export declare const ChartFamilySchema: z.ZodString;
 
 /**
  * The bound, member-aware formatter every chart family consumes. Built by
@@ -755,7 +1594,7 @@ export declare interface ChartFormat {
 export declare type ChartOptions = z.infer<typeof ChartOptionsSchema>;
 
 export declare const ChartOptionsSchema: z.ZodObject<{
-    family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
+    family: z.ZodString;
     /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
      carry their own mapping inside familyOptions, so this is optional at the envelope. */
     mapping: z.ZodOptional<z.ZodObject<{
@@ -1448,7 +2287,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
     familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
 }, "strict", z.ZodTypeAny, {
-    family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+    family: string;
     format?: {
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
@@ -1573,7 +2412,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     } | undefined;
     familyOptions?: Record<string, unknown> | undefined;
 }, {
-    family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+    family: string;
     format?: {
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
@@ -1824,7 +2663,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         timezone?: string | undefined;
     }>;
     chart: z.ZodObject<{
-        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
+        family: z.ZodString;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
@@ -2517,7 +3356,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -2642,7 +3481,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -2776,7 +3615,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "chart";
     chart: {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -2935,7 +3774,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
 }, {
     kind: "chart";
     chart: {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -3217,7 +4056,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         timezone?: string | undefined;
     }>;
     chart: z.ZodObject<{
-        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
+        family: z.ZodString;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
@@ -3910,7 +4749,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -4035,7 +4874,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -4165,7 +5004,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     type: "chart";
     chart: {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -4320,7 +5159,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
 }, {
     type: "chart";
     chart: {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -4949,7 +5788,7 @@ export declare type CubeVizLocaleConfig = ResolvedLocale;
  */
 export declare type CubeVizMapsConfig = ResolvedMaps;
 
-export declare function CubeVizProvider({ cube, theme, locale, maps, registry, children, }: CubeVizProviderProps): React_2.ReactElement;
+export declare function CubeVizProvider({ cube, theme, locale, maps, registry, families, children, }: CubeVizProviderProps): React_2.ReactElement;
 
 export declare interface CubeVizProviderProps {
     /**
@@ -4969,6 +5808,14 @@ export declare interface CubeVizProviderProps {
     maps?: CubeVizMapsConfig;
     /** Component overrides; absent slots fall back to the built-ins. */
     registry?: ComponentRegistry;
+    /**
+     * Host-registered chart families (the extension point now that `map` is no longer
+     * builtin — a host ships its own `map` descriptor here). Registered into the MODULE
+     * family registry on mount, so they appear in the type picker, are editable
+     * (wells/placement/customize), validate (optionsSchema/defaults), and render
+     * (component). Registration is module-global and idempotent by `descriptor.family`.
+     */
+    families?: ChartFamilyDescriptor[];
     children: React_2.ReactNode;
 }
 
@@ -5245,7 +6092,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             timezone?: string | undefined;
         }>;
         chart: z.ZodObject<{
-            family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
+            family: z.ZodString;
             /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
              carry their own mapping inside familyOptions, so this is optional at the envelope. */
             mapping: z.ZodOptional<z.ZodObject<{
@@ -5938,7 +6785,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
             familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         }, "strict", z.ZodTypeAny, {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -6063,7 +6910,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }, {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -6193,7 +7040,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         type: "chart";
         chart: {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -6348,7 +7195,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     }, {
         type: "chart";
         chart: {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -6832,7 +7679,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     widgets: ({
         type: "chart";
         chart: {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -7064,7 +7911,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     widgets: ({
         type: "chart";
         chart: {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -7321,12 +8168,6 @@ export declare const defaultFormatter: ValueFormatter;
 /** Per-type sensible default value when a variable's `type` changes. */
 export declare function defaultForType(type: VariableDecl["type"]): VariableDecl["default"];
 
-/**
- * Total defaults per family (docs/02-chart-options.md §4). Stored specs carry
- * only overrides, deep-merged over these. Rationale per family is in the doc.
- */
-export declare const DEFAULTS: Record<ChartFamily, FamilyDefault>;
-
 /** The RGL drag-handle class — Dashboard passes this as `draggableHandle`. */
 export declare const DRAG_HANDLE_CLASS = "cube-viz-drag-handle";
 
@@ -7399,6 +8240,9 @@ export declare interface EditorToolbarProps {
  */
 export declare const EM_DASH = "\u2014";
 
+/** The neutral default for a family that has none registered (no envelope, no opts). */
+export declare const EMPTY_FAMILY_DEFAULT: FamilyDefault;
+
 /** The error state slot. Never receives tenant data — message only. */
 export declare type ErrorStateComponent = React_2.ComponentType<ErrorStateProps>;
 
@@ -7413,14 +8257,25 @@ export declare interface FamilyDefault {
     familyOptions: Record<string, unknown>;
 }
 
-/** Accessor: the descriptor for a family (the single dispatch point). */
+/** The family's total defaults (envelope + familyOptions); empty for an unknown family. */
+export declare function familyDefaults(family: ChartFamily): FamilyDefault;
+
+/**
+ * The descriptor for `family` (the single dispatch point). Throws on an unknown
+ * family — every editor/render path that calls this has already resolved a real
+ * family, so an unknown key is a programming error worth failing loudly on.
+ *
+ * Replaces the old builtin-only `familyDescriptor` (same name, now registry-backed),
+ * so every existing call site transparently supports host families.
+ */
 export declare function familyDescriptor(family: ChartFamily): ChartFamilyDescriptor;
 
-/** Accessor: the zod schema validating a family's `familyOptions`. */
+/**
+ * The zod schema validating a family's `familyOptions` (after default-merge). For an
+ * unknown family it falls back to a permissive passthrough so an unrecognized spec
+ * doesn't throw at validation time (it just isn't normalized).
+ */
 export declare function familyOptionsSchema(family: ChartFamily): z.ZodTypeAny;
-
-/** The families in their UI (picker) order. */
-export declare const familyOrder: ChartFamily[];
 
 /**
  * Fetch `/v1/meta` and return the cubes/views list alongside the raw `Meta`
@@ -7436,7 +8291,7 @@ export declare function fetchMeta(api: CubeClient): Promise<CubeMeta>;
  * `update → validate → debounce-emit` engine. Unit-testable in isolation.
  */
 /** A field's primitive role: a measure / a non-time dimension / a time dimension. */
-declare type FieldKind = "number" | "category" | "time";
+export declare type FieldKind = "number" | "category" | "time";
 
 export declare function FilterBuilder({ cube, cubes, scope, value, onChange, disabled, className, }: FilterBuilderProps): React_2.ReactElement;
 
@@ -7558,6 +8413,9 @@ export declare const FormatOptionsSchema: z.ZodObject<{
  */
 /** Where a value is being rendered. Lets a host vary formatting by surface. */
 export declare type FormatRole = "value" | "axis" | "tooltip" | "label" | "category" | "kpi";
+
+/** The descriptor for `family`, or `undefined` if no such family is registered. */
+export declare function getFamilyDescriptor(family: ChartFamily): ChartFamilyDescriptor | undefined;
 
 export declare type Granularity = z.infer<typeof GranularitySchema>;
 
@@ -8412,6 +9270,9 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
     chrome?: "none" | "full" | undefined;
 }>;
 
+/** All registered descriptors, sorted by `order` (ascending), then key for ties. */
+export declare function listFamilyDescriptors(): ChartFamilyDescriptor[];
+
 export declare type LoadResult = {
     ok: true;
     spec: Spec;
@@ -8437,70 +9298,6 @@ export declare function makeChartFormat(annotation: ResultAnnotation | undefined
 /* Excluded from this release type: makeDateFormatter */
 
 /* Excluded from this release type: makeFormatter */
-
-/**
- * `map` — renders Cube query ROWS on a Google Map (docs/02-chart-options.md §2.8).
- * Unlike the Recharts families it consumes `raw.rows` directly, projecting a
- * `(lat,lng)` per row from members named in `familyOptions`, and reads the Google
- * Maps key/mapId from the {@link useCubeVizContext} `maps` config (host-injected —
- * NEVER hardcoded). Three modes:
- *   - points:  one marker per row, colored by `series`.
- *   - paths:   one polyline per series, vertices ordered by `time`.
- *   - heatmap: a weighted HeatmapLayer (`weight` member, default 1).
- *
- * Degrades GRACEFULLY: no api key → a centered placeholder; no lat/lng → a
- * "pick a field" placeholder; zero/invalid rows → an empty placeholder. It never
- * crashes, so the playground (which has no key) renders the placeholder cleanly.
- */
-export declare function MapChartFamily({ data, options }: ChartComponentProps): React_2.ReactElement;
-
-export declare type MapFamilyOptions = z.infer<typeof MapFamilyOptionsSchema>;
-
-/**
- * `map` familyOptions. Like scatter/kpi, the field bindings live HERE as Cube member
- * names (lat/lng/weight/series/time) rather than in the generic `mapping` envelope —
- * a map isn't cartesian. `mode` picks the layer; `zoom`/`heatmapRadius` are render knobs.
- */
-export declare const MapFamilyOptionsSchema: z.ZodObject<{
-    mode: z.ZodDefault<z.ZodEnum<["points", "paths", "heatmap"]>>;
-    /** Latitude member (numeric). */
-    lat: z.ZodOptional<z.ZodString>;
-    /** Longitude member (numeric). */
-    lng: z.ZodOptional<z.ZodString>;
-    /** Heatmap point weight member (numeric); default weight 1 when unset. */
-    weight: z.ZodOptional<z.ZodString>;
-    /** Split rows into colored series / polylines by this category member. */
-    series: z.ZodOptional<z.ZodString>;
-    /** Order path vertices by this (usually time) member; falls back to row order. */
-    time: z.ZodOptional<z.ZodString>;
-    /** Initial zoom when the data has no extent (a single point / empty). */
-    zoom: z.ZodOptional<z.ZodNumber>;
-    /** Heatmap influence radius in pixels. */
-    heatmapRadius: z.ZodOptional<z.ZodNumber>;
-}, "strict", z.ZodTypeAny, {
-    mode: "points" | "paths" | "heatmap";
-    series?: string | undefined;
-    time?: string | undefined;
-    zoom?: number | undefined;
-    lat?: string | undefined;
-    lng?: string | undefined;
-    weight?: string | undefined;
-    heatmapRadius?: number | undefined;
-}, {
-    series?: string | undefined;
-    mode?: "points" | "paths" | "heatmap" | undefined;
-    time?: string | undefined;
-    zoom?: number | undefined;
-    lat?: string | undefined;
-    lng?: string | undefined;
-    weight?: string | undefined;
-    heatmapRadius?: number | undefined;
-}>;
-
-export declare type MapMode = z.infer<typeof MapModeSchema>;
-
-/** The render modes for the `map` family. */
-export declare const MapModeSchema: z.ZodEnum<["points", "paths", "heatmap"]>;
 
 export declare type Member = z.infer<typeof MemberSchema>;
 
@@ -8733,6 +9530,16 @@ export declare const ReferenceLineOptSchema: z.ZodObject<{
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
 }>;
 
+/**
+ * Register (or replace) a chart family. After this the family appears in the type
+ * picker, is editable (wells / placement / customize), validates (optionsSchema /
+ * defaults), and renders (component) — everything derives from the registry.
+ *
+ * Idempotent by key: registering the same `descriptor.family` twice replaces it
+ * (so a host re-render that re-registers is harmless).
+ */
+export declare function registerChartFamily(descriptor: ChartFamilyDescriptor): void;
+
 /** A dashboard spec with one widget (+ its layout item) removed. Pure. */
 export declare function removeWidget(spec: DashboardSpec, id: string): DashboardSpec;
 
@@ -8760,8 +9567,11 @@ export declare interface RenderWidgetProps {
 export declare function replaceWidget(spec: DashboardSpec, widget: WidgetSpec): DashboardSpec;
 
 /**
- * Resolve the chart component for `family`: the registry override if present,
- * else the built-in. This is the per-slot resolution every renderer uses.
+ * Resolve the chart component for `family`: the {@link ComponentRegistry} override
+ * if present, else the family's registered component (builtin OR host-registered via
+ * {@link import("@/charts").registerChartFamily}). This is the per-slot resolution
+ * every renderer uses. Throws on an unknown family (a spec referencing an
+ * unregistered family is a programming error).
  */
 export declare function resolveChart(registry: ComponentRegistry | undefined, family: ChartFamily): ChartComponent;
 
@@ -8815,11 +9625,25 @@ export declare interface ResolvedTheme {
 }
 
 /**
- * Resolve a chart's options: deep-merge the family's envelope defaults under the
- * spec's envelope, and the family's familyOptions defaults under the spec's
- * familyOptions. Arrays (referenceLines/columns/series) are replaced, not merged.
+ * Resolve a chart's options against ITS family's defaults (registry-routed, so a
+ * host family resolves exactly like a builtin). Deep-merges envelope + familyOptions
+ * defaults under the spec; arrays replace wholesale. This is the public
+ * `resolveOptions` every renderer uses.
  */
 export declare function resolveOptions(options: ChartOptions): ChartOptions;
+
+/**
+ * Resolve a chart's options against a family default: deep-merge the family's
+ * envelope defaults under the spec's envelope, and the family's familyOptions
+ * defaults under the spec's familyOptions. Arrays (referenceLines/columns/series)
+ * are replaced, not merged.
+ *
+ * `resolveOptionsWith` takes the default EXPLICITLY so this module stays a registry
+ * leaf (no import of the family registry). The public {@link
+ * import("./familyRegistry").resolveOptions} looks the default up from the registry
+ * — supporting host families — and delegates here.
+ */
+export declare function resolveOptionsWith(options: ChartOptions, d: FamilyDefault): ChartOptions;
 
 /**
  * Leg-2 resolution: deep-walk a `CubeQuery`, substitute every `{var}` token, then
@@ -8901,6 +9725,7 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
     y: string;
     shape?: "circle" | "square" | "triangle" | "diamond" | undefined;
     size?: string | undefined;
+    groupBy?: string | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
@@ -8908,12 +9733,12 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
     sizeRange?: [number, number] | undefined;
-    groupBy?: string | undefined;
 }, {
     x: string;
     y: string;
     shape?: "circle" | "square" | "triangle" | "diamond" | undefined;
     size?: string | undefined;
+    groupBy?: string | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
@@ -8921,7 +9746,6 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
     sizeRange?: [number, number] | undefined;
-    groupBy?: string | undefined;
 }>;
 
 /**
@@ -9481,7 +10305,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         timezone?: string | undefined;
     }>;
     chart: z.ZodObject<{
-        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
+        family: z.ZodString;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
@@ -10174,7 +10998,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -10299,7 +11123,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -10433,7 +11257,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "chart";
     chart: {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -10592,7 +11416,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, {
     kind: "chart";
     chart: {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -10879,7 +11703,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             timezone?: string | undefined;
         }>;
         chart: z.ZodObject<{
-            family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
+            family: z.ZodString;
             /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
              carry their own mapping inside familyOptions, so this is optional at the envelope. */
             mapping: z.ZodOptional<z.ZodObject<{
@@ -11572,7 +12396,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
             familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         }, "strict", z.ZodTypeAny, {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -11697,7 +12521,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }, {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -11827,7 +12651,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         type: "chart";
         chart: {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -11982,7 +12806,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     }, {
         type: "chart";
         chart: {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -12466,7 +13290,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     widgets: ({
         type: "chart";
         chart: {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -12698,7 +13522,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     widgets: ({
         type: "chart";
         chart: {
-            family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+            family: string;
             format?: {
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
@@ -13624,7 +14448,7 @@ export declare const VarRefSchema: z.ZodObject<{
 }>;
 
 /** A typed slot in the builder. `kinds` gates which fields may be dropped/clicked in. */
-declare interface WellDef {
+export declare interface WellDef {
     id: string;
     label: string;
     hint?: string;
@@ -13809,7 +14633,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         timezone?: string | undefined;
     }>;
     chart: z.ZodObject<{
-        family: z.ZodEnum<["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo", "map"]>;
+        family: z.ZodString;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
@@ -14502,7 +15326,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -14627,7 +15451,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -14757,7 +15581,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, "strict", z.ZodTypeAny, {
     type: "chart";
     chart: {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
@@ -14912,7 +15736,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, {
     type: "chart";
     chart: {
-        family: "map" | "bar" | "line" | "area" | "pie" | "scatter" | "kpi" | "table" | "combo";
+        family: string;
         format?: {
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
