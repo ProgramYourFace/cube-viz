@@ -2,12 +2,12 @@ import { z } from "zod";
 
 import {
   ChartColorTokenSchema,
-  DateRangeSchema,
   FormatOptionsSchema,
   GranularitySchema,
   MemberSchema,
   VarRefSchema,
-  type ChartFamily,
+  DateRangeSchema,
+  type BuiltinChartFamily,
   type ChartOptions,
 } from "@/spec";
 
@@ -223,38 +223,14 @@ export const ComboFamilyOptionsSchema = z
   .strict();
 export type ComboFamilyOptions = z.infer<typeof ComboFamilyOptionsSchema>;
 
-/** The render modes for the `map` family. */
-export const MapModeSchema = z.enum(["points", "paths", "heatmap"]);
-export type MapMode = z.infer<typeof MapModeSchema>;
-
 /**
- * `map` familyOptions. Like scatter/kpi, the field bindings live HERE as Cube member
- * names (lat/lng/weight/series/time) rather than in the generic `mapping` envelope —
- * a map isn't cartesian. `mode` picks the layer; `zoom`/`heatmapRadius` are render knobs.
+ * The builtin family → `familyOptions` zod schemas (validated AFTER default-merge).
+ * RAW DATA ONLY — this module is a registry leaf (the family registry seeds itself
+ * from here; routing the other way would create a module cycle). The public
+ * accessor that tolerates host families lives on the registry
+ * ({@link import("./familyRegistry").getFamilyOptionsSchema}).
  */
-export const MapFamilyOptionsSchema = z
-  .object({
-    mode: MapModeSchema.default("points"),
-    /** Latitude member (numeric). */
-    lat: MemberSchema.optional(),
-    /** Longitude member (numeric). */
-    lng: MemberSchema.optional(),
-    /** Heatmap point weight member (numeric); default weight 1 when unset. */
-    weight: MemberSchema.optional(),
-    /** Split rows into colored series / polylines by this category member. */
-    series: MemberSchema.optional(),
-    /** Order path vertices by this (usually time) member; falls back to row order. */
-    time: MemberSchema.optional(),
-    /** Initial zoom when the data has no extent (a single point / empty). */
-    zoom: z.number().optional(),
-    /** Heatmap influence radius in pixels. */
-    heatmapRadius: z.number().optional(),
-  })
-  .strict();
-export type MapFamilyOptions = z.infer<typeof MapFamilyOptionsSchema>;
-
-/** Map a family to its `familyOptions` zod schema (validated AFTER default-merge). */
-const FAMILY_OPTION_SCHEMAS = {
+export const BUILTIN_FAMILY_OPTION_SCHEMAS = {
   bar: BarFamilyOptionsSchema,
   line: LineFamilyOptionsSchema,
   area: AreaFamilyOptionsSchema,
@@ -263,13 +239,7 @@ const FAMILY_OPTION_SCHEMAS = {
   kpi: KpiFamilyOptionsSchema,
   table: TableFamilyOptionsSchema,
   combo: ComboFamilyOptionsSchema,
-  map: MapFamilyOptionsSchema,
-} as const satisfies Record<ChartFamily, z.ZodTypeAny>;
-
-/** Accessor: the zod schema validating a family's `familyOptions`. */
-export function familyOptionsSchema(family: ChartFamily): z.ZodTypeAny {
-  return FAMILY_OPTION_SCHEMAS[family];
-}
+} satisfies Record<BuiltinChartFamily, z.ZodTypeAny>;
 
 /* ──────────────────────────────── defaults ───────────────────────────────── */
 
@@ -283,7 +253,7 @@ export interface FamilyDefault {
  * Total defaults per family (docs/02-chart-options.md §4). Stored specs carry
  * only overrides, deep-merged over these. Rationale per family is in the doc.
  */
-export const DEFAULTS: Record<ChartFamily, FamilyDefault> = {
+export const BUILTIN_DEFAULTS = {
   bar: {
     envelope: {
       orientation: "vertical",
@@ -376,13 +346,7 @@ export const DEFAULTS: Record<ChartFamily, FamilyDefault> = {
     // series is required from the spec; an empty combo renders the empty state.
     familyOptions: { series: [] } satisfies ComboFamilyOptions,
   },
-  map: {
-    // No Recharts envelope (legend/tooltip/format don't apply to a Google Map);
-    // lat/lng are picked by the user, so they're absent from the default skeleton.
-    envelope: {},
-    familyOptions: { mode: "points" } satisfies MapFamilyOptions,
-  },
-};
+} satisfies Record<BuiltinChartFamily, FamilyDefault>;
 
 /* ──────────────────────────────── merge ──────────────────────────────────── */
 
@@ -409,13 +373,21 @@ export function deepMerge<T>(base: T, override: unknown): T {
   return out as T;
 }
 
+/** The neutral default for a family that has none registered (no envelope, no opts). */
+export const EMPTY_FAMILY_DEFAULT: FamilyDefault = { envelope: {}, familyOptions: {} };
+
 /**
- * Resolve a chart's options: deep-merge the family's envelope defaults under the
- * spec's envelope, and the family's familyOptions defaults under the spec's
- * familyOptions. Arrays (referenceLines/columns/series) are replaced, not merged.
+ * Resolve a chart's options against a family default: deep-merge the family's
+ * envelope defaults under the spec's envelope, and the family's familyOptions
+ * defaults under the spec's familyOptions. Arrays (referenceLines/columns/series)
+ * are replaced, not merged.
+ *
+ * `resolveOptionsWith` takes the default EXPLICITLY so this module stays a registry
+ * leaf (no import of the family registry). The public {@link
+ * import("./familyRegistry").resolveOptions} looks the default up from the registry
+ * — supporting host families — and delegates here.
  */
-export function resolveOptions(options: ChartOptions): ChartOptions {
-  const d = DEFAULTS[options.family];
+export function resolveOptionsWith(options: ChartOptions, d: FamilyDefault): ChartOptions {
   const merged = deepMerge<ChartOptions>({ ...(d.envelope as ChartOptions) }, options);
   return {
     ...merged,

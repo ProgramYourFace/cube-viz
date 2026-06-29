@@ -1,16 +1,13 @@
 import * as React from "react";
 import { ChevronDown } from "lucide-react";
 
-import { familyDescriptor, familyOrder } from "@/charts";
+import { chartFamilies, familyDescriptor } from "@/charts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
 import type { ChartFamily, ChartSpec } from "@/spec";
 
-import { FAMILY_LABELS, migrateToFamily } from "../helpers";
+import { migrateToFamily } from "../helpers";
 import { CustomizeSection, hasCustomizeOptions } from "../builder/CustomizeSection";
-
-/** The picker's family order — straight from the descriptor registry. */
-const FAMILY_ORDER: ChartFamily[] = familyOrder;
 
 export interface CenterTypePickerProps {
   spec: ChartSpec;
@@ -71,7 +68,7 @@ export function ChartTypePill({ spec, update }: { spec: ChartSpec; update: (next
           title="Change chart type"
         >
           <Icon className="cv:size-3.5 cv:text-muted-foreground" />
-          {FAMILY_LABELS[family]}
+          {familyDescriptor(family).label}
           <ChevronDown className="cv:size-3 cv:text-muted-foreground" />
         </button>
       </PopoverTrigger>
@@ -103,7 +100,7 @@ interface TypeGridProps {
 function TypeGrid({ family, onPick }: TypeGridProps): React.ReactElement {
   return (
     <div className="cv:grid cv:grid-cols-4 cv:gap-1.5">
-      {FAMILY_ORDER.map((f) => {
+      {chartFamilies().map((f) => {
         const Icon = familyDescriptor(f).icon;
         const active = f === family;
         return (
@@ -120,7 +117,7 @@ function TypeGrid({ family, onPick }: TypeGridProps): React.ReactElement {
             )}
           >
             <Icon className="cv:size-4" />
-            {FAMILY_LABELS[f]}
+            {familyDescriptor(f).label}
           </button>
         );
       })}

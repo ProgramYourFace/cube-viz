@@ -8,7 +8,7 @@ import type { ChartFamily } from "@/spec";
 import type { ChartFormat } from "@/format";
 import { defaultFormatter, makeChartFormat } from "@/format";
 import type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
-import { resolveOptions } from "./defaults";
+import { resolveOptions, familyDescriptor } from "./familyRegistry";
 import { configFromSeries } from "./_shared";
 import { builtinFamilyDescriptors } from "./familyDescriptors";
 
@@ -23,12 +23,14 @@ import { builtinFamilyDescriptors } from "./familyDescriptors";
  */
 
 /**
- * The builtin family → component table, DERIVED from the descriptor registry
- * (the single source of truth). Override any entry via `components`.
+ * The builtin family → component table, DERIVED from the builtin descriptors. Note
+ * this is BUILTIN-ONLY (host-registered families are NOT here); dispatch resolves
+ * the component from the live family registry via {@link familyDescriptor}, so a
+ * host family still renders. Override any entry via `components`.
  */
-export const builtinCharts: Record<ChartFamily, ChartComponent> = Object.fromEntries(
+export const builtinCharts: Record<string, ChartComponent> = Object.fromEntries(
   Object.entries(builtinFamilyDescriptors).map(([family, d]) => [family, d.component]),
-) as Record<ChartFamily, ChartComponent>;
+);
 
 export interface ChartRendererProps extends Omit<ChartComponentProps, "format"> {
   /**
@@ -86,8 +88,11 @@ export function ChartRenderer({
   const chartFormat: ChartFormat =
     format ?? makeChartFormat(data.raw.annotation, resolved, defaultFormatter);
 
-  // 4) dispatch.
-  const Family = components?.[resolved.family] ?? builtinCharts[resolved.family];
+  // 4) dispatch: a per-slot override wins; else the family's registered component
+  // (builtin OR host-registered). `familyDescriptor` throws (with an actionable
+  // "register it with registerChartFamily" message) on an unknown family — a spec
+  // referencing an unregistered family is a programming error.
+  const Family = components?.[resolved.family] ?? familyDescriptor(resolved.family).component;
   return (
     <Family
       data={data}

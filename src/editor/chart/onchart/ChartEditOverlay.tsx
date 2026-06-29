@@ -109,6 +109,21 @@ export function ChartEditOverlay({
    * rejected. The member's axis lives in SeriesMeta.axis (cartesian) / series.axis (combo). */
   const dualAxis = descriptor.dualAxisY;
 
+  // Assign a freshly-placed measure to a value axis. Builtins use the shared
+  // `withSeriesAxis` (combo / cartesian `mapping.series` meta). A HOST family that
+  // supplies its own placeField stores fields in its own shape, so the builtin-shaped
+  // write would either orphan data on its spec or silently no-op — route through the
+  // host's `assignSeriesAxis` hook when present, and NEVER run `withSeriesAxis` on a
+  // host spec (it understands only the builtin shapes).
+  const assignAxis = React.useCallback(
+    (next: ChartSpec, member: string, side: "left" | "right"): ChartSpec => {
+      if (descriptor.assignSeriesAxis) return descriptor.assignSeriesAxis(next, member, side);
+      if (descriptor.placeField) return next; // host placement, no axis hook — leave as-is
+      return withSeriesAxis(next, family, member, side);
+    },
+    [descriptor, family],
+  );
+
   const axisOfMember = React.useCallback(
     (m: string): "left" | "right" => {
       if (family === "combo") {
@@ -220,10 +235,10 @@ export function ChartEditOverlay({
       if (blockReason(wellId, option)) return; // picker already disables these
       let next = placeField(spec, family, wellId, name, kind);
       // On a dual-axis family, auto-assign the new measure to the axis matching its unit.
-      if (dualAxis && wellId === "y") next = withSeriesAxis(next, family, name, targetAxis(option));
+      if (dualAxis && wellId === "y") next = assignAxis(next, name, targetAxis(option));
       update(next);
     },
-    [blockReason, meta, update, spec, family, dualAxis, targetAxis],
+    [blockReason, meta, update, spec, family, dualAxis, targetAxis, assignAxis],
   );
 
   /* ── dual-axis: explicit Left/Right value wells, each its own unit ───────── */
@@ -251,9 +266,9 @@ export function ChartEditOverlay({
     (side: "left" | "right", name: string, kind: FieldKind): void => {
       const option = findMember(meta, name);
       if (blockReasonForAxis(side, option)) return;
-      update(withSeriesAxis(placeField(spec, family, "y", name, kind), family, name, side));
+      update(assignAxis(placeField(spec, family, "y", name, kind), name, side));
     },
-    [blockReasonForAxis, meta, update, spec, family],
+    [blockReasonForAxis, meta, update, spec, family, assignAxis],
   );
 
   // Zones adapt to STATE: a horizontal bar swaps its value + category axes (value on the

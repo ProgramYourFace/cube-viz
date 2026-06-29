@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { DEFAULTS, familyDescriptor } from "@/charts";
+import { familyDefaults, familyDescriptor } from "@/charts";
 import type { ChartOptions, ChartSpec } from "@/spec";
 import { Input } from "@/components/ui/input";
 
@@ -31,6 +31,13 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
   const family = chart.family;
   const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
 
+  // Host-registered families supply their own Customize panel on the descriptor.
+  const descriptor = familyDescriptor(family);
+  if (descriptor.Customize) {
+    const HostCustomize = descriptor.Customize;
+    return <HostCustomize spec={spec} update={update} />;
+  }
+
   const setEnvelope = (patch: Partial<ChartOptions>): void =>
     update({ ...spec, chart: { ...chart, ...patch } });
   const setFamilyOptions = (patch: Record<string, unknown>): void =>
@@ -41,7 +48,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
   const areaDefault = chart.mapping?.series?.mode === "pivot" ? "stacked" : "none";
   const effectiveStack =
     chart.stackMode ??
-    (family === "area" ? areaDefault : DEFAULTS[family].envelope.stackMode) ??
+    (family === "area" ? areaDefault : familyDefaults(family).envelope.stackMode) ??
     "none";
   const stackValue: StackChoice =
     effectiveStack === "stacked" ? "stacked" : effectiveStack === "percent" ? "percent" : "none";
@@ -174,41 +181,8 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
       case "scatter":
         return null;
 
-      case "map": {
-        const mode = (fo.mode as "points" | "paths" | "heatmap") ?? "points";
-        return (
-          <>
-            <FieldRow label="Mode">
-              <SegmentedControl<"points" | "paths" | "heatmap">
-                aria-label="Map mode"
-                size="sm"
-                options={[
-                  { value: "points", label: "Points" },
-                  { value: "paths", label: "Paths" },
-                  { value: "heatmap", label: "Heatmap" },
-                ]}
-                value={mode}
-                onChange={(v) => setFamilyOptions({ mode: v })}
-              />
-            </FieldRow>
-            {mode === "heatmap" && (
-              <KField label="Heatmap radius">
-                <Input
-                  type="number"
-                  min={1}
-                  className="cv:h-8"
-                  value={(fo.heatmapRadius as number | undefined) ?? ""}
-                  placeholder="20"
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value, 10);
-                    setFamilyOptions({ heatmapRadius: Number.isFinite(n) && n > 0 ? n : undefined });
-                  }}
-                />
-              </KField>
-            )}
-          </>
-        );
-      }
+      default:
+        return null;
     }
   })();
 
@@ -216,12 +190,17 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
 }
 
 /**
- * Whether the type picker should show an "Options" section for this family — a
- * descriptor flag. line / combo / scatter / kpi are fully edited in context
- * (per-measure pills + on-chart chrome / the KPI strip), so they have none.
+ * Whether the type picker should show an "Options" section for this family. For a
+ * builtin it's the descriptor flag (line / combo / scatter / kpi are fully edited in
+ * context — per-measure pills + on-chart chrome / the KPI strip — so they have none).
+ * A HOST family that supplies its own `descriptor.Customize` panel ALWAYS shows it,
+ * regardless of the builtin-options flag — the two are independent, and a self-contained
+ * host that sets `hasCustomizeOptions: false` would otherwise have its panel suppressed
+ * (CenterTypePicker short-circuits before CustomizeSection's host dispatch runs).
  */
 export function hasCustomizeOptions(family: ChartSpec["chart"]["family"]): boolean {
-  return familyDescriptor(family).hasCustomizeOptions;
+  const descriptor = familyDescriptor(family);
+  return descriptor.hasCustomizeOptions || descriptor.Customize !== undefined;
 }
 
 /** A vertical labeled field (caption above the control) for the option pickers. */

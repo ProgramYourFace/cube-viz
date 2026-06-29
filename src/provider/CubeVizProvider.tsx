@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { ChartColorToken } from "@/spec";
 import { createCubeClient, DEFAULT_COLOR_RAMP } from "@/adapter";
 import type { CubeClient, CubeConnection } from "@/adapter";
+import { registerChartFamily, type ChartFamilyDescriptor } from "@/charts";
 import { cn } from "@/components/ui/utils";
 
 import {
@@ -63,6 +64,14 @@ export interface CubeVizProviderProps {
   maps?: CubeVizMapsConfig;
   /** Component overrides; absent slots fall back to the built-ins. */
   registry?: ComponentRegistry;
+  /**
+   * Host-registered chart families (the extension point now that `map` is no longer
+   * builtin — a host ships its own `map` descriptor here). Registered into the MODULE
+   * family registry on mount, so they appear in the type picker, are editable
+   * (wells/placement/customize), validate (optionsSchema/defaults), and render
+   * (component). Registration is module-global and idempotent by `descriptor.family`.
+   */
+  families?: ChartFamilyDescriptor[];
   children: React.ReactNode;
 }
 
@@ -85,8 +94,17 @@ export function CubeVizProvider({
   locale,
   maps,
   registry,
+  families,
   children,
 }: CubeVizProviderProps): React.ReactElement {
+  // Register host families into the MODULE family registry. Done synchronously (in a
+  // memo) BEFORE the subtree renders, so the first paint of the type picker / dispatch
+  // already sees them. Registration is module-global + idempotent by family key, so a
+  // re-render that re-registers the same descriptors is harmless.
+  useMemo(() => {
+    for (const descriptor of families ?? []) registerChartFamily(descriptor);
+  }, [families]);
+
   // Build (or adopt) the Cube client. Rebuilt only when the connection identity
   // changes — never logged, never persisted. A ready CubeApi is adopted as-is.
   const cubeClient = useMemo<CubeClient>(
