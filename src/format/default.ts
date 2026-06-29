@@ -102,7 +102,7 @@ export const defaultFormatter: ValueFormatter = (ctx) => {
   const { value, format, granularity } = ctx;
 
   if (value === null || value === undefined) return EM_DASH;
-  if (typeof value === "number" && Number.isNaN(value)) return EM_DASH;
+  if (typeof value === "number" && !Number.isFinite(value)) return EM_DASH;
 
   // Dates (explicit kind, Date/ISO value, or a time-bucket category number).
   if ((isDate(value) || typeof value === "string" || typeof value === "number") && isDateLike(ctx)) {

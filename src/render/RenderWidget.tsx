@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type ReactElement, type ReactNode } from
 
 import type { WidgetSpec } from "@/spec";
 
+import { ChartErrorBoundary } from "./ChartErrorBoundary";
 import { CubeChart, type CubeChartProps } from "./CubeChart";
 import { TextWidget } from "./TextWidget";
 import { InputWidgetView } from "./InputWidgetView";
@@ -66,7 +67,9 @@ export function RenderWidget({ widget, dragHandleProps = {}, editable = false }:
   if (widget.type === "text" || widget.type === "input") {
     return (
       <div className="cv:h-full cv:w-full cv:overflow-auto cv:p-2">
-        <WidgetBody widget={widget} />
+        <ChartErrorBoundary>
+          <WidgetBody widget={widget} />
+        </ChartErrorBoundary>
       </div>
     );
   }
@@ -94,7 +97,9 @@ export function RenderWidget({ widget, dragHandleProps = {}, editable = false }:
       {/* Inline style (not a utility) so the capture wrapper fills regardless of
           the host's Tailwind — it's the node PNG/SVG export rasterizes. */}
       <div ref={bodyRef} style={{ height: "100%", width: "100%" }}>
-        <WidgetBody widget={widget} onState={onState} />
+        <ChartErrorBoundary>
+          <WidgetBody widget={widget} onState={onState} />
+        </ChartErrorBoundary>
       </div>
     </WidgetChrome>
   );

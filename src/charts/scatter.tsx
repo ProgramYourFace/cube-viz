@@ -37,6 +37,17 @@ export function ScatterChartFamily({ data, options, format, editing }: ChartComp
   const ann = data.raw.annotation;
   const rows = data.raw.rows;
 
+  // Without an x/y member every point projects to {x:null,y:null} and the chart
+  // mounts axes with zero plotted marks (rows are present, so the renderer's
+  // "No data" never fires). Guard with the shared muted empty-state chrome.
+  if (!fo.x || !fo.y) {
+    return (
+      <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
+        No data
+      </div>
+    );
+  }
+
   // The scatter point keys (x/y/z) map back to their Cube members for formatting.
   const memberForKey: Record<string, string | undefined> = { x: fo.x, y: fo.y, z: fo.size };
 

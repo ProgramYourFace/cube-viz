@@ -90,7 +90,7 @@ export function createUnitsFormatter(
     // Dates / strings / category axis → the core minimal default.
     if (ctx.role === "category" || typeof ctx.value === "string") return defaultFormatter(ctx);
     if (ctx.value === null || ctx.value === undefined) return "—";
-    if (typeof ctx.value !== "number" || Number.isNaN(ctx.value)) return "—";
+    if (typeof ctx.value !== "number" || !Number.isFinite(ctx.value)) return "—";
 
     const value = ctx.value;
     const meta = ctx.meta;

@@ -28,6 +28,7 @@ export const ReferenceLineOptSchema = z
   .object({
     axis: z.enum(["x", "y"]),
     value: z.number(),
+    side: z.enum(["left", "right"]).optional(), // combo dual-axis: which y-scale
     label: z.string().optional(),
     colorToken: ChartColorTokenSchema.optional(),
   })

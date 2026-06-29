@@ -228,9 +228,9 @@ function memberMeta(ann: ResultAnnotation, member: string) {
 }
 
 function alignClass(align?: TableColumnOpt["align"]): string {
-  if (align === "right") return "text-right";
-  if (align === "center") return "text-center";
-  return "text-left";
+  if (align === "right") return "cv:text-right";
+  if (align === "center") return "cv:text-center";
+  return "cv:text-left";
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir?: "asc" | "desc" }): React.ReactElement {

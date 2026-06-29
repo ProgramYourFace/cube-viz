@@ -199,3 +199,28 @@ export function percentTick(value: number | string | null | undefined, locale?: 
     maximumFractionDigits: 0,
   }).format(n);
 }
+
+/**
+ * percent-stack tooltip: show each series' SHARE of its row total, not the raw value.
+ * The tooltip payload carries the ORIGINAL datum (Recharts expands only the geometry),
+ * so derive the share from `item.payload` (the `{__cat, <key>: value}` row). Mirrors
+ * percentTick's no-data convention (empty string) when the row total is 0 / non-finite.
+ */
+export function percentShareFormatter(
+  locale?: string,
+): (value: unknown, item: { payload?: Record<string, unknown> }) => string {
+  return (value, item) => {
+    const n = typeof value === "number" ? value : Number(value);
+    const row = item?.payload;
+    let total = 0;
+    if (row) {
+      for (const [k, v] of Object.entries(row)) {
+        if (k === "__cat") continue;
+        const num = typeof v === "number" ? v : Number(v);
+        if (Number.isFinite(num)) total += num;
+      }
+    }
+    if (!Number.isFinite(n) || !Number.isFinite(total) || total === 0) return "";
+    return percentTick(n / total, locale);
+  };
+}

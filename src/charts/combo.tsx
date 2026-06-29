@@ -129,16 +129,21 @@ export function ComboChartFamily({ data, options, format, editing }: ChartCompon
           />
         )}
         {seriesOpts.map((s) => renderSeries(s, data, fo))}
-        {fo.referenceLines?.map((r, k) => (
-          <ReferenceLine
-            key={k}
-            yAxisId="left"
-            {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
-            label={r.label}
-            stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-            strokeDasharray="4 4"
-          />
-        ))}
+        {fo.referenceLines?.map((r, k) => {
+          // Bind to the explicit `side`, else fall back to the axis that actually
+          // carries data (right when there's a right axis but no left series).
+          const refAxis = r.side ?? (hasRight && !leftMember ? "right" : "left");
+          return (
+            <ReferenceLine
+              key={k}
+              yAxisId={refAxis}
+              {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
+              label={r.label}
+              stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
+              strokeDasharray="4 4"
+            />
+          );
+        })}
       </ComposedChart>
     </ChartContainer>
   );

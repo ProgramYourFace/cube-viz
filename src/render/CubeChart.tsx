@@ -113,6 +113,14 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
     // KPI sparkline: the trend's series/categories overlay the aggregate (headline reads raw).
     if (sparkInput && sparkline.data) {
       result = { ...result, series: sparkline.data.series, categories: sparkline.data.categories };
+      // Recompute `empty` from what the KPI family ACTUALLY renders: the headline reads
+      // `raw.rows` and the sparkline footer reads `series`. The aggregate `data.empty`
+      // alone would suppress (via ChartRenderer's empty short-circuit) a KPI whose
+      // headline range is empty but whose trend has data — so the cell is non-empty when
+      // EITHER source has something to show.
+      const hasHeadline = result.raw.rows.length > 0;
+      const hasTrend = result.series.some((s) => s.data.some((v) => v !== null));
+      result = { ...result, empty: !hasHeadline && !hasTrend };
     }
 
     // Previous-period comparison (applied AFTER the sparkline so a KPI can have both).
@@ -132,13 +140,27 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
         // bar/line/area: one muted/dashed companion series per current series, paired by
         // key (so it inherits the same colour) and read positionally (bucket i) against the
         // current categories — "this period vs last" overlaid.
+        //
+        // buildRows reads every series positionally (`s.data[i]` against category i), so a
+        // companion MUST be exactly `result.categories.length` long and offset-aligned to
+        // the current window's start. Both windows are anchored at their start (start-of-
+        // week/month/…), so offset-from-start IS the correct pairing — but the prev window
+        // can have a different bucket count (e.g. "this week" on day granularity yields a
+        // partial current week vs a whole 7-day prior week; "last 1 month" on days yields
+        // April's 30 vs May's 31). Reproject onto the current length: truncate the prev
+        // tail that has no current counterpart, null-pad where prev is shorter. Without
+        // this, a longer prev silently drops its tail and a shorter prev leaves trailing
+        // buckets mis-paired.
+        const len = result.categories.length;
         const companions = compare.data.series.map((s) => {
           const paired = result.series.find((b) => b.key === s.key);
+          const data = Array.from({ length: len }, (_, i) => s.data[i] ?? null);
           return {
             ...s,
             key: `${s.key}__prev`,
             label: `${paired?.label ?? s.label} (prev)`,
             colorToken: paired?.colorToken ?? s.colorToken,
+            data,
             meta: { ...s.meta, companion: true },
           };
         });

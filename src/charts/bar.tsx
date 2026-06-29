@@ -31,6 +31,7 @@ import {
   legendLayout,
   legendVerticalAlign,
   memberByKey,
+  percentShareFormatter,
   percentTick,
   resolvedAxisLabels,
   seriesColorVar,
@@ -150,7 +151,7 @@ export function BarChartFamily({
                 indicator={options.tooltip?.indicator ?? "dot"}
                 valueFormatter={
                   percent
-                    ? (value) => percentTick(value as number | string | null | undefined)
+                    ? percentShareFormatter()
                     : tooltipValueFormatter(format, undefined, keyToMember)
                 }
               />

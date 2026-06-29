@@ -50,6 +50,7 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
+        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -57,11 +58,13 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }>, "many">>;
     comparePrevious: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
@@ -74,6 +77,7 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
@@ -87,6 +91,7 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
@@ -500,6 +505,7 @@ export declare const BarFamilyOptionsSchema: z.ZodObject<{
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
+        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -507,11 +513,13 @@ export declare const BarFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }>, "many">>;
     comparePrevious: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
@@ -525,6 +533,7 @@ export declare const BarFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
 }, {
@@ -538,6 +547,7 @@ export declare const BarFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
 }>;
@@ -722,6 +732,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
+            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -729,11 +740,13 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }>, "many">>;
         comparePrevious: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
@@ -747,6 +760,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
     }, {
@@ -760,6 +774,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
     }>;
@@ -772,6 +787,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
+            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -779,11 +795,13 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }>, "many">>;
         showValueLabels: z.ZodOptional<z.ZodBoolean>;
         comparePrevious: z.ZodOptional<z.ZodBoolean>;
@@ -797,6 +815,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
@@ -811,6 +830,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
@@ -825,6 +845,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
+            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -832,11 +853,13 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }>, "many">>;
         comparePrevious: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
@@ -849,6 +872,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
@@ -862,6 +886,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
@@ -916,6 +941,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
+            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -923,11 +949,13 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }>, "many">>;
     }, "strict", z.ZodTypeAny, {
         x: string;
@@ -940,6 +968,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         sizeRange?: [number, number] | undefined;
     }, {
@@ -953,6 +982,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         sizeRange?: [number, number] | undefined;
     }>;
@@ -1295,6 +1325,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
+            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -1302,11 +1333,13 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }>, "many">>;
         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
         dots: z.ZodOptional<z.ZodBoolean>;
@@ -1335,6 +1368,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         connectNulls?: boolean | undefined;
     }, {
@@ -1358,6 +1392,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+            side?: "left" | "right" | undefined;
         }[] | undefined;
         connectNulls?: boolean | undefined;
     }>;
@@ -5413,6 +5448,7 @@ export declare const ComboFamilyOptionsSchema: z.ZodObject<{
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
+        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -5420,11 +5456,13 @@ export declare const ComboFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }>, "many">>;
     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
     dots: z.ZodOptional<z.ZodBoolean>;
@@ -5453,6 +5491,7 @@ export declare const ComboFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     connectNulls?: boolean | undefined;
 }, {
@@ -5476,6 +5515,7 @@ export declare const ComboFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     connectNulls?: boolean | undefined;
 }>;
@@ -9355,6 +9395,7 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
+        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -9362,11 +9403,13 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }>, "many">>;
     showValueLabels: z.ZodOptional<z.ZodBoolean>;
     comparePrevious: z.ZodOptional<z.ZodBoolean>;
@@ -9380,6 +9423,7 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
@@ -9394,6 +9438,7 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
@@ -9645,6 +9690,7 @@ export declare type ReferenceLineOpt = z.infer<typeof ReferenceLineOptSchema>;
 export declare const ReferenceLineOptSchema: z.ZodObject<{
     axis: z.ZodEnum<["x", "y"]>;
     value: z.ZodNumber;
+    side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
     label: z.ZodOptional<z.ZodString>;
     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
 }, "strict", z.ZodTypeAny, {
@@ -9652,11 +9698,13 @@ export declare const ReferenceLineOptSchema: z.ZodObject<{
     axis: "x" | "y";
     label?: string | undefined;
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+    side?: "left" | "right" | undefined;
 }, {
     value: number;
     axis: "x" | "y";
     label?: string | undefined;
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+    side?: "left" | "right" | undefined;
 }>;
 
 /** A dashboard spec with one widget (+ its layout item) removed. Pure. */
@@ -9830,6 +9878,7 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
+        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -9837,11 +9886,13 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }>, "many">>;
 }, "strict", z.ZodTypeAny, {
     x: string;
@@ -9854,6 +9905,7 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     sizeRange?: [number, number] | undefined;
 }, {
@@ -9867,6 +9919,7 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+        side?: "left" | "right" | undefined;
     }[] | undefined;
     sizeRange?: [number, number] | undefined;
 }>;

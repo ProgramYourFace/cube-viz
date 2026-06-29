@@ -34,7 +34,10 @@ export function KpiFamily(props: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as KpiFamilyOptions;
   const fmt = (v: number) => format.value(v, fo.measure, "kpi");
 
-  const value = readMeasure(data.raw.rows, fo.measure) ?? 0;
+  // Read the headline from the CURRENT (first) row ONLY. With previous-period
+  // comparison on, rows = [current, prior]; a null current measure must NOT fall
+  // through to the prior row (readMeasure scans all rows) and borrow its value.
+  const value = readMeasure([data.raw.rows[0] ?? {}], fo.measure) ?? 0;
   const label =
     data.raw.annotation?.measures[fo.measure]?.shortTitle ??
     data.raw.annotation?.measures[fo.measure]?.title ??

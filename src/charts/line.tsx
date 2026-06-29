@@ -64,7 +64,11 @@ export function LineChartFamily({
 
   // Visible points only when explicitly enabled; the hover dot stays on (for tooltips)
   // unless this is a chrome-less sparkline.
-  const dotProp = !sparkline && fo.dots === true;
+  // A single data point has no line segment to draw; without a dot it would be
+  // invisible. Force a visible point in that case (graceful degradation), while
+  // leaving the normal multi-point default (dots only when explicitly enabled).
+  const singlePoint = rows.length <= 1;
+  const dotProp = !sparkline && (fo.dots === true || singlePoint);
   const activeDotProp = !sparkline;
 
   return (

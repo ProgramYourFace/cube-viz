@@ -53,6 +53,27 @@ export function PieChartFamily({ data, options, format, editing }: ChartComponen
   const slices = rollupSlices(raw, fo.maxSlices);
   const total = slices.reduce((sum, s) => sum + s.value, 0);
 
+  // Negative values break pie geometry (Recharts walks the sweep backwards) and
+  // produce negative percent labels. Degrade visibly instead of misrendering.
+  if (slices.some((s) => s.value < 0)) {
+    return (
+      <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
+        Pie charts can&apos;t show negative values
+      </div>
+    );
+  }
+
+  // Recharts only draws sectors when the value-sum is > 0 (Pie.js: `if (sum > 0)`).
+  // With rows present but every measure null/0, data.empty is false, so the
+  // renderer's "No data" never fires — guard here to avoid a silently blank chart.
+  if (slices.length === 0 || total <= 0) {
+    return (
+      <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
+        No data
+      </div>
+    );
+  }
+
   // 3) per-slice ChartConfig so the legend/tooltip resolve labels + colors.
   const config: ChartConfig = {};
   slices.forEach((s, i) => {
