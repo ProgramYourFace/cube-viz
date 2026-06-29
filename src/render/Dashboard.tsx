@@ -10,7 +10,9 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
 import type { ChartSpec, DashboardSpec, GridConfig, LayoutItem } from "@/spec";
+import type { ChartFamilyDescriptor } from "@/charts";
 import { DashboardProvider } from "@/hooks";
+import { FamilyRegistryOverride } from "@/provider";
 
 import { useContainerWidth } from "./useContainerWidth";
 import { RenderWidget } from "./RenderWidget";
@@ -61,9 +63,16 @@ export interface DashboardProps {
   spec: DashboardSpec;
   /** Edit mode: enables drag/resize (handle = chrome header). Default `false`. */
   editable?: boolean;
+  /**
+   * Per-component chart-families override. When set, this dashboard's subtree resolves
+   * families from a registry built from `defaultChartFamilies` + these descriptors —
+   * augmenting the provider's families just for this dashboard (the rest of the context
+   * is inherited unchanged). Omit to inherit the provider's families.
+   */
+  families?: ChartFamilyDescriptor[];
 }
 
-export function Dashboard({ spec, editable = false }: DashboardProps): ReactElement {
+export function Dashboard({ spec, editable = false, families }: DashboardProps): ReactElement {
   const [ref, width] = useContainerWidth<HTMLDivElement>();
 
   const grid: GridConfig = spec.grid ?? {};
@@ -90,7 +99,8 @@ export function Dashboard({ spec, editable = false }: DashboardProps): ReactElem
   const stacked = !editable && width > 0 && width < STACK_THRESHOLD;
 
   return (
-    <DashboardProvider spec={spec}>
+    <FamilyRegistryOverride families={families}>
+      <DashboardProvider spec={spec}>
       <div ref={ref} className="cv:w-full">
         {width <= 0 ? null : stacked ? (
           <div
@@ -137,13 +147,19 @@ export function Dashboard({ spec, editable = false }: DashboardProps): ReactElem
           </ResponsiveGridLayout>
         )}
       </div>
-    </DashboardProvider>
+      </DashboardProvider>
+    </FamilyRegistryOverride>
   );
 }
 
 export interface ChartViewProps {
   /** A standalone chart spec to render (no dashboard / variables). */
   spec: ChartSpec;
+  /**
+   * Per-component chart-families override (see {@link DashboardProps.families}). When
+   * set, this chart resolves families from `defaultChartFamilies` + these descriptors.
+   */
+  families?: ChartFamilyDescriptor[];
 }
 
 /**
@@ -151,8 +167,9 @@ export interface ChartViewProps {
  * lone chart file looks consistent with a dashboard cell. No `DashboardProvider` —
  * a top-level chart resolves variables against an empty store (fail-safe noFilter).
  */
-export function ChartView({ spec }: ChartViewProps): ReactElement {
+export function ChartView({ spec, families }: ChartViewProps): ReactElement {
   return (
+    <FamilyRegistryOverride families={families}>
     <div className="cv:h-full cv:w-full">
       <WidgetChrome
         widget={{
@@ -170,5 +187,6 @@ export function ChartView({ spec }: ChartViewProps): ReactElement {
         <CubeChartSpec spec={spec} />
       </WidgetChrome>
     </div>
+    </FamilyRegistryOverride>
   );
 }

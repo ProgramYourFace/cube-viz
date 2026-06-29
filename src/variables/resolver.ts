@@ -227,3 +227,32 @@ export function resolveQuery(
 
   return out;
 }
+
+/**
+ * A per-caller memoized {@link resolveQuery}: caches the last input + the serialized
+ * resolved output, and returns the PRIOR resolved object (same reference) when the new
+ * resolution is byte-identical. This gives downstream identity-based memos (e.g.
+ * `useNormalizedSeries`' `data` memo) referential stability — a `setVar` that doesn't
+ * affect THIS query produces no new `resolvedQuery` reference, so `normalize()` does not
+ * re-run. A real change to a bound variable still yields a new reference (the
+ * serialization differs), so the bound widget correctly updates.
+ *
+ * Each caller (one per chart) gets its own memoizer, so unrelated queries never evict
+ * each other's cache.
+ */
+export function createQueryResolver(): (
+  query: CubeQuery,
+  store: Record<string, VariableValue>,
+  decls: VariableDecl[],
+) => CubeQuery {
+  let lastOut: CubeQuery | undefined;
+  let lastKey: string | undefined;
+  return (query, store, decls) => {
+    const out = resolveQuery(query, store, decls);
+    const key = JSON.stringify(out);
+    if (lastOut !== undefined && key === lastKey) return lastOut;
+    lastOut = out;
+    lastKey = key;
+    return out;
+  };
+}

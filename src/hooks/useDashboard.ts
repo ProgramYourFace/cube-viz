@@ -40,7 +40,13 @@ import {
 
 /** The reactive dashboard API surfaced by {@link useDashboard}. */
 export interface DashboardContextValue {
-  /** Current store snapshot — stable identity until the next `setVar`. */
+  /**
+   * Current store snapshot. NOTE: reading this on the context value is a point-in-time
+   * read — it is NOT reactive by itself. Components that must re-render when a variable
+   * changes should call {@link useDashboardVar} (a per-name subscription) or
+   * {@link resolveValue} inside a component that subscribes; depending on this object's
+   * `vars` no longer forces a board-wide re-render on every `setVar`.
+   */
   vars: Record<string, VariableValue>;
   /** Leg 1: write a variable (`undefined` clears it back toward its default). */
   setVar: (name: string, value: VariableValue | undefined) => void;
@@ -52,7 +58,23 @@ export interface DashboardContextValue {
   decls: VariableDecl[];
 }
 
-const DashboardContext = createContext<DashboardContextValue | null>(null);
+/**
+ * The STABLE half of the dashboard API (everything except the live `vars` snapshot).
+ * Its identity is constant for the life of a provider instance, so consuming it (e.g.
+ * to call `resolveQuery`/`setVar`/`resolveValue`) does NOT re-render on every `setVar`.
+ * The live `vars` snapshot is exposed separately via a per-consumer subscription
+ * ({@link useDashboardVar} / the lazily-subscribed `vars` getter in {@link useDashboard}),
+ * so a single variable write only re-renders the widgets that actually read it.
+ */
+interface StableDashboardApi {
+  store: VariableStore;
+  setVar: (name: string, value: VariableValue | undefined) => void;
+  resolveQuery: (query: CubeQuery) => CubeQuery;
+  resolveValue: (name: string) => VariableValue | undefined;
+  decls: VariableDecl[];
+}
+
+const DashboardContext = createContext<StableDashboardApi | null>(null);
 DashboardContext.displayName = "DashboardContext";
 
 export interface DashboardProviderProps {
@@ -84,25 +106,21 @@ export function DashboardProvider({
   }
   const store = storeRef.current.store;
 
-  const value = useStoreContext(store, decls);
+  const value = useStableApi(store, decls);
 
   return createElement(DashboardContext.Provider, { value }, children);
 }
 
 /**
- * Build the reactive {@link DashboardContextValue} for a given store + decls.
- * Shared by the provider and any host that wires its own store.
+ * Build the STABLE {@link StableDashboardApi} for a given store + decls. Holds no live
+ * `vars` snapshot, so its identity only changes when the `store`/`decls` identity does
+ * (i.e. on a provider re-seed) — NOT on every `setVar`. Shared by the provider and any
+ * host that wires its own store.
  */
-function useStoreContext(
+function useStableApi(
   store: VariableStore,
   decls: VariableDecl[],
-): DashboardContextValue {
-  const vars = useSyncExternalStore(
-    store.subscribe,
-    store.getAll,
-    store.getAll,
-  );
-
+): StableDashboardApi {
   const setVar = useCallback(
     (name: string, value: VariableValue | undefined) => store.set(name, value),
     [store],
@@ -119,14 +137,43 @@ function useStoreContext(
   );
 
   return useMemo(
-    () => ({ vars, setVar, resolveQuery, resolveValue, decls }),
-    [vars, setVar, resolveQuery, resolveValue, decls],
+    () => ({ store, setVar, resolveQuery, resolveValue, decls }),
+    [store, setVar, resolveQuery, resolveValue, decls],
+  );
+}
+
+/**
+ * Adapt the stable API into the public {@link DashboardContextValue}. The `vars` field
+ * is filled from a LIVE subscription (`useSyncExternalStore`) so a component that reads
+ * it (or that calls `resolveValue` for a value that just changed) re-renders — but a
+ * component that only consumes the stable callbacks (resolveQuery/setVar) and never
+ * touches `vars` pays no churn. The returned object is rebuilt only when `vars` or the
+ * stable api identity changes.
+ */
+function useDashboardValue(api: StableDashboardApi): DashboardContextValue {
+  const vars = useSyncExternalStore(api.store.subscribe, api.store.getAll, api.store.getAll);
+  return useMemo(
+    () => ({
+      vars,
+      setVar: api.setVar,
+      resolveQuery: api.resolveQuery,
+      resolveValue: api.resolveValue,
+      decls: api.decls,
+    }),
+    [vars, api],
   );
 }
 
 /**
  * Read the dashboard variable API. Throws if no {@link DashboardProvider} is an
  * ancestor — variable-bound widgets require a store.
+ *
+ * This hook subscribes to the variable store: a component using it re-renders when ANY
+ * variable changes (because it exposes the live `vars` snapshot + a reactive
+ * `resolveValue`). Input/control widgets that read their bound value want exactly this.
+ * Code that only needs the stable callbacks (e.g. `resolveQuery` in
+ * {@link useNormalizedSeries}) should destructure them from {@link useOptionalDashboard}
+ * so it does NOT subscribe and does NOT re-render on unrelated variable edits.
  */
 export function useDashboard(): DashboardContextValue {
   const ctx = useContext(DashboardContext);
@@ -135,14 +182,17 @@ export function useDashboard(): DashboardContextValue {
       "useDashboard must be used within a <DashboardProvider>. Wrap the dashboard in <DashboardProvider spec={...}>.",
     );
   }
-  return ctx;
+  return useDashboardValue(ctx);
 }
 
 /**
- * Optional variant: returns the dashboard API if inside a {@link DashboardProvider},
- * else `null`. Used by {@link useNormalizedSeries} so a standalone chart (no
- * dashboard) still works while a dashboard-embedded one picks up variable resolution.
+ * Optional variant: returns the STABLE dashboard API if inside a
+ * {@link DashboardProvider}, else `null`. Does NOT subscribe to variable changes, so a
+ * consumer re-renders only when it reads something that actually changed. Used by
+ * {@link useNormalizedSeries} (depends on the stable `resolveQuery`) so a standalone
+ * chart still works while a dashboard-embedded one picks up variable resolution without
+ * re-normalizing board-wide on every unrelated `setVar`.
  */
-export function useOptionalDashboard(): DashboardContextValue | null {
+export function useOptionalDashboard(): StableDashboardApi | null {
   return useContext(DashboardContext);
 }

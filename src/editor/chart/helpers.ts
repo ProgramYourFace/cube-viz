@@ -8,7 +8,7 @@ import type {
   SeriesMeta,
   TimeDimension,
 } from "@/spec";
-import { familyDescriptor } from "@/charts";
+import type { FamilyRegistry } from "@/charts";
 
 /**
  * Pure, side-effect-free helpers for the ChartEditor (docs/03 §A3.1). They derive
@@ -95,25 +95,6 @@ export function buildMapping(
   return { category: { member: category }, series };
 }
 
-/** Whether a family consumes the generic `mapping` envelope (vs. its own familyOptions). */
-export function familyUsesMapping(family: ChartFamily): boolean {
-  return familyDescriptor(family).supportsMapping;
-}
-
-/** Whether a family exposes the cross-family display envelope (orientation/stack/axes). */
-export function familyHasCartesianAxes(family: ChartFamily): boolean {
-  return familyDescriptor(family).supportsCartesianAxes;
-}
-
-/**
- * Human label for a chart family — routed through the registry, so a host-registered
- * family resolves correctly (a builtin-only snapshot map would return `undefined` for
- * host families and contradict the registry being the single source of truth).
- */
-export function familyLabel(family: ChartFamily): string {
-  return familyDescriptor(family).label;
-}
-
 /** Default granularity offered when a time dimension is first selected. */
 export const DEFAULT_GRANULARITY: Granularity = "day";
 
@@ -124,7 +105,11 @@ export const DEFAULT_GRANULARITY: Granularity = "day";
  * leaves the new family empty. This re-derives the new family's structure from the query
  * (measures + the first category/dimension/time member), so type-switching is lossless.
  */
-export function migrateToFamily(spec: ChartSpec, next: ChartFamily): ChartSpec {
+export function migrateToFamily(
+  spec: ChartSpec,
+  next: ChartFamily,
+  registry: FamilyRegistry,
+): ChartSpec {
   const { query, chart } = spec;
   const measures = measuresOf(chart).length ? measuresOf(chart) : (query.measures ?? []);
   const category =
@@ -180,6 +165,6 @@ export function migrateToFamily(spec: ChartSpec, next: ChartFamily): ChartSpec {
       // measures across so switching TO it is lossless (it reads `mapping.category` /
       // series directly); otherwise clear mapping too and let its wells/placement
       // re-derive structure as the user (re)binds fields.
-      return familyDescriptor(next).supportsMapping ? withChart({ mapping: cartesianMapping }) : base;
+      return registry.require(next).supportsMapping ? withChart({ mapping: cartesianMapping }) : base;
   }
 }

@@ -1,4 +1,5 @@
 import type { CubeMeta } from "@/adapter";
+import type { FamilyRegistry } from "@/charts";
 import type { ChartSpec } from "@/spec";
 
 import { cubeOfMember } from "../helpers";
@@ -42,12 +43,13 @@ export interface JoinScope {
 export function computeJoinScope(
   meta: CubeMeta | undefined,
   spec: ChartSpec,
-  sourceHint?: string,
+  sourceHint: string | undefined,
+  registry: FamilyRegistry,
 ): JoinScope {
   const all = listCubes(meta);
   const views = all.filter((c) => c.type === "view");
 
-  const placed = readWells(spec);
+  const placed = readWells(spec, registry);
   const placedMembers = Object.values(placed).flat();
   let anchor: MemberOption | undefined;
   for (const m of placedMembers) {

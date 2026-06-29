@@ -1,9 +1,8 @@
 import * as React from "react";
 
 import { resolveSeriesColors } from "@/adapter";
-import { familyDescriptor } from "@/charts";
 import { useCubeMeta } from "@/hooks";
-import { useCubeVizContext } from "@/provider";
+import { useCubeVizContext, useFamilyRegistry } from "@/provider";
 import { mergeUnitConversions } from "@/units";
 import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartSpec } from "@/spec";
@@ -51,9 +50,10 @@ export function ChartEditOverlay({
 }: ChartEditOverlayProps): React.ReactElement {
   const { meta } = useCubeMeta();
   const { locale } = useCubeVizContext();
+  const families = useFamilyRegistry();
   const { chart } = spec;
   const family = chart.family;
-  const descriptor = familyDescriptor(family);
+  const descriptor = families.require(family);
   const cube = inferCube(spec);
 
   // The unit shown in the value-axis badge follows the viewer's unit system, so the
@@ -67,15 +67,18 @@ export function ChartEditOverlay({
     [locale?.unitSystem, conversions],
   );
 
-  const wells = React.useMemo(() => getWells(family), [family]);
-  const placed = React.useMemo(() => readWells(spec), [spec]);
+  const wells = React.useMemo(() => getWells(family, families), [family, families]);
+  const placed = React.useMemo(() => readWells(spec, families), [spec, families]);
   const wellById = React.useMemo(() => new Map(wells.map((w) => [w.id, w])), [wells]);
 
   // The source the user picked via the Source chip — scopes an empty chart until a
   // field is placed (once fields exist, the spec's own source wins).
   const [sourceOverride, setSourceOverride] = React.useState<string | undefined>(undefined);
   // Cross-table scope: which tables/views are joinable, and the single measure source.
-  const scope = React.useMemo(() => computeJoinScope(meta, spec, sourceOverride), [meta, spec, sourceOverride]);
+  const scope = React.useMemo(
+    () => computeJoinScope(meta, spec, sourceOverride, families),
+    [meta, spec, sourceOverride, families],
+  );
   const allPlaced = React.useMemo(() => Object.values(placed).flat(), [placed]);
 
   // Re-point the whole chart to a new table/view (clears the now-incompatible fields).
@@ -233,12 +236,12 @@ export function ChartEditOverlay({
     (wellId: string, name: string, kind: FieldKind): void => {
       const option = findMember(meta, name);
       if (blockReason(wellId, option)) return; // picker already disables these
-      let next = placeField(spec, family, wellId, name, kind);
+      let next = placeField(spec, family, wellId, name, kind, families);
       // On a dual-axis family, auto-assign the new measure to the axis matching its unit.
       if (dualAxis && wellId === "y") next = assignAxis(next, name, targetAxis(option));
       update(next);
     },
-    [blockReason, meta, update, spec, family, dualAxis, targetAxis, assignAxis],
+    [blockReason, meta, update, spec, family, dualAxis, targetAxis, assignAxis, families],
   );
 
   /* ── dual-axis: explicit Left/Right value wells, each its own unit ───────── */
@@ -266,9 +269,9 @@ export function ChartEditOverlay({
     (side: "left" | "right", name: string, kind: FieldKind): void => {
       const option = findMember(meta, name);
       if (blockReasonForAxis(side, option)) return;
-      update(assignAxis(placeField(spec, family, "y", name, kind), name, side));
+      update(assignAxis(placeField(spec, family, "y", name, kind, families), name, side));
     },
-    [blockReasonForAxis, meta, update, spec, family, assignAxis],
+    [blockReasonForAxis, meta, update, spec, family, assignAxis, families],
   );
 
   // Zones adapt to STATE: a horizontal bar swaps its value + category axes (value on the

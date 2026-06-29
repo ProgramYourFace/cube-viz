@@ -15,19 +15,27 @@ export type { ChartRendererProps } from "./ChartRenderer";
 export { builtinFamilyDescriptors } from "./familyDescriptors";
 export type { ChartFamilyDescriptor } from "./familyDescriptors";
 
-// The MODULE family registry — the runtime single source of truth + host extension
-// point. `familyDescriptor`/`resolveOptions`/`familyOptionsSchema` are registry-routed
-// (they support host-registered families).
+// The immutable family registry — the runtime single source of truth + host extension
+// point. Build one with `buildFamilyRegistry(defaultChartFamilies, hostFamilies)`;
+// `<CubeVizProvider families={[...]}>` builds it for you and carries it through context
+// (`useFamilyRegistry()`). The per-family named exports + `defaultChartFamilies` let a
+// host compose its own ordered list. `resolveOptions` keeps a builtin-only back-compat
+// default so it still works without a registry.
 export {
-  registerChartFamily,
-  getFamilyDescriptor,
-  familyDescriptor,
-  listFamilyDescriptors,
-  chartFamilies,
-  familyDefaults,
-  familyOptionsSchema,
+  buildFamilyRegistry,
+  builtinFamilyRegistry,
+  defaultChartFamilies,
   resolveOptions,
+  barChartFamily,
+  lineChartFamily,
+  areaChartFamily,
+  pieChartFamily,
+  scatterChartFamily,
+  kpiChartFamily,
+  tableChartFamily,
+  comboChartFamily,
 } from "./familyRegistry";
+export type { FamilyRegistry } from "./familyRegistry";
 
 // Family components.
 export { BarChartFamily } from "./bar";

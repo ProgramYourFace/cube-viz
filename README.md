@@ -97,7 +97,7 @@ the component-override registry, and host chart families.
 | `locale` | `CubeVizLocaleConfig` | `locale` / `timezone` / `unitSystem` (`"metric"`/`"imperial"`) / `formatValue` / `units`. |
 | `maps` | `CubeVizMapsConfig` | `{ apiKey?: string; mapId?: string }`. **Forwarded to host map families** (cube-viz has no builtin map). Host-owned; read via `useCubeVizContext().maps`. Absent (or no `apiKey`) ⇒ a map family degrades to a placeholder. |
 | `registry` | `ComponentRegistry` | Per-slot component overrides; absent slots fall back to built-ins. See [Component overrides](#component-overrides). |
-| `families` | `ChartFamilyDescriptor[]` | Host-registered chart families. Registered into the **module** family registry on mount (synchronously, before the subtree paints), so they appear in the type picker, are editable, validate, and render. Module-global + idempotent by `descriptor.family`. See [Extending chart families](#extending-chart-families). |
+| `families` | `ChartFamilyDescriptor[]` | Host chart families. Built into an **immutable** `FamilyRegistry` (builtins first, then these augment/override by `descriptor.family`) and carried through context, so they appear in the type picker, are editable, validate, and render. The registry is memoized by the families' **content** (the family keys), so a fresh array literal each render keeps a stable identity. See [Extending chart families](#extending-chart-families). |
 | `children` | `React.ReactNode` | **Required.** |
 
 ## Built-in chart families
@@ -112,9 +112,9 @@ the component-override registry, and host chart families.
 Each family is a pure component `(NormalizedChartData, ChartOptions, ChartConfig) → ReactElement`.
 Recharts is confined inside the family components; specs never carry a Recharts prop. The full
 options surface per family lives in `BUILTIN_FAMILY_OPTION_SCHEMAS` / `BUILTIN_DEFAULTS`
-(exported from the root). `resolveOptions(chartOptions)` deep-merges a spec's options over its
-family defaults (objects recurse; arrays replace wholesale) and is registry-routed, so a host
-family resolves exactly like a builtin.
+(exported from the root). `resolveOptions(chartOptions, registry?)` deep-merges a spec's options
+over its family defaults (objects recurse; arrays replace wholesale); pass the context registry
+(or rely on the builtin-only default) so a host family resolves exactly like a builtin.
 
 ## Component overrides
 
@@ -139,42 +139,58 @@ interface ComponentRegistry {
 }
 ```
 
-`resolveChart(registry, family)` is the per-slot resolver every renderer uses: it returns
-`registry?.charts?.[family]` if present, **else the family's registered component** (builtin *or*
-host-registered). It throws on an unknown family — a spec referencing an unregistered family is a
-programming error.
+`resolveChart(registry, family, families)` is the per-slot resolver every renderer uses: it
+returns `registry?.charts?.[family]` if present, **else the family's component** from the injected
+`families` registry (builtin *or* host). It throws on an unknown family — a spec referencing an
+unregistered family is a programming error.
 
 ## Extending chart families
 
-This is the headline of v0.2.0. **Chart families live in a module-level registry** — the runtime
-single source of truth for which families exist and how each behaves. It is seeded from the eight
-builtins; a host adds an entirely new family (or replaces a builtin) by registering a descriptor.
+**Chart families live in an immutable `FamilyRegistry`** — the runtime single source of truth for
+which families exist and how each behaves. There is **no module-global state**: the registry is
+built ONCE (from the eight builtins, then host families augment/override by key) and carried
+through React context. A host adds an entirely new family (or replaces a builtin) **declaratively**
+via the provider's `families` prop.
 
-Because the spec's family discriminator (`ChartFamilySchema`) is now an **open string**
+Because the spec's family discriminator (`ChartFamilySchema`) is an **open string**
 (`z.string().min(1)`, not a closed enum), a spec that uses a host family validates and round-trips
 through `ChartSpecSchema` / `DashboardSpecSchema` like any other.
 
-### Registering
+### Providing families
 
-Two equivalent entry points (use either or both):
-
-```ts
-import { registerChartFamily } from "cube-viz";
-import { mapDescriptor } from "./charts/map";
-
-// (a) Imperatively, at module load — before any render:
-registerChartFamily(mapDescriptor);
-```
+The single, declarative entry point is the provider's `families` prop:
 
 ```tsx
-// (b) Declaratively, via the provider (re-registers idempotently on mount):
+import { CubeVizProvider } from "cube-viz";
+import { mapDescriptor } from "./charts/map";
+
+// The provider builds an immutable registry (builtins + your families) synchronously,
+// BEFORE the subtree renders, so the first paint of the type picker / dispatcher sees it.
 <CubeVizProvider cube={cube} families={[mapDescriptor]}>{children}</CubeVizProvider>
 ```
 
-Registration is **module-global and idempotent by `descriptor.family`** (re-registering the same
-key replaces it, so a re-render is harmless; this also lets a host replace a builtin wholesale).
-**Register before rendering** any spec that uses the family: `familyDescriptor(family)` (the
-single dispatch point the editor/renderer call) **throws** on an unknown family.
+Builtins are seeded first, then your `families` **augment or override by `descriptor.family`** (a
+host family reusing a builtin key replaces it wholesale). The registry is memoized by the families'
+**content** (the family keys), so passing a fresh `families={[mapDescriptor]}` literal each render
+does not churn its identity. A spec referencing a family not provided this way throws (the
+registry's `require()` is the single dispatch point) — so include every family your specs use.
+
+Per-component overrides are available too: `Dashboard`, `ChartView`, and `DashboardEditor` each
+take an optional `families?` prop that augments the provider's registry **for that subtree only**
+(the rest of the context — Cube client, theme, locale, maps — is inherited unchanged).
+
+### Building a registry directly
+
+For tests or non-React callers, build one explicitly:
+
+```ts
+import { buildFamilyRegistry, defaultChartFamilies, builtinFamilyRegistry } from "cube-viz";
+
+const registry = buildFamilyRegistry(defaultChartFamilies, [mapDescriptor]);
+registry.require("map").component;   // throws on an unknown family
+registry.families();                  // all keys, in picker order
+// `builtinFamilyRegistry` is a pre-built builtin-only registry (the back-compat default).
+```
 
 ### Registry API
 
@@ -182,14 +198,16 @@ All exported from the root:
 
 | Export | Purpose |
 | --- | --- |
-| `registerChartFamily(descriptor)` | Register or replace a family. |
-| `getFamilyDescriptor(family)` | The descriptor, or `undefined` if unregistered (non-throwing). |
-| `familyDescriptor(family)` | The descriptor; **throws** on an unknown family (the dispatch point). |
-| `listFamilyDescriptors()` | All descriptors, sorted by `order` then key. |
-| `chartFamilies()` | All registered family keys, in picker order (supersedes the static builtin order). |
-| `familyDefaults(family)` | The family's total defaults (empty for an unknown family). |
-| `familyOptionsSchema(family)` | The zod schema for the family's `familyOptions` (permissive passthrough for unknown). |
-| `resolveOptions(options)` | Deep-merge a chart's options over its family's defaults (registry-routed). |
+| `buildFamilyRegistry(defaults, host?)` | Build an immutable `FamilyRegistry` (seed `defaults`, then `host` augments/overrides by key). |
+| `builtinFamilyRegistry` | A pre-built registry over the builtins only (the back-compat default). |
+| `defaultChartFamilies` | The ordered builtin descriptor array — the picker's default order. |
+| `barChartFamily` … `comboChartFamily` | One named export per builtin, to compose a custom `families` list. |
+| `useFamilyRegistry()` | The context registry (builtins + the provider's `families`), for component call sites. |
+| `resolveOptions(options, registry?)` | Deep-merge a chart's options over its family's defaults (defaults to builtin-only). |
+
+The `FamilyRegistry` value exposes `get(family)` (non-throwing), `require(family)` (the throwing
+dispatch point), `list()` (descriptors, order-sorted), `families()` (keys, in picker order),
+`defaults(family)`, `optionsSchema(family)`, and `resolveOptions(options)`.
 
 ### The `ChartFamilyDescriptor` contract
 
@@ -419,20 +437,18 @@ export const mapDescriptor: ChartFamilyDescriptor = {
 > cast `optionsSchema` as above. cube-viz only *stores* the schema (it validates specs through the
 > loose envelope `familyOptions: z.record(...)`), so it is never `.parse()`d across the boundary.
 
-**Register, then render:**
+**Provide, then render:**
 
 ```tsx
-import { CubeVizProvider, Dashboard, registerChartFamily } from "cube-viz";
+import { CubeVizProvider, Dashboard } from "cube-viz";
 import { mapDescriptor } from "./charts/map";
-
-registerChartFamily(mapDescriptor);          // module load — before any render
 
 export function App({ spec, cube }) {
   return (
     <CubeVizProvider
       cube={cube}
       maps={{ apiKey: process.env.GOOGLE_API_KEY, mapId: "…" }}  // forwarded to the map family
-      families={[mapDescriptor]}                                  // idempotent belt-and-suspenders
+      families={[mapDescriptor]}                                  // the sole, declarative mechanism
     >
       <Dashboard spec={spec} />
     </CubeVizProvider>
@@ -440,16 +456,36 @@ export function App({ spec, cube }) {
 }
 ```
 
-## v0.2.0 — breaking changes
+## Breaking changes
+
+### Immutable, injected family registry (semver-major)
+
+The module-global chart-family registry was replaced by an **immutable `FamilyRegistry`** built by
+the provider and carried through context. This is a breaking change to the public family-extension
+surface:
+
+- **Removed:** the imperative free functions `registerChartFamily`, `familyDescriptor`,
+  `getFamilyDescriptor`, `listFamilyDescriptors`, `chartFamilies`, `familyDefaults`,
+  `familyOptionsSchema`. There is no module-global `Map` to mutate.
+- **Replaced by:** `buildFamilyRegistry(defaults, host?)`, `builtinFamilyRegistry`,
+  `defaultChartFamilies`, the per-family named exports (`barChartFamily` … `comboChartFamily`),
+  `useFamilyRegistry()`, and the `FamilyRegistry` value's methods
+  (`get`/`require`/`list`/`families`/`defaults`/`optionsSchema`/`resolveOptions`).
+- **Migration:** drop any `registerChartFamily(...)` call — pass `families={[...]}` to
+  `CubeVizProvider` instead (it is now the sole, declarative mechanism). Replace
+  `familyDescriptor(family)` with `useFamilyRegistry().require(family)` in components, or thread a
+  `FamilyRegistry` param into pure helpers. `resolveOptions(options)` still works (it defaults to a
+  builtin-only registry); pass the context registry to resolve host families.
+- **Signature changes:** `resolveChart(registry, family, families)`,
+  `normalize(..., families?)`, and `comparePreviousInput(query, chart, families?)` take the
+  registry (the latter two default to builtin-only for back-compat).
+
+### Earlier breaking changes
 
 - **`ChartFamily` is now an open string**, not a closed enum (`ChartFamilySchema = z.string().min(1)`).
   Specs that reference a host family validate and round-trip.
 - **The built-in `map` family was removed.** It now ships as the host-extension example above;
-  bring it back by registering a `map` descriptor.
-- **New registry exports:** `registerChartFamily`, `getFamilyDescriptor`, `familyDescriptor`,
-  `listFamilyDescriptors`, `chartFamilies`, plus the registry-routed `familyDefaults`,
-  `familyOptionsSchema`, `resolveOptions`. `CubeVizProvider` gains a `families` prop;
-  `ComponentRegistry` / `resolveChart` are exported from the provider.
+  bring it back by providing a `map` descriptor via `families`.
 - **`@vis.gl/react-google-maps` is no longer a peer dependency** — map rendering moved to the host,
   so the host owns that dependency.
 

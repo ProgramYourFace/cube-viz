@@ -13,8 +13,11 @@ export type {
   CubeVizMapsConfig,
 } from "./CubeVizProvider";
 
-// Context + accessor.
-export { CubeVizContext, useCubeVizContext } from "./context";
+// Context + accessors.
+export { CubeVizContext, useCubeVizContext, useFamilyRegistry } from "./context";
+
+// Per-component chart-families override (safe context re-publish).
+export { FamilyRegistryOverride } from "./FamilyOverride";
 export type {
   CubeVizContextValue,
   ResolvedLocale,

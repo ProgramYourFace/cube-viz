@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useSyncExternalStore } from "react";
 
 import type { ChartOptions, CubeQuery } from "@/spec";
 import { normalize } from "@/adapter";
 import type { NormalizedChartData } from "@/adapter/types";
-import { useCubeVizContext } from "@/provider";
+import { useCubeVizContext, useFamilyRegistry } from "@/provider";
 import { mergeUnitConversions } from "@/units";
+import { createQueryResolver } from "@/variables";
 
 import { useCubeQuery } from "./useCubeQuery";
 import { useOptionalDashboard } from "./useDashboard";
@@ -38,18 +39,47 @@ export interface UseNormalizedSeriesOptions {
   skipResolve?: boolean;
 }
 
+/** A no-op `useSyncExternalStore` subscribe for the no-dashboard / skipResolve path. */
+const noopSubscribe = (): (() => void) => () => {};
+
 export function useNormalizedSeries(
   query: CubeQuery,
   options: ChartOptions,
   opts?: UseNormalizedSeriesOptions,
 ): UseNormalizedSeriesResult {
   // Optional dashboard: substitute {var} tokens + apply noFilter when present.
+  // We read the STABLE api (no per-setVar context churn) and subscribe to the store
+  // ONLY through a resolved-query selector (below): a `setVar` that doesn't change THIS
+  // chart's resolved query produces no new reference and no re-render / re-normalize.
   const dashboard = useOptionalDashboard();
   const { locale } = useCubeVizContext();
+  // The family registry (builtins + host families) drives the measure-only branch in
+  // normalize. Stable identity per provider (content-keyed memo), so adding it to the
+  // data useMemo deps below never churns the normalized data.
+  const families = useFamilyRegistry();
 
-  const resolvedQuery = useMemo<CubeQuery>(
-    () => (dashboard && !opts?.skipResolve ? dashboard.resolveQuery(query) : query),
-    [dashboard, query, opts?.skipResolve],
+  // Per-instance memoizing resolver: returns the SAME object reference when the
+  // resolved output is byte-identical, so an unrelated `setVar` doesn't churn it.
+  const resolverRef = useRef<ReturnType<typeof createQueryResolver> | null>(null);
+  if (resolverRef.current === null) resolverRef.current = createQueryResolver();
+  const resolveOnce = resolverRef.current;
+
+  const skipResolve = opts?.skipResolve ?? false;
+  const active = dashboard !== null && !skipResolve;
+
+  // Subscribe to the store, but the SNAPSHOT we select is the resolved query itself
+  // (memoized for referential stability). React re-renders only when that reference
+  // changes — i.e. only when a variable THIS query actually depends on changes — so a
+  // `setVar` elsewhere neither re-renders this chart nor re-runs normalize(). A real
+  // change to a bound variable yields a new reference and correctly updates the widget.
+  const getResolved = (): CubeQuery => {
+    if (!active || !dashboard) return query;
+    return resolveOnce(query, dashboard.store.getAll(), dashboard.decls);
+  };
+  const resolvedQuery = useSyncExternalStore(
+    active && dashboard ? dashboard.store.subscribe : noopSubscribe,
+    getResolved,
+    getResolved,
   );
 
   const { resultSet, isLoading, error, refetch } = useCubeQuery(resolvedQuery, { skip: opts?.skip });
@@ -64,8 +94,8 @@ export function useNormalizedSeries(
   // only when the result, options, resolved query, or unit system change.
   const data = useMemo<NormalizedChartData | undefined>(() => {
     if (!resultSet) return undefined;
-    return normalize(resultSet, options, resolvedQuery, { unitSystem, conversions });
-  }, [resultSet, options, resolvedQuery, unitSystem, conversions]);
+    return normalize(resultSet, options, resolvedQuery, { unitSystem, conversions }, families);
+  }, [resultSet, options, resolvedQuery, unitSystem, conversions, families]);
 
   return { data, isLoading, error, refetch, resolvedQuery };
 }

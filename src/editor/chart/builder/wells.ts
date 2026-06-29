@@ -9,7 +9,7 @@ import type {
   TimeDimension,
 } from "@/spec";
 
-import { familyDescriptor } from "@/charts";
+import type { FamilyRegistry } from "@/charts";
 
 import {
   buildSeries,
@@ -48,8 +48,8 @@ export interface WellDef {
  * names. Reads NOTHING from the spec — pure shape. The well DATA now lives on the
  * {@link ChartFamilyDescriptor} (single source of truth); this is the accessor.
  */
-export function getWells(family: ChartFamily): WellDef[] {
-  return familyDescriptor(family).wells;
+export function getWells(family: ChartFamily, registry: FamilyRegistry): WellDef[] {
+  return registry.require(family).wells;
 }
 
 /* ─────────────────────────────── read model ──────────────────────────────── */
@@ -92,13 +92,13 @@ export function pivotColorOf(spec: ChartSpec): string | undefined {
  * Derive each well's current member name(s) from the spec (docs/05 §6). The
  * inverse of {@link placeField}/{@link removeField}.
  */
-export function readWells(spec: ChartSpec): Record<string, string[]> {
+export function readWells(spec: ChartSpec, registry: FamilyRegistry): Record<string, string[]> {
   const { chart } = spec;
   const family = chart.family;
   const one = (m: string | undefined): string[] => (m ? [m] : []);
 
   // Host families read their own wells off the descriptor.
-  const hostRead = familyDescriptor(family).readWells;
+  const hostRead = registry.require(family).readWells;
   if (hostRead) return hostRead(spec);
 
   switch (family) {
@@ -257,16 +257,17 @@ export function placeField(
   wellId: string,
   member: string,
   kind: FieldKind,
+  registry: FamilyRegistry,
 ): ChartSpec {
   // Host families supply their own placement writer on the descriptor.
-  const hostPlace = familyDescriptor(family).placeField;
+  const hostPlace = registry.require(family).placeField;
   if (hostPlace) return hostPlace(spec, wellId, member, kind);
 
   switch (family) {
     case "bar":
     case "line":
     case "area":
-      return placeCartesian(spec, wellId, member, kind);
+      return placeCartesian(spec, wellId, member, kind, registry);
     case "combo":
       return placeCombo(spec, wellId, member, kind);
     case "pie":
@@ -291,16 +292,17 @@ export function removeField(
   family: ChartFamily,
   wellId: string,
   member: string,
+  registry: FamilyRegistry,
 ): ChartSpec {
   // Host families supply their own removal writer on the descriptor.
-  const hostRemove = familyDescriptor(family).removeField;
+  const hostRemove = registry.require(family).removeField;
   if (hostRemove) return hostRemove(spec, wellId, member);
 
   switch (family) {
     case "bar":
     case "line":
     case "area":
-      return removeCartesian(spec, wellId, member);
+      return removeCartesian(spec, wellId, member, registry);
     case "combo":
       return removeCombo(spec, wellId, member);
     case "pie":
@@ -323,9 +325,10 @@ function placeCartesian(
   wellId: string,
   member: string,
   kind: FieldKind,
+  registry: FamilyRegistry,
 ): ChartSpec {
   const { query, chart } = spec;
-  const wells = readWells(spec);
+  const wells = readWells(spec, registry);
   const color = wells.color[0];
   const category = categoryOf(chart);
   const meta = seriesMetaOf(chart);
@@ -352,7 +355,7 @@ function placeCartesian(
   }
 
   if (wellId === "x") {
-    return placeCartesianX(spec, member, kind, color);
+    return placeCartesianX(spec, member, kind, color, registry);
   }
 
   if (wellId === "color") {
@@ -376,10 +379,11 @@ function placeCartesianX(
   member: string,
   kind: FieldKind,
   color: string | undefined,
+  registry: FamilyRegistry,
 ): ChartSpec {
   const { query, chart } = spec;
   const prevCategory = categoryOf(chart);
-  const measures = readWells(spec).y;
+  const measures = readWells(spec, registry).y;
   const meta = seriesMetaOf(chart);
 
   // Replace any existing X: drop the previous category dim from the query.
@@ -408,9 +412,14 @@ function placeCartesianX(
   return { ...spec, query: q, chart: { ...chart, mapping } };
 }
 
-function removeCartesian(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+function removeCartesian(
+  spec: ChartSpec,
+  wellId: string,
+  member: string,
+  registry: FamilyRegistry,
+): ChartSpec {
   const { query, chart } = spec;
-  const wells = readWells(spec);
+  const wells = readWells(spec, registry);
   const category = categoryOf(chart);
   const color = wells.color[0];
   const meta = seriesMetaOf(chart);

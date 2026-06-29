@@ -8,6 +8,8 @@ import {
   type VariableDecl,
   type WidgetSpec,
 } from "@/spec";
+import type { ChartFamilyDescriptor } from "@/charts";
+import { FamilyRegistryOverride } from "@/provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 
@@ -90,6 +92,12 @@ export interface DashboardEditorProps {
   canRedo?: boolean;
   /** Throw away unsaved changes (host clears its draft + re-seeds the published spec). */
   onDiscard?: () => void;
+  /**
+   * Per-component chart-families override. When set, the editor's subtree resolves
+   * families from `defaultChartFamilies` + these descriptors (augmenting the provider's
+   * families just for this editor); the rest of the context is inherited unchanged.
+   */
+  families?: ChartFamilyDescriptor[];
   className?: string;
 }
 
@@ -106,6 +114,7 @@ export function DashboardEditor({
   canUndo,
   canRedo,
   onDiscard,
+  families,
   className,
 }: DashboardEditorProps): React.ReactElement {
   // Local working copy; the host's `spec` seeds it and re-seeds when its identity
@@ -234,7 +243,15 @@ export function DashboardEditor({
   );
 
   const handleLayoutChange = React.useCallback(
-    (layout: LayoutItem[]) => commit((d) => ({ ...d, layout: mergeLayout(d.layout, layout) })),
+    (layout: LayoutItem[]) =>
+      commit((d) => {
+        const merged = mergeLayout(d.layout, layout);
+        // Structural short-circuit: RGL fires onLayoutChange on mount and re-sync,
+        // and mergeLayout always allocates a fresh array. If the geometry is
+        // byte-identical, return the SAME spec reference so we don't setState — this
+        // breaks the RGL onLayoutChange -> setState -> re-sync -> onLayoutChange loop.
+        return layoutsEqual(d.layout, merged) ? d : { ...d, layout: merged };
+      }),
     [commit],
   );
 
@@ -252,14 +269,21 @@ export function DashboardEditor({
 
   /* ──────────────────────────────── save ────────────────────────────────── */
 
+  // The whole-dashboard zod parse only feeds the Save-enabled state + the issue
+  // count — neither needs to be fresh on every keystroke. Drive it off a DEFERRED
+  // copy of the draft so typing doesn't pay a recursive DashboardSpec safeParse per
+  // character; React validates the settled draft after the urgent edit has painted.
+  const deferredDraft = React.useDeferredValue(draft);
   const validation = React.useMemo(
-    () => DashboardSpecSchema.safeParse(draft),
-    [draft],
+    () => DashboardSpecSchema.safeParse(deferredDraft),
+    [deferredDraft],
   );
 
   const handleSave = React.useCallback(() => {
-    if (validation.success) onSave?.(validation.data);
-  }, [validation, onSave]);
+    // Save must validate the LIVE draft (the deferred one can lag a keystroke).
+    const result = DashboardSpecSchema.safeParse(draft);
+    if (result.success) onSave?.(result.data);
+  }, [draft, onSave]);
 
   /* ──────────────────── full-screen editor (edit button) ────────────────── */
 
@@ -284,6 +308,7 @@ export function DashboardEditor({
         : "";
 
   return (
+    <FamilyRegistryOverride families={families}>
     <div
       data-slot="dashboard-editor"
       // Inset the whole editor by the grid's gap so the toolbar AND the canvas
@@ -317,15 +342,20 @@ export function DashboardEditor({
       {/* The canvas scrolls — widgets below the fold are reachable (was clipped to
           the viewport, so you couldn't scroll to edit lower charts). */}
       <div className="cv:min-h-0 cv:flex-1 cv:overflow-y-auto cv:pb-4">
-        <EditorCanvas
-          spec={draft}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-          onEdit={handleEdit}
-          onDuplicate={handleDuplicate}
-          onDelete={handleDelete}
-          onLayoutChange={handleLayoutChange}
-        />
+        {/* While a full-screen editor is open the canvas is fully occluded, so we
+            UNMOUNT it — otherwise every debounced chart-edit draft re-renders +
+            reconciles dozens of background CubeCharts the user can't see. */}
+        {!editing ? (
+          <EditorCanvas
+            spec={draft}
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onEdit={handleEdit}
+            onDuplicate={handleDuplicate}
+            onDelete={handleDelete}
+            onLayoutChange={handleLayoutChange}
+          />
+        ) : null}
       </div>
 
       {/* Full-screen editor — click a widget's edit (pencil) button (or the
@@ -386,12 +416,40 @@ export function DashboardEditor({
         </div>
       ) : null}
     </div>
+    </FamilyRegistryOverride>
   );
 }
 
 /** Capitalize a widget type for the editor header. */
 function cap(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+/**
+ * Structural per-item equality of two canonical layouts (same order, same geometry +
+ * constraints). Used to short-circuit a no-op RGL layout report so a byte-identical
+ * layout never triggers a setState (and thus no re-render / RGL re-sync ping-pong).
+ */
+function layoutsEqual(a: LayoutItem[], b: LayoutItem[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (
+      x.i !== y.i ||
+      x.x !== y.x ||
+      x.y !== y.y ||
+      x.w !== y.w ||
+      x.h !== y.h ||
+      x.minW !== y.minW ||
+      x.minH !== y.minH ||
+      x.static !== y.static
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**

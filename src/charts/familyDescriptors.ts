@@ -188,7 +188,9 @@ const TABLE_WELLS: WellDef[] = [
 /**
  * The builtin family → descriptor table. The ORDER of the keys here is the picker's
  * `order` (assigned below), matching the original `FAMILY_ORDER`. `map` REMOVED — it
- * moved to the host app and is now registered via {@link import("./familyRegistry").registerChartFamily}.
+ * moved to the host app and is now provided via `<CubeVizProvider families={[...]}>`.
+ * The ordered builtin array + per-family named exports live in `./familyRegistry`
+ * (which imports this record), keeping this module a pure data leaf.
  */
 const ORDER: BuiltinChartFamily[] = ["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"];
 const orderOf = (family: BuiltinChartFamily): number => ORDER.indexOf(family);
@@ -359,22 +361,3 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     sidebarWidthClass: SIDEBAR_DEFAULT,
   },
 };
-
-/**
- * The families in their UI (picker) order. DEPRECATED as a static export —
- * host-registered families won't appear here. Prefer `chartFamilies()` from
- * `./familyRegistry`, which includes them. Kept as the BUILTIN order.
- */
-export const familyOrder: ChartFamily[] = [...ORDER];
-
-/**
- * Accessor: the descriptor for a BUILTIN family. The dispatch point that also
- * resolves host-registered families is `familyDescriptor` in `./familyRegistry`
- * (the throwing accessor), with `getFamilyDescriptor` as its non-throwing variant —
- * both registry-backed. This leaf module stays free of the registry import (no cycle).
- */
-export function builtinFamilyDescriptor(family: ChartFamily): ChartFamilyDescriptor | undefined {
-  return Object.prototype.hasOwnProperty.call(builtinFamilyDescriptors, family)
-    ? builtinFamilyDescriptors[family as BuiltinChartFamily]
-    : undefined;
-}

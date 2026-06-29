@@ -11,95 +11,143 @@ import {
 } from "./defaults";
 
 /**
- * The MODULE-LEVEL chart-family registry — the runtime single source of truth for
- * which families exist and how each behaves. Seeded from the builtin descriptors;
- * a host registers an ENTIRELY NEW family with {@link registerChartFamily}
- * (e.g. a `map` family that lives in the host app now that the builtin map is gone).
+ * The chart-family registry — an IMMUTABLE value (no module-mutable state). A
+ * {@link FamilyRegistry} is built ONCE by {@link buildFamilyRegistry} (seeded by the
+ * ordered builtins, then host families augment/override by `descriptor.family`), and
+ * carried through React context (see {@link import("@/provider").CubeVizProvider}). A
+ * host extends families declaratively via `<CubeVizProvider families={[...]}>` — there
+ * is no module-global `Map` and no imperative `registerChartFamily` anymore.
  *
  * Cycle discipline: this module imports the builtin DATA (`familyDescriptors`,
- * `defaults`) but those leaves NEVER import back here. Everything that needs to
- * resolve a family for a possibly-host key — option schema, defaults, ordering,
- * the dispatch component — routes through the accessors below.
+ * `defaults`) but those leaves NEVER import back here. The per-family named exports +
+ * `defaultChartFamilies` are declared HERE (this module already imports the builtin
+ * record), keeping `familyDescriptors.ts` a pure data leaf.
  */
 
-const registry = new Map<string, ChartFamilyDescriptor>();
+/* ─────────────────────────── per-family named exports ─────────────────────── */
+//
+// One named export per builtin family, so a host can `import { barChartFamily }` and
+// compose its own ordered `families` list (or replace one). `defaultChartFamilies` is
+// the ordered builtin array — the picker's default order.
 
-// Seed the builtins (in their declared order). A later `registerChartFamily` with the
-// same key overrides — so a host MAY replace a builtin family wholesale if it wants.
-for (const family of Object.keys(builtinFamilyDescriptors) as (keyof typeof builtinFamilyDescriptors)[]) {
-  registry.set(family, builtinFamilyDescriptors[family]);
-}
+export const barChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.bar;
+export const lineChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.line;
+export const areaChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.area;
+export const pieChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.pie;
+export const scatterChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.scatter;
+export const kpiChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.kpi;
+export const tableChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.table;
+export const comboChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.combo;
 
 /**
- * Register (or replace) a chart family. After this the family appears in the type
- * picker, is editable (wells / placement / customize), validates (optionsSchema /
- * defaults), and renders (component) — everything derives from the registry.
- *
- * Idempotent by key: registering the same `descriptor.family` twice replaces it
- * (so a host re-render that re-registers is harmless).
+ * The eight builtin families, in picker (`order`) order. Pass to
+ * {@link import("@/provider").CubeVizProvider} `families` to compose, or spread into a
+ * host list. The default the registry is seeded from.
  */
-export function registerChartFamily(descriptor: ChartFamilyDescriptor): void {
-  registry.set(descriptor.family, descriptor);
-}
+export const defaultChartFamilies: readonly ChartFamilyDescriptor[] = [
+  barChartFamily,
+  lineChartFamily,
+  areaChartFamily,
+  pieChartFamily,
+  scatterChartFamily,
+  kpiChartFamily,
+  tableChartFamily,
+  comboChartFamily,
+];
 
-/** The descriptor for `family`, or `undefined` if no such family is registered. */
-export function getFamilyDescriptor(family: ChartFamily): ChartFamilyDescriptor | undefined {
-  return registry.get(family);
-}
-
-/**
- * The descriptor for `family` (the single dispatch point). Throws on an unknown
- * family — every editor/render path that calls this has already resolved a real
- * family, so an unknown key is a programming error worth failing loudly on.
- *
- * Replaces the old builtin-only `familyDescriptor` (same name, now registry-backed),
- * so every existing call site transparently supports host families.
- */
-export function familyDescriptor(family: ChartFamily): ChartFamilyDescriptor {
-  const d = registry.get(family);
-  if (!d) {
-    throw new Error(
-      `Unknown chart family "${family}". Register it with registerChartFamily(...) (or via <CubeVizProvider families={[...]}>) before rendering/editing a spec that uses it.`,
-    );
-  }
-  return d;
-}
-
-/** All registered descriptors, sorted by `order` (ascending), then key for ties. */
-export function listFamilyDescriptors(): ChartFamilyDescriptor[] {
-  return [...registry.values()].sort((a, b) => a.order - b.order || a.family.localeCompare(b.family));
-}
-
-/** All registered family keys, in picker order — supersedes the static `familyOrder`. */
-export function chartFamilies(): ChartFamily[] {
-  return listFamilyDescriptors().map((d) => d.family);
-}
-
-/* ─────────────────────────── options accessors (registry-routed) ─────────────────────────── */
-
-/** The family's total defaults (envelope + familyOptions); empty for an unknown family. */
-export function familyDefaults(family: ChartFamily): FamilyDefault {
-  return registry.get(family)?.defaults ?? EMPTY_FAMILY_DEFAULT;
-}
-
-/**
- * The zod schema validating a family's `familyOptions` (after default-merge). For an
- * unknown family it falls back to a permissive passthrough so an unrecognized spec
- * doesn't throw at validation time (it just isn't normalized).
- */
-export function familyOptionsSchema(family: ChartFamily): z.ZodTypeAny {
-  return registry.get(family)?.optionsSchema ?? PASSTHROUGH_SCHEMA;
-}
+/* ─────────────────────────── the registry interface ───────────────────────── */
 
 /** A single shared permissive schema (built once) for unknown families. */
 const PASSTHROUGH_SCHEMA: z.ZodTypeAny = z.any();
 
 /**
- * Resolve a chart's options against ITS family's defaults (registry-routed, so a
- * host family resolves exactly like a builtin). Deep-merges envelope + familyOptions
- * defaults under the spec; arrays replace wholesale. This is the public
- * `resolveOptions` every renderer uses.
+ * An immutable chart-family registry: the runtime single source of truth for which
+ * families exist and how each behaves. Built once by {@link buildFamilyRegistry} and
+ * carried through context — every reader holds the same frozen instance (stable
+ * identity, so it can sit in `useMemo` deps without churn).
  */
-export function resolveOptions(options: ChartOptions): ChartOptions {
-  return resolveOptionsWith(options, familyDefaults(options.family));
+export interface FamilyRegistry {
+  /** The descriptor for `family`, or `undefined` if no such family is registered. */
+  get(family: ChartFamily): ChartFamilyDescriptor | undefined;
+  /**
+   * The descriptor for `family` (the single dispatch point). Throws on an unknown
+   * family — every editor/render path that calls this has already resolved a real
+   * family, so an unknown key is a programming error worth failing loudly on.
+   */
+  require(family: ChartFamily): ChartFamilyDescriptor;
+  /** All registered descriptors, sorted by `order` (ascending), then key for ties. */
+  list(): ChartFamilyDescriptor[];
+  /** All registered family keys, in picker order. */
+  families(): ChartFamily[];
+  /** The family's total defaults (envelope + familyOptions); empty for an unknown family. */
+  defaults(family: ChartFamily): FamilyDefault;
+  /** The zod schema validating a family's `familyOptions`; permissive for unknown. */
+  optionsSchema(family: ChartFamily): z.ZodTypeAny;
+  /** Resolve a chart's options against ITS family's defaults (host resolves like a builtin). */
+  resolveOptions(options: ChartOptions): ChartOptions;
+}
+
+/**
+ * Build an immutable {@link FamilyRegistry}. Seeds `defaults` in order, then `host`
+ * augments/overrides by `descriptor.family` key (host wins — a host family reusing a
+ * builtin key replaces it wholesale). Builds a frozen `ReadonlyMap` once; pure, no
+ * module state. The order-sorted list + family-keys array are computed ONCE here
+ * (closure cache), so `list()`/`families()` never re-sort per call.
+ */
+export function buildFamilyRegistry(
+  defaults: readonly ChartFamilyDescriptor[],
+  host?: readonly ChartFamilyDescriptor[],
+): FamilyRegistry {
+  const map = new Map<string, ChartFamilyDescriptor>();
+  for (const d of defaults) map.set(d.family, d);
+  for (const d of host ?? []) map.set(d.family, d);
+  Object.freeze(map);
+
+  // Computed once: the order-sorted descriptor list and its family-key projection.
+  const sorted = [...map.values()].sort(
+    (a, b) => a.order - b.order || a.family.localeCompare(b.family),
+  );
+  const familyKeys = sorted.map((d) => d.family);
+
+  const registry: FamilyRegistry = {
+    get: (family) => map.get(family),
+    require: (family) => {
+      const d = map.get(family);
+      if (!d) {
+        throw new Error(
+          `Unknown chart family "${family}". Provide it via <CubeVizProvider families={[...]}> (or buildFamilyRegistry) before rendering/editing a spec that uses it.`,
+        );
+      }
+      return d;
+    },
+    list: () => sorted,
+    families: () => familyKeys,
+    defaults: (family) => map.get(family)?.defaults ?? EMPTY_FAMILY_DEFAULT,
+    optionsSchema: (family) => map.get(family)?.optionsSchema ?? PASSTHROUGH_SCHEMA,
+    resolveOptions: (options) => resolveOptionsWith(options, registry.defaults(options.family)),
+  };
+  return registry;
+}
+
+/**
+ * A pre-built {@link FamilyRegistry} over {@link defaultChartFamilies} only (no host
+ * families). The back-compat default for the public pure exports
+ * ({@link resolveOptions}, {@link import("@/adapter").normalize},
+ * {@link import("@/render").comparePreviousInput}) and the fallback for components
+ * rendered outside a provider (e.g. {@link import("@/charts").ChartRenderer} in tests).
+ */
+export const builtinFamilyRegistry: FamilyRegistry = buildFamilyRegistry(defaultChartFamilies);
+
+/**
+ * Resolve a chart's options against ITS family's defaults — the public free function,
+ * kept for back-compat. Deep-merges envelope + familyOptions defaults under the spec
+ * (arrays replace wholesale). Defaults to the builtin-only registry when none is
+ * passed, so `resolveOptions(options)` still works for external/test callers; pass a
+ * registry (from context) to resolve host families.
+ */
+export function resolveOptions(
+  options: ChartOptions,
+  registry: FamilyRegistry = builtinFamilyRegistry,
+): ChartOptions {
+  return registry.resolveOptions(options);
 }

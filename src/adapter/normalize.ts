@@ -15,7 +15,7 @@ import type {
   SeriesValueMeta,
 } from "@/adapter/types";
 import type { UnitDef } from "@/units";
-import { familyDescriptor } from "@/charts";
+import { builtinFamilyRegistry, type FamilyRegistry } from "@/charts";
 
 /**
  * The resultSet → NormalizedChartData adapter — the single abstraction boundary
@@ -289,6 +289,7 @@ export function normalize(
   options: ChartOptions,
   resolvedQuery: CubeQuery,
   convertCtx?: ConvertCtx,
+  families: FamilyRegistry = builtinFamilyRegistry,
 ): NormalizedChartData {
   const annotation = toResultAnnotation(resultSet.annotation() as Parameters<typeof toResultAnnotation>[0]);
   // Resolve unit conversion ONCE, at the boundary: rewrites convertible measures'
@@ -305,7 +306,7 @@ export function normalize(
     // blank, plot one mark per measure from the single aggregate row (categories = the
     // measure labels). scatter/kpi/table intentionally read raw, so they keep the empty
     // series list.
-    if (familyDescriptor(options.family).measureOnly && measures.length > 0) {
+    if (families.require(options.family).measureOnly && measures.length > 0) {
       const row = rows[0] ?? {};
       // rows are already converted, but each datum here is a DIFFERENT measure (one mark
       // per measure), so the per-row conversion above already applied — read directly.

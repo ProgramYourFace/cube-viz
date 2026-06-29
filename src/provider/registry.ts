@@ -8,8 +8,7 @@ import type {
   VariableValue,
   WidgetSpec,
 } from "@/spec";
-import type { ChartComponent } from "@/charts";
-import { familyDescriptor } from "@/charts";
+import type { ChartComponent, FamilyRegistry } from "@/charts";
 
 /**
  * The component-override surface (docs/03-override-theme-preview.md §A2). A host
@@ -115,14 +114,16 @@ export interface ComponentRegistry {
 
 /**
  * Resolve the chart component for `family`: the {@link ComponentRegistry} override
- * if present, else the family's registered component (builtin OR host-registered via
- * {@link import("@/charts").registerChartFamily}). This is the per-slot resolution
- * every renderer uses. Throws on an unknown family (a spec referencing an
- * unregistered family is a programming error).
+ * if present, else the family's registered component (builtin OR host family) from the
+ * injected {@link FamilyRegistry}. This is the per-slot resolution every renderer uses.
+ * Throws on an unknown family (a spec referencing an unregistered family is a
+ * programming error). Pure — the React caller (`CubeChart`) passes the context registry
+ * from {@link import("./context").useFamilyRegistry}.
  */
 export function resolveChart(
   registry: ComponentRegistry | undefined,
   family: ChartFamily,
+  families: FamilyRegistry,
 ): ChartComponent {
-  return registry?.charts?.[family] ?? familyDescriptor(family).component;
+  return registry?.charts?.[family] ?? families.require(family).component;
 }

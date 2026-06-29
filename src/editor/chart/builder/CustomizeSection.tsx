@@ -1,6 +1,7 @@
 import * as React from "react";
 
-import { familyDefaults, familyDescriptor } from "@/charts";
+import type { FamilyRegistry } from "@/charts";
+import { useFamilyRegistry } from "@/provider";
 import type { ChartOptions, ChartSpec } from "@/spec";
 import { Input } from "@/components/ui/input";
 
@@ -27,12 +28,13 @@ type StackChoice = "none" | "stacked" | "percent";
  * Fewest knobs for sensible defaults.
  */
 export function CustomizeSection({ spec, update }: CustomizeSectionProps): React.ReactElement {
+  const families = useFamilyRegistry();
   const { chart } = spec;
   const family = chart.family;
   const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
 
   // Host-registered families supply their own Customize panel on the descriptor.
-  const descriptor = familyDescriptor(family);
+  const descriptor = families.require(family);
   if (descriptor.Customize) {
     const HostCustomize = descriptor.Customize;
     return <HostCustomize spec={spec} update={update} />;
@@ -48,7 +50,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
   const areaDefault = chart.mapping?.series?.mode === "pivot" ? "stacked" : "none";
   const effectiveStack =
     chart.stackMode ??
-    (family === "area" ? areaDefault : familyDefaults(family).envelope.stackMode) ??
+    (family === "area" ? areaDefault : families.defaults(family).envelope.stackMode) ??
     "none";
   const stackValue: StackChoice =
     effectiveStack === "stacked" ? "stacked" : effectiveStack === "percent" ? "percent" : "none";
@@ -198,8 +200,11 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
  * host that sets `hasCustomizeOptions: false` would otherwise have its panel suppressed
  * (CenterTypePicker short-circuits before CustomizeSection's host dispatch runs).
  */
-export function hasCustomizeOptions(family: ChartSpec["chart"]["family"]): boolean {
-  const descriptor = familyDescriptor(family);
+export function hasCustomizeOptions(
+  family: ChartSpec["chart"]["family"],
+  families: FamilyRegistry,
+): boolean {
+  const descriptor = families.require(family);
   return descriptor.hasCustomizeOptions || descriptor.Customize !== undefined;
 }
 

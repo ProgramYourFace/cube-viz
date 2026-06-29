@@ -1,5 +1,3 @@
-import type { ChartFamily } from "@/spec";
-import { familyDescriptor } from "@/charts";
 import { axisKey, quantityLabel } from "@/units";
 import type { MemberOption } from "../../primitives/meta-helpers";
 
@@ -22,14 +20,6 @@ export function axisKeyOf(option: MemberOption | undefined): string {
 /** A human label for an option's quantity/unit (for constraint messages). */
 export function axisLabelOf(option: MemberOption | undefined): string {
   return quantityLabel(option ? { unit: option.unit, quantity: option.quantity } : undefined);
-}
-
-/**
- * Whether a value well ENFORCES axis-unit consistency for `family` + `wellId`.
- * Only the multi-number Y axis of bar/line/area; combo Y is exempt by design.
- */
-export function wellEnforcesAxis(family: ChartFamily, wellId: string): boolean {
-  return familyDescriptor(family).enforcesAxisUnit && wellId === "y";
 }
 
 /** Whether `option` may join an axis whose required key is `requiredKey`. */

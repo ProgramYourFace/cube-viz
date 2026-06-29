@@ -37,6 +37,8 @@ export declare function appendWidget(spec: DashboardSpec, widget: WidgetSpec, co
  */
 export declare function AreaChartFamily({ data, options, config, format, editing, }: ChartComponentProps): React_2.ReactElement;
 
+export declare const areaChartFamily: ChartFamilyDescriptor;
+
 export declare type AreaFamilyOptions = z.infer<typeof AreaFamilyOptionsSchema>;
 
 export declare const AreaFamilyOptionsSchema: z.ZodObject<{
@@ -472,6 +474,21 @@ export declare const AxisOptionsSchema: z.ZodObject<{
  */
 export declare function BarChartFamily({ data, options, config, format, editing, }: ChartComponentProps): React_2.ReactElement;
 
+/**
+ * The chart-family registry — an IMMUTABLE value (no module-mutable state). A
+ * {@link FamilyRegistry} is built ONCE by {@link buildFamilyRegistry} (seeded by the
+ * ordered builtins, then host families augment/override by `descriptor.family`), and
+ * carried through React context (see {@link import("@/provider").CubeVizProvider}). A
+ * host extends families declaratively via `<CubeVizProvider families={[...]}>` — there
+ * is no module-global `Map` and no imperative `registerChartFamily` anymore.
+ *
+ * Cycle discipline: this module imports the builtin DATA (`familyDescriptors`,
+ * `defaults`) but those leaves NEVER import back here. The per-family named exports +
+ * `defaultChartFamilies` are declared HERE (this module already imports the builtin
+ * record), keeping `familyDescriptors.ts` a pure data leaf.
+ */
+export declare const barChartFamily: ChartFamilyDescriptor;
+
 export declare type BarFamilyOptions = z.infer<typeof BarFamilyOptionsSchema>;
 
 export declare const BarFamilyOptionsSchema: z.ZodObject<{
@@ -531,6 +548,15 @@ export declare interface BridgeError {
     fatal: boolean;
     detail?: unknown;
 }
+
+/**
+ * Build an immutable {@link FamilyRegistry}. Seeds `defaults` in order, then `host`
+ * augments/overrides by `descriptor.family` key (host wins — a host family reusing a
+ * builtin key replaces it wholesale). Builds a frozen `ReadonlyMap` once; pure, no
+ * module state. The order-sorted list + family-keys array are computed ONCE here
+ * (closure cache), so `list()`/`families()` never re-sort per call.
+ */
+export declare function buildFamilyRegistry(defaults: readonly ChartFamilyDescriptor[], host?: readonly ChartFamilyDescriptor[]): FamilyRegistry;
 
 /** The families cube-viz ships in-box (the picker order). `map` REMOVED. */
 export declare const BUILTIN_CHART_FAMILIES: readonly ["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"];
@@ -1341,13 +1367,22 @@ export declare type BuiltinChartFamily = (typeof BUILTIN_CHART_FAMILIES)[number]
 
 /**
  * The builtin family → component table, DERIVED from the builtin descriptors. Note
- * this is BUILTIN-ONLY (host-registered families are NOT here); dispatch resolves
- * the component from the live family registry via {@link familyDescriptor}, so a
- * host family still renders. Override any entry via `components`.
+ * this is BUILTIN-ONLY (host-registered families are NOT here); dispatch resolves the
+ * component from the injected {@link FamilyRegistry}, so a host family still renders.
+ * Override any entry via `components`.
  */
 export declare const builtinCharts: Record<string, ChartComponent>;
 
 export declare const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDescriptor>;
+
+/**
+ * A pre-built {@link FamilyRegistry} over {@link defaultChartFamilies} only (no host
+ * families). The back-compat default for the public pure exports
+ * ({@link resolveOptions}, {@link import("@/adapter").normalize},
+ * {@link import("@/render").comparePreviousInput}) and the fallback for components
+ * rendered outside a provider (e.g. {@link import("@/charts").ChartRenderer} in tests).
+ */
+export declare const builtinFamilyRegistry: FamilyRegistry;
 
 /** The breakpoint key under which {@link Dashboard} stores the canonical layout. */
 export declare const CANONICAL_BREAKPOINT: "lg";
@@ -1471,9 +1506,6 @@ export declare interface ChartEditOverlayProps {
     children: React_2.ReactNode;
 }
 
-/** All registered family keys, in picker order — supersedes the static `familyOrder`. */
-export declare function chartFamilies(): ChartFamily[];
-
 export declare type ChartFamily = z.infer<typeof ChartFamilySchema>;
 
 /**
@@ -1564,10 +1596,10 @@ export declare interface ChartFamilyDescriptor {
 
 /**
  * The chart-family discriminator is an OPEN string, not a closed enum: a host can
- * register an entirely new family (see `registerChartFamily`) and its specs must
- * validate. The builtin families ship in {@link BUILTIN_CHART_FAMILIES}; unknown
- * (host) families are dispatched through the family registry before any builtin
- * switch. `map` is no longer builtin — it moved to the host app.
+ * add an entirely new family (via `<CubeVizProvider families={[...]}>`) and its specs
+ * must validate. The builtin families ship in {@link BUILTIN_CHART_FAMILIES}; unknown
+ * (host) families are dispatched through the injected family registry before any
+ * builtin switch. `map` is no longer builtin — it moved to the host app.
  */
 export declare const ChartFamilySchema: z.ZodString;
 
@@ -2538,7 +2570,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     familyOptions?: Record<string, unknown> | undefined;
 }>;
 
-export declare function ChartRenderer({ data, options, config, format, state, components, editing, }: ChartRendererProps): React_2.ReactElement;
+export declare function ChartRenderer({ data, options, config, format, state, components, editing, registry, }: ChartRendererProps): ReactElement;
 
 export declare interface ChartRendererProps extends Omit<ChartComponentProps, "format"> {
     /**
@@ -2549,6 +2581,12 @@ export declare interface ChartRendererProps extends Omit<ChartComponentProps, "f
     format?: ChartFormat;
     /** Per-family component overrides; a missing family falls back to the builtin. */
     components?: Partial<Record<ChartFamily, ChartComponent>>;
+    /**
+     * The family registry to dispatch + resolve options against. Optional — defaults to
+     * the builtin-only {@link builtinFamilyRegistry} so the renderer stays pure and works
+     * standalone. `CubeChart` passes the context registry (builtins + host families).
+     */
+    registry?: FamilyRegistry;
 }
 
 export declare type ChartSpec = z.infer<typeof ChartSpecSchema>;
@@ -3937,11 +3975,16 @@ export declare const ChartSpecSchema: z.ZodObject<{
  * lone chart file looks consistent with a dashboard cell. No `DashboardProvider` —
  * a top-level chart resolves variables against an empty store (fail-safe noFilter).
  */
-export declare function ChartView({ spec }: ChartViewProps): ReactElement;
+export declare function ChartView({ spec, families }: ChartViewProps): ReactElement;
 
 export declare interface ChartViewProps {
     /** A standalone chart spec to render (no dashboard / variables). */
     spec: ChartSpec;
+    /**
+     * Per-component chart-families override (see {@link DashboardProps.families}). When
+     * set, this chart resolves families from `defaultChartFamilies` + these descriptors.
+     */
+    families?: ChartFamilyDescriptor[];
 }
 
 export declare type ChartWidget = z.infer<typeof ChartWidgetSchema>;
@@ -5334,6 +5377,8 @@ export declare const ColorAssignmentSchema: z.ZodObject<{
  */
 export declare function ComboChartFamily({ data, options, format, editing }: ChartComponentProps): React_2.ReactElement;
 
+export declare const comboChartFamily: ChartFamilyDescriptor;
+
 export declare type ComboFamilyOptions = z.infer<typeof ComboFamilyOptionsSchema>;
 
 export declare const ComboFamilyOptionsSchema: z.ZodObject<{
@@ -5539,6 +5584,20 @@ export declare function createCubeClient(conn: CubeConnection): CubeClient;
  * created on call (NOT at module scope), so each editor instance gets its own.
  */
 export declare function createIdFactory(prefix?: string): IdFactory;
+
+/**
+ * A per-caller memoized {@link resolveQuery}: caches the last input + the serialized
+ * resolved output, and returns the PRIOR resolved object (same reference) when the new
+ * resolution is byte-identical. This gives downstream identity-based memos (e.g.
+ * `useNormalizedSeries`' `data` memo) referential stability — a `setVar` that doesn't
+ * affect THIS query produces no new `resolvedQuery` reference, so `normalize()` does not
+ * re-run. A real change to a bound variable still yields a new reference (the
+ * serialization differs), so the bound widget correctly updates.
+ *
+ * Each caller (one per chart) gets its own memoizer, so unrelated queries never evict
+ * each other's cache.
+ */
+export declare function createQueryResolver(): (query: CubeQuery, store: Record<string, VariableValue>, decls: VariableDecl[]) => CubeQuery;
 
 /**
  * Build the core unit-aware {@link ValueFormatter}. `conversions` (storage-unit →
@@ -5766,6 +5825,13 @@ export declare interface CubeVizContextValue {
     cubeClient: CubeClient;
     /** Component overrides; absent slots fall back to the built-ins. */
     registry: ComponentRegistry;
+    /**
+     * The immutable chart-family registry (builtins + host `families`). Built once by
+     * the provider and carried here; read it via {@link useFamilyRegistry}. The single
+     * source of truth for which families exist and how each behaves (dispatch / wells /
+     * defaults / options schema), replacing the old module-global registry.
+     */
+    families: FamilyRegistry;
     /** Resolved locale / formatting config. */
     locale: ResolvedLocale;
     /** Resolved theme config. */
@@ -5810,10 +5876,13 @@ export declare interface CubeVizProviderProps {
     registry?: ComponentRegistry;
     /**
      * Host-registered chart families (the extension point now that `map` is no longer
-     * builtin — a host ships its own `map` descriptor here). Registered into the MODULE
-     * family registry on mount, so they appear in the type picker, are editable
-     * (wells/placement/customize), validate (optionsSchema/defaults), and render
-     * (component). Registration is module-global and idempotent by `descriptor.family`.
+     * builtin — a host ships its own `map` descriptor here). Built into an immutable
+     * {@link FamilyRegistry} (builtins first, then these augment/override by
+     * `descriptor.family`) and carried through context, so they appear in the type
+     * picker, are editable (wells/placement/customize), validate (optionsSchema/defaults),
+     * and render (component). The registry is memoized by the families' CONTENT (the
+     * family keys), so a fresh array literal each render (`families={[mapDescriptor]}`)
+     * does NOT churn the registry identity.
      */
     families?: ChartFamilyDescriptor[];
     children: React_2.ReactNode;
@@ -5837,7 +5906,7 @@ export declare interface CubeVizThemeConfig {
     mode?: "light" | "dark" | "system";
 }
 
-export declare function Dashboard({ spec, editable }: DashboardProps): ReactElement;
+export declare function Dashboard({ spec, editable, families }: DashboardProps): ReactElement;
 
 /**
  * The dashboard variable layer (docs/03-override-theme-preview.md §A2.5): a React
@@ -5855,7 +5924,13 @@ export declare function Dashboard({ spec, editable }: DashboardProps): ReactElem
  */
 /** The reactive dashboard API surfaced by {@link useDashboard}. */
 export declare interface DashboardContextValue {
-    /** Current store snapshot — stable identity until the next `setVar`. */
+    /**
+     * Current store snapshot. NOTE: reading this on the context value is a point-in-time
+     * read — it is NOT reactive by itself. Components that must re-render when a variable
+     * changes should call {@link useDashboardVar} (a per-name subscription) or
+     * {@link resolveValue} inside a component that subscribes; depending on this object's
+     * `vars` no longer forces a board-wide re-render on every `setVar`.
+     */
     vars: Record<string, VariableValue>;
     /** Leg 1: write a variable (`undefined` clears it back toward its default). */
     setVar: (name: string, value: VariableValue | undefined) => void;
@@ -5867,7 +5942,7 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, onDiscard, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, onDiscard, families, className, }: DashboardEditorProps): React_2.ReactElement;
 
 /**
  * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
@@ -5933,6 +6008,12 @@ export declare interface DashboardEditorProps {
     canRedo?: boolean;
     /** Throw away unsaved changes (host clears its draft + re-seeds the published spec). */
     onDiscard?: () => void;
+    /**
+     * Per-component chart-families override. When set, the editor's subtree resolves
+     * families from `defaultChartFamilies` + these descriptors (augmenting the provider's
+     * families just for this editor); the rest of the context is inherited unchanged.
+     */
+    families?: ChartFamilyDescriptor[];
     className?: string;
 }
 
@@ -5941,6 +6022,13 @@ export declare interface DashboardProps {
     spec: DashboardSpec;
     /** Edit mode: enables drag/resize (handle = chrome header). Default `false`. */
     editable?: boolean;
+    /**
+     * Per-component chart-families override. When set, this dashboard's subtree resolves
+     * families from a registry built from `defaultChartFamilies` + these descriptors —
+     * augmenting the provider's families just for this dashboard (the rest of the context
+     * is inherited unchanged). Omit to inherit the provider's families.
+     */
+    families?: ChartFamilyDescriptor[];
 }
 
 /**
@@ -8163,6 +8251,13 @@ export declare const DEFAULT_COLS = 12;
  */
 export declare const DEFAULT_UNIT_CONVERSIONS: Record<string, UnitDef>;
 
+/**
+ * The eight builtin families, in picker (`order`) order. Pass to
+ * {@link import("@/provider").CubeVizProvider} `families` to compose, or spread into a
+ * host list. The default the registry is seeded from.
+ */
+export declare const defaultChartFamilies: readonly ChartFamilyDescriptor[];
+
 export declare const defaultFormatter: ValueFormatter;
 
 /** Per-type sensible default value when a variable's `type` changes. */
@@ -8171,7 +8266,16 @@ export declare function defaultForType(type: VariableDecl["type"]): VariableDecl
 /** The RGL drag-handle class — Dashboard passes this as `draggableHandle`. */
 export declare const DRAG_HANDLE_CLASS = "cube-viz-drag-handle";
 
-export declare function EditorCanvas({ spec, selectedId, onSelect, onEdit, onDuplicate, onDelete, onLayoutChange, }: EditorCanvasProps): React_2.ReactElement;
+/**
+ * The canvas renders a live CubeChart per widget, so it is the single most expensive
+ * subtree in the editor. Memoize it so unrelated DashboardEditor re-renders (e.g. the
+ * deferred whole-dashboard validation settling, or a selection change handled by
+ * stable callbacks) don't reconcile the whole grid — it re-renders only when its own
+ * props (the draft spec / selection / handlers) actually change identity.
+ */
+export declare const EditorCanvas: React_2.MemoExoticComponent<typeof EditorCanvasImpl>;
+
+declare function EditorCanvasImpl({ spec, selectedId, onSelect, onEdit, onDuplicate, onDelete, onLayoutChange, }: EditorCanvasProps): React_2.ReactElement;
 
 export declare interface EditorCanvasProps {
     spec: DashboardSpec;
@@ -8257,25 +8361,50 @@ export declare interface FamilyDefault {
     familyOptions: Record<string, unknown>;
 }
 
-/** The family's total defaults (envelope + familyOptions); empty for an unknown family. */
-export declare function familyDefaults(family: ChartFamily): FamilyDefault;
+/**
+ * An immutable chart-family registry: the runtime single source of truth for which
+ * families exist and how each behaves. Built once by {@link buildFamilyRegistry} and
+ * carried through context — every reader holds the same frozen instance (stable
+ * identity, so it can sit in `useMemo` deps without churn).
+ */
+export declare interface FamilyRegistry {
+    /** The descriptor for `family`, or `undefined` if no such family is registered. */
+    get(family: ChartFamily): ChartFamilyDescriptor | undefined;
+    /**
+     * The descriptor for `family` (the single dispatch point). Throws on an unknown
+     * family — every editor/render path that calls this has already resolved a real
+     * family, so an unknown key is a programming error worth failing loudly on.
+     */
+    require(family: ChartFamily): ChartFamilyDescriptor;
+    /** All registered descriptors, sorted by `order` (ascending), then key for ties. */
+    list(): ChartFamilyDescriptor[];
+    /** All registered family keys, in picker order. */
+    families(): ChartFamily[];
+    /** The family's total defaults (envelope + familyOptions); empty for an unknown family. */
+    defaults(family: ChartFamily): FamilyDefault;
+    /** The zod schema validating a family's `familyOptions`; permissive for unknown. */
+    optionsSchema(family: ChartFamily): z.ZodTypeAny;
+    /** Resolve a chart's options against ITS family's defaults (host resolves like a builtin). */
+    resolveOptions(options: ChartOptions): ChartOptions;
+}
 
 /**
- * The descriptor for `family` (the single dispatch point). Throws on an unknown
- * family — every editor/render path that calls this has already resolved a real
- * family, so an unknown key is a programming error worth failing loudly on.
+ * A per-component chart-families override. When a `families` array is given, it
+ * re-publishes the parent {@link CubeVizContext} value with ONLY its `families` field
+ * replaced by a registry built from those descriptors (builtins first, then the
+ * override augments/overrides by key) — every other context field (cubeClient /
+ * registry / locale / theme / maps) is spread through unchanged, so the Cube client is
+ * never blanked. With no override it renders children inheriting the provider's
+ * registry untouched.
  *
- * Replaces the old builtin-only `familyDescriptor` (same name, now registry-backed),
- * so every existing call site transparently supports host families.
+ * This is the safe implementation of the per-component `families?` prop on
+ * {@link import("@/render").Dashboard} / `ChartView` / `DashboardEditor`: it reads the
+ * surrounding provider rather than building a second, divergent merge path.
  */
-export declare function familyDescriptor(family: ChartFamily): ChartFamilyDescriptor;
-
-/**
- * The zod schema validating a family's `familyOptions` (after default-merge). For an
- * unknown family it falls back to a permissive passthrough so an unrecognized spec
- * doesn't throw at validation time (it just isn't normalized).
- */
-export declare function familyOptionsSchema(family: ChartFamily): z.ZodTypeAny;
+export declare function FamilyRegistryOverride({ families, children, }: {
+    families?: ChartFamilyDescriptor[];
+    children: ReactNode;
+}): ReactElement;
 
 /**
  * Fetch `/v1/meta` and return the cubes/views list alongside the raw `Meta`
@@ -8413,9 +8542,6 @@ export declare const FormatOptionsSchema: z.ZodObject<{
  */
 /** Where a value is being rendered. Lets a host vary formatting by surface. */
 export declare type FormatRole = "value" | "axis" | "tooltip" | "label" | "category" | "kpi";
-
-/** The descriptor for `family`, or `undefined` if no such family is registered. */
-export declare function getFamilyDescriptor(family: ChartFamily): ChartFamilyDescriptor | undefined;
 
 export declare type Granularity = z.infer<typeof GranularitySchema>;
 
@@ -8975,6 +9101,8 @@ declare interface JoinScope {
     scopeComponent?: number;
 }
 
+export declare const kpiChartFamily: ChartFamilyDescriptor;
+
 /**
  * `kpi` — covers KPI/Number/Comparison + the folded-in radial gauge
  * (docs/02-chart-options.md §2.6). `display:"number"` is a styled card (NOT
@@ -9214,6 +9342,8 @@ export declare const LegendOptionsSchema: z.ZodObject<{
  */
 export declare function LineChartFamily({ data, options, config, format, editing, }: ChartComponentProps): React_2.ReactElement;
 
+export declare const lineChartFamily: ChartFamilyDescriptor;
+
 export declare type LineFamilyOptions = z.infer<typeof LineFamilyOptionsSchema>;
 
 export declare const LineFamilyOptionsSchema: z.ZodObject<{
@@ -9269,9 +9399,6 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
     connectNulls?: boolean | undefined;
     chrome?: "none" | "full" | undefined;
 }>;
-
-/** All registered descriptors, sorted by `order` (ascending), then key for ties. */
-export declare function listFamilyDescriptors(): ChartFamilyDescriptor[];
 
 export declare type LoadResult = {
     ok: true;
@@ -9390,7 +9517,7 @@ export declare function newWidget(type: WidgetSpec["type"], id: string): WidgetS
  * - `mode: "pivot"` → one series per distinct pivot value, via
  *   `pivotConfig.y = [pivot, "measures"]`; ramp colors round-robin.
  */
-export declare function normalize(resultSet: AnyResultSet, options: ChartOptions, resolvedQuery: CubeQuery, convertCtx?: ConvertCtx): NormalizedChartData;
+export declare function normalize(resultSet: AnyResultSet, options: ChartOptions, resolvedQuery: CubeQuery, convertCtx?: ConvertCtx, families?: FamilyRegistry): NormalizedChartData;
 
 export declare interface NormalizedChartData {
     /** x labels (time buckets or dimension values), aligned to every series' `data` index. */
@@ -9438,6 +9565,8 @@ export declare function pickCanonicalLayout(layout: Layout, allLayouts: Partial<
  * See docs/02-chart-options.md §2.4. Pie plots `categories` × the FIRST series.
  */
 export declare function PieChartFamily({ data, options, format, editing }: ChartComponentProps): React_2.ReactElement;
+
+export declare const pieChartFamily: ChartFamilyDescriptor;
 
 export declare type PieFamilyOptions = z.infer<typeof PieFamilyOptionsSchema>;
 
@@ -9530,16 +9659,6 @@ export declare const ReferenceLineOptSchema: z.ZodObject<{
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
 }>;
 
-/**
- * Register (or replace) a chart family. After this the family appears in the type
- * picker, is editable (wells / placement / customize), validates (optionsSchema /
- * defaults), and renders (component) — everything derives from the registry.
- *
- * Idempotent by key: registering the same `descriptor.family` twice replaces it
- * (so a host re-render that re-registers is harmless).
- */
-export declare function registerChartFamily(descriptor: ChartFamilyDescriptor): void;
-
 /** A dashboard spec with one widget (+ its layout item) removed. Pure. */
 export declare function removeWidget(spec: DashboardSpec, id: string): DashboardSpec;
 
@@ -9568,12 +9687,13 @@ export declare function replaceWidget(spec: DashboardSpec, widget: WidgetSpec): 
 
 /**
  * Resolve the chart component for `family`: the {@link ComponentRegistry} override
- * if present, else the family's registered component (builtin OR host-registered via
- * {@link import("@/charts").registerChartFamily}). This is the per-slot resolution
- * every renderer uses. Throws on an unknown family (a spec referencing an
- * unregistered family is a programming error).
+ * if present, else the family's registered component (builtin OR host family) from the
+ * injected {@link FamilyRegistry}. This is the per-slot resolution every renderer uses.
+ * Throws on an unknown family (a spec referencing an unregistered family is a
+ * programming error). Pure — the React caller (`CubeChart`) passes the context registry
+ * from {@link import("./context").useFamilyRegistry}.
  */
-export declare function resolveChart(registry: ComponentRegistry | undefined, family: ChartFamily): ChartComponent;
+export declare function resolveChart(registry: ComponentRegistry | undefined, family: ChartFamily, families: FamilyRegistry): ChartComponent;
 
 /** Resolved locale / formatting config (defaults applied in the provider). */
 export declare interface ResolvedLocale {
@@ -9625,12 +9745,13 @@ export declare interface ResolvedTheme {
 }
 
 /**
- * Resolve a chart's options against ITS family's defaults (registry-routed, so a
- * host family resolves exactly like a builtin). Deep-merges envelope + familyOptions
- * defaults under the spec; arrays replace wholesale. This is the public
- * `resolveOptions` every renderer uses.
+ * Resolve a chart's options against ITS family's defaults — the public free function,
+ * kept for back-compat. Deep-merges envelope + familyOptions defaults under the spec
+ * (arrays replace wholesale). Defaults to the builtin-only registry when none is
+ * passed, so `resolveOptions(options)` still works for external/test callers; pass a
+ * registry (from context) to resolve host families.
  */
-export declare function resolveOptions(options: ChartOptions): ChartOptions;
+export declare function resolveOptions(options: ChartOptions, registry?: FamilyRegistry): ChartOptions;
 
 /**
  * Resolve a chart's options against a family default: deep-merge the family's
@@ -9694,6 +9815,8 @@ export declare const ScalarSchema: z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBo
  * `groupBy` ⇒ one <Scatter> series per distinct value, each colored from the ramp.
  */
 export declare function ScatterChartFamily({ data, options, format, editing }: ChartComponentProps): React_2.ReactElement;
+
+export declare const scatterChartFamily: ChartFamilyDescriptor;
 
 export declare type ScatterFamilyOptions = z.infer<typeof ScatterFamilyOptionsSchema>;
 
@@ -13743,11 +13866,29 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }>]>;
 
 /**
+ * The STABLE half of the dashboard API (everything except the live `vars` snapshot).
+ * Its identity is constant for the life of a provider instance, so consuming it (e.g.
+ * to call `resolveQuery`/`setVar`/`resolveValue`) does NOT re-render on every `setVar`.
+ * The live `vars` snapshot is exposed separately via a per-consumer subscription
+ * ({@link useDashboardVar} / the lazily-subscribed `vars` getter in {@link useDashboard}),
+ * so a single variable write only re-renders the widgets that actually read it.
+ */
+declare interface StableDashboardApi {
+    store: VariableStore;
+    setVar: (name: string, value: VariableValue | undefined) => void;
+    resolveQuery: (query: CubeQuery) => CubeQuery;
+    resolveValue: (name: string) => VariableValue | undefined;
+    decls: VariableDecl[];
+}
+
+/**
  * The empty / loading state slots. Empty fires when `NormalizedChartData.empty`
  * (noFilter dropped everything or zero rows). Stateless by contract — these are
  * pure presentational placeholders.
  */
 export declare type StateComponent = React_2.ComponentType<Record<string, never>>;
+
+export declare const tableChartFamily: ChartFamilyDescriptor;
 
 export declare type TableColumnOpt = z.infer<typeof TableColumnOptSchema>;
 
@@ -14295,6 +14436,13 @@ export declare function useCubeVizContext(): CubeVizContextValue;
 /**
  * Read the dashboard variable API. Throws if no {@link DashboardProvider} is an
  * ancestor — variable-bound widgets require a store.
+ *
+ * This hook subscribes to the variable store: a component using it re-renders when ANY
+ * variable changes (because it exposes the live `vars` snapshot + a reactive
+ * `resolveValue`). Input/control widgets that read their bound value want exactly this.
+ * Code that only needs the stable callbacks (e.g. `resolveQuery` in
+ * {@link useNormalizedSeries}) should destructure them from {@link useOptionalDashboard}
+ * so it does NOT subscribe and does NOT re-render on unrelated variable edits.
  */
 export declare function useDashboard(): DashboardContextValue;
 
@@ -14307,6 +14455,13 @@ export declare function useDashboard(): DashboardContextValue;
  * host while still emitting JSON-out on every change (eventually-consistent).
  */
 export declare function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => void, delay: number): (...args: A) => void;
+
+/**
+ * The immutable chart-family registry from context (builtins + the provider's host
+ * `families`). Component call sites use this to dispatch / read wells / resolve options
+ * for a family. Throws (via {@link useCubeVizContext}) outside a provider.
+ */
+export declare function useFamilyRegistry(): FamilyRegistry;
 
 /**
  * The one DRY formatting path for hosts (docs/03-override-theme-preview.md §A2.5).
@@ -14356,11 +14511,14 @@ export declare interface UseNormalizedSeriesResult {
 }
 
 /**
- * Optional variant: returns the dashboard API if inside a {@link DashboardProvider},
- * else `null`. Used by {@link useNormalizedSeries} so a standalone chart (no
- * dashboard) still works while a dashboard-embedded one picks up variable resolution.
+ * Optional variant: returns the STABLE dashboard API if inside a
+ * {@link DashboardProvider}, else `null`. Does NOT subscribe to variable changes, so a
+ * consumer re-renders only when it reads something that actually changed. Used by
+ * {@link useNormalizedSeries} (depends on the stable `resolveQuery`) so a standalone
+ * chart still works while a dashboard-embedded one picks up variable resolution without
+ * re-normalizing board-wide on every unrelated `setVar`.
  */
-export declare function useOptionalDashboard(): DashboardContextValue | null;
+export declare function useOptionalDashboard(): StableDashboardApi | null;
 
 /** Validate an already-current-version Spec (no migration). */
 export declare function validateSpec(raw: unknown): Spec;

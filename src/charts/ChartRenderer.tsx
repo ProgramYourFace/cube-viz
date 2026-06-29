@@ -1,4 +1,4 @@
-import type * as React from "react";
+import { useMemo, type ReactElement } from "react";
 import { AlertCircle } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,7 +8,7 @@ import type { ChartFamily } from "@/spec";
 import type { ChartFormat } from "@/format";
 import { defaultFormatter, makeChartFormat } from "@/format";
 import type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
-import { resolveOptions, familyDescriptor } from "./familyRegistry";
+import { resolveOptions, builtinFamilyRegistry, type FamilyRegistry } from "./familyRegistry";
 import { configFromSeries } from "./_shared";
 import { builtinFamilyDescriptors } from "./familyDescriptors";
 
@@ -17,16 +17,19 @@ import { builtinFamilyDescriptors } from "./familyDescriptors";
  *  1. resolves options (envelope + familyOptions defaults merged),
  *  2. derives a shadcn ChartConfig from `data.series` (key → {label, color}),
  *  3. renders the shared loading / error / empty states,
- *  4. else picks the family component (`components?.[family]` ?? builtin).
+ *  4. else picks the family component (`components?.[family]` ?? the registry's).
  *
- * It NEVER fetches and NEVER sees a Cube ResultSet.
+ * It NEVER fetches and NEVER sees a Cube ResultSet. It stays PURE and provider-free:
+ * its family registry is an OPTIONAL `registry` prop (defaulting to the builtin-only
+ * {@link builtinFamilyRegistry}), so it renders standalone without a `CubeVizProvider`.
+ * `CubeChart` passes the context registry down explicitly via this prop.
  */
 
 /**
  * The builtin family → component table, DERIVED from the builtin descriptors. Note
- * this is BUILTIN-ONLY (host-registered families are NOT here); dispatch resolves
- * the component from the live family registry via {@link familyDescriptor}, so a
- * host family still renders. Override any entry via `components`.
+ * this is BUILTIN-ONLY (host-registered families are NOT here); dispatch resolves the
+ * component from the injected {@link FamilyRegistry}, so a host family still renders.
+ * Override any entry via `components`.
  */
 export const builtinCharts: Record<string, ChartComponent> = Object.fromEntries(
   Object.entries(builtinFamilyDescriptors).map(([family, d]) => [family, d.component]),
@@ -41,6 +44,12 @@ export interface ChartRendererProps extends Omit<ChartComponentProps, "format"> 
   format?: ChartFormat;
   /** Per-family component overrides; a missing family falls back to the builtin. */
   components?: Partial<Record<ChartFamily, ChartComponent>>;
+  /**
+   * The family registry to dispatch + resolve options against. Optional — defaults to
+   * the builtin-only {@link builtinFamilyRegistry} so the renderer stays pure and works
+   * standalone. `CubeChart` passes the context registry (builtins + host families).
+   */
+  registry?: FamilyRegistry;
 }
 
 export function ChartRenderer({
@@ -51,8 +60,9 @@ export function ChartRenderer({
   state,
   components,
   editing,
-}: ChartRendererProps): React.ReactElement {
-  const resolved = resolveOptions(options);
+  registry = builtinFamilyRegistry,
+}: ChartRendererProps): ReactElement {
+  const resolved = useMemo(() => resolveOptions(options, registry), [options, registry]);
 
   // 1) loading — Skeleton sized to the container height; no Recharts mount yet.
   if (state?.loading) {
@@ -89,10 +99,10 @@ export function ChartRenderer({
     format ?? makeChartFormat(data.raw.annotation, resolved, defaultFormatter);
 
   // 4) dispatch: a per-slot override wins; else the family's registered component
-  // (builtin OR host-registered). `familyDescriptor` throws (with an actionable
-  // "register it with registerChartFamily" message) on an unknown family — a spec
-  // referencing an unregistered family is a programming error.
-  const Family = components?.[resolved.family] ?? familyDescriptor(resolved.family).component;
+  // (builtin OR host family) from the registry. `registry.require` throws (with an
+  // actionable message) on an unknown family — a spec referencing an unregistered
+  // family is a programming error.
+  const Family = components?.[resolved.family] ?? registry.require(resolved.family).component;
   return (
     <Family
       data={data}

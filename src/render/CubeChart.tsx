@@ -8,7 +8,7 @@ import type { ChartConfig } from "@/charts";
 import { makeChartFormat } from "@/format";
 import type { ChartFormat } from "@/format";
 import { createUnitsFormatter, mergeUnitConversions } from "@/units";
-import { resolveChart, useCubeVizContext } from "@/provider";
+import { resolveChart, useCubeVizContext, useFamilyRegistry } from "@/provider";
 import { kpiSparklineInput } from "./kpiSparkline";
 import { comparePreviousInput } from "./comparePrevious";
 
@@ -47,6 +47,9 @@ const EMPTY_DATA: NormalizedChartData = {
 
 export function CubeChart({ query, chart, onState, editing }: CubeChartProps): ReactElement {
   const { registry, locale } = useCubeVizContext();
+  // The family registry (builtins + host families), read ONCE so resolveChart,
+  // comparePreviousInput, and ChartRenderer all share one stable identity.
+  const families = useFamilyRegistry();
 
   // Inject the provider's unit system as the default so the pure families (which
   // only see `options`) convert km→mi / L→gal etc. A per-chart `format.unitSystem`
@@ -83,8 +86,8 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
   // literal one; fetched with skipResolve since it's already literal. Returns null when
   // comparison is off / not applicable, so the hook is skipped (no extra request).
   const compareInput = useMemo(
-    () => comparePreviousInput(resolvedQuery, resolvedChart),
-    [resolvedQuery, resolvedChart],
+    () => comparePreviousInput(resolvedQuery, resolvedChart, families),
+    [resolvedQuery, resolvedChart, families],
   );
   const compare = useNormalizedSeries(
     compareInput?.query ?? tzQuery,
@@ -96,8 +99,8 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
   // the pure dispatcher as a single-entry `components` map so resolution stays in
   // one place (resolveChart) rather than duplicating the registry-fallback logic.
   const components = useMemo(
-    () => ({ [resolvedChart.family]: resolveChart(registry, resolvedChart.family) }),
-    [registry, resolvedChart.family],
+    () => ({ [resolvedChart.family]: resolveChart(registry, resolvedChart.family, families) }),
+    [registry, resolvedChart.family, families],
   );
 
   // ChartRenderer requires non-null data; before the first result we feed an empty
@@ -178,6 +181,7 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
       format={format}
       state={{ loading: isLoading && !data, error }}
       components={components}
+      registry={families}
       editing={editing}
     />
   );

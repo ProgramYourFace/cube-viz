@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
+import { useFamilyRegistry } from "@/provider";
 import type { ChartColorToken, ChartSpec } from "@/spec";
 
 import { ColorTokenPicker } from "../../primitives/ColorTokenPicker";
@@ -66,7 +67,8 @@ export function FieldPill({
   reorder,
   className,
 }: FieldPillProps): React.ReactElement {
-  const b = chipBindings(spec, update, well, member, option);
+  const families = useFamilyRegistry();
+  const b = chipBindings(spec, update, well, member, option, families);
   const defaultLabel = option?.label ?? member;
   const display = b.label || defaultLabel;
   const showSwatch = b.canColor && resolvedColor !== undefined;

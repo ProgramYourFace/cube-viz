@@ -69,7 +69,7 @@ export interface EditorCanvasProps {
   onLayoutChange: (layout: LayoutItem[]) => void;
 }
 
-export function EditorCanvas({
+function EditorCanvasImpl({
   spec,
   selectedId,
   onSelect,
@@ -87,7 +87,10 @@ export function EditorCanvas({
   const containerPadding: readonly [number, number] = grid.containerPadding ?? [0, 0];
 
   // One canonical breakpoint (no responsive reflow); scale the cell metrics to fit.
-  const scale = Math.max(EDIT_MIN_SCALE, Math.min(1, width / EDIT_DESIGN_WIDTH));
+  // Quantize the scale to the nearest 0.05 so sub-pixel ResizeObserver width jitter
+  // doesn't churn rowHeightEff/marginEff -> a full RGL pixel-relayout every frame.
+  const rawScale = Math.max(EDIT_MIN_SCALE, Math.min(1, width / EDIT_DESIGN_WIDTH));
+  const scale = Math.round(rawScale / 0.05) * 0.05;
   const rowHeightEff = Math.max(8, Math.round(rowHeight * scale));
   const marginEff: [number, number] = [
     Math.round(margin[0] * scale),
@@ -114,13 +117,25 @@ export function EditorCanvas({
     reportRef.current = onLayoutChange;
   }, [onLayoutChange]);
 
+  // The layout currently reflected in the spec, read by handleLayoutChange to drop
+  // RGL's no-op (mount / re-sync) reports without re-binding the callback.
+  const specLayoutRef = React.useRef(spec.layout);
+  React.useEffect(() => {
+    specLayoutRef.current = spec.layout;
+  }, [spec.layout]);
+
   // Pointer-down position, to tell a real click (select) from a drag (move).
   const downPos = React.useRef<{ x: number; y: number } | null>(null);
 
   const handleLayoutChange = React.useCallback(
     (layout: Layout, all: ResponsiveLayouts): void => {
       const canonical = pickCanonicalLayout(layout, all);
-      reportRef.current(canonical.map((it) => ({ ...it })) as LayoutItem[]);
+      const next = canonical.map((it) => ({ ...it })) as LayoutItem[];
+      // RGL fires onLayoutChange on mount and on every prop re-sync. Drop the report
+      // when the geometry is byte-identical to what the spec already holds, so a no-op
+      // fire never starts the onLayoutChange -> setState -> re-sync ping-pong.
+      if (rglLayoutEqual(specLayoutRef.current, next)) return;
+      reportRef.current(next);
     },
     [],
   );
@@ -252,3 +267,27 @@ export function EditorCanvas({
     </DashboardProvider>
   );
 }
+
+/**
+ * Geometry equality of the spec's layout vs. a freshly-captured RGL layout. RGL only
+ * reports `i/x/y/w/h` (it strips minW/minH/static from derived items), so we compare
+ * just those — matched by id rather than order, since RGL may reorder its emitted list.
+ */
+function rglLayoutEqual(spec: readonly LayoutItem[], rgl: readonly LayoutItem[]): boolean {
+  if (spec.length !== rgl.length) return false;
+  const byId = new Map(spec.map((it) => [it.i, it]));
+  for (const r of rgl) {
+    const s = byId.get(r.i);
+    if (!s || s.x !== r.x || s.y !== r.y || s.w !== r.w || s.h !== r.h) return false;
+  }
+  return true;
+}
+
+/**
+ * The canvas renders a live CubeChart per widget, so it is the single most expensive
+ * subtree in the editor. Memoize it so unrelated DashboardEditor re-renders (e.g. the
+ * deferred whole-dashboard validation settling, or a selection change handled by
+ * stable callbacks) don't reconcile the whole grid — it re-renders only when its own
+ * props (the draft spec / selection / handlers) actually change identity.
+ */
+export const EditorCanvas = React.memo(EditorCanvasImpl);

@@ -18,7 +18,7 @@ import {
 } from "date-fns";
 
 import type { ChartOptions, CubeQuery, DateRange } from "@/spec";
-import { familyDescriptor } from "@/charts";
+import { builtinFamilyRegistry, type FamilyRegistry } from "@/charts";
 
 /**
  * Previous-period comparison for bar/line/area: the immediately-preceding,
@@ -130,6 +130,7 @@ export interface ComparePreviousInput {
 export function comparePreviousInput(
   query: CubeQuery,
   chart: ChartOptions,
+  families: FamilyRegistry = builtinFamilyRegistry,
 ): ComparePreviousInput | null {
   const fo = (chart.familyOptions ?? {}) as {
     comparePrevious?: boolean;
@@ -138,7 +139,7 @@ export function comparePreviousInput(
 
   // WHICH merge a family supports is descriptor DATA; whether it's currently ENABLED
   // is the per-mode option shape (the comparePrevious flag / the KPI comparison mode).
-  const mode: ComparePreviousMode | undefined = familyDescriptor(chart.family).comparePreviousMode;
+  const mode: ComparePreviousMode | undefined = families.require(chart.family).comparePreviousMode;
   if (mode === "series") {
     if (!fo.comparePrevious) return null;
   } else if (mode === "kpiRow") {

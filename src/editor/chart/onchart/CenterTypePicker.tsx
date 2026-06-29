@@ -1,7 +1,8 @@
 import * as React from "react";
 import { ChevronDown } from "lucide-react";
 
-import { chartFamilies, familyDescriptor } from "@/charts";
+import type { FamilyRegistry } from "@/charts";
+import { useFamilyRegistry } from "@/provider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
 import type { ChartFamily, ChartSpec } from "@/spec";
@@ -18,10 +19,14 @@ export interface CenterTypePickerProps {
 
 /** Switch the chart family, carrying field bindings across (kpi/scatter/table/combo
  *  store fields in familyOptions, so a plain reset would empty the new chart). */
-function useSetFamily(spec: ChartSpec, update: (next: ChartSpec) => void): (next: ChartFamily) => void {
+function useSetFamily(
+  spec: ChartSpec,
+  update: (next: ChartSpec) => void,
+  families: FamilyRegistry,
+): (next: ChartFamily) => void {
   return (next: ChartFamily): void => {
     if (next === spec.chart.family) return;
-    update(migrateToFamily(spec, next));
+    update(migrateToFamily(spec, next, families));
   };
 }
 
@@ -32,8 +37,9 @@ function useSetFamily(spec: ChartSpec, update: (next: ChartSpec) => void): (next
  * click — the live chart sat above it — so the control lives in real layout now).
  */
 export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps): React.ReactElement | null {
+  const families = useFamilyRegistry();
   const family = spec.chart.family;
-  const setFamily = useSetFamily(spec, update);
+  const setFamily = useSetFamily(spec, update, families);
 
   if (!empty) return null;
   return (
@@ -43,7 +49,7 @@ export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps)
         <p className="cv:pb-3 cv:text-center cv:text-xs cv:text-muted-foreground">
           Then add fields to the slots around the chart.
         </p>
-        <TypeGrid family={family} onPick={setFamily} />
+        <TypeGrid family={family} onPick={setFamily} families={families} />
       </div>
     </div>
   );
@@ -55,9 +61,11 @@ export function CenterTypePicker({ spec, update, empty }: CenterTypePickerProps)
  * layout (not over the chart) so it's always clickable.
  */
 export function ChartTypePill({ spec, update }: { spec: ChartSpec; update: (next: ChartSpec) => void }): React.ReactElement {
+  const families = useFamilyRegistry();
   const family = spec.chart.family;
-  const setFamily = useSetFamily(spec, update);
-  const Icon = familyDescriptor(family).icon;
+  const setFamily = useSetFamily(spec, update, families);
+  const descriptor = families.require(family);
+  const Icon = descriptor.icon;
 
   return (
     <Popover>
@@ -68,19 +76,19 @@ export function ChartTypePill({ spec, update }: { spec: ChartSpec; update: (next
           title="Change chart type"
         >
           <Icon className="cv:size-3.5 cv:text-muted-foreground" />
-          {familyDescriptor(family).label}
+          {descriptor.label}
           <ChevronDown className="cv:size-3 cv:text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="center" className="cv:flex cv:max-h-[70vh] cv:w-72 cv:flex-col cv:gap-2.5 cv:overflow-y-auto cv:p-3">
         <div className="cv:flex cv:flex-col cv:gap-1.5">
           <p className="cv:text-[11px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">Chart type</p>
-          <TypeGrid family={family} onPick={setFamily} />
+          <TypeGrid family={family} onPick={setFamily} families={families} />
         </div>
         {/* The few remaining type-level options (stacking, donut, KPI, table…). Most
             config is in-context: per-measure on the field pills, chrome on the chart.
             Families with nothing left (line / combo / scatter) show no Options at all. */}
-        {hasCustomizeOptions(family) ? (
+        {hasCustomizeOptions(family, families) ? (
           <div className="cv:flex cv:flex-col cv:gap-1.5 cv:border-t cv:border-border cv:pt-2.5">
             <p className="cv:text-[11px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">Options</p>
             <CustomizeSection spec={spec} update={update} />
@@ -94,14 +102,15 @@ export function ChartTypePill({ spec, update }: { spec: ChartSpec; update: (next
 interface TypeGridProps {
   family: ChartFamily;
   onPick: (family: ChartFamily) => void;
+  families: FamilyRegistry;
 }
 
 /** A 4-column tile grid of the chart families. */
-function TypeGrid({ family, onPick }: TypeGridProps): React.ReactElement {
+function TypeGrid({ family, onPick, families }: TypeGridProps): React.ReactElement {
   return (
     <div className="cv:grid cv:grid-cols-4 cv:gap-1.5">
-      {chartFamilies().map((f) => {
-        const Icon = familyDescriptor(f).icon;
+      {families.families().map((f) => {
+        const Icon = families.require(f).icon;
         const active = f === family;
         return (
           <button
@@ -117,7 +126,7 @@ function TypeGrid({ family, onPick }: TypeGridProps): React.ReactElement {
             )}
           >
             <Icon className="cv:size-4" />
-            {familyDescriptor(f).label}
+            {families.require(f).label}
           </button>
         );
       })}

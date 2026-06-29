@@ -4,6 +4,7 @@ import type { ChartColorToken, FormatOptions } from "@/spec";
 import type { ValueFormatter } from "@/format";
 import type { UnitDef } from "@/units";
 import type { CubeClient } from "@/adapter";
+import type { FamilyRegistry } from "@/charts";
 import type { ComponentRegistry } from "./registry";
 
 /**
@@ -88,6 +89,13 @@ export interface CubeVizContextValue {
   cubeClient: CubeClient;
   /** Component overrides; absent slots fall back to the built-ins. */
   registry: ComponentRegistry;
+  /**
+   * The immutable chart-family registry (builtins + host `families`). Built once by
+   * the provider and carried here; read it via {@link useFamilyRegistry}. The single
+   * source of truth for which families exist and how each behaves (dispatch / wells /
+   * defaults / options schema), replacing the old module-global registry.
+   */
+  families: FamilyRegistry;
   /** Resolved locale / formatting config. */
   locale: ResolvedLocale;
   /** Resolved theme config. */
@@ -116,4 +124,13 @@ export function useCubeVizContext(): CubeVizContextValue {
     );
   }
   return ctx;
+}
+
+/**
+ * The immutable chart-family registry from context (builtins + the provider's host
+ * `families`). Component call sites use this to dispatch / read wells / resolve options
+ * for a family. Throws (via {@link useCubeVizContext}) outside a provider.
+ */
+export function useFamilyRegistry(): FamilyRegistry {
+  return useCubeVizContext().families;
 }

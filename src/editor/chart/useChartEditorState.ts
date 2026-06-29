@@ -47,31 +47,46 @@ function validate(spec: ChartSpec): ChartEditorIssue[] {
   }));
 }
 
+/** A draft paired with its (single) validation result, so we never re-parse it. */
+interface DraftState {
+  spec: ChartSpec;
+  issues: ChartEditorIssue[];
+}
+
 export function useChartEditorState({
   spec,
   onChange,
   debounceMs = 250,
 }: UseChartEditorStateOptions): UseChartEditorState {
   // `committed` tracks the last valid spec we accepted (seeded from the incoming prop).
-  // `draft` is the live, possibly-invalid working copy.
-  const [draft, setDraft] = React.useState<ChartSpec>(spec);
+  // `draftState` is the live, possibly-invalid working copy PAIRED with its single
+  // validation result, so a keystroke validates the candidate exactly once (in
+  // `update`) and the render reads that stored result instead of re-parsing.
+  const [draftState, setDraftState] = React.useState<DraftState>(() => ({
+    spec,
+    issues: validate(spec),
+  }));
   const [committed, setCommitted] = React.useState<ChartSpec>(spec);
 
   // Re-sync when the host swaps the spec identity from outside (controlled input).
   React.useEffect(() => {
-    setDraft(spec);
+    setDraftState({ spec, issues: validate(spec) });
     setCommitted(spec);
   }, [spec]);
 
   const emit = useDebouncedCallback((next: ChartSpec) => onChange(next), debounceMs);
 
-  const issues = React.useMemo(() => validate(draft), [draft]);
+  const draft = draftState.spec;
+  const issues = draftState.issues;
   const valid = issues.length === 0;
 
   const update = React.useCallback(
     (next: ChartSpec) => {
-      setDraft(next);
-      if (validate(next).length === 0) {
+      // Validate the candidate ONCE; reuse the result for both the held draft's
+      // `issues` and the emit gate (no second safeParse in a render-time memo).
+      const nextIssues = validate(next);
+      setDraftState({ spec: next, issues: nextIssues });
+      if (nextIssues.length === 0) {
         setCommitted(next);
         emit(next);
       }

@@ -138,10 +138,10 @@ export type CubeQuery = z.infer<typeof CubeQuerySchema>;
 
 /**
  * The chart-family discriminator is an OPEN string, not a closed enum: a host can
- * register an entirely new family (see `registerChartFamily`) and its specs must
- * validate. The builtin families ship in {@link BUILTIN_CHART_FAMILIES}; unknown
- * (host) families are dispatched through the family registry before any builtin
- * switch. `map` is no longer builtin — it moved to the host app.
+ * add an entirely new family (via `<CubeVizProvider families={[...]}>`) and its specs
+ * must validate. The builtin families ship in {@link BUILTIN_CHART_FAMILIES}; unknown
+ * (host) families are dispatched through the injected family registry before any
+ * builtin switch. `map` is no longer builtin — it moved to the host app.
  */
 export const ChartFamilySchema = z.string().min(1);
 export type ChartFamily = z.infer<typeof ChartFamilySchema>;

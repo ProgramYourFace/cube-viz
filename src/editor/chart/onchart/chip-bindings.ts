@@ -8,6 +8,7 @@ import type {
   TimeDimension,
   VarRef,
 } from "@/spec";
+import type { FamilyRegistry } from "@/charts";
 
 import { buildSeries, categoryOf, measuresOf, seriesMetaOf, timeDimensionOf } from "../helpers";
 import { removeField, type FieldKind, type WellDef } from "../builder/wells";
@@ -133,6 +134,7 @@ export function chipBindings(
   well: WellDef,
   member: string,
   option: MemberOption | undefined,
+  registry: FamilyRegistry,
 ): ChipBindings {
   const { chart, query } = spec;
   const family = chart.family;
@@ -288,7 +290,7 @@ export function chipBindings(
     else if (usesSeriesMeta) patchSeriesMeta({ ...meta, dots: on });
   };
 
-  const onRemove = (): void => update(removeField(spec, family, well.id, member));
+  const onRemove = (): void => update(removeField(spec, family, well.id, member, registry));
 
   /* ── category ordering (sort) + top-N (limit) ─────────────────────────────── */
 
