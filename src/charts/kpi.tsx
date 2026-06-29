@@ -1,12 +1,13 @@
 import type * as React from "react";
 import { useId } from "react";
 import { Area, AreaChart, PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
-import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarRange, Minus } from "lucide-react";
 
 import { cn } from "@/components/ui/utils";
 import { ChartContainer } from "@/components/ui/chart";
 
 import type { ChartConfig } from "@/components/ui/chart";
+import type { CubeQuery } from "@/spec";
 import type { NormalizedSeries } from "@/adapter/types";
 import type { ChartComponentProps } from "./types";
 import type { KpiFamilyOptions } from "./defaults";
@@ -67,6 +68,11 @@ function NumberKpi({
   // (which read as "broken"). `delta === null` with comparison on ⇒ the graceful no-data
   // placeholder.
   const comparisonOn = !!fo.comparison;
+  // Distinguish "comparison needs a date range to compute the prior period" (a SETUP
+  // requirement the user must satisfy: bind a time field + date range on the value) from
+  // "configured correctly but the prior period genuinely has no data" — so the on-chart
+  // hint is actionable instead of a vague, misleading "no prior data".
+  const needsDateRange = comparisonOn && !delta && comparisonNeedsDateRange(data.raw.query, fo);
   const spark = fo.sparkline ? data.series[0] : undefined;
   const hasSpark = !!spark && spark.data.some((v) => v !== null);
   // The trend area is colored by the SAME good/bad direction as the delta: prefer the
@@ -90,6 +96,8 @@ function NumberKpi({
         {comparisonOn &&
           (delta ? (
             <DeltaChip delta={delta} goodDirection={goodDirection} fo={fo} fmt={fmt} />
+          ) : needsDateRange ? (
+            <ComparisonSetupHint />
           ) : (
             <NoComparison />
           ))}
@@ -104,9 +112,41 @@ function NumberKpi({
 }
 
 /**
- * Shown when comparison is enabled but NO baseline is available — most commonly the prior
- * period simply has no data, but also covers "no time dimension" / "range can't be offset".
- * A muted, honest placeholder beats a missing chip (which looks broken) or a phantom 0%.
+ * Previous-period comparison REQUIRES a time field on the value WITH a date range — that's
+ * what defines the window to offset. Returns true when that requirement is unmet (no time
+ * dimension, or one without a usable date range), so the KPI can prompt the user to set it
+ * up rather than implying the data is simply missing. `value`-mode comparison needs no range.
+ */
+function comparisonNeedsDateRange(query: CubeQuery, fo: KpiFamilyOptions): boolean {
+  if (fo.comparison?.mode !== "previousPeriod") return false;
+  const range = query.timeDimensions?.[0]?.dateRange;
+  if (range === undefined || range === null) return true;
+  if (Array.isArray(range)) return range.length < 2 || range.some((d) => !d);
+  return String(range).trim() === "";
+}
+
+/**
+ * Shown when previous-period comparison is enabled but the value has NO time field / date
+ * range to compute the prior window from — a clear, actionable SETUP requirement (the user
+ * hit "no prior data" when the real issue was an unconfigured range). Distinct from
+ * {@link NoComparison}, which means "configured, but the prior period truly has no data".
+ */
+function ComparisonSetupHint(): React.ReactElement {
+  return (
+    <span
+      className="cv:inline-flex cv:max-w-full cv:items-center cv:gap-1 cv:rounded-full cv:bg-amber-500/10 cv:px-2 cv:py-0.5 cv:text-xs cv:font-medium cv:text-amber-600"
+      title="Comparison needs a date range. Open “Time, range & display” on the value and set a Date range so the prior period can be computed."
+    >
+      <CalendarRange className="cv:size-3 cv:shrink-0" />
+      <span className="cv:truncate">set a date range to compare</span>
+    </span>
+  );
+}
+
+/**
+ * Shown when comparison is enabled AND properly configured (a date range IS set) but the
+ * prior period simply returned no data. A muted, honest placeholder beats a missing chip
+ * (which reads as broken) or a phantom 0%.
  */
 function NoComparison(): React.ReactElement {
   return (

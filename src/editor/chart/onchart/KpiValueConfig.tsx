@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDown } from "lucide-react";
+import { CalendarRange, ChevronDown } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -197,9 +197,14 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
             </Field>
           ) : null}
           {comparison?.mode === "previousPeriod" && !td?.dateRange ? (
-            <p className="cv:text-[10px] cv:leading-tight cv:text-muted-foreground/80">
-              Set a date range on the value to compute the prior period.
-            </p>
+            <div className="cv:flex cv:items-start cv:gap-1.5 cv:rounded-md cv:border cv:border-amber-500/30 cv:bg-amber-500/10 cv:px-2 cv:py-1.5 cv:text-[11px] cv:leading-snug cv:text-amber-700">
+              <CalendarRange className="cv:mt-px cv:size-3.5 cv:shrink-0" />
+              <span>
+                <strong className="cv:font-semibold">A date range is required.</strong> Set one under
+                “Time, range &amp; display” on the value so the prior period can be computed — without
+                it the comparison shows “set a date range”.
+              </span>
+            </div>
           ) : null}
           <SwitchRow
             label="Show as %"

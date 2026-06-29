@@ -118,9 +118,16 @@ export function DashboardEditor({
   className,
 }: DashboardEditorProps): React.ReactElement {
   // Local working copy; the host's `spec` seeds it and re-seeds when its identity
-  // changes (e.g. the host loads a different dashboard).
+  // changes (e.g. the host loads a different dashboard / undo-redo).
   const [draft, setDraft] = React.useState<DashboardSpec>(spec);
-  React.useEffect(() => setDraft(spec), [spec]);
+  // Baseline for the "unsaved changes" signal: the last spec that was externally seeded
+  // (host load / undo-redo) or saved. Every edit goes through `commit`, which mints a NEW
+  // draft object, so `draft !== savedSpec` is a cheap, reliable "there's something to save".
+  const [savedSpec, setSavedSpec] = React.useState<DashboardSpec>(spec);
+  React.useEffect(() => {
+    setDraft(spec);
+    setSavedSpec(spec);
+  }, [spec]);
 
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   // Wall-clock of the last LOCAL edit — the live-collab merge waits for a brief quiet
@@ -282,8 +289,16 @@ export function DashboardEditor({
   const handleSave = React.useCallback(() => {
     // Save must validate the LIVE draft (the deferred one can lag a keystroke).
     const result = DashboardSpecSchema.safeParse(draft);
-    if (result.success) onSave?.(result.data);
+    if (result.success) {
+      onSave?.(result.data);
+      // Mark this draft as the saved baseline so Save disables until the next edit.
+      setSavedSpec(draft);
+    }
   }, [draft, onSave]);
+
+  // Nothing-to-save: the working draft matches the last seeded/saved baseline by identity
+  // (any edit replaces the draft object via `commit`). Drives the Save/Discard disabled state.
+  const dirty = draft !== savedSpec;
 
   /* ──────────────────── full-screen editor (edit button) ────────────────── */
 
@@ -328,8 +343,9 @@ export function DashboardEditor({
         canUndo={canUndo}
         canRedo={canRedo}
         onDiscard={onDiscard}
+        discardDisabled={!dirty}
         onSave={onSave ? handleSave : undefined}
-        saveDisabled={!validation.success}
+        saveDisabled={!validation.success || !dirty}
         className="cv:shrink-0"
       />
       {!validation.success ? (

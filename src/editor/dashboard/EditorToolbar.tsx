@@ -1,5 +1,5 @@
 import * as React from "react";
-import { BarChart3, Braces, RotateCcw, Redo2, Save, SlidersHorizontal, Type, Undo2 } from "lucide-react";
+import { BarChart3, Braces, Check, RotateCcw, Redo2, Save, SlidersHorizontal, Type, Undo2 } from "lucide-react";
 
 import type { WidgetSpec } from "@/spec";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,24 @@ export function EditorToolbar({
   className,
 }: EditorToolbarProps): React.ReactElement {
   const hasHistory = onUndo || onRedo;
+
+  // Brief "Saved ✓" confirmation so a Save click visibly DID something (the button also
+  // disables right after, since there's then nothing left to save). An edit re-enables
+  // Save (saveDisabled flips false) and immediately drops the stale "Saved" label.
+  const [justSaved, setJustSaved] = React.useState(false);
+  React.useEffect(() => {
+    if (!justSaved) return;
+    const t = setTimeout(() => setJustSaved(false), 1600);
+    return () => clearTimeout(t);
+  }, [justSaved]);
+  React.useEffect(() => {
+    if (!saveDisabled) setJustSaved(false);
+  }, [saveDisabled]);
+  const handleSaveClick = (): void => {
+    onSave?.();
+    setJustSaved(true);
+  };
+
   return (
     <div
       data-slot="editor-toolbar"
@@ -123,8 +141,18 @@ export function EditorToolbar({
           </Button>
         ) : null}
         {onSave ? (
-          <Button size="sm" onClick={onSave} disabled={saveDisabled}>
-            <Save /> Save
+          <Button
+            size="sm"
+            onClick={handleSaveClick}
+            disabled={saveDisabled}
+            aria-live="polite"
+            className={cn(
+              // Keep the confirmation vivid even though the button is (correctly) disabled
+              // right after a save — there's nothing left to save.
+              justSaved && "cv:bg-emerald-600 cv:text-white cv:hover:bg-emerald-600 cv:disabled:opacity-100",
+            )}
+          >
+            {justSaved ? <Check /> : <Save />} {justSaved ? "Saved" : "Save"}
           </Button>
         ) : null}
       </div>
