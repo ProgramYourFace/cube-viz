@@ -42,6 +42,19 @@ const MAX_PIVOT_SERIES = 8;
 /** A ResultSet with the handful of methods we use, loosely typed. */
 type AnyResultSet = ResultSet<Record<string, unknown>>;
 
+/**
+ * True when there is nothing PLOTTABLE: no series, or every datum across every series
+ * is null (coerceNumber maps null/''/non-finite measures to null). The aggregate
+ * `empty` flag keys on row count alone, so a query returning rows whose measure is
+ * null in every bucket would render a fully-mounted but blank cartesian chart. Folding
+ * this into `empty` lets ChartRenderer's shared muted "No data" fire once for the
+ * series-reading families (line/bar/area/combo) — the polar/raw families (pie/scatter/
+ * kpi/table) keep their own guards and never reach this (they return `series: []`).
+ */
+function allSeriesNull(series: NormalizedSeries[]): boolean {
+  return series.every((s) => s.data.every((v) => v === null));
+}
+
 /** The two `mapping.series` variants, extracted from the discriminated union. */
 type SeriesSpec = SeriesMapping["series"];
 type MeasuresSeries = Extract<SeriesSpec, { mode: "measures" }>;
@@ -322,7 +335,12 @@ export function normalize(
       const categories = measures.map(
         (m) => findMember(annotation, m)?.shortTitle ?? findMember(annotation, m)?.title ?? m,
       );
-      return { categories, series, raw: { rows, annotation, query: resolvedQuery }, empty: rows.length === 0 };
+      return {
+        categories,
+        series,
+        raw: { rows, annotation, query: resolvedQuery },
+        empty: rows.length === 0 || allSeriesNull(series),
+      };
     }
     // Scatter / kpi / table carry their own mapping in familyOptions: hand back the raw
     // rows with an empty series list so those families read raw.
@@ -350,7 +368,7 @@ export function normalize(
     categories,
     series,
     raw: { rows, annotation, query: resolvedQuery },
-    empty: rows.length === 0,
+    empty: rows.length === 0 || allSeriesNull(series),
   };
 }
 

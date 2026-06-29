@@ -136,35 +136,59 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
             raw: { ...result.raw, rows: current ? [current, priorRow] : [priorRow] },
           };
         }
-      } else if (result.series.length > 0) {
-        // bar/line/area: one muted/dashed companion series per current series, paired by
-        // key (so it inherits the same colour) and read positionally (bucket i) against the
-        // current categories — "this period vs last" overlaid.
-        //
-        // buildRows reads every series positionally (`s.data[i]` against category i), so a
-        // companion MUST be exactly `result.categories.length` long and offset-aligned to
-        // the current window's start. Both windows are anchored at their start (start-of-
-        // week/month/…), so offset-from-start IS the correct pairing — but the prev window
-        // can have a different bucket count (e.g. "this week" on day granularity yields a
-        // partial current week vs a whole 7-day prior week; "last 1 month" on days yields
-        // April's 30 vs May's 31). Reproject onto the current length: truncate the prev
-        // tail that has no current counterpart, null-pad where prev is shorter. Without
-        // this, a longer prev silently drops its tail and a shorter prev leaves trailing
-        // buckets mis-paired.
-        const len = result.categories.length;
-        const companions = compare.data.series.map((s) => {
-          const paired = result.series.find((b) => b.key === s.key);
-          const data = Array.from({ length: len }, (_, i) => s.data[i] ?? null);
-          return {
+      } else if (!compare.data.empty) {
+        // bar/line/area: overlay the prior window as muted/dashed companion series. Only
+        // when the PRIOR window actually has data — an empty prior must add NO phantom
+        // "(prev)" series (which would draw nothing but still register a legend entry).
+        const prevByKey = new Map(compare.data.series.map((s) => [s.key, s]));
+
+        if (!result.empty && result.series.length > 0) {
+          // Normal case: pair from the CURRENT series set (NOT the prev) so every current
+          // series gets a companion that inherits the current colour — no collision, and a
+          // current-only pivot key still gets a (null-padded) companion. Prev-only keys with
+          // no current counterpart are intentionally dropped (mis-colouring them would
+          // mislead) rather than appended with a colliding ramp colour.
+          //
+          // buildRows reads every series positionally (`s.data[i]` against category i), so a
+          // companion MUST be exactly `result.categories.length` long and offset-aligned to
+          // the current window's start. Both windows are anchored at their start (start-of-
+          // week/month/…), so offset-from-start IS the correct pairing — but the prev window
+          // can have a different bucket count. Reproject onto the current length: null-pad
+          // where prev is shorter / has no counterpart for that key.
+          const len = result.categories.length;
+          const companions = result.series.map((cur) => {
+            const prev = prevByKey.get(cur.key);
+            const data = Array.from({ length: len }, (_, i) => prev?.data[i] ?? null);
+            return {
+              ...cur,
+              key: `${cur.key}__prev`,
+              label: `${cur.label} (prev)`,
+              colorToken: cur.colorToken,
+              data,
+              meta: { ...cur.meta, companion: true },
+            };
+          });
+          result = { ...result, series: [...result.series, ...companions] };
+        } else {
+          // Current window is empty but the prior has data: render the prior period VISIBLY
+          // (mirrors the KPI current-missing handling) instead of collapsing to "No data".
+          // There's no current series to pair against, so emit the prior series in full,
+          // and adopt the prior window's categories as the x-axis (the current ones are
+          // empty, so buildRows would otherwise have no buckets to plot against).
+          const companions = compare.data.series.map((s) => ({
             ...s,
             key: `${s.key}__prev`,
-            label: `${paired?.label ?? s.label} (prev)`,
-            colorToken: paired?.colorToken ?? s.colorToken,
-            data,
+            label: `${s.label} (prev)`,
+            data: [...s.data],
             meta: { ...s.meta, companion: true },
+          }));
+          result = {
+            ...result,
+            categories: compare.data.categories,
+            series: companions,
+            empty: false,
           };
-        });
-        result = { ...result, series: [...result.series, ...companions] };
+        }
       }
     }
     return result;

@@ -181,6 +181,8 @@ export const FormatOptionsSchema = z
     suffix: z.string().optional(),
     unitSystem: z.enum(["metric", "imperial"]).optional(),
     dateFormat: z.string().optional(),
+    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+    currency: z.string().optional(),
   })
   .strict();
 export type FormatOptions = z.infer<typeof FormatOptionsSchema>;

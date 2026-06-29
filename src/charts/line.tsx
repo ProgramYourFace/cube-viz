@@ -162,16 +162,35 @@ export function LineChartFamily({
           </Line>
         ))}
         {!sparkline &&
-          fo.referenceLines?.map((r, k) => (
-            <ReferenceLine
-              key={k}
-              yAxisId="left"
-              {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
-              label={r.label}
-              stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-              strokeDasharray="4 4"
-            />
-          ))}
+          fo.referenceLines?.map((r, k) => {
+            // The x axis is a CATEGORY (band) scale keyed by string buckets, so a numeric
+            // x value never matches a band and the line silently drops. Reproject a numeric
+            // x to the rendered category at that INDEX; skip when out of range.
+            if (r.axis === "x") {
+              const xVal = rows[r.value]?.__cat;
+              if (xVal === undefined || xVal === null) return null;
+              return (
+                <ReferenceLine
+                  key={k}
+                  yAxisId="left"
+                  x={xVal}
+                  label={r.label}
+                  stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
+                  strokeDasharray="4 4"
+                />
+              );
+            }
+            return (
+              <ReferenceLine
+                key={k}
+                yAxisId="left"
+                y={r.value}
+                label={r.label}
+                stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
+                strokeDasharray="4 4"
+              />
+            );
+          })}
       </LineChart>
     </ChartContainer>
   );

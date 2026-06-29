@@ -105,6 +105,27 @@ export function previousDateRange(
     return [iso(startOfYear(d)), iso(endOfYear(d))];
   }
 
+  // Bare singular "last <unit>" = the single PREVIOUS complete period (per the shipped
+  // dateRangePresets catalog). Its comparison window is the unit before THAT (2 back),
+  // mirroring the "this <unit>" handling. Without these, the default-offered presets
+  // silently disabled comparison (the digit-required regex above never matched them).
+  if (r === "last week") {
+    const d = subWeeks(now, 2);
+    return [iso(startOfWeek(d)), iso(endOfWeek(d))];
+  }
+  if (r === "last month") {
+    const d = subMonths(now, 2);
+    return [iso(startOfMonth(d)), iso(endOfMonth(d))];
+  }
+  if (r === "last quarter") {
+    const d = subQuarters(now, 2);
+    return [iso(startOfQuarter(d)), iso(endOfQuarter(d))];
+  }
+  if (r === "last year") {
+    const d = subYears(now, 2);
+    return [iso(startOfYear(d)), iso(endOfYear(d))];
+  }
+
   return undefined;
 }
 

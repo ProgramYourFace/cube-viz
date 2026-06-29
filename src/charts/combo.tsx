@@ -133,11 +133,22 @@ export function ComboChartFamily({ data, options, format, editing }: ChartCompon
           // Bind to the explicit `side`, else fall back to the axis that actually
           // carries data (right when there's a right axis but no left series).
           const refAxis = r.side ?? (hasRight && !leftMember ? "right" : "left");
+          // The x axis is a CATEGORY (band) scale keyed by string buckets, so a numeric
+          // x value never matches a band and the line silently drops. Reproject a numeric
+          // x to the rendered category at that INDEX; skip when out of range.
+          let coord: { x: string | number } | { y: number };
+          if (r.axis === "x") {
+            const cat = data.categories[r.value];
+            if (cat === undefined) return null;
+            coord = { x: typeof cat === "number" ? cat : String(cat) };
+          } else {
+            coord = { y: r.value };
+          }
           return (
             <ReferenceLine
               key={k}
               yAxisId={refAxis}
-              {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
+              {...coord}
               label={r.label}
               stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
               strokeDasharray="4 4"

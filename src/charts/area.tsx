@@ -122,34 +122,58 @@ export function AreaChartFamily({
             align={legendAlign(options.legend?.position)}
           />
         )}
-        {data.series.map((s) => (
-          <Area
-            key={s.key}
-            type={s.meta?.curve ?? curve}
-            dataKey={s.key}
-            name={s.label}
-            // A companion (previous period) never stacks — it overlays as a dashed,
-            // fill-less line so it reads as a reference, not part of the whole.
-            stackId={stacked && !s.meta?.companion ? (s.meta?.stackId ?? "stack") : undefined}
-            stroke={seriesColorVar(s)}
-            strokeWidth={fo.strokeWidth ?? 2}
-            strokeDasharray={s.meta?.companion ? "5 4" : undefined}
-            strokeOpacity={s.meta?.companion ? 0.55 : undefined}
-            fill={s.meta?.companion ? "none" : `url(#fill-${s.key})`}
-            fillOpacity={1}
-            dot={s.meta?.companion ? false : (s.meta?.dots ?? (fo.dots ?? false))}
-            connectNulls={fo.connectNulls ?? false}
-          />
-        ))}
-        {fo.referenceLines?.map((r, k) => (
-          <ReferenceLine
-            key={k}
-            {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
-            label={r.label}
-            stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-            strokeDasharray="4 4"
-          />
-        ))}
+        {data.series.map((s) => {
+          // Percent (expand) mode forces the Y axis to 0..1; a companion doesn't stack,
+          // so its RAW values would plot far off-scale. Drop it rather than draw it off
+          // the top (degrade visibly, never off-scale). none/stacked modes are unaffected.
+          if (percent && s.meta?.companion) return null;
+          return (
+            <Area
+              key={s.key}
+              type={s.meta?.curve ?? curve}
+              dataKey={s.key}
+              name={s.label}
+              // A companion (previous period) never stacks — it overlays as a dashed,
+              // fill-less line so it reads as a reference, not part of the whole.
+              stackId={stacked && !s.meta?.companion ? (s.meta?.stackId ?? "stack") : undefined}
+              stroke={seriesColorVar(s)}
+              strokeWidth={fo.strokeWidth ?? 2}
+              strokeDasharray={s.meta?.companion ? "5 4" : undefined}
+              strokeOpacity={s.meta?.companion ? 0.55 : undefined}
+              fill={s.meta?.companion ? "none" : `url(#fill-${s.key})`}
+              fillOpacity={1}
+              dot={s.meta?.companion ? false : (s.meta?.dots ?? (fo.dots ?? false))}
+              connectNulls={fo.connectNulls ?? false}
+            />
+          );
+        })}
+        {fo.referenceLines?.map((r, k) => {
+          // The x axis is a CATEGORY (band) scale keyed by string buckets, so a numeric
+          // x value never matches a band and the line silently drops. Reproject a numeric
+          // x to the rendered category at that INDEX; skip (visible no-op) when out of range.
+          if (r.axis === "x") {
+            const xVal = rows[r.value]?.__cat;
+            if (xVal === undefined || xVal === null) return null;
+            return (
+              <ReferenceLine
+                key={k}
+                x={xVal}
+                label={r.label}
+                stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
+                strokeDasharray="4 4"
+              />
+            );
+          }
+          return (
+            <ReferenceLine
+              key={k}
+              y={r.value}
+              label={r.label}
+              stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
+              strokeDasharray="4 4"
+            />
+          );
+        })}
       </AreaChart>
     </ChartContainer>
   );

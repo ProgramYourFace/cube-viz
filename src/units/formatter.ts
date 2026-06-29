@@ -48,7 +48,15 @@ function humanizeDuration(value: number, unit: string | undefined): string {
     return [v, u];
   });
   const first = parts.findIndex((p) => p[0] > 0);
-  if (first === -1) return "0s";
+  if (first === -1) {
+    // All whole-unit buckets are 0. A genuine zero is "0s"; a sub-second magnitude
+    // (|ms| < 1000, e.g. 400ms) must stay VISIBLE and keep its sign instead of
+    // collapsing to "0s" (which would hide a real latency and drop the negative).
+    const absMs = Math.abs(ms);
+    if (absMs === 0) return "0s";
+    if (absMs < 1000) return `${sign}${trim(absMs.toFixed(absMs < 1 ? 2 : 0))}ms`;
+    return `${sign}0s`;
+  }
   return sign + parts.slice(first, first + 2).filter((p) => p[0] > 0).map(([v, u]) => `${v}${u}`).join(" ");
 }
 
@@ -102,8 +110,14 @@ export function createUnitsFormatter(
       if (f.kind === "duration") return humanizeDuration(value, meta?.unit);
       if (f.kind === "percent")
         return new Intl.NumberFormat(ctx.locale, { style: "percent", maximumFractionDigits: f.decimals ?? 0 }).format(value);
-      if (f.kind === "currency")
-        return new Intl.NumberFormat(ctx.locale, { style: "currency", currency: "USD", maximumFractionDigits: f.decimals ?? 0 }).format(value);
+      if (f.kind === "currency") {
+        // Honor a spec-provided ISO 4217 code (e.g. "EUR"); fall back to USD. Guard to a
+        // 3-letter code so an invalid value can't throw inside Intl.NumberFormat.
+        const code = typeof f.currency === "string" && /^[A-Za-z]{3}$/.test(f.currency)
+          ? f.currency.toUpperCase()
+          : "USD";
+        return new Intl.NumberFormat(ctx.locale, { style: "currency", currency: code, maximumFractionDigits: f.decimals ?? 0 }).format(value);
+      }
       if (f.kind === "number") return wrap(formatNumber(value, ctx), f.prefix, f.suffix);
     }
 

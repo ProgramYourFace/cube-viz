@@ -20,6 +20,14 @@ import {
 import type { FormatRole } from "@/format";
 import type { ChartComponentProps } from "./types";
 import type { BarFamilyOptions } from "./defaults";
+
+/**
+ * The shape LabelList accepts for `formatter`. Recharts types it as a single-arg
+ * `(value) => RenderableText`, but at RUNTIME it also passes the label entry (with the
+ * `payload` row) as the 2nd arg — which the percent-share label reads. We type the seam
+ * as the single-arg form (what the prop declares) and the impls cast to it.
+ */
+type LabelListFormatter = (value: string | number | boolean | null | undefined) => string;
 import {
   axisDomain,
   axisScale,
@@ -60,6 +68,22 @@ export function BarChartFamily({
   // percent stackMode is chart geometry (0..1), not a host unit rule → local tick.
   const valueFmt = (v: number | string | null | undefined, member?: string, role: FormatRole = "value") =>
     percent ? percentTick(v) : format.value(v, member, role);
+
+  // The value-label formatter for a series. In percent mode the LabelList still receives the
+  // ORIGINAL datum (stackOffset="expand" only normalizes geometry), so percentTick(raw) would
+  // print e.g. "123,400%". Drive the label from the SHARE (raw / row total) via the shared
+  // percentShareFormatter, which reads the entry's payload row — matching the tooltip + axis.
+  // Recharts passes `(value, entry)` at runtime; LabelList's typed `formatter` only declares
+  // the value arg, so the result is cast to that single-arg shape.
+  const labelFormatter = (s: (typeof data.series)[number]): LabelListFormatter => {
+    if (percent) {
+      const share = percentShareFormatter();
+      return ((v: unknown, entry: { payload?: Record<string, unknown> }) =>
+        share(typeof v === "boolean" ? Number(v) : (v as number | string | null | undefined), entry)) as LabelListFormatter;
+    }
+    return ((v: string | number | boolean | null | undefined) =>
+      valueFmt(typeof v === "boolean" ? Number(v) : v, seriesMember(s), "label")) as LabelListFormatter;
+  };
   const catFmt = (v: string | number) => format.category(v);
   // The value-axis unit comes from each series' SOURCE measure (a pivot series' own key
   // is a pivot value with no unit); `meta.measure` points at the real measure.
@@ -185,23 +209,49 @@ export function BarChartFamily({
                 dataKey={s.key}
                 position={horizontal ? "right" : "top"}
                 className="cv:fill-foreground cv:text-[10px]"
-                formatter={(v: string | number | boolean | null | undefined) =>
-                  valueFmt(typeof v === "boolean" ? Number(v) : v, seriesMember(s), "label")
-                }
+                formatter={labelFormatter(s)}
               />
             )}
           </Bar>
         ))}
-        {fo.referenceLines?.map((r, k) => (
-          <ReferenceLine
-            key={k}
-            yAxisId={horizontal ? undefined : "left"}
-            {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
-            label={r.label}
-            stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-            strokeDasharray="4 4"
-          />
-        ))}
+        {fo.referenceLines?.map((r, k) => {
+          // `r.axis` is data-semantic: "y" == the VALUE axis, "x" == the CATEGORY axis
+          // (the convention shared with line/area, which are always vertical). For a
+          // horizontal bar the value sits on X and the category on Y, so the VISUAL axis
+          // flips. `onValueAxis` is true when this line targets the value (number) axis.
+          const onValueAxis = (r.axis === "y") !== horizontal;
+          const yAxisId = horizontal ? undefined : "left";
+          if (onValueAxis) {
+            // Value axis is a numeric scale → place at r.value directly.
+            const coord = horizontal ? { x: r.value } : { y: r.value };
+            return (
+              <ReferenceLine
+                key={k}
+                yAxisId={yAxisId}
+                {...coord}
+                label={r.label}
+                stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
+                strokeDasharray="4 4"
+              />
+            );
+          }
+          // Category axis is a band scale keyed by string buckets — a numeric value never
+          // matches. Reproject the numeric value as an INDEX into the rendered categories;
+          // skip when out of range so nothing is mis-placed.
+          const catVal = rows[r.value]?.__cat;
+          if (catVal === undefined || catVal === null) return null;
+          const coord = horizontal ? { y: catVal } : { x: catVal };
+          return (
+            <ReferenceLine
+              key={k}
+              yAxisId={yAxisId}
+              {...coord}
+              label={r.label}
+              stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
+              strokeDasharray="4 4"
+            />
+          );
+        })}
       </BarChart>
     </ChartContainer>
   );

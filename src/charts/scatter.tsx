@@ -62,6 +62,18 @@ export function ScatterChartFamily({ data, options, format, editing }: ChartComp
   // Build one or many series depending on groupBy.
   const groups = groupRows(rows, fo);
 
+  // With x/y members SET but pointing at measures that are null for every row, every
+  // point projects to {x:null,y:null}; Recharts drops null-coordinate marks and mounts
+  // an axes-only blank. Rows exist, so ChartRenderer's "No data" never fires — guard
+  // here with the shared muted empty-state chrome (mirrors pie's local guard).
+  if (!groups.some((g) => g.points.some((p) => Number.isFinite(p.x) && Number.isFinite(p.y)))) {
+    return (
+      <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
+        No data
+      </div>
+    );
+  }
+
   const config: ChartConfig = {};
   groups.forEach((g, i) => {
     config[g.key] = { label: g.label, color: `var(--${DEFAULT_COLOR_RAMP[i % DEFAULT_COLOR_RAMP.length]})` };

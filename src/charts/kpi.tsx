@@ -37,7 +37,10 @@ export function KpiFamily(props: ChartComponentProps): React.ReactElement {
   // Read the headline from the CURRENT (first) row ONLY. With previous-period
   // comparison on, rows = [current, prior]; a null current measure must NOT fall
   // through to the prior row (readMeasure scans all rows) and borrow its value.
-  const value = readMeasure([data.raw.rows[0] ?? {}], fo.measure) ?? 0;
+  // Keep `null` (no coercion to 0): a NULL measure for every row is a no-value state,
+  // not a measured zero — collapsing it to 0 would be indistinguishable from a real 0
+  // (and would fill a gauge to its minimum). The renderers show an em-dash instead.
+  const value = readMeasure([data.raw.rows[0] ?? {}], fo.measure);
   const label =
     data.raw.annotation?.measures[fo.measure]?.shortTitle ??
     data.raw.annotation?.measures[fo.measure]?.title ??
@@ -58,13 +61,15 @@ function NumberKpi({
   fo,
   fmt,
 }: ChartComponentProps & {
-  value: number;
+  value: number | null;
   label: string;
   fo: KpiFamilyOptions;
   fmt: (v: number) => string;
 }): React.ReactElement {
   const goodDirection = fo.goodDirection ?? fo.comparison?.goodDirection ?? "up";
-  const delta = computeDelta(data.raw.rows, value, fo);
+  // A null headline has no baseline-able number → no delta is computed (the chip falls to
+  // the no-data placeholder when comparison is on).
+  const delta = value === null ? null : computeDelta(data.raw.rows, value, fo);
   // Comparison is CONFIGURED on this KPI (the user turned it on). We render something for
   // it even when no baseline is available — e.g. the prior period has no data, there's no
   // time dimension, or the range can't be offset — instead of silently dropping the chip
@@ -91,10 +96,13 @@ function NumberKpi({
     <div className="cv:flex cv:h-full cv:w-full cv:flex-col" style={{ containerType: "size" }}>
       <div className="cv:flex cv:min-h-0 cv:flex-1 cv:flex-col cv:items-center cv:justify-center cv:gap-1.5 cv:overflow-hidden cv:px-3 cv:text-center">
         <span
-          className="cv:max-w-full cv:font-bold cv:leading-none cv:tabular-nums cv:text-foreground"
+          className={cn(
+            "cv:max-w-full cv:font-bold cv:leading-none cv:tabular-nums",
+            value === null ? "cv:text-muted-foreground" : "cv:text-foreground",
+          )}
           style={{ fontSize: "clamp(1.25rem, min(16cqw, 30cqh), 3.5rem)", whiteSpace: "nowrap" }}
         >
-          {fmt(value)}
+          {value === null ? "—" : fmt(value)}
         </span>
         {comparisonOn &&
           (delta ? (
@@ -262,15 +270,21 @@ function GaugeKpi({
   fmt,
   fo,
 }: {
-  value: number;
+  value: number | null;
   label: string;
   fmt: (v: number) => string;
   fo: KpiFamilyOptions;
 }): React.ReactElement {
   const min = fo.gauge?.min ?? 0;
-  const max = fo.gauge?.max ?? Math.max(value, 1);
-  const clamped = Math.max(min, Math.min(max, value));
-  const colorToken = thresholdColor(value, fo) ?? "chart-1";
+  // Guard the domain span: a misconfigured max <= min (the schema allows it) would map
+  // both endpoints to the same angle → a zero-sweep (invisible) ring. Keep a positive
+  // width so the gauge always fills visibly.
+  const rawMax = fo.gauge?.max ?? Math.max(value ?? 0, 1);
+  const max = rawMax > min ? rawMax : min + 1;
+  // A null measure has no value to plot: fill nothing (background ring only) and show an
+  // em-dash, rather than filling to the minimum (which reads as a real measured min).
+  const clamped = value === null ? min : Math.max(min, Math.min(max, value));
+  const colorToken = (value === null ? undefined : thresholdColor(value, fo)) ?? "chart-1";
 
   const chartData = [{ name: label, value: clamped, fill: `var(--${colorToken})` }];
   const config: ChartConfig = { value: { label, color: `var(--${colorToken})` } };
@@ -290,7 +304,14 @@ function GaugeKpi({
         </RadialBarChart>
       </ChartContainer>
       <div className="cv:pointer-events-none cv:absolute cv:inset-0 cv:flex cv:flex-col cv:items-center cv:justify-center">
-        <span className="cv:text-2xl cv:font-bold cv:tabular-nums cv:text-foreground">{fmt(value)}</span>
+        <span
+          className={cn(
+            "cv:text-2xl cv:font-bold cv:tabular-nums",
+            value === null ? "cv:text-muted-foreground" : "cv:text-foreground",
+          )}
+        >
+          {value === null ? "—" : fmt(value)}
+        </span>
         <span className="cv:text-xs cv:text-muted-foreground">{label}</span>
       </div>
     </div>

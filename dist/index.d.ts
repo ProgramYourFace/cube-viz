@@ -121,7 +121,10 @@ export declare const AxesOptionsSchema: z.ZodObject<{
             suffix: z.ZodOptional<z.ZodString>;
             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
             dateFormat: z.ZodOptional<z.ZodString>;
+            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+            currency: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -130,6 +133,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -145,6 +149,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -160,6 +165,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -184,7 +190,10 @@ export declare const AxesOptionsSchema: z.ZodObject<{
             suffix: z.ZodOptional<z.ZodString>;
             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
             dateFormat: z.ZodOptional<z.ZodString>;
+            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+            currency: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -193,6 +202,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -208,6 +218,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -223,6 +234,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -247,7 +259,10 @@ export declare const AxesOptionsSchema: z.ZodObject<{
             suffix: z.ZodOptional<z.ZodString>;
             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
             dateFormat: z.ZodOptional<z.ZodString>;
+            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+            currency: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -256,6 +271,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -271,6 +287,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -286,6 +303,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -303,6 +321,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -319,6 +338,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -335,6 +355,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -352,6 +373,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -368,6 +390,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -384,6 +407,7 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         scale?: "linear" | "log" | undefined;
         domain?: [number | "auto", number | "auto"] | undefined;
         tickFormat?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -423,7 +447,10 @@ export declare const AxisOptionsSchema: z.ZodObject<{
         suffix: z.ZodOptional<z.ZodString>;
         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
         dateFormat: z.ZodOptional<z.ZodString>;
+        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+        currency: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -432,6 +459,7 @@ export declare const AxisOptionsSchema: z.ZodObject<{
         unitSystem?: "metric" | "imperial" | undefined;
         dateFormat?: string | undefined;
     }, {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -447,6 +475,7 @@ export declare const AxisOptionsSchema: z.ZodObject<{
     scale?: "linear" | "log" | undefined;
     domain?: [number | "auto", number | "auto"] | undefined;
     tickFormat?: {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -462,6 +491,7 @@ export declare const AxisOptionsSchema: z.ZodObject<{
     scale?: "linear" | "log" | undefined;
     domain?: [number | "auto", number | "auto"] | undefined;
     tickFormat?: {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -1148,7 +1178,9 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 suffix: z.ZodOptional<z.ZodString>;
                 unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                 dateFormat: z.ZodOptional<z.ZodString>;
+                currency: z.ZodOptional<z.ZodString>;
             }, "strict", z.ZodTypeAny, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -1157,6 +1189,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -1172,6 +1205,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             member: string;
             label?: string | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -1187,6 +1221,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             member: string;
             label?: string | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -1238,6 +1273,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             member: string;
             label?: string | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -1268,6 +1304,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             member: string;
             label?: string | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -1692,7 +1729,10 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1701,6 +1741,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1717,6 +1758,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1733,6 +1775,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1753,6 +1796,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1773,6 +1817,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1812,7 +1857,10 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1821,6 +1869,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1837,6 +1886,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1853,6 +1903,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1875,6 +1926,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1897,6 +1949,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1922,6 +1975,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1944,6 +1998,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1969,6 +2024,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -1991,6 +2047,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -2043,7 +2100,10 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 suffix: z.ZodOptional<z.ZodString>;
                 unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                 dateFormat: z.ZodOptional<z.ZodString>;
+                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                currency: z.ZodOptional<z.ZodString>;
             }, "strict", z.ZodTypeAny, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2052,6 +2112,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2067,6 +2128,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2082,6 +2144,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2106,7 +2169,10 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 suffix: z.ZodOptional<z.ZodString>;
                 unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                 dateFormat: z.ZodOptional<z.ZodString>;
+                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                currency: z.ZodOptional<z.ZodString>;
             }, "strict", z.ZodTypeAny, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2115,6 +2181,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2130,6 +2197,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2145,6 +2213,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2169,7 +2238,10 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 suffix: z.ZodOptional<z.ZodString>;
                 unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                 dateFormat: z.ZodOptional<z.ZodString>;
+                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                currency: z.ZodOptional<z.ZodString>;
             }, "strict", z.ZodTypeAny, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2178,6 +2250,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2193,6 +2266,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2208,6 +2282,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2225,6 +2300,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2241,6 +2317,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2257,6 +2334,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2274,6 +2352,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2290,6 +2369,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2306,6 +2386,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2334,7 +2415,10 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         suffix: z.ZodOptional<z.ZodString>;
         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
         dateFormat: z.ZodOptional<z.ZodString>;
+        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+        currency: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -2343,6 +2427,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         unitSystem?: "metric" | "imperial" | undefined;
         dateFormat?: string | undefined;
     }, {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -2356,6 +2441,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     family: string;
     format?: {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -2379,6 +2465,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -2401,6 +2488,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -2431,6 +2519,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2447,6 +2536,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2463,6 +2553,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2481,6 +2572,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
 }, {
     family: string;
     format?: {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -2504,6 +2596,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -2526,6 +2619,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
                 format?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -2556,6 +2650,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2572,6 +2667,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2588,6 +2684,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             scale?: "linear" | "log" | undefined;
             domain?: [number | "auto", number | "auto"] | undefined;
             tickFormat?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -2767,7 +2864,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2776,6 +2876,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2792,6 +2893,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2808,6 +2910,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2828,6 +2931,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2848,6 +2952,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2887,7 +2992,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2896,6 +3004,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2912,6 +3021,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2928,6 +3038,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2950,6 +3061,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2972,6 +3084,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -2997,6 +3110,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3019,6 +3133,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3044,6 +3159,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3066,6 +3182,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3118,7 +3235,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3127,6 +3247,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3142,6 +3263,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3157,6 +3279,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3181,7 +3304,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3190,6 +3316,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3205,6 +3332,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3220,6 +3348,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3244,7 +3373,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3253,6 +3385,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3268,6 +3401,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3283,6 +3417,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3300,6 +3435,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3316,6 +3452,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3332,6 +3469,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3349,6 +3487,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3365,6 +3504,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3381,6 +3521,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3409,7 +3550,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
             suffix: z.ZodOptional<z.ZodString>;
             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
             dateFormat: z.ZodOptional<z.ZodString>;
+            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+            currency: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -3418,6 +3562,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -3431,6 +3576,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -3454,6 +3600,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3476,6 +3623,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3506,6 +3654,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3522,6 +3671,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3538,6 +3688,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3556,6 +3707,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
     }, {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -3579,6 +3731,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3601,6 +3754,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3631,6 +3785,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3647,6 +3802,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3663,6 +3819,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3690,6 +3847,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
     chart: {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -3713,6 +3871,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3735,6 +3894,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3765,6 +3925,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3781,6 +3942,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3797,6 +3959,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3849,6 +4012,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
     chart: {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -3872,6 +4036,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3894,6 +4059,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -3924,6 +4090,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3940,6 +4107,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -3956,6 +4124,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4165,7 +4334,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4174,6 +4346,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4190,6 +4363,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4206,6 +4380,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4226,6 +4401,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4246,6 +4422,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4285,7 +4462,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4294,6 +4474,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4310,6 +4491,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4326,6 +4508,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4348,6 +4531,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4370,6 +4554,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4395,6 +4580,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4417,6 +4603,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4442,6 +4629,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4464,6 +4652,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4516,7 +4705,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4525,6 +4717,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4540,6 +4733,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4555,6 +4749,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4579,7 +4774,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4588,6 +4786,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4603,6 +4802,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4618,6 +4818,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4642,7 +4843,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4651,6 +4855,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4666,6 +4871,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4681,6 +4887,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4698,6 +4905,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4714,6 +4922,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4730,6 +4939,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4747,6 +4957,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4763,6 +4974,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4779,6 +4991,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4807,7 +5020,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             suffix: z.ZodOptional<z.ZodString>;
             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
             dateFormat: z.ZodOptional<z.ZodString>;
+            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+            currency: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -4816,6 +5032,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -4829,6 +5046,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -4852,6 +5070,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4874,6 +5093,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4904,6 +5124,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4920,6 +5141,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4936,6 +5158,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -4954,6 +5177,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
     }, {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -4977,6 +5201,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -4999,6 +5224,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -5029,6 +5255,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -5045,6 +5272,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -5061,6 +5289,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -5084,6 +5313,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
     chart: {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -5107,6 +5337,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -5129,6 +5360,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -5159,6 +5391,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -5175,6 +5408,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -5191,6 +5425,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -5239,6 +5474,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
     chart: {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -5262,6 +5498,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -5284,6 +5521,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -5314,6 +5552,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -5330,6 +5569,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -5346,6 +5586,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -6251,7 +6492,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                             suffix: z.ZodOptional<z.ZodString>;
                             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                             dateFormat: z.ZodOptional<z.ZodString>;
+                            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                            currency: z.ZodOptional<z.ZodString>;
                         }, "strict", z.ZodTypeAny, {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6260,6 +6504,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                             unitSystem?: "metric" | "imperial" | undefined;
                             dateFormat?: string | undefined;
                         }, {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6276,6 +6521,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6292,6 +6538,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6312,6 +6559,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6332,6 +6580,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6371,7 +6620,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                             suffix: z.ZodOptional<z.ZodString>;
                             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                             dateFormat: z.ZodOptional<z.ZodString>;
+                            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                            currency: z.ZodOptional<z.ZodString>;
                         }, "strict", z.ZodTypeAny, {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6380,6 +6632,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                             unitSystem?: "metric" | "imperial" | undefined;
                             dateFormat?: string | undefined;
                         }, {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6396,6 +6649,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6412,6 +6666,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6434,6 +6689,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6456,6 +6712,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6481,6 +6738,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6503,6 +6761,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6528,6 +6787,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6550,6 +6810,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6602,7 +6863,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6611,6 +6875,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6626,6 +6891,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6641,6 +6907,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6665,7 +6932,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6674,6 +6944,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6689,6 +6960,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6704,6 +6976,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6728,7 +7001,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6737,6 +7013,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6752,6 +7029,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6767,6 +7045,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6784,6 +7063,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6800,6 +7080,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6816,6 +7097,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6833,6 +7115,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6849,6 +7132,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6865,6 +7149,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -6893,7 +7178,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 suffix: z.ZodOptional<z.ZodString>;
                 unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                 dateFormat: z.ZodOptional<z.ZodString>;
+                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                currency: z.ZodOptional<z.ZodString>;
             }, "strict", z.ZodTypeAny, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -6902,6 +7190,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -6915,6 +7204,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         }, "strict", z.ZodTypeAny, {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -6938,6 +7228,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6960,6 +7251,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -6990,6 +7282,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7006,6 +7299,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7022,6 +7316,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7040,6 +7335,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         }, {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -7063,6 +7359,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -7085,6 +7382,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -7115,6 +7413,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7131,6 +7430,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7147,6 +7447,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7170,6 +7471,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         chart: {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -7193,6 +7495,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -7215,6 +7518,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -7245,6 +7549,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7261,6 +7566,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7277,6 +7583,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7325,6 +7632,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         chart: {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -7348,6 +7656,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -7370,6 +7679,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -7400,6 +7710,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7416,6 +7727,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7432,6 +7744,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7809,6 +8122,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         chart: {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -7832,6 +8146,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -7854,6 +8169,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -7884,6 +8200,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7900,6 +8217,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -7916,6 +8234,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -8041,6 +8360,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         chart: {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -8064,6 +8384,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -8086,6 +8407,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -8116,6 +8438,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -8132,6 +8455,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -8148,6 +8472,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -8551,7 +8876,10 @@ export declare const FormatOptionsSchema: z.ZodObject<{
     suffix: z.ZodOptional<z.ZodString>;
     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
     dateFormat: z.ZodOptional<z.ZodString>;
+    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+    currency: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
+    currency?: string | undefined;
     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
     decimals?: number | undefined;
     abbreviate?: boolean | undefined;
@@ -8560,6 +8888,7 @@ export declare const FormatOptionsSchema: z.ZodObject<{
     unitSystem?: "metric" | "imperial" | undefined;
     dateFormat?: string | undefined;
 }, {
+    currency?: string | undefined;
     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
     decimals?: number | undefined;
     abbreviate?: boolean | undefined;
@@ -9963,7 +10292,10 @@ export declare const SeriesMappingSchema: z.ZodObject<{
                 suffix: z.ZodOptional<z.ZodString>;
                 unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                 dateFormat: z.ZodOptional<z.ZodString>;
+                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                currency: z.ZodOptional<z.ZodString>;
             }, "strict", z.ZodTypeAny, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -9972,6 +10304,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -9988,6 +10321,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10004,6 +10338,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10024,6 +10359,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10044,6 +10380,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10083,7 +10420,10 @@ export declare const SeriesMappingSchema: z.ZodObject<{
                 suffix: z.ZodOptional<z.ZodString>;
                 unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                 dateFormat: z.ZodOptional<z.ZodString>;
+                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                currency: z.ZodOptional<z.ZodString>;
             }, "strict", z.ZodTypeAny, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10092,6 +10432,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10108,6 +10449,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10124,6 +10466,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10146,6 +10489,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10168,6 +10512,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10193,6 +10538,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10215,6 +10561,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10240,6 +10587,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10262,6 +10610,7 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -10293,7 +10642,10 @@ export declare const SeriesMetaSchema: z.ZodObject<{
         suffix: z.ZodOptional<z.ZodString>;
         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
         dateFormat: z.ZodOptional<z.ZodString>;
+        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+        currency: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -10302,6 +10654,7 @@ export declare const SeriesMetaSchema: z.ZodObject<{
         unitSystem?: "metric" | "imperial" | undefined;
         dateFormat?: string | undefined;
     }, {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -10318,6 +10671,7 @@ export declare const SeriesMetaSchema: z.ZodObject<{
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
     format?: {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -10334,6 +10688,7 @@ export declare const SeriesMetaSchema: z.ZodObject<{
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
     format?: {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -10512,7 +10867,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10521,6 +10879,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10537,6 +10896,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10553,6 +10913,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10573,6 +10934,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10593,6 +10955,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10632,7 +10995,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10641,6 +11007,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10657,6 +11024,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10673,6 +11041,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10695,6 +11064,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10717,6 +11087,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10742,6 +11113,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10764,6 +11136,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10789,6 +11162,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10811,6 +11185,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -10863,7 +11238,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10872,6 +11250,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10887,6 +11266,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10902,6 +11282,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10926,7 +11307,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10935,6 +11319,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10950,6 +11335,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10965,6 +11351,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10989,7 +11376,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -10998,6 +11388,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11013,6 +11404,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11028,6 +11420,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11045,6 +11438,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11061,6 +11455,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11077,6 +11472,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11094,6 +11490,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11110,6 +11507,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11126,6 +11524,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11154,7 +11553,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             suffix: z.ZodOptional<z.ZodString>;
             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
             dateFormat: z.ZodOptional<z.ZodString>;
+            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+            currency: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -11163,6 +11565,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -11176,6 +11579,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -11199,6 +11603,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -11221,6 +11626,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -11251,6 +11657,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11267,6 +11674,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11283,6 +11691,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11301,6 +11710,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     }, {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -11324,6 +11734,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -11346,6 +11757,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -11376,6 +11788,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11392,6 +11805,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11408,6 +11822,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11435,6 +11850,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     chart: {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -11458,6 +11874,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -11480,6 +11897,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -11510,6 +11928,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11526,6 +11945,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11542,6 +11962,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11594,6 +12015,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     chart: {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -11617,6 +12039,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -11639,6 +12062,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -11669,6 +12093,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11685,6 +12110,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11701,6 +12127,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -11910,7 +12337,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                             suffix: z.ZodOptional<z.ZodString>;
                             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                             dateFormat: z.ZodOptional<z.ZodString>;
+                            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                            currency: z.ZodOptional<z.ZodString>;
                         }, "strict", z.ZodTypeAny, {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -11919,6 +12349,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                             unitSystem?: "metric" | "imperial" | undefined;
                             dateFormat?: string | undefined;
                         }, {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -11935,6 +12366,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -11951,6 +12383,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -11971,6 +12404,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -11991,6 +12425,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12030,7 +12465,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                             suffix: z.ZodOptional<z.ZodString>;
                             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                             dateFormat: z.ZodOptional<z.ZodString>;
+                            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                            currency: z.ZodOptional<z.ZodString>;
                         }, "strict", z.ZodTypeAny, {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12039,6 +12477,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                             unitSystem?: "metric" | "imperial" | undefined;
                             dateFormat?: string | undefined;
                         }, {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12055,6 +12494,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12071,6 +12511,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12093,6 +12534,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12115,6 +12557,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12140,6 +12583,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12162,6 +12606,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12187,6 +12632,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12209,6 +12655,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12261,7 +12708,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12270,6 +12720,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12285,6 +12736,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12300,6 +12752,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12324,7 +12777,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12333,6 +12789,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12348,6 +12805,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12363,6 +12821,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12387,7 +12846,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12396,6 +12858,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12411,6 +12874,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12426,6 +12890,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12443,6 +12908,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12459,6 +12925,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12475,6 +12942,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12492,6 +12960,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12508,6 +12977,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12524,6 +12994,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12552,7 +13023,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 suffix: z.ZodOptional<z.ZodString>;
                 unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                 dateFormat: z.ZodOptional<z.ZodString>;
+                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                currency: z.ZodOptional<z.ZodString>;
             }, "strict", z.ZodTypeAny, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -12561,6 +13035,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }, {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -12574,6 +13049,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }, "strict", z.ZodTypeAny, {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -12597,6 +13073,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12619,6 +13096,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12649,6 +13127,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12665,6 +13144,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12681,6 +13161,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12699,6 +13180,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }, {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -12722,6 +13204,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12744,6 +13227,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12774,6 +13258,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12790,6 +13275,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12806,6 +13292,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12829,6 +13316,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         chart: {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -12852,6 +13340,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12874,6 +13363,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -12904,6 +13394,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12920,6 +13411,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12936,6 +13428,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -12984,6 +13477,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         chart: {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -13007,6 +13501,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -13029,6 +13524,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -13059,6 +13555,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13075,6 +13572,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13091,6 +13589,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13468,6 +13967,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         chart: {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -13491,6 +13991,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -13513,6 +14014,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -13543,6 +14045,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13559,6 +14062,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13575,6 +14079,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13700,6 +14205,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         chart: {
             family: string;
             format?: {
+                currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                 decimals?: number | undefined;
                 abbreviate?: boolean | undefined;
@@ -13723,6 +14229,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -13745,6 +14252,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                         format?: {
+                            currency?: string | undefined;
                             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                             decimals?: number | undefined;
                             abbreviate?: boolean | undefined;
@@ -13775,6 +14283,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13791,6 +14300,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13807,6 +14317,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     scale?: "linear" | "log" | undefined;
                     domain?: [number | "auto", number | "auto"] | undefined;
                     tickFormat?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -13956,7 +14467,9 @@ export declare const TableColumnOptSchema: z.ZodObject<{
         suffix: z.ZodOptional<z.ZodString>;
         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
         dateFormat: z.ZodOptional<z.ZodString>;
+        currency: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -13965,6 +14478,7 @@ export declare const TableColumnOptSchema: z.ZodObject<{
         unitSystem?: "metric" | "imperial" | undefined;
         dateFormat?: string | undefined;
     }, {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -13980,6 +14494,7 @@ export declare const TableColumnOptSchema: z.ZodObject<{
     member: string;
     label?: string | undefined;
     format?: {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -13995,6 +14510,7 @@ export declare const TableColumnOptSchema: z.ZodObject<{
     member: string;
     label?: string | undefined;
     format?: {
+        currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
         decimals?: number | undefined;
         abbreviate?: boolean | undefined;
@@ -14030,7 +14546,9 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
             suffix: z.ZodOptional<z.ZodString>;
             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
             dateFormat: z.ZodOptional<z.ZodString>;
+            currency: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -14039,6 +14557,7 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -14054,6 +14573,7 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         member: string;
         label?: string | undefined;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -14069,6 +14589,7 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         member: string;
         label?: string | undefined;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -14120,6 +14641,7 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         member: string;
         label?: string | undefined;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -14150,6 +14672,7 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         member: string;
         label?: string | undefined;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -14875,7 +15398,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -14884,6 +15410,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -14900,6 +15427,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -14916,6 +15444,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -14936,6 +15465,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -14956,6 +15486,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -14995,7 +15526,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                         suffix: z.ZodOptional<z.ZodString>;
                         unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                         dateFormat: z.ZodOptional<z.ZodString>;
+                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                        currency: z.ZodOptional<z.ZodString>;
                     }, "strict", z.ZodTypeAny, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15004,6 +15538,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                         unitSystem?: "metric" | "imperial" | undefined;
                         dateFormat?: string | undefined;
                     }, {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15020,6 +15555,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15036,6 +15572,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15058,6 +15595,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15080,6 +15618,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15105,6 +15644,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15127,6 +15667,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15152,6 +15693,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15174,6 +15716,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15226,7 +15769,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15235,6 +15781,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15250,6 +15797,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15265,6 +15813,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15289,7 +15838,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15298,6 +15850,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15313,6 +15866,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15328,6 +15882,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15352,7 +15907,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     suffix: z.ZodOptional<z.ZodString>;
                     unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
                     dateFormat: z.ZodOptional<z.ZodString>;
+                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+                    currency: z.ZodOptional<z.ZodString>;
                 }, "strict", z.ZodTypeAny, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15361,6 +15919,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     unitSystem?: "metric" | "imperial" | undefined;
                     dateFormat?: string | undefined;
                 }, {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15376,6 +15935,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15391,6 +15951,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15408,6 +15969,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15424,6 +15986,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15440,6 +16003,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15457,6 +16021,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15473,6 +16038,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15489,6 +16055,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15517,7 +16084,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             suffix: z.ZodOptional<z.ZodString>;
             unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
             dateFormat: z.ZodOptional<z.ZodString>;
+            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
+            currency: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -15526,6 +16096,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }, {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -15539,6 +16110,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
     }, "strict", z.ZodTypeAny, {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -15562,6 +16134,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15584,6 +16157,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15614,6 +16188,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15630,6 +16205,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15646,6 +16222,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15664,6 +16241,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
     }, {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -15687,6 +16265,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15709,6 +16288,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15739,6 +16319,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15755,6 +16336,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15771,6 +16353,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15794,6 +16377,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
     chart: {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -15817,6 +16401,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15839,6 +16424,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15869,6 +16455,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15885,6 +16472,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15901,6 +16489,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -15949,6 +16538,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
     chart: {
         family: string;
         format?: {
+            currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
             decimals?: number | undefined;
             abbreviate?: boolean | undefined;
@@ -15972,6 +16562,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -15994,6 +16585,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                     format?: {
+                        currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                         decimals?: number | undefined;
                         abbreviate?: boolean | undefined;
@@ -16024,6 +16616,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -16040,6 +16633,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
@@ -16056,6 +16650,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 scale?: "linear" | "log" | undefined;
                 domain?: [number | "auto", number | "auto"] | undefined;
                 tickFormat?: {
+                    currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
                     decimals?: number | undefined;
                     abbreviate?: boolean | undefined;
