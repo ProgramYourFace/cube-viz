@@ -6637,24 +6637,24 @@ function em({ control: e, title: t }) {
   const { registry: n } = Ze(), { decls: r, resolveValue: a, setVar: o } = To(), s = ee(
     () => r.find((b) => b.name === e.variable),
     [r, e.variable]
-  );
+  ), c = zi();
   if (!s)
     return /* @__PURE__ */ v("div", { className: "cv:text-sm cv:text-muted-foreground", children: [
       "Unknown variable “",
       e.variable,
       "”"
     ] });
-  const c = e.control.kind, l = ((h = n.controls) == null ? void 0 : h[c]) ?? Zd[c], u = a(e.variable), d = (b) => o(e.variable, b), f = t ?? s.label ?? s.name, p = zi();
-  return c === "toggle" ? /* @__PURE__ */ i(l, { value: u, onChange: d, decl: s, control: e.control }) : /* @__PURE__ */ v("div", { children: [
-    /* @__PURE__ */ i("label", { className: Vd, htmlFor: p, children: f }),
+  const l = e.control.kind, u = ((h = n.controls) == null ? void 0 : h[l]) ?? Zd[l], d = a(e.variable), f = (b) => o(e.variable, b), p = t ?? s.label ?? s.name;
+  return l === "toggle" ? /* @__PURE__ */ i(u, { value: d, onChange: f, decl: s, control: e.control }) : /* @__PURE__ */ v("div", { children: [
+    /* @__PURE__ */ i("label", { className: Vd, htmlFor: c, children: p }),
     /* @__PURE__ */ i(
-      l,
+      u,
       {
-        value: u,
-        onChange: d,
+        value: d,
+        onChange: f,
         decl: s,
         control: e.control,
-        controlId: p
+        controlId: c
       }
     )
   ] });

@@ -413,6 +413,12 @@ export function InputWidgetView({ control, title }: InputWidgetViewProps): React
     [decls, control.variable],
   );
 
+  // useId MUST run on every render, before any early return — the `if (!decl)`
+  // bail below would otherwise skip it and change this component's hook count
+  // when the bound declaration appears/disappears, crashing with React #310
+  // ("rendered fewer hooks than expected").
+  const controlId = useId();
+
   if (!decl) {
     return (
       <div className="cv:text-sm cv:text-muted-foreground">
@@ -430,7 +436,6 @@ export function InputWidgetView({ control, title }: InputWidgetViewProps): React
 
   // The widget title is the field label (falling back to the variable's own label).
   const fieldLabel = title ?? decl.label ?? decl.name;
-  const controlId = useId();
 
   // Toggle renders its own inline label; the others get a stacked field label.
   if (kind === "toggle") {
