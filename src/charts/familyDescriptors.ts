@@ -98,6 +98,15 @@ export interface ChartFamilyDescriptor {
   /** Editor left-strip width class — KPI needs a wider strip for its config blocks. */
   sidebarWidthClass: string;
 
+  /**
+   * QUERY-LESS family: renders from its own state, NOT a Cube query. When true the
+   * renderer skips the data fetch entirely and the loading/error/empty chrome, handing
+   * the family component an empty dataset — so a host family that draws its own content
+   * (e.g. an AI summary tile keyed by familyOptions) works even with NO `widget.query`.
+   * Builtins leave this unset (false). A query-less family has no wells/zones.
+   */
+  queryless?: boolean;
+
   /* ───────── host-extensibility hooks (OPTIONAL; builtins leave these unset) ─────────
    *
    * A HOST-registered family is self-contained: it supplies its own field-placement

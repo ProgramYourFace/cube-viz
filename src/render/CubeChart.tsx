@@ -51,6 +51,12 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
   // comparePreviousInput, and ChartRenderer all share one stable identity.
   const families = useFamilyRegistry();
 
+  // A QUERY-LESS family (e.g. a host AI-summary tile) renders from its own state, not a
+  // Cube query — its widget may carry NO `query` at all. Skip the fetch (and the
+  // loading/error/empty chrome) so it never crashes on an absent query or shows a
+  // spurious "No data"/"Failed to load" over content it fetches itself.
+  const queryless = families.get(chart.family)?.queryless ?? false;
+
   // Inject the provider's unit system as the default so the pure families (which
   // only see `options`) convert km→mi / L→gal etc. A per-chart `format.unitSystem`
   // still wins. This is how the host-wide "metric|imperial" choice reaches the
@@ -61,13 +67,18 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
   }, [chart, locale?.unitSystem]);
 
   // Inject the host's IANA timezone so Cube buckets/relative-ranges resolve in the
-  // host's zone (not UTC). A query-level `timezone` always wins.
-  const tzQuery = useMemo<CubeQuery>(
-    () => (query.timezone || !locale?.timezone ? query : { ...query, timezone: locale.timezone }),
-    [query, locale?.timezone],
-  );
+  // host's zone (not UTC). A query-level `timezone` always wins. A query-less family
+  // may have NO query, so fall back to an empty one (the fetch is skipped anyway).
+  const tzQuery = useMemo<CubeQuery>(() => {
+    const q = query ?? ({} as CubeQuery);
+    return q.timezone || !locale?.timezone ? q : { ...q, timezone: locale.timezone };
+  }, [query, locale?.timezone]);
 
-  const { data, isLoading, error, refetch, resolvedQuery } = useNormalizedSeries(tzQuery, resolvedChart);
+  const { data, isLoading, error, refetch, resolvedQuery } = useNormalizedSeries(
+    tzQuery,
+    resolvedChart,
+    { skip: queryless },
+  );
 
   // KPI sparkline: a KPI's main query is an AGGREGATE (the headline number), so its
   // trend is fetched as a SEPARATE time-bucketed query and merged into the render data
@@ -225,7 +236,7 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
       options={resolvedChart}
       config={emptyConfig}
       format={format}
-      state={{ loading: isLoading && !data, error }}
+      state={queryless ? { loading: false } : { loading: isLoading && !data, error }}
       components={components}
       registry={families}
       editing={editing}

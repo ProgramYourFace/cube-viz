@@ -64,13 +64,18 @@ export function ChartRenderer({
 }: ChartRendererProps): ReactElement {
   const resolved = useMemo(() => resolveOptions(options, registry), [options, registry]);
 
+  // A QUERY-LESS family (e.g. a host AI-summary tile) draws its own content from its own
+  // state, not a Cube query — so the data-driven loading/error/empty chrome below does
+  // not apply (its `data` is an empty placeholder). Render the component directly.
+  const queryless = registry.get(resolved.family)?.queryless ?? false;
+
   // 1) loading — Skeleton sized to the container height; no Recharts mount yet.
-  if (state?.loading) {
+  if (!queryless && state?.loading) {
     return <Skeleton className="cv:h-full cv:w-full cv:min-h-[200px]" />;
   }
 
   // 2) error — destructive Alert; never leaks tenant data (message only).
-  if (state?.error) {
+  if (!queryless && state?.error) {
     return (
       <Alert variant="destructive" className="cv:w-full">
         <AlertCircle />
@@ -81,7 +86,7 @@ export function ChartRenderer({
   }
 
   // 3) empty — centered muted "No data"; Recharts not mounted (avoids 0-row glitches).
-  if (data.empty) {
+  if (!queryless && data.empty) {
     return (
       <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
         No data
