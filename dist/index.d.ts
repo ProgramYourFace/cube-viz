@@ -1652,6 +1652,15 @@ export declare interface ChartFamilyDescriptor {
      * Builtins leave this unset (false). A query-less family has no wells/zones.
      */
     queryless?: boolean;
+    /**
+     * Whether the editor's live preview requires a measure before it renders. When unset,
+     * the editor falls back to "everything except `table` needs a measure" (the historical
+     * builtin rule). A measure-LESS family (a points-mode host `map`, or a query-less `ai`
+     * tile) sets this `false` so the preview renders instead of showing a misleading
+     * "Add a value (measure)" hint. Query-less families are treated as measure-less
+     * regardless of this flag.
+     */
+    requiresMeasure?: boolean;
     /** The type-level "Options" panel for this family (rendered in the type picker). */
     Customize?: React_2.ComponentType<{
         spec: ChartSpec;
@@ -2733,7 +2742,7 @@ export declare type ChartSpec = z.infer<typeof ChartSpecSchema>;
 
 export declare const ChartSpecSchema: z.ZodObject<{
     kind: z.ZodLiteral<"chart">;
-    query: z.ZodObject<{
+    query: z.ZodDefault<z.ZodObject<{
         measures: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         dimensions: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         timeDimensions: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -2839,7 +2848,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         } | undefined;
         total?: boolean | undefined;
         timezone?: string | undefined;
-    }>;
+    }>>;
     chart: z.ZodObject<{
         family: z.ZodString;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
@@ -4149,7 +4158,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
-    query: {
+    id: string;
+    schemaVersion: 1;
+    query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
         timeDimensions?: {
@@ -4173,9 +4184,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         } | undefined;
         total?: boolean | undefined;
         timezone?: string | undefined;
-    };
-    id: string;
-    schemaVersion: 1;
+    } | undefined;
     name?: string | undefined;
     description?: string | undefined;
     createdAt?: string | undefined;
@@ -4203,7 +4212,7 @@ export declare type ChartWidget = z.infer<typeof ChartWidgetSchema>;
 
 export declare const ChartWidgetSchema: z.ZodObject<{
     type: z.ZodLiteral<"chart">;
-    query: z.ZodObject<{
+    query: z.ZodDefault<z.ZodObject<{
         measures: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         dimensions: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         timeDimensions: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -4309,7 +4318,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         } | undefined;
         total?: boolean | undefined;
         timezone?: string | undefined;
-    }>;
+    }>>;
     chart: z.ZodObject<{
         family: z.ZodString;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
@@ -5611,7 +5620,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
-    query: {
+    id: string;
+    query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
         timeDimensions?: {
@@ -5635,8 +5645,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         } | undefined;
         total?: boolean | undefined;
         timezone?: string | undefined;
-    };
-    id: string;
+    } | undefined;
     title?: string | undefined;
 }>;
 
@@ -6361,7 +6370,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
     }>, "many">;
     widgets: z.ZodArray<z.ZodDiscriminatedUnion<"type", [z.ZodObject<{
         type: z.ZodLiteral<"chart">;
-        query: z.ZodObject<{
+        query: z.ZodDefault<z.ZodObject<{
             measures: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
             dimensions: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
             timeDimensions: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -6467,7 +6476,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             } | undefined;
             total?: boolean | undefined;
             timezone?: string | undefined;
-        }>;
+        }>>;
         chart: z.ZodObject<{
             family: z.ZodString;
             /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
@@ -7769,7 +7778,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
-        query: {
+        id: string;
+        query?: {
             measures?: string[] | undefined;
             dimensions?: string[] | undefined;
             timeDimensions?: {
@@ -7793,8 +7803,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             } | undefined;
             total?: boolean | undefined;
             timezone?: string | undefined;
-        };
-        id: string;
+        } | undefined;
         title?: string | undefined;
     }>, z.ZodObject<{
         type: z.ZodLiteral<"text">;
@@ -8497,7 +8506,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
-        query: {
+        id: string;
+        query?: {
             measures?: string[] | undefined;
             dimensions?: string[] | undefined;
             timeDimensions?: {
@@ -8521,8 +8531,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             } | undefined;
             total?: boolean | undefined;
             timezone?: string | undefined;
-        };
-        id: string;
+        } | undefined;
         title?: string | undefined;
     } | {
         type: "text";
@@ -10736,7 +10745,7 @@ export declare type Spec = z.infer<typeof SpecSchema>;
 
 export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     kind: z.ZodLiteral<"chart">;
-    query: z.ZodObject<{
+    query: z.ZodDefault<z.ZodObject<{
         measures: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         dimensions: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         timeDimensions: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -10842,7 +10851,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         } | undefined;
         total?: boolean | undefined;
         timezone?: string | undefined;
-    }>;
+    }>>;
     chart: z.ZodObject<{
         family: z.ZodString;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
@@ -12152,7 +12161,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
-    query: {
+    id: string;
+    schemaVersion: 1;
+    query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
         timeDimensions?: {
@@ -12176,9 +12187,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         } | undefined;
         total?: boolean | undefined;
         timezone?: string | undefined;
-    };
-    id: string;
-    schemaVersion: 1;
+    } | undefined;
     name?: string | undefined;
     description?: string | undefined;
     createdAt?: string | undefined;
@@ -12206,7 +12215,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     }>, "many">;
     widgets: z.ZodArray<z.ZodDiscriminatedUnion<"type", [z.ZodObject<{
         type: z.ZodLiteral<"chart">;
-        query: z.ZodObject<{
+        query: z.ZodDefault<z.ZodObject<{
             measures: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
             dimensions: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
             timeDimensions: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -12312,7 +12321,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             total?: boolean | undefined;
             timezone?: string | undefined;
-        }>;
+        }>>;
         chart: z.ZodObject<{
             family: z.ZodString;
             /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
@@ -13614,7 +13623,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
-        query: {
+        id: string;
+        query?: {
             measures?: string[] | undefined;
             dimensions?: string[] | undefined;
             timeDimensions?: {
@@ -13638,8 +13648,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             total?: boolean | undefined;
             timezone?: string | undefined;
-        };
-        id: string;
+        } | undefined;
         title?: string | undefined;
     }>, z.ZodObject<{
         type: z.ZodLiteral<"text">;
@@ -14342,7 +14351,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
-        query: {
+        id: string;
+        query?: {
             measures?: string[] | undefined;
             dimensions?: string[] | undefined;
             timeDimensions?: {
@@ -14366,8 +14376,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             total?: boolean | undefined;
             timezone?: string | undefined;
-        };
-        id: string;
+        } | undefined;
         title?: string | undefined;
     } | {
         type: "text";
@@ -15267,7 +15276,7 @@ export declare type WidgetSpec = z.infer<typeof WidgetSpecSchema>;
 
 export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObject<{
     type: z.ZodLiteral<"chart">;
-    query: z.ZodObject<{
+    query: z.ZodDefault<z.ZodObject<{
         measures: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         dimensions: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         timeDimensions: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -15373,7 +15382,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         } | undefined;
         total?: boolean | undefined;
         timezone?: string | undefined;
-    }>;
+    }>>;
     chart: z.ZodObject<{
         family: z.ZodString;
         /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
@@ -16675,7 +16684,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
-    query: {
+    id: string;
+    query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
         timeDimensions?: {
@@ -16699,8 +16709,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         } | undefined;
         total?: boolean | undefined;
         timezone?: string | undefined;
-    };
-    id: string;
+    } | undefined;
     title?: string | undefined;
 }>, z.ZodObject<{
     type: z.ZodLiteral<"text">;

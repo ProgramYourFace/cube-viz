@@ -107,6 +107,16 @@ export interface ChartFamilyDescriptor {
    */
   queryless?: boolean;
 
+  /**
+   * Whether the editor's live preview requires a measure before it renders. When unset,
+   * the editor falls back to "everything except `table` needs a measure" (the historical
+   * builtin rule). A measure-LESS family (a points-mode host `map`, or a query-less `ai`
+   * tile) sets this `false` so the preview renders instead of showing a misleading
+   * "Add a value (measure)" hint. Query-less families are treated as measure-less
+   * regardless of this flag.
+   */
+  requiresMeasure?: boolean;
+
   /* ───────── host-extensibility hooks (OPTIONAL; builtins leave these unset) ─────────
    *
    * A HOST-registered family is self-contained: it supplies its own field-placement

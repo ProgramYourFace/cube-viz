@@ -138,6 +138,17 @@ export function duplicateWidget(spec: DashboardSpec, id: string, newId: string):
   if (!src) return spec;
   const copy = JSON.parse(JSON.stringify(src)) as WidgetSpec;
   copy.id = newId;
+  // A QUERY-LESS family (e.g. host `ai`) keys its persisted result on
+  // `familyOptions.chartId`, NOT the widget id. A verbatim clone would share that key,
+  // so the two tiles collide on one result row + one cron key — reruns clobber each
+  // other and only one prompt ever generates. Remint it from the fresh widget id
+  // (chartId is an opaque per-(system,chartId) key, so any unique string is valid).
+  if (copy.type === "chart") {
+    const fo = copy.chart.familyOptions as Record<string, unknown> | undefined;
+    if (fo && typeof fo.chartId === "string") {
+      copy.chart = { ...copy.chart, familyOptions: { ...fo, chartId: `ai_${newId}` } };
+    }
+  }
   return appendWidget(spec, copy);
 }
 

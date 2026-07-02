@@ -63,12 +63,17 @@ export function useCubeQuery(
     }
 
     let active = true;
+    // Abort the underlying request on unmount / query change so a superseded or
+    // unmounted "Continue wait" long-poll stops re-polling `/v1/load` (which otherwise
+    // keeps the upstream query alive). The SDK surfaces an abort as an Error, which the
+    // `active` guard already discards, so it never reaches state.
+    const controller = new AbortController();
     setState((prev) => ({ resultSet: prev.resultSet, isLoading: true }));
 
     cubeClient
       // Cast at the Cube seam: our CubeQuery is structurally compatible with the
       // SDK's loose `Query`, which the SDK's own types keep `any`-heavy.
-      .load(effectiveQuery as unknown as Query, { castNumerics: true })
+      .load(effectiveQuery as unknown as Query, { castNumerics: true, signal: controller.signal })
       .then((resultSet) => {
         if (!active) return;
         setState({
@@ -86,6 +91,7 @@ export function useCubeQuery(
 
     return () => {
       active = false;
+      controller.abort();
     };
     // `query` is captured via `queryKey`; re-fetch whenever the client, key, skip flag,
     // or refetch nonce changes. (queryKey is the serialized query; query is read inside.)

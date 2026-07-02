@@ -375,7 +375,12 @@ const widgetBase = {
 };
 
 export const ChartWidgetSchema = z
-  .object({ ...widgetBase, type: z.literal("chart"), query: CubeQuerySchema, chart: ChartOptionsSchema })
+  // `query` defaults to `{}` so QUERY-LESS families (e.g. a host `ai` summary tile that
+  // renders from `familyOptions`, not a Cube query) validate without carrying a query.
+  // `.default({})` (not `.optional()`) keeps parsed output query-bearing, so editor code
+  // that spreads `spec.query`/`query.measures` never hits `undefined`. All CubeQuery
+  // fields are themselves optional, so `{}` is a valid, empty query.
+  .object({ ...widgetBase, type: z.literal("chart"), query: CubeQuerySchema.default({}), chart: ChartOptionsSchema })
   .strict();
 export type ChartWidget = z.infer<typeof ChartWidgetSchema>;
 
@@ -458,7 +463,9 @@ const specMeta = {
 };
 
 export const ChartSpecSchema = z
-  .object({ ...specMeta, kind: z.literal("chart"), query: CubeQuerySchema, chart: ChartOptionsSchema })
+  // Mirror ChartWidgetSchema: `query` defaults to `{}` so a query-less chart spec (an `ai`
+  // family summary) validates without a query, while parsed output stays query-bearing.
+  .object({ ...specMeta, kind: z.literal("chart"), query: CubeQuerySchema.default({}), chart: ChartOptionsSchema })
   .strict();
 export type ChartSpec = z.infer<typeof ChartSpecSchema>;
 

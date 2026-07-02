@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 import { CubeChart } from "@/render";
+import { useFamilyRegistry } from "@/provider";
 import type { ChartSpec } from "@/spec";
 
 import { ChartEditOverlay } from "./chart/onchart/ChartEditOverlay";
@@ -52,11 +53,19 @@ export function ChartEditor({
   fill = false,
   className,
 }: ChartEditorProps): React.ReactElement {
+  const families = useFamilyRegistry();
   const { draft, issues, valid, committed, update } = useChartEditorState({
     spec,
     onChange: onChange ?? NOOP,
     debounceMs,
   });
+
+  // Descriptor-driven preview gating: a QUERY-LESS family (e.g. host `ai`) renders from
+  // its own state, so it previews immediately with no fields; a measure-LESS family
+  // (points-mode `map`) renders without a measure. Fall back to the historical builtin
+  // rule ("everything except table needs a measure") when the descriptor is silent.
+  const descriptor = families.get(draft.chart.family);
+  const queryless = descriptor?.queryless ?? false;
 
   // The preview renders the last VALID spec, so an invalid mid-edit draft never
   // triggers a malformed query. (When the draft is valid, committed === draft.)
@@ -66,22 +75,24 @@ export function ChartEditor({
   // dimension is only a date-range filter (the global date binding) and does not, by
   // itself, make a valid query — matching Cube's own "timeDimensions with
   // granularities" rule — so clearing the axes flips straight to the empty chooser.
-  const hasFields = (q: ChartSpec["query"]): boolean =>
-    (q.measures?.length ?? 0) > 0 ||
-    (q.dimensions?.length ?? 0) > 0 ||
-    (q.timeDimensions?.some((td) => typeof td.granularity === "string") ?? false);
-  const hasMeasure = (q: ChartSpec["query"]): boolean => (q.measures?.length ?? 0) > 0;
-  // Every chart family except `table` draws from a value (measure); a dimension-only
-  // query renders an empty plot, so gate those families on a measure and tell the
-  // user what's still missing rather than showing a blank chart with no guidance.
-  const needsMeasure = draft.chart.family !== "table";
-  // Show the chart only when BOTH the live draft and the committed spec have fields:
-  // gating on the draft means clearing every field flips straight to the empty
-  // chooser (a stale non-empty `committed` won't keep issuing a now-orphaned query).
+  const hasFields = (q: ChartSpec["query"] | undefined): boolean =>
+    ((q?.measures?.length ?? 0) > 0 ||
+      (q?.dimensions?.length ?? 0) > 0 ||
+      (q?.timeDimensions?.some((td) => typeof td.granularity === "string") ?? false));
+  const hasMeasure = (q: ChartSpec["query"] | undefined): boolean => (q?.measures?.length ?? 0) > 0;
+  // Most families draw from a value (measure); a dimension-only query renders an empty
+  // plot, so gate those on a measure and name what's missing. `table` (and measure-less
+  // host families like points-mode `map`) opt out via `requiresMeasure: false`.
+  const needsMeasure = descriptor?.requiresMeasure ?? draft.chart.family !== "table";
+  // A query-less family (host `ai`) renders from its own state — preview it immediately,
+  // bypassing the field/measure gating entirely. Otherwise show the chart only when BOTH
+  // the live draft and committed spec have fields (gating on the draft means clearing
+  // every field flips straight to the empty chooser).
   const previewReady =
-    hasFields(draft.query) &&
-    hasFields(previewSpec.query) &&
-    (!needsMeasure || (hasMeasure(draft.query) && hasMeasure(previewSpec.query)));
+    queryless ||
+    (hasFields(draft.query) &&
+      hasFields(previewSpec.query) &&
+      (!needsMeasure || (hasMeasure(draft.query) && hasMeasure(previewSpec.query))));
 
   // Family-aware hint so the empty state names the missing required field.
   const emptyHint =
@@ -90,7 +101,7 @@ export function ChartEditor({
       : "Add fields from the axes to build this chart.";
 
   const preview = previewReady ? (
-    <CubeChart query={previewSpec.query} chart={previewSpec.chart} editing />
+    <CubeChart query={previewSpec.query ?? {}} chart={previewSpec.chart} editing />
   ) : (
     <div className="cv:flex cv:size-full cv:items-center cv:justify-center cv:rounded-lg cv:border cv:border-dashed cv:border-border cv:p-6 cv:text-center cv:text-sm cv:text-muted-foreground">
       <span className="cv:max-w-[16rem]">{emptyHint}</span>

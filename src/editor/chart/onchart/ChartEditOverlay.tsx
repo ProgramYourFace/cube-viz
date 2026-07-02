@@ -54,6 +54,11 @@ export function ChartEditOverlay({
   const { chart } = spec;
   const family = chart.family;
   const descriptor = families.require(family);
+  // QUERY-LESS families (e.g. the host `ai` summary tile) have NO wells, so `isEmpty`
+  // (no field placed) is ALWAYS true for them. Without this flag the type pill — which
+  // is the ONLY way to reach the family's Customize panel (prompt/schedule) — would be
+  // hidden and the empty type-chooser would overlay the configured tile forever.
+  const queryless = descriptor.queryless ?? false;
   const cube = inferCube(spec);
 
   // The unit shown in the value-axis badge follows the viewer's unit system, so the
@@ -432,7 +437,7 @@ export function ChartEditOverlay({
         {/* Chart-type picker lives here (top centre) rather than over the chart — an
             on-chart pill was unclickable behind the live preview. Built charts only;
             an empty chart shows the centred chooser overlay instead. */}
-        {!isEmpty ? <ChartTypePill spec={spec} update={update} /> : null}
+        {!isEmpty || queryless ? <ChartTypePill spec={spec} update={update} /> : null}
         <div className="cv:flex cv:flex-1 cv:items-center cv:justify-end cv:gap-1.5">
           <ChartSourcePopover
             currentName={scope.viewLocked ?? scope.sourceCube?.name}
@@ -463,7 +468,9 @@ export function ChartEditOverlay({
         <div className="cv:flex cv:min-w-0 cv:flex-1 cv:flex-col cv:gap-2">
           <div className="cv:relative cv:min-h-0 cv:flex-1">
             {children}
-            <CenterTypePicker spec={spec} update={update} empty={isEmpty} />
+            {/* A query-less family is never "empty" for chooser purposes — it configures
+                via its Customize panel (reached from the type pill), not by placing fields. */}
+            <CenterTypePicker spec={spec} update={update} empty={isEmpty && !queryless} />
           </div>
 
           {/* The category / split wells (each carrying its own axis-title box above its field),

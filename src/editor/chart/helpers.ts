@@ -30,7 +30,9 @@ export function cubeOfMember(member: string | undefined): string | undefined {
  * authority for what a cube contains; this only recovers the *current* selection.)
  */
 export function inferCube(spec: ChartSpec): string | undefined {
-  const q = spec.query;
+  // A query-less family (e.g. host `ai`) may carry no query at all; treat as empty so we
+  // never dereference `undefined.measures` (the crash that tore down the widget editor).
+  const q = spec.query ?? {};
   const fromMeasure = q.measures?.find(Boolean);
   if (fromMeasure) return cubeOfMember(fromMeasure);
   const fromDim = q.dimensions?.find(Boolean);
@@ -110,7 +112,8 @@ export function migrateToFamily(
   next: ChartFamily,
   registry: FamilyRegistry,
 ): ChartSpec {
-  const { query, chart } = spec;
+  const { chart } = spec;
+  const query = spec.query ?? {}; // query-less families carry no query — treat as empty
   const measures = measuresOf(chart).length ? measuresOf(chart) : (query.measures ?? []);
   const category =
     categoryOf(chart) ?? query.dimensions?.[0] ?? query.timeDimensions?.[0]?.dimension;

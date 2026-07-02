@@ -31,6 +31,7 @@ export function WidgetActionsMenu({
   captureRef,
 }: WidgetActionsMenuProps): React.ReactElement | null {
   const [busy, setBusy] = React.useState(false);
+  const [pngError, setPngError] = React.useState<string | null>(null);
   const canCsv = rows.length > 0;
   const canImage = !!captureRef;
   if (!canCsv && !refetch && !canImage) return null;
@@ -45,8 +46,14 @@ export function WidgetActionsMenu({
     const node = captureRef?.current;
     if (!node || busy) return;
     setBusy(true);
+    setPngError(null);
     try {
       await exportPng(node, title);
+    } catch (e: unknown) {
+      // html-to-image rejects on a tainted canvas (cross-origin map/WebGL tiles via
+      // canvas.toDataURL, cross-origin <img>). Surface it instead of leaving an
+      // unhandled promise rejection with no feedback.
+      setPngError(e instanceof Error ? e.message : "Couldn't export the image.");
     } finally {
       setBusy(false);
     }
@@ -90,6 +97,9 @@ export function WidgetActionsMenu({
           <Sheet className="cv:size-3.5 cv:text-muted-foreground" />
           Export CSV
         </button>
+        {pngError ? (
+          <p className="cv:px-2 cv:pt-1 cv:text-xs cv:text-destructive">{pngError}</p>
+        ) : null}
       </PopoverContent>
     </Popover>
   );
