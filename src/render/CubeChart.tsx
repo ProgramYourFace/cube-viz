@@ -35,6 +35,8 @@ export interface CubeChartProps {
   onState?: (state: { rows: Record<string, unknown>[]; refetch?: () => void; isLoading: boolean }) => void;
   /** Editing surface: hidden chrome renders greyed (not removed) — see ChartComponentProps. */
   editing?: boolean;
+  /** Editor write-back for familyOptions, forwarded to the family component — see ChartComponentProps. */
+  updateFamilyOptions?: (patch: Record<string, unknown>) => void;
 }
 
 /** A normalized-but-empty placeholder so `ChartRenderer` can render state chrome before data arrives. */
@@ -45,7 +47,7 @@ const EMPTY_DATA: NormalizedChartData = {
   empty: true,
 };
 
-export function CubeChart({ query, chart, onState, editing }: CubeChartProps): ReactElement {
+export function CubeChart({ query, chart, onState, editing, updateFamilyOptions }: CubeChartProps): ReactElement {
   const { registry, locale } = useCubeVizContext();
   // The family registry (builtins + host families), read ONCE so resolveChart,
   // comparePreviousInput, and ChartRenderer all share one stable identity.
@@ -240,6 +242,7 @@ export function CubeChart({ query, chart, onState, editing }: CubeChartProps): R
       components={components}
       registry={families}
       editing={editing}
+      updateFamilyOptions={updateFamilyOptions}
     />
   );
 }

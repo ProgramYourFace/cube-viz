@@ -27,8 +27,16 @@ import {
  * `update → validate → debounce-emit` engine. Unit-testable in isolation.
  */
 
-/** A field's primitive role: a measure / a non-time dimension / a time dimension. */
-export type FieldKind = "number" | "category" | "time";
+/**
+ * A field's primitive role: a measure / a non-time dimension / a time dimension /
+ * a NUMERIC dimension. `numberDimension` exists because Cube models coordinates and
+ * other per-row numbers (latitude, longitude, headings) as `type: number`
+ * DIMENSIONS — the `number` kind only surfaces measures, so a well that wants raw
+ * per-row numbers opts in with `kinds: ["number", "numberDimension"]`. Placement
+ * writers route the kinds differently (`number` → `query.measures`,
+ * `numberDimension` → `query.dimensions`).
+ */
+export type FieldKind = "number" | "category" | "time" | "numberDimension";
 
 /** A typed slot in the builder. `kinds` gates which fields may be dropped/clicked in. */
 export interface WellDef {

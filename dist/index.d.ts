@@ -1498,6 +1498,14 @@ export declare interface ChartComponentProps {
      * removed, so the in-context show/hide controls have something to toggle.
      */
     editing?: boolean;
+    /**
+     * Editor-supplied write-back for `familyOptions` — present ONLY on the editing
+     * surface (undefined in view mode). Lets a family render its own inline config
+     * (e.g. a query-less AI tile's prompt) directly on the chart instead of in the
+     * Options popover. The patch is shallow-merged over the current familyOptions
+     * and funnels through the editor's `update → validate → debounce-emit` engine.
+     */
+    updateFamilyOptions?: (patch: Record<string, unknown>) => void;
 }
 
 export declare type ChartConfig = {
@@ -1661,6 +1669,16 @@ export declare interface ChartFamilyDescriptor {
      * regardless of this flag.
      */
     requiresMeasure?: boolean;
+    /**
+     * A well id the editor AUTO-FILLS with the cube's canonical time dimension (member
+     * meta `canonicalTime: true`) when a field is placed and this well is still empty —
+     * so time-oriented families come up chronological without the user picking "the"
+     * time axis. Builtins: `line`/`area`/`combo` → `"x"`; `bar` deliberately unset (its
+     * default axis is categorical). A host family points this at its own time well
+     * (e.g. the map's `"time"` path-order well). The auto-fill is a plain placement —
+     * one tap removes it.
+     */
+    canonicalTimeWell?: string;
     /** The type-level "Options" panel for this family (rendered in the type picker). */
     Customize?: React_2.ComponentType<{
         spec: ChartSpec;
@@ -2719,7 +2737,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     familyOptions?: Record<string, unknown> | undefined;
 }>;
 
-export declare function ChartRenderer({ data, options, config, format, state, components, editing, registry, }: ChartRendererProps): ReactElement;
+export declare function ChartRenderer({ data, options, config, format, state, components, editing, updateFamilyOptions, registry, }: ChartRendererProps): ReactElement;
 
 export declare interface ChartRendererProps extends Omit<ChartComponentProps, "format"> {
     /**
@@ -5911,7 +5929,7 @@ export declare function createUnitsFormatter(conversions?: Record<string, UnitDe
  */
 export declare function createVariableStore(decls: VariableDecl[], seed?: Record<string, VariableValue>): VariableStore;
 
-export declare function CubeChart({ query, chart, onState, editing }: CubeChartProps): ReactElement;
+export declare function CubeChart({ query, chart, onState, editing, updateFamilyOptions }: CubeChartProps): ReactElement;
 
 /**
  * The data-fetching wrapper around the pure {@link ChartRenderer}
@@ -5939,6 +5957,8 @@ export declare interface CubeChartProps {
     }) => void;
     /** Editing surface: hidden chrome renders greyed (not removed) — see ChartComponentProps. */
     editing?: boolean;
+    /** Editor write-back for familyOptions, forwarded to the family component — see ChartComponentProps. */
+    updateFamilyOptions?: (patch: Record<string, unknown>) => void;
 }
 
 /** Convenience wrapper that renders a standalone {@link ChartSpec}. */
@@ -8801,8 +8821,16 @@ export declare function fetchMeta(api: CubeClient): Promise<CubeMeta>;
  * FULL `ChartSpec`, so the panel funnels each edit through the unchanged
  * `update → validate → debounce-emit` engine. Unit-testable in isolation.
  */
-/** A field's primitive role: a measure / a non-time dimension / a time dimension. */
-export declare type FieldKind = "number" | "category" | "time";
+/**
+ * A field's primitive role: a measure / a non-time dimension / a time dimension /
+ * a NUMERIC dimension. `numberDimension` exists because Cube models coordinates and
+ * other per-row numbers (latitude, longitude, headings) as `type: number`
+ * DIMENSIONS — the `number` kind only surfaces measures, so a well that wants raw
+ * per-row numbers opts in with `kinds: ["number", "numberDimension"]`. Placement
+ * writers route the kinds differently (`number` → `query.measures`,
+ * `numberDimension` → `query.dimensions`).
+ */
+export declare type FieldKind = "number" | "category" | "time" | "numberDimension";
 
 export declare function FilterBuilder({ cube, cubes, scope, value, onChange, disabled, className, }: FilterBuilderProps): React_2.ReactElement;
 

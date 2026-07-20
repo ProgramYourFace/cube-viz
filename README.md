@@ -245,6 +245,8 @@ interface ChartFamilyDescriptor {
   supportsComparePrevious: boolean; // supports previous-period comparison
   comparePreviousMode?: "series" | "kpiRow"; // HOW prior data merges; undefined ⇔ supportsComparePrevious === false
   sidebarWidthClass: string;        // editor left-strip width class (e.g. "cv:w-40"; KPI uses "cv:w-56")
+  canonicalTimeWell?: string;       // well auto-filled with the cube's canonical time dim (meta `canonicalTime: true`)
+                                    // when empty and a field lands (builtins: line/area/combo → "x")
 
   // ── host-extensibility hooks (OPTIONAL; builtins leave these unset) ──
   Customize?: React.ComponentType<{ spec: ChartSpec; update: (next: ChartSpec) => void }>;
@@ -287,6 +289,10 @@ interface ChartComponentProps {
   format: ChartFormat;         // member-aware value formatter: format.value(v, member, role) / format.category(v)
   state?: { loading?: boolean; error?: Error };  // optional fetch state — render your own loading/error chrome
   editing?: boolean;           // true inside the on-chart editor (render hidden chrome greyed, not removed)
+  updateFamilyOptions?: (patch: Record<string, unknown>) => void;
+                               // editor-only familyOptions write-back (undefined in view mode) —
+                               // lets a family render inline config on the chart itself (e.g. a
+                               // query-less AI tile's prompt pane) instead of the Options popover
 }
 ```
 
@@ -349,10 +355,13 @@ spec; here bindings are stored as Cube member names in `familyOptions`):
 ```ts
 import type { ChartSpec, FieldKind, WellDef } from "cube-viz";
 
+// `number` offers MEASURES; `numberDimension` offers numeric DIMENSIONS (how Cube
+// models per-row coordinates like latitude/longitude). Coordinate wells accept both;
+// placement routes them (`number` → query.measures, `numberDimension` → query.dimensions).
 export const MAP_WELLS: WellDef[] = [
-  { id: "lat", label: "Latitude", cardinality: "one", kinds: ["number"] },
-  { id: "lng", label: "Longitude", cardinality: "one", kinds: ["number"] },
-  { id: "weight", label: "Weight", cardinality: "one", kinds: ["number"], optional: true },
+  { id: "lat", label: "Latitude", cardinality: "one", kinds: ["number", "numberDimension"] },
+  { id: "lng", label: "Longitude", cardinality: "one", kinds: ["number", "numberDimension"] },
+  { id: "weight", label: "Weight", cardinality: "one", kinds: ["number", "numberDimension"], optional: true },
   { id: "series", label: "Split by", cardinality: "one", kinds: ["category"], optional: true },
   { id: "time", label: "Path order", cardinality: "one", kinds: ["time"], optional: true },
 ];

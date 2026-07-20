@@ -5,7 +5,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/components/ui/utils";
 import { useCubeMeta } from "@/hooks";
 
-import { findCube, listMembers, memberGroup, type CubeOption, type MemberOption } from "../../primitives/meta-helpers";
+import {
+  findCube,
+  listMembers,
+  memberCanonicalTime,
+  memberGroup,
+  type CubeOption,
+  type MemberKind,
+  type MemberOption,
+} from "../../primitives/meta-helpers";
 import type { FieldKind, WellDef } from "../builder/wells";
 import type { JoinScope } from "./join-scope";
 
@@ -26,12 +34,16 @@ export interface FieldPickerPopoverProps {
   children: React.ReactNode;
 }
 
-const GROUP_META: Record<FieldKind, { label: string; icon: React.ReactElement; metaKind: "measure" | "dimension" | "time" }> = {
+// `number` (measures) and `numberDimension` (numeric dimensions, e.g. coordinates)
+// share the "Numbers" label so a well accepting both renders ONE merged bucket
+// (groupsFor keys fallback buckets by label).
+const GROUP_META: Record<FieldKind, { label: string; icon: React.ReactElement; metaKind: MemberKind }> = {
   number: { label: "Numbers", icon: <Hash className="cv:size-3" />, metaKind: "measure" },
+  numberDimension: { label: "Numbers", icon: <Hash className="cv:size-3" />, metaKind: "numberDimension" },
   category: { label: "Categories", icon: <Type className="cv:size-3" />, metaKind: "dimension" },
   time: { label: "Dates", icon: <Calendar className="cv:size-3" />, metaKind: "time" },
 };
-const KIND_ORDER: FieldKind[] = ["number", "category", "time"];
+const KIND_ORDER: FieldKind[] = ["number", "numberDimension", "category", "time"];
 
 interface TableSection {
   cube: CubeOption;
@@ -109,11 +121,20 @@ export function FieldPickerPopover({
     for (const k of KIND_ORDER) {
       if (!well.kinds.includes(k)) continue;
       const gm = GROUP_META[k];
-      for (const o of listMembers(meta, gm.metaKind, cubeName)) {
+      let members = listMembers(meta, gm.metaKind, cubeName);
+      // The cube's canonical time axis sorts first (stable) so the right date is
+      // always the top pick; PickerRow badges it "default".
+      if (k === "time") {
+        members = [...members].sort(
+          (a, b) => Number(memberCanonicalTime(b)) - Number(memberCanonicalTime(a)),
+        );
+      }
+      for (const o of members) {
         if (placedSet.has(o.name)) continue;
         if (q && !(o.label.toLowerCase().includes(q) || o.name.toLowerCase().includes(q))) continue;
         const group = memberGroup(o);
-        const key = group ? `g:${group.toLowerCase()}` : `k:${k}`;
+        // Fallback buckets key by LABEL (not kind) so kinds sharing a label merge.
+        const key = group ? `g:${group.toLowerCase()}` : `k:${gm.label}`;
         let grp = byKey.get(key);
         if (!grp) {
           // Semantic groups can mix kinds, so they carry no header icon; the kind-fallback
@@ -223,6 +244,7 @@ export function FieldPickerPopover({
                               key={option.name}
                               option={option}
                               kindIcon={showRowIcon ? GROUP_META[kind].icon : undefined}
+                              badge={kind === "time" && memberCanonicalTime(option) ? "default" : undefined}
                               reason={blockReason(option)}
                               onPick={() => pick(option.name, kind)}
                             />
@@ -322,10 +344,12 @@ interface PickerRowProps {
   onPick: () => void;
   /** Data-type icon, shown only for mixed-kind wells (semantic groups can mix kinds). */
   kindIcon?: React.ReactElement;
+  /** A small trailing chip (e.g. "default" on the cube's canonical time axis). */
+  badge?: string;
 }
 
 /** One member row; disabled-with-reason rows stay focusable so the hint is reachable. */
-function PickerRow({ option, reason, onPick, kindIcon }: PickerRowProps): React.ReactElement {
+function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps): React.ReactElement {
   if (reason) {
     return (
       <span
@@ -351,6 +375,11 @@ function PickerRow({ option, reason, onPick, kindIcon }: PickerRowProps): React.
     >
       {kindIcon}
       <span className="cv:min-w-0 cv:truncate">{option.label}</span>
+      {badge ? (
+        <span className="cv:ml-auto cv:shrink-0 cv:rounded-sm cv:bg-primary/10 cv:px-1 cv:py-px cv:text-[9px] cv:font-medium cv:uppercase cv:text-primary">
+          {badge}
+        </span>
+      ) : null}
     </button>
   );
 }

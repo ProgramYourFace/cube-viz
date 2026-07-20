@@ -117,6 +117,17 @@ export interface ChartFamilyDescriptor {
    */
   requiresMeasure?: boolean;
 
+  /**
+   * A well id the editor AUTO-FILLS with the cube's canonical time dimension (member
+   * meta `canonicalTime: true`) when a field is placed and this well is still empty —
+   * so time-oriented families come up chronological without the user picking "the"
+   * time axis. Builtins: `line`/`area`/`combo` → `"x"`; `bar` deliberately unset (its
+   * default axis is categorical). A host family points this at its own time well
+   * (e.g. the map's `"time"` path-order well). The auto-fill is a plain placement —
+   * one tap removes it.
+   */
+  canonicalTimeWell?: string;
+
   /* ───────── host-extensibility hooks (OPTIONAL; builtins leave these unset) ─────────
    *
    * A HOST-registered family is self-contained: it supplies its own field-placement
@@ -238,6 +249,7 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
   },
   line: {
     family: "line",
+    canonicalTimeWell: "x",
     label: "Line",
     icon: LineChart,
     order: orderOf("line"),
@@ -259,6 +271,7 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
   },
   area: {
     family: "area",
+    canonicalTimeWell: "x",
     label: "Area",
     icon: AreaChart,
     order: orderOf("area"),
@@ -361,6 +374,7 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
   },
   combo: {
     family: "combo",
+    canonicalTimeWell: "x",
     label: "Combo",
     icon: BarChart4,
     order: orderOf("combo"),

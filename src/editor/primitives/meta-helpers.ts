@@ -13,7 +13,12 @@ import type { FilterOperator } from "@/spec";
  */
 
 /** What kind of member a picker/filter target wants. */
-export type MemberKind = "measure" | "dimension" | "dimensionOrMeasure" | "time";
+export type MemberKind =
+  | "measure"
+  | "dimension"
+  | "dimensionOrMeasure"
+  | "time"
+  | "numberDimension";
 
 /** A flattened, UI-ready member descriptor (identity = `name`, read verbatim). */
 export interface MemberOption {
@@ -106,6 +111,30 @@ export function memberGroup(o: { meta?: Record<string, unknown> }): string | und
 }
 
 /**
+ * Whether a member is its cube's CANONICAL time axis — Cube member meta
+ * `canonicalTime: true`, authored on exactly one time dimension per cube (the
+ * primary domain event time, e.g. `device_locations.timestamp`). Consumers use it
+ * to sort/badge the member first in date pickers and to auto-fill empty time wells
+ * so users don't have to pick "the" time axis themselves.
+ */
+export function memberCanonicalTime(o: { meta?: Record<string, unknown> }): boolean {
+  return o.meta?.canonicalTime === true;
+}
+
+/**
+ * The cube's canonical time dimension (see {@link memberCanonicalTime}), or
+ * undefined when the cube doesn't declare one (e.g. config-style cubes whose only
+ * time is an archive/creation stamp).
+ */
+export function canonicalTimeOf(
+  meta: CubeMeta | undefined,
+  cube: string | undefined,
+): MemberOption | undefined {
+  if (!cube) return undefined;
+  return listMembers(meta, "time", cube).find(memberCanonicalTime);
+}
+
+/**
  * Group members by their {@link memberGroup} (`meta.group`), preserving first-appearance
  * order. Grouping is case-INSENSITIVE (so "Trip metrics" and "Trip Metrics" merge under
  * the first-seen label). Members without a group fall under `fallbackLabel(member)`
@@ -183,7 +212,9 @@ function segmentToOption(m: TCubeSegment, cube: string): MemberOption {
 /**
  * Flatten meta into the member options matching `kind`, restricted to `cube` when
  * given. `"dimension"`/`"dimensionOrMeasure"` exclude time dimensions; `"time"`
- * returns only `type === "time"` dimensions; `"measure"` returns measures only.
+ * returns only `type === "time"` dimensions; `"measure"` returns measures only;
+ * `"numberDimension"` returns only `type === "number"` dimensions (raw per-row
+ * numbers like coordinates — see FieldKind in builder/wells.ts).
  */
 export function listMembers(
   meta: CubeMeta | undefined,
@@ -215,6 +246,11 @@ export function listMembers(
     if (kind === "time") {
       for (const d of c.dimensions) {
         if (isPublic(d) && d.type === "time") push(dimensionToOption(d, c.name));
+      }
+    }
+    if (kind === "numberDimension") {
+      for (const d of c.dimensions) {
+        if (isPublic(d) && d.type === "number") push(dimensionToOption(d, c.name));
       }
     }
   }

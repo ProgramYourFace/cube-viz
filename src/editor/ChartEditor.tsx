@@ -100,8 +100,30 @@ export function ChartEditor({
       ? `Add a value (measure) to build this ${draft.chart.family} chart.`
       : "Add fields from the axes to build this chart.";
 
+  // On-chart familyOptions write-back (see ChartComponentProps.updateFamilyOptions):
+  // patches merge over the LIVE draft (not the committed preview spec) so inline
+  // edits compose with in-flight field changes, then funnel through the same
+  // update → validate → debounce-emit engine as every other edit.
+  const updateFamilyOptions = React.useCallback(
+    (patch: Record<string, unknown>) => {
+      update({
+        ...draft,
+        chart: {
+          ...draft.chart,
+          familyOptions: { ...(draft.chart.familyOptions ?? {}), ...patch },
+        },
+      });
+    },
+    [draft, update],
+  );
+
   const preview = previewReady ? (
-    <CubeChart query={previewSpec.query ?? {}} chart={previewSpec.chart} editing />
+    <CubeChart
+      query={previewSpec.query ?? {}}
+      chart={previewSpec.chart}
+      editing
+      updateFamilyOptions={updateFamilyOptions}
+    />
   ) : (
     <div className="cv:flex cv:size-full cv:items-center cv:justify-center cv:rounded-lg cv:border cv:border-dashed cv:border-border cv:p-6 cv:text-center cv:text-sm cv:text-muted-foreground">
       <span className="cv:max-w-[16rem]">{emptyHint}</span>

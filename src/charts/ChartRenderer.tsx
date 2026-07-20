@@ -60,6 +60,7 @@ export function ChartRenderer({
   state,
   components,
   editing,
+  updateFamilyOptions,
   registry = builtinFamilyRegistry,
 }: ChartRendererProps): ReactElement {
   const resolved = useMemo(() => resolveOptions(options, registry), [options, registry]);
@@ -116,6 +117,7 @@ export function ChartRenderer({
       format={chartFormat}
       state={state}
       editing={editing}
+      updateFamilyOptions={updateFamilyOptions}
     />
   );
 }

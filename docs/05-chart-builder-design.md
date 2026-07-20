@@ -66,7 +66,7 @@ A `useWells(spec)` read-model + `wellsToSpec` writer (pure, mirrors `helpers.ts`
 
 ## 2. Wells per family — names, cardinality, allowed kinds, and the ChartSpec mapping
 
-Field **kinds** come straight from `meta-helpers.ts`: `measure` (the "number"), non-time `dimension` (a "label"), and time `dimension` (`type === "time"`, a "date"). The palette and wells reuse `listMembers(meta, kind, cube)` and `findMember` verbatim — **no new member logic, names stay verbatim** (critical for `prefix:true` view members).
+Field **kinds** come straight from `meta-helpers.ts`: `measure` (the "number"), non-time `dimension` (a "label"), time `dimension` (`type === "time"`, a "date"), and `numberDimension` (a `type === "number"` dimension — a raw per-row number like a latitude/longitude coordinate; opted into per-well, offered under the same "Numbers" picker bucket as measures, but placed into `query.dimensions`). The palette and wells reuse `listMembers(meta, kind, cube)` and `findMember` verbatim — **no new member logic, names stay verbatim** (critical for `prefix:true` view members).
 
 Cube scoping rule (preserve today's behavior): the **first placed field sets the active cube** (`inferCube`); subsequent wells/palette filter to that cube. Dropping a field from another cube triggers the existing "switching the data source clears member-bound state" reset (`onCubeChange`).
 

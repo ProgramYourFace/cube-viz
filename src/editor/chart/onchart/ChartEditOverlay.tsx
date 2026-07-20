@@ -7,7 +7,7 @@ import { mergeUnitConversions } from "@/units";
 import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartSpec } from "@/spec";
 
-import { findMember, type MemberOption } from "../../primitives/meta-helpers";
+import { canonicalTimeOf, findMember, type MemberOption } from "../../primitives/meta-helpers";
 import { inferCube } from "../helpers";
 import { axisKeyOf, axisLabelOf } from "../builder/axis";
 import { getWells, placeField, readWells, type FieldKind, type WellDef } from "../builder/wells";
@@ -244,9 +244,20 @@ export function ChartEditOverlay({
       let next = placeField(spec, family, wellId, name, kind, families);
       // On a dual-axis family, auto-assign the new measure to the axis matching its unit.
       if (dualAxis && wellId === "y") next = assignAxis(next, name, targetAxis(option));
+      // Auto-fill the family's time well (descriptor.canonicalTimeWell) with the cube's
+      // canonical time axis (member meta `canonicalTime: true`) when it's still empty —
+      // a line/area/combo comes up as a proper time series (and a map path comes up
+      // chronological) from the FIRST field drop. Plain placement; one tap removes it.
+      const timeWell = descriptor.canonicalTimeWell;
+      if (timeWell && wellId !== timeWell && (placed[timeWell] ?? []).length === 0) {
+        const canonical = canonicalTimeOf(meta, option?.cube);
+        if (canonical && canonical.name !== name && !blockReason(timeWell, canonical)) {
+          next = placeField(next, family, timeWell, canonical.name, "time", families);
+        }
+      }
       update(next);
     },
-    [blockReason, meta, update, spec, family, dualAxis, targetAxis, assignAxis, families],
+    [blockReason, meta, update, spec, family, dualAxis, targetAxis, assignAxis, families, descriptor, placed],
   );
 
   /* ── dual-axis: explicit Left/Right value wells, each its own unit ───────── */

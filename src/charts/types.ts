@@ -34,6 +34,14 @@ export interface ChartComponentProps {
    * removed, so the in-context show/hide controls have something to toggle.
    */
   editing?: boolean;
+  /**
+   * Editor-supplied write-back for `familyOptions` — present ONLY on the editing
+   * surface (undefined in view mode). Lets a family render its own inline config
+   * (e.g. a query-less AI tile's prompt) directly on the chart instead of in the
+   * Options popover. The patch is shallow-merged over the current familyOptions
+   * and funnels through the editor's `update → validate → debounce-emit` engine.
+   */
+  updateFamilyOptions?: (patch: Record<string, unknown>) => void;
 }
 
 /** A chart family is any component rendering {@link ChartComponentProps}. */
