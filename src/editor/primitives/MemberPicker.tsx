@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Calendar, Hash, Type } from "lucide-react";
+import { Calendar, Hash, MapPin, Type } from "lucide-react";
 
 import {
   Select,
@@ -36,6 +36,8 @@ export function memberTypeIcon(type: MemberOption["type"]): React.ReactElement {
       return <Calendar className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
     case "number":
       return <Hash className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
+    case "geoPoint":
+      return <MapPin className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
     default:
       return <Type className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
   }
