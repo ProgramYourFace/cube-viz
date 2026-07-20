@@ -57,7 +57,7 @@ export function AxisChrome({
         disabled={hidden}
         onChange={(e) => patchAxis(spec, update, axis, { label: e.target.value || undefined })}
         title={`Axis title${auto ? ` — defaults to “${auto}”` : ""} (leave blank for the default)`}
-        className="cv:h-6 cv:min-w-0 cv:flex-1 cv:rounded cv:border cv:border-input cv:bg-background cv:px-1.5 cv:text-xs cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:cursor-not-allowed"
+        className="cv:h-6 cv:min-w-0 cv:flex-1 cv:rounded cv:border cv:border-input cv:bg-background cv:px-1.5 cv:text-xs cv:text-foreground cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:cursor-not-allowed"
       />
       <EyeButton
         hidden={hidden}

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Calendar, Check, ChevronDown, ChevronRight, Database, Hash, Layers, Search, Table2, Type } from "lucide-react";
+import { Calendar, Check, ChevronDown, ChevronRight, Database, Hash, Layers, MapPin, Search, Table2, Type } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
@@ -38,12 +38,13 @@ export interface FieldPickerPopoverProps {
 // share the "Numbers" label so a well accepting both renders ONE merged bucket
 // (groupsFor keys fallback buckets by label).
 const GROUP_META: Record<FieldKind, { label: string; icon: React.ReactElement; metaKind: MemberKind }> = {
+  geoPoint: { label: "Location", icon: <MapPin className="cv:size-3" />, metaKind: "geoPoint" },
   number: { label: "Numbers", icon: <Hash className="cv:size-3" />, metaKind: "measure" },
   numberDimension: { label: "Numbers", icon: <Hash className="cv:size-3" />, metaKind: "numberDimension" },
   category: { label: "Categories", icon: <Type className="cv:size-3" />, metaKind: "dimension" },
   time: { label: "Dates", icon: <Calendar className="cv:size-3" />, metaKind: "time" },
 };
-const KIND_ORDER: FieldKind[] = ["number", "numberDimension", "category", "time"];
+const KIND_ORDER: FieldKind[] = ["geoPoint", "number", "numberDimension", "category", "time"];
 
 interface TableSection {
   cube: CubeOption;
@@ -177,10 +178,15 @@ export function FieldPickerPopover({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={isLoading ? "Loading fields…" : "Search fields…"}
-              className="cv:h-8 cv:w-full cv:bg-transparent cv:text-sm cv:outline-none cv:placeholder:text-muted-foreground"
+              className="cv:h-8 cv:w-full cv:bg-transparent cv:text-sm cv:text-foreground cv:outline-none cv:placeholder:text-muted-foreground"
             />
           </div>
-          <SourceMenu browse={browse} label={browseLabel} views={scope.views} onBrowse={setBrowse} />
+          <SourceMenu
+            browse={browse}
+            label={browseLabel}
+            views={scope.viewLocked ? scope.views.filter((v) => v.name === scope.viewLocked) : []}
+            onBrowse={setBrowse}
+          />
         </div>
 
         <div className="cv:max-h-80 cv:overflow-y-auto">
@@ -208,7 +214,7 @@ export function FieldPickerPopover({
                     onClick={() =>
                       setCollapsedOverride((m) => ({ ...m, [section.cube.name]: !effectiveCollapsed }))
                     }
-                    className="cv:flex cv:w-full cv:items-center cv:gap-1.5 cv:rounded-sm cv:px-1 cv:py-1 cv:text-left cv:hover:bg-accent/50"
+                    className="cv:flex cv:w-full cv:items-center cv:gap-1.5 cv:rounded-sm cv:px-1 cv:py-1 cv:text-left cv:text-foreground cv:hover:bg-accent/50"
                   >
                     {expanded ? (
                       <ChevronDown className="cv:size-3 cv:shrink-0 cv:text-muted-foreground" />
@@ -279,7 +285,7 @@ function SourceMenu({ browse, label, views, onBrowse }: SourceMenuProps): React.
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className="cv:flex cv:h-8 cv:max-w-[9rem] cv:shrink-0 cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2 cv:text-xs cv:hover:bg-accent"
+        className="cv:flex cv:h-8 cv:max-w-[9rem] cv:shrink-0 cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2 cv:text-xs cv:text-foreground cv:hover:bg-accent"
         title={`Data source: ${label}`}
       >
         <Database className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />
@@ -327,7 +333,7 @@ function MenuItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent",
+        "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:hover:bg-accent",
         active && "cv:bg-accent/60",
       )}
     >
@@ -371,7 +377,7 @@ function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps):
       type="button"
       onClick={onPick}
       title={option.description ?? option.name}
-      className="cv:flex cv:w-full cv:items-center cv:gap-1.5 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent cv:hover:text-accent-foreground"
+      className="cv:flex cv:w-full cv:items-center cv:gap-1.5 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:hover:bg-accent cv:hover:text-accent-foreground"
     >
       {kindIcon}
       <span className="cv:min-w-0 cv:truncate">{option.label}</span>

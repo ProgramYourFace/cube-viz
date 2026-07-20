@@ -22,6 +22,9 @@ export type { FilterBuilderProps } from "./chart/FilterBuilder";
 // own family needs these to type its `wells` array and placement-hook params.
 export type { WellDef, FieldKind } from "./chart/builder/wells";
 
+// Host geo families reproduce a filled synthetic location id from their stored pair.
+export { geoPointId } from "./primitives/meta-helpers";
+
 // The controlled-spec engine (validate + debounce-emit), for advanced hosts.
 export { useChartEditorState } from "./chart/useChartEditorState";
 export type {

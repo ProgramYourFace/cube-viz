@@ -204,7 +204,7 @@ export function FieldPill({
                   <select
                     value={b.sortValue}
                     onChange={(e) => b.onSort(e.target.value as typeof b.sortValue)}
-                    className="cv:h-8 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2 cv:text-sm cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring"
+                    className="cv:h-8 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2 cv:text-sm cv:text-foreground cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring"
                   >
                     {b.sortOptions.map((o) => (
                       <option key={o.key} value={o.key}>

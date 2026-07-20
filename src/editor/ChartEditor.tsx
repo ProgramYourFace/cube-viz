@@ -140,7 +140,7 @@ export function ChartEditor({
   return (
     <div
       data-slot="chart-editor"
-      className={cn("cv:flex cv:w-full cv:flex-col cv:gap-2", fill ? "cv:h-full" : "cv:min-h-[28rem]", className)}
+      className={cn("cv:flex cv:w-full cv:flex-col cv:gap-2 cv:text-foreground", fill ? "cv:h-full" : "cv:min-h-[28rem]", className)}
     >
       {!valid ? (
         <Alert variant="destructive">

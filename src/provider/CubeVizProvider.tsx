@@ -170,7 +170,7 @@ export function CubeVizProvider({
     <CubeVizContext.Provider value={value}>
       <div
         className={cn(
-          "cv:contents",
+          "cv:contents cv:text-foreground",
           resolvedTheme.mode === "dark" && "dark",
           resolvedTheme.mode === "light" && "cube-viz-light",
         )}

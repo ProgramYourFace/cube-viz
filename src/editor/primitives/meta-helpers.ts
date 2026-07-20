@@ -18,7 +18,8 @@ export type MemberKind =
   | "dimension"
   | "dimensionOrMeasure"
   | "time"
-  | "numberDimension";
+  | "numberDimension"
+  | "geoPoint";
 
 /** A flattened, UI-ready member descriptor (identity = `name`, read verbatim). */
 export interface MemberOption {
@@ -28,8 +29,8 @@ export interface MemberOption {
   label: string;
   title: string;
   shortTitle: string;
-  /** Cube primitive type. Segments report "segment". */
-  type: "time" | "number" | "string" | "boolean" | "segment";
+  /** Cube primitive type. Segments and synthetic geo points report their own kind. */
+  type: "time" | "number" | "string" | "boolean" | "segment" | "geoPoint";
   memberType: "measure" | "dimension" | "segment";
   /** Owning cube/view name (the part before the first dot, or cube.name). */
   cube: string;
@@ -41,11 +42,14 @@ export interface MemberOption {
   /** Cube `meta.unit` (e.g. "km", "L"), lifted for axis-unit checks. */
   unit?: string;
   /**
-   * Cube's `connectedComponent` for the owning cube — cubes sharing a value are in
-   * the SAME join graph (mutually joinable). The only join signal `/v1/meta` gives
-   * us, so cross-table field selection keys off it. `undefined` = an isolated cube.
+   * Cube's weak `connectedComponent` for the owning cube. This is descriptive only;
+   * field visibility uses explicit cube `meta.joinTargets` because sibling facts in
+   * one component are not necessarily query-joinable. `undefined` = isolated cube.
    */
   connectedComponent?: number;
+  /** Coordinate members carried only by a synthetic `geoPoint` option. */
+  latMember?: string;
+  lngMember?: string;
 }
 
 /** A cube or view entry for the CubePicker. */
@@ -56,11 +60,19 @@ export interface CubeOption {
   type: "cube" | "view";
   /** Join-graph id (see {@link MemberOption.connectedComponent}). */
   connectedComponent?: number;
+  /** Direct outbound join targets declared in cube `meta.joinTargets`. */
+  joinTargets: string[];
 }
 
 /** The `connectedComponent` (join-graph id) of a cube/view, or undefined. */
 function componentOf(c: { connectedComponent?: number }): number | undefined {
   return typeof c.connectedComponent === "number" ? c.connectedComponent : undefined;
+}
+
+function joinTargetsOf(c: { meta?: unknown }): string[] {
+  if (!c.meta || typeof c.meta !== "object") return [];
+  const targets = (c.meta as Record<string, unknown>).joinTargets;
+  return Array.isArray(targets) ? targets.filter((v): v is string => typeof v === "string") : [];
 }
 
 function isPublic(m: { public?: boolean; isVisible?: boolean }): boolean {
@@ -80,6 +92,7 @@ export function listCubes(meta: CubeMeta | undefined): CubeOption[] {
       title: c.title ?? c.name,
       type: c.type === "view" ? ("view" as const) : ("cube" as const),
       connectedComponent: componentOf(c as { connectedComponent?: number }),
+      joinTargets: joinTargetsOf(c),
     }));
 }
 
@@ -108,6 +121,24 @@ function metaString(meta: Record<string, unknown> | undefined, key: string): str
  */
 export function memberGroup(o: { meta?: Record<string, unknown> }): string | undefined {
   return metaString(o.meta, "group");
+}
+
+/** Display name and pairing key for a model-authored coordinate pair. */
+export function memberGeoPoint(o: { meta?: Record<string, unknown> }): string | undefined {
+  return metaString(o.meta, "geoPoint");
+}
+
+/** A coordinate member's role inside its `geoPoint` pair. */
+export function memberGeoRole(
+  o: { meta?: Record<string, unknown> },
+): "latitude" | "longitude" | undefined {
+  const role = metaString(o.meta, "geoRole");
+  return role === "latitude" || role === "longitude" ? role : undefined;
+}
+
+/** Stable synthetic member id reproducible from the stored lat/lng pair alone. */
+export function geoPointId(latMember: string, lngMember: string): string {
+  return `geoPoint:${encodeURIComponent(latMember)}:${encodeURIComponent(lngMember)}`;
 }
 
 /**
@@ -209,12 +240,52 @@ function segmentToOption(m: TCubeSegment, cube: string): MemberOption {
   };
 }
 
+function geoPointOptions(c: Cube, connectedComponent: number | undefined): MemberOption[] {
+  const groups = new Map<string, TCubeDimension[]>();
+  for (const d of c.dimensions) {
+    const meta = d.meta as Record<string, unknown> | undefined;
+    const point = memberGeoPoint({ meta });
+    if (!point || !isPublic(d)) continue;
+    groups.set(point, [...(groups.get(point) ?? []), d]);
+  }
+
+  const out: MemberOption[] = [];
+  for (const [label, members] of groups) {
+    const lat = members.filter(
+      (d) =>
+        d.type === "number" &&
+        memberGeoRole({ meta: d.meta as Record<string, unknown> | undefined }) === "latitude",
+    );
+    const lng = members.filter(
+      (d) =>
+        d.type === "number" &&
+        memberGeoRole({ meta: d.meta as Record<string, unknown> | undefined }) === "longitude",
+    );
+    // Malformed declarations stay invisible as bundles; their raw dimensions remain available.
+    if (members.length !== 2 || lat.length !== 1 || lng.length !== 1) continue;
+    out.push({
+      name: geoPointId(lat[0].name, lng[0].name),
+      label,
+      title: label,
+      shortTitle: label,
+      type: "geoPoint",
+      memberType: "dimension",
+      cube: c.name,
+      connectedComponent,
+      latMember: lat[0].name,
+      lngMember: lng[0].name,
+    });
+  }
+  return out;
+}
+
 /**
  * Flatten meta into the member options matching `kind`, restricted to `cube` when
  * given. `"dimension"`/`"dimensionOrMeasure"` exclude time dimensions; `"time"`
  * returns only `type === "time"` dimensions; `"measure"` returns measures only;
  * `"numberDimension"` returns only `type === "number"` dimensions (raw per-row
- * numbers like coordinates — see FieldKind in builder/wells.ts).
+ * numbers like coordinates); `"geoPoint"` returns one synthetic option per valid
+ * model-authored latitude/longitude pair.
  */
 export function listMembers(
   meta: CubeMeta | undefined,
@@ -232,6 +303,11 @@ export function listMembers(
       o.connectedComponent = comp;
       out.push(o);
     };
+
+    if (kind === "geoPoint") {
+      out.push(...geoPointOptions(c, comp));
+      continue;
+    }
 
     if (kind === "measure" || kind === "dimensionOrMeasure") {
       for (const m of c.measures) {
@@ -303,7 +379,7 @@ export function findMember(
     const seg = c.segments.find((s) => s.name === name);
     if (seg) return tag(segmentToOption(seg, c.name));
   }
-  return undefined;
+  return listMembers(meta, "geoPoint").find((o) => o.name === name);
 }
 
 /**

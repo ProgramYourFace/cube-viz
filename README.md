@@ -245,6 +245,7 @@ interface ChartFamilyDescriptor {
   supportsComparePrevious: boolean; // supports previous-period comparison
   comparePreviousMode?: "series" | "kpiRow"; // HOW prior data merges; undefined ⇔ supportsComparePrevious === false
   sidebarWidthClass: string;        // editor left-strip width class (e.g. "cv:w-40"; KPI uses "cv:w-56")
+  requiresMeasure?: boolean;        // false for dimension-only families such as a point map
   canonicalTimeWell?: string;       // well auto-filled with the cube's canonical time dim (meta `canonicalTime: true`)
                                     // when empty and a field lands (builtins: line/area/combo → "x")
 
@@ -344,7 +345,7 @@ export function MapChartFamily({ data, options }: ChartComponentProps): React.Re
   const rows = data.raw.rows;                // already-normalized adapter rows
 
   if (!maps?.apiKey) return <Placeholder>Add a Google Maps API key</Placeholder>;
-  if (!fo.lat || !fo.lng) return <Placeholder>Pick a latitude and longitude field</Placeholder>;
+  if (!fo.lat || !fo.lng) return <Placeholder>Pick a Location field</Placeholder>;
   // …project rows → points, render the map (points / paths / heatmap)…
 }
 ```
@@ -355,19 +356,19 @@ spec; here bindings are stored as Cube member names in `familyOptions`):
 ```ts
 import type { ChartSpec, FieldKind, WellDef } from "cube-viz";
 
-// `number` offers MEASURES; `numberDimension` offers numeric DIMENSIONS (how Cube
-// models per-row coordinates like latitude/longitude). Coordinate wells accept both;
-// placement routes them (`number` → query.measures, `numberDimension` → query.dimensions).
+// `geoPoint` offers one synthetic field for a model-authored latitude/longitude pair.
+// The editor fans it out to the hidden lat/lng wells, preserving the stored shape.
 export const MAP_WELLS: WellDef[] = [
-  { id: "lat", label: "Latitude", cardinality: "one", kinds: ["number", "numberDimension"] },
-  { id: "lng", label: "Longitude", cardinality: "one", kinds: ["number", "numberDimension"] },
+  { id: "location", label: "Location", cardinality: "one", kinds: ["geoPoint"] },
+  { id: "lat", label: "Latitude", cardinality: "one", kinds: ["numberDimension"] }, // internal
+  { id: "lng", label: "Longitude", cardinality: "one", kinds: ["numberDimension"] }, // internal
   { id: "weight", label: "Weight", cardinality: "one", kinds: ["number", "numberDimension"], optional: true },
   { id: "series", label: "Split by", cardinality: "one", kinds: ["category"], optional: true },
   { id: "time", label: "Path order", cardinality: "one", kinds: ["time"], optional: true },
 ];
 
 // A map isn't cartesian — every well anchors LEFT.
-export const MAP_ZONES = { left: ["lat", "lng", "weight", "series", "time"], bottom: [] };
+export const MAP_ZONES = { left: ["location", "weight", "series", "time"], bottom: [] };
 
 export function placeMap(spec: ChartSpec, wellId: string, member: string, _kind: FieldKind): ChartSpec {
   const fo = { ...(spec.chart.familyOptions ?? {}) };

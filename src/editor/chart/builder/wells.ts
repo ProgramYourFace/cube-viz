@@ -29,14 +29,15 @@ import {
 
 /**
  * A field's primitive role: a measure / a non-time dimension / a time dimension /
- * a NUMERIC dimension. `numberDimension` exists because Cube models coordinates and
+ * a NUMERIC dimension / a synthetic geographic point. `numberDimension` exists because Cube models coordinates and
  * other per-row numbers (latitude, longitude, headings) as `type: number`
  * DIMENSIONS — the `number` kind only surfaces measures, so a well that wants raw
  * per-row numbers opts in with `kinds: ["number", "numberDimension"]`. Placement
  * writers route the kinds differently (`number` → `query.measures`,
- * `numberDimension` → `query.dimensions`).
+ * `numberDimension` → `query.dimensions`). `geoPoint` bundles a model-authored
+ * latitude/longitude pair; the editor fans it out to a host family's internal wells.
  */
-export type FieldKind = "number" | "category" | "time" | "numberDimension";
+export type FieldKind = "number" | "category" | "time" | "numberDimension" | "geoPoint";
 
 /** A typed slot in the builder. `kinds` gates which fields may be dropped/clicked in. */
 export interface WellDef {

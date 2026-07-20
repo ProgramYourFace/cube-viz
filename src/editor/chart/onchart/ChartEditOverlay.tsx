@@ -16,7 +16,7 @@ import { ChartSourcePopover } from "./ChartSourcePopover";
 import { AxisChrome, LegendChrome } from "./ChartChrome";
 import { CenterTypePicker, ChartTypePill } from "./CenterTypePicker";
 import { withSeriesAxis } from "./chip-bindings";
-import { computeJoinScope } from "./join-scope";
+import { computeJoinScope, cubeInJoinScope } from "./join-scope";
 import { WellGroup } from "./WellGroup";
 import {
   KpiComparison,
@@ -179,7 +179,7 @@ export function ChartEditOverlay({
     (wellId: string, option: MemberOption | undefined): string | undefined => {
       if (!option) return undefined;
       // 1) Cross-dataset: only fields in the chart's current join graph can be added.
-      if (scope.scopeComponent !== undefined && option.connectedComponent !== scope.scopeComponent) {
+      if (!cubeInJoinScope(scope, option.cube)) {
         return "Clear the current fields to use a different dataset.";
       }
       // 2) Single measure source (no two-fact fan-out). Dimensions may cross freely.
@@ -241,7 +241,17 @@ export function ChartEditOverlay({
     (wellId: string, name: string, kind: FieldKind): void => {
       const option = findMember(meta, name);
       if (blockReason(wellId, option)) return; // picker already disables these
-      let next = placeField(spec, family, wellId, name, kind, families);
+      let next =
+        kind === "geoPoint" && option?.latMember && option.lngMember
+          ? placeField(
+              placeField(spec, family, "lat", option.latMember, "numberDimension", families),
+              family,
+              "lng",
+              option.lngMember,
+              "numberDimension",
+              families,
+            )
+          : placeField(spec, family, wellId, name, kind, families);
       // On a dual-axis family, auto-assign the new measure to the axis matching its unit.
       if (dualAxis && wellId === "y") next = assignAxis(next, name, targetAxis(option));
       // Auto-fill the family's time well (descriptor.canonicalTimeWell) with the cube's
@@ -264,7 +274,7 @@ export function ChartEditOverlay({
   const blockReasonForAxis = React.useCallback(
     (side: "left" | "right", option: MemberOption | undefined): string | undefined => {
       if (!option) return undefined;
-      if (scope.scopeComponent !== undefined && option.connectedComponent !== scope.scopeComponent) {
+      if (!cubeInJoinScope(scope, option.cube)) {
         return "Clear the current fields to use a different dataset.";
       }
       if (option.memberType === "measure" && scope.measureSource && option.cube !== scope.measureSource) {

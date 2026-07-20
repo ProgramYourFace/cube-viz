@@ -9,6 +9,8 @@ import {
   type VariableValue,
 } from "@/spec";
 
+import { resolveRelativeDateRange } from "./date-ranges";
+
 /**
  * The variable resolver — legs 2 & 3 of the binding model, plus the `noFilter`
  * fail-safe rule. Pure, framework-free. See docs/01-spec-schema.md §5.
@@ -115,7 +117,13 @@ function resolveLeafFilter(
     // No surviving values: keep only valueless operators (without `values`); drop the rest.
     return valueless ? { member: filter.member, operator: filter.operator } : undefined;
   }
-  return { member: filter.member, operator: filter.operator, values: out };
+  const relative =
+    (filter.operator === "inDateRange" || filter.operator === "notInDateRange") &&
+    out.length === 1 &&
+    typeof out[0] === "string"
+      ? resolveRelativeDateRange(out[0])
+      : undefined;
+  return { member: filter.member, operator: filter.operator, values: relative ?? out };
 }
 
 /** Resolve a filter node (leaf or and/or group), dropping empties and collapsing emptied groups. */

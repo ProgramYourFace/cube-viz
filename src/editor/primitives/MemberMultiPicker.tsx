@@ -175,7 +175,7 @@ export function MemberMultiPicker({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search members…"
-              className="cv:w-full cv:bg-transparent cv:text-sm cv:outline-none cv:placeholder:text-muted-foreground"
+              className="cv:w-full cv:bg-transparent cv:text-sm cv:text-foreground cv:outline-none cv:placeholder:text-muted-foreground"
             />
           </div>
           <div className="cv:max-h-64 cv:overflow-y-auto cv:p-1">
@@ -194,7 +194,7 @@ export function MemberMultiPicker({
                     disabled={disabledItem}
                     onClick={() => toggle(m.name)}
                     className={cn(
-                      "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:outline-none cv:hover:bg-accent cv:hover:text-accent-foreground cv:disabled:pointer-events-none cv:disabled:opacity-50",
+                      "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:outline-none cv:hover:bg-accent cv:hover:text-accent-foreground cv:disabled:pointer-events-none cv:disabled:opacity-50",
                       checked && "cv:bg-accent/50",
                     )}
                   >

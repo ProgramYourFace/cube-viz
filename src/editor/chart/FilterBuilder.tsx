@@ -262,7 +262,7 @@ function FilterSummaryRow({
       <button
         type="button"
         onClick={onEdit}
-        className="cv:min-w-0 cv:flex-1 cv:truncate cv:px-3 cv:py-2 cv:text-left cv:text-sm cv:hover:text-foreground"
+        className="cv:min-w-0 cv:flex-1 cv:truncate cv:px-3 cv:py-2 cv:text-left cv:text-sm cv:text-foreground cv:hover:text-foreground"
         title="Edit filter"
       >
         {text}
@@ -303,9 +303,21 @@ function FilterEditRow({
   onDone?: () => void;
   onRemove: () => void;
 }): React.ReactElement {
+  const { meta } = useCubeMeta();
   const operators = operatorsForType(member?.type);
   const operator = operators.includes(leaf.operator) ? leaf.operator : operators[0];
   const needsValue = !VALUELESS_OPERATORS.has(operator);
+
+  // Persist the type-derived fallback rather than merely displaying it. This repairs
+  // older time filters that looked like `inDateRange` but still stored `equals`.
+  React.useEffect(() => {
+    if (operator !== leaf.operator) onChange({ operator });
+  }, [leaf.operator, onChange, operator]);
+
+  const selectMember = (name: string): void => {
+    const next = findMember(meta, name);
+    onChange({ member: name, operator: operatorsForType(next?.type)[0], values: [] });
+  };
 
   return (
     <div className="cv:flex cv:flex-col cv:gap-2.5 cv:rounded-lg cv:border cv:border-ring/50 cv:bg-muted/30 cv:p-3">
@@ -340,14 +352,14 @@ function FilterEditRow({
             placed={[]}
             scope={scope}
             blockReason={() => undefined}
-            onSelect={(m) => onChange({ member: m })}
+            onSelect={selectMember}
             side="bottom"
             align="start"
           >
             <button
               type="button"
               disabled={disabled}
-              className="cv:flex cv:h-9 cv:w-full cv:items-center cv:justify-between cv:gap-2 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-3 cv:text-sm cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:cursor-not-allowed cv:disabled:opacity-50"
+              className="cv:flex cv:h-9 cv:w-full cv:items-center cv:justify-between cv:gap-2 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-3 cv:text-sm cv:text-foreground cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:cursor-not-allowed cv:disabled:opacity-50"
             >
               {member ? (
                 <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
@@ -366,7 +378,7 @@ function FilterEditRow({
             cubes={cubes}
             kind="dimensionOrMeasure"
             value={leaf.member || undefined}
-            onChange={(m) => onChange({ member: m })}
+            onChange={selectMember}
             placeholder="Choose a field…"
             disabled={disabled}
           />

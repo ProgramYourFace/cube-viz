@@ -60,7 +60,7 @@ export function ChartSourcePopover({ currentName, hasFields, onSelect }: ChartSo
       }}
     >
       <PopoverTrigger
-        className="cv:flex cv:h-8 cv:max-w-[12rem] cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-border cv:bg-background/90 cv:px-2.5 cv:text-xs cv:font-medium cv:shadow-sm cv:backdrop-blur cv:transition-colors cv:hover:bg-accent"
+        className="cv:flex cv:h-8 cv:max-w-[12rem] cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-border cv:bg-background/90 cv:px-2.5 cv:text-xs cv:font-medium cv:text-foreground cv:shadow-sm cv:backdrop-blur cv:transition-colors cv:hover:bg-accent"
         title="Data source"
         aria-label="Data source"
       >
@@ -138,7 +138,7 @@ function SourceItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent",
+        "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:hover:bg-accent",
         active && "cv:bg-accent/60",
       )}
     >

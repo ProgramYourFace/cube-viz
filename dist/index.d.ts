@@ -6022,6 +6022,8 @@ declare interface CubeOption {
     type: "cube" | "view";
     /** Join-graph id (see {@link MemberOption.connectedComponent}). */
     connectedComponent?: number;
+    /** Direct outbound join targets declared in cube `meta.joinTargets`. */
+    joinTargets: string[];
 }
 
 export declare type CubeQuery = z.infer<typeof CubeQuerySchema>;
@@ -8823,14 +8825,15 @@ export declare function fetchMeta(api: CubeClient): Promise<CubeMeta>;
  */
 /**
  * A field's primitive role: a measure / a non-time dimension / a time dimension /
- * a NUMERIC dimension. `numberDimension` exists because Cube models coordinates and
+ * a NUMERIC dimension / a synthetic geographic point. `numberDimension` exists because Cube models coordinates and
  * other per-row numbers (latitude, longitude, headings) as `type: number`
  * DIMENSIONS — the `number` kind only surfaces measures, so a well that wants raw
  * per-row numbers opts in with `kinds: ["number", "numberDimension"]`. Placement
  * writers route the kinds differently (`number` → `query.measures`,
- * `numberDimension` → `query.dimensions`).
+ * `numberDimension` → `query.dimensions`). `geoPoint` bundles a model-authored
+ * latitude/longitude pair; the editor fans it out to a host family's internal wells.
  */
-export declare type FieldKind = "number" | "category" | "time" | "numberDimension";
+export declare type FieldKind = "number" | "category" | "time" | "numberDimension" | "geoPoint";
 
 export declare function FilterBuilder({ cube, cubes, scope, value, onChange, disabled, className, }: FilterBuilderProps): React_2.ReactElement;
 
@@ -8956,6 +8959,9 @@ export declare const FormatOptionsSchema: z.ZodObject<{
  */
 /** Where a value is being rendered. Lets a host vary formatting by surface. */
 export declare type FormatRole = "value" | "axis" | "tooltip" | "label" | "category" | "kpi";
+
+/** Stable synthetic member id reproducible from the stored lat/lng pair alone. */
+export declare function geoPointId(latMember: string, lngMember: string): string;
 
 export declare type Granularity = z.infer<typeof GranularitySchema>;
 
@@ -9493,26 +9499,24 @@ export declare function isEmptyValue(v: unknown): boolean;
 export declare function isVarRef(v: unknown): v is VarRef;
 
 /**
- * The chart's CROSS-TABLE scope, derived purely from Cube `/v1/meta`'s
- * `connectedComponent` (the only join signal it exposes). A chart is bound either to
- * a curated VIEW (flat, pre-joined, fan-out-safe) or to the raw TABLE graph — and in
- * the table graph it may draw measures from ONE table but dimensions from any table
- * in the same join component. That single-measure-source rule is what keeps the UI
- * from building a query Cube would reject as a fan-out ("can't find join path").
+ * The chart's CROSS-TABLE scope. Cube's `connectedComponent` only describes a weak
+ * component and incorrectly treats sibling facts as mutually joinable. Models may
+ * therefore publish direct outbound edges as cube `meta.joinTargets`; this module
+ * computes transitive reachability from the selected source and otherwise fails closed.
  */
 declare interface JoinScope {
     /** When the chart is bound to a curated view, its name (single flat source). */
     viewLocked?: string;
     /** The primary source table (the measure owner / first field) — listed first. */
     sourceCube?: CubeOption;
-    /** Other joinable cube tables (same connectedComponent), excluding the source. */
+    /** Other cube tables reachable by declared join edges, excluding the source. */
     relatedCubes: CubeOption[];
     /** Curated views, offered as ready-made cross-table datasets. */
     views: CubeOption[];
     /** The cube currently owning the measures (single-measure-source guardrail). */
     measureSource?: string;
-    /** The join-graph id the chart is anchored to (undefined when empty). */
-    scopeComponent?: number;
+    /** Source + every table reachable from it. All cubes only while unanchored. */
+    allowedCubes: string[];
 }
 
 export declare const kpiChartFamily: ChartFamilyDescriptor;
@@ -10194,6 +10198,9 @@ export declare function resolveOptionsWith(options: ChartOptions, d: FamilyDefau
  * the input is never mutated.
  */
 export declare function resolveQuery(query: CubeQuery, store: Record<string, VariableValue>, decls: VariableDecl[]): CubeQuery;
+
+/** Resolve a Cube-style relative date preset to concrete local-calendar endpoints. */
+export declare function resolveRelativeDateRange(value: string, now?: Date): [string, string] | undefined;
 
 /**
  * Resolve the `colorToken` for each series position — the SINGLE source of truth
