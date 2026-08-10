@@ -125,14 +125,14 @@ export function ChartEditor({
       updateFamilyOptions={updateFamilyOptions}
     />
   ) : (
-    <div className="cv:flex cv:size-full cv:items-center cv:justify-center cv:rounded-lg cv:border cv:border-dashed cv:border-border cv:p-6 cv:text-center cv:text-sm cv:text-muted-foreground">
-      <span className="cv:max-w-[16rem]">{emptyHint}</span>
+    <div className="cv-chart-editor-empty">
+      <span className="cv-chart-editor-empty-hint">{emptyHint}</span>
     </div>
   );
 
   const toolbar = onSave ? (
     <Button size="sm" disabled={!valid} onClick={() => onSave(committed)}>
-      <Save className="cv:size-4" />
+      <Save className="cv-ed-icon" />
       Save
     </Button>
   ) : null;
@@ -140,17 +140,17 @@ export function ChartEditor({
   return (
     <div
       data-slot="chart-editor"
-      className={cn("cv:flex cv:w-full cv:flex-col cv:gap-2 cv:text-foreground", fill ? "cv:h-full" : "cv:min-h-[28rem]", className)}
+      className={cn("cv-chart-editor", fill ? "cv-chart-editor--fill" : "cv-chart-editor--bounded", className)}
     >
       {!valid ? (
         <Alert variant="destructive">
-          <AlertCircle className="cv:size-4" />
+          <AlertCircle className="cv-ed-icon" />
           <AlertTitle>Invalid chart spec</AlertTitle>
           <AlertDescription>
-            <ul className="cv:list-disc cv:pl-4">
+            <ul className="cv-chart-editor-issues">
               {issues.slice(0, 3).map((issue, i) => (
                 <li key={i}>
-                  {issue.path ? <span className="cv:font-mono cv:text-xs">{issue.path}</span> : null}{" "}
+                  {issue.path ? <span className="cv-chart-editor-issue-path">{issue.path}</span> : null}{" "}
                   {issue.message}
                 </li>
               ))}
@@ -160,7 +160,7 @@ export function ChartEditor({
         </Alert>
       ) : null}
 
-      <div className="cv:min-h-0 cv:flex-1">
+      <div className="cv-chart-editor-preview">
         <ChartEditOverlay spec={draft} update={update} toolbar={toolbar}>
           {preview}
         </ChartEditOverlay>

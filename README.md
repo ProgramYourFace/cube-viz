@@ -3,14 +3,15 @@
 A focused React library that **renders** and **edits** JSON dashboard / chart specs backed by
 [Cube](https://cube.dev). You give it a spec (JSON); it fetches from Cube, normalizes the result,
 and draws charts, rich text, and input controls — or hands you an editor that mutates the same
-spec. Storage, retrieval, and templating stay the consuming app's concern. The UI is built on
-shadcn/ui (Recharts) + Tailwind, with a self-contained `cv:`-prefixed utility stylesheet so it
-drops into any host without a Tailwind setup. Web-first; on mobile it embeds into a React
+spec. Storage, retrieval, and templating stay the consuming app's concern. Charts render on
+[@tanstack/charts](https://tanstack.com/charts) (grammar-of-graphics marks); the UI ships
+hand-authored **semantic `cv-`-prefixed CSS** plus theme tokens — no utility framework, no
+Tailwind toolchain — so it drops into any host. Web-first; on mobile it embeds into a React
 Native / Expo host through a WebView — the entire renderer and editor run inside the WebView.
 
 The spec contract (`@/spec`, exported from the root) is the stable, library-agnostic boundary.
-Charts consume a normalized adapter shape, never Cube or Recharts directly, and **chart families
-are host-extensible** (see [Extending chart families](#extending-chart-families)).
+Charts consume a normalized adapter shape, never Cube or TanStack Charts directly, and **chart
+families are host-extensible** (see [Extending chart families](#extending-chart-families)).
 
 ## Install
 
@@ -28,9 +29,11 @@ You supply React; everything else ships bundled.
 | `react` | `^18.2.0 || ^19.0.0` |
 | `react-dom` | `^18.2.0 || ^19.0.0` |
 
-`recharts`, `react-grid-layout`, `@tiptap/*`, `zod`, `@cubejs-client/core`, `lucide-react`,
-`date-fns`, and the Radix primitives are **bundled dependencies** (see `package.json`) — you do
-not install them yourself.
+`@tanstack/charts` (+ `@tanstack/charts-scales`), `d3-scale`/`d3-shape`, `react-grid-layout`,
+`@tiptap/*`, `zod`, `@cubejs-client/core`, `lucide-react`, `date-fns`, and the Radix primitives
+are **regular dependencies** (see `package.json`) — you do not install them yourself. They are
+kept **external** in the library's ESM build (see `vite.config.lib.ts`) so your bundler resolves
+and dedupes them from cube-viz's own dependency tree.
 
 ### Styles
 
@@ -38,7 +41,7 @@ The library ships two stylesheets. Import them once at your app entry:
 
 ```ts
 import "cube-viz/theme.css";   // CSS custom-property tokens (colors, chart ramp, dark mode)
-import "cube-viz/styles.css";  // the self-contained cv:-prefixed utility + component styles
+import "cube-viz/styles.css";  // self-contained semantic cv- component styles (no utility framework)
 ```
 
 ## Quick start
@@ -104,13 +107,16 @@ the component-override registry, and host chart families.
 
 `BUILTIN_CHART_FAMILIES` (the picker order) ships eight families in-box:
 
-`bar` · `line` · `area` · `pie` · `scatter` · `kpi` · `table` · `combo`
+`bar` · `line` · `area` · `pie` · `scatter` · `heatmap` · `kpi` · `table`
 
 > **`map` is *not* built in.** It was removed from the library and is provided by the host as the
 > canonical extension example (see [Extending chart families](#extending-chart-families)).
+> **`combo` was removed** in spec v2 (with all dual-axis support); v1 combo specs are migrated to
+> `bar`/`line` automatically on load (see `src/spec/migrate.ts`). `heatmap` was added in v2.
 
 Each family is a pure component `(NormalizedChartData, ChartOptions, ChartConfig) → ReactElement`.
-Recharts is confined inside the family components; specs never carry a Recharts prop. The full
+TanStack Charts is confined inside the family components (via the shared seam in
+`src/charts/tanstack.tsx`); specs never carry a renderer prop. The full
 options surface per family lives in `BUILTIN_FAMILY_OPTION_SCHEMAS` / `BUILTIN_DEFAULTS`
 (exported from the root). `resolveOptions(chartOptions, registry?)` deep-merges a spec's options
 over its family defaults (objects recurse; arrays replace wholesale); pass the context registry
@@ -201,7 +207,7 @@ All exported from the root:
 | `buildFamilyRegistry(defaults, host?)` | Build an immutable `FamilyRegistry` (seed `defaults`, then `host` augments/overrides by key). |
 | `builtinFamilyRegistry` | A pre-built registry over the builtins only (the back-compat default). |
 | `defaultChartFamilies` | The ordered builtin descriptor array — the picker's default order. |
-| `barChartFamily` … `comboChartFamily` | One named export per builtin, to compose a custom `families` list. |
+| `barChartFamily` … `tableChartFamily` | One named export per builtin (incl. `heatmapChartFamily`), to compose a custom `families` list. |
 | `useFamilyRegistry()` | The context registry (builtins + the provider's `families`), for component call sites. |
 | `resolveOptions(options, registry?)` | Deep-merge a chart's options over its family's defaults (defaults to builtin-only). |
 
@@ -235,26 +241,24 @@ interface ChartFamilyDescriptor {
   zones: { left: string[]; bottom: string[] };  // which wells anchor LEFT (value) vs BOTTOM (category) in the overlay
 
   // ── behaviour flags ───────────────────────────────────────────────
-  dualAxisY: boolean;               // has two renderer value axes (left + right)
   supportsMapping: boolean;         // consumes the generic `mapping` envelope (vs. storing fields in familyOptions)
   supportsCartesianAxes: boolean;   // exposes the cross-family display envelope (orientation/stack/axes)
   enforcesAxisUnit: boolean;        // enforces per-axis unit consistency on the multi-number "y" well
   measureOnly: boolean;             // still renders from a category-less (measure-only) query
-  hasLegend: boolean;               // has a chart legend (everything except kpi/table)
+  hasLegend: boolean;               // has a chart legend (everything except kpi/table/heatmap)
   hasCustomizeOptions: boolean;     // shows a type-level "Options" section in the picker
   supportsComparePrevious: boolean; // supports previous-period comparison
   comparePreviousMode?: "series" | "kpiRow"; // HOW prior data merges; undefined ⇔ supportsComparePrevious === false
-  sidebarWidthClass: string;        // editor left-strip width class (e.g. "cv:w-40"; KPI uses "cv:w-56")
+  sidebarWidthClass: string;        // editor left-strip width class ("cv-sidebar--default"; KPI uses "cv-sidebar--wide")
   requiresMeasure?: boolean;        // false for dimension-only families such as a point map
   canonicalTimeWell?: string;       // well auto-filled with the cube's canonical time dim (meta `canonicalTime: true`)
-                                    // when empty and a field lands (builtins: line/area/combo → "x")
+                                    // when empty and a field lands (builtins: line/area → "x")
 
   // ── host-extensibility hooks (OPTIONAL; builtins leave these unset) ──
   Customize?: React.ComponentType<{ spec: ChartSpec; update: (next: ChartSpec) => void }>;
   placeField?: (spec: ChartSpec, wellId: string, member: string, kind: FieldKind) => ChartSpec;
   removeField?: (spec: ChartSpec, wellId: string, member: string) => ChartSpec;
   readWells?: (spec: ChartSpec) => Record<string, string[]>;
-  assignSeriesAxis?: (spec: ChartSpec, member: string, side: "left" | "right") => ChartSpec;
 }
 ```
 
@@ -272,10 +276,6 @@ own field storage must supply them so the editor never needs a builtin arm:
   next spec. The inverse of `placeField`.
 - **`readWells(spec)`** — derive each well's current member name(s) from the spec
   (`Record<wellId, string[]>`); the inverse that lets the overlay show what's bound.
-- **`assignSeriesAxis(spec, member, side)`** — for a `dualAxisY` family, assign `member` to the
-  `"left"`/`"right"` value axis (called after `placeField`). Builtins leave this unset and the
-  editor falls back to the builtin `withSeriesAxis` (combo / cartesian `mapping.series` meta), so a
-  host with its own field storage must supply it to control dual-axis assignment.
 
 ### The `ChartComponentProps` a family component receives
 
@@ -326,7 +326,7 @@ export const MapFamilyOptionsSchema = z
   .strict();
 export type MapFamilyOptions = z.infer<typeof MapFamilyOptionsSchema>;
 
-// No Recharts envelope; lat/lng are user-picked, so only `mode` is seeded.
+// No cartesian envelope; lat/lng are user-picked, so only `mode` is seeded.
 export const MAP_FAMILY_DEFAULT: FamilyDefault = {
   envelope: {},
   familyOptions: { mode: "points" } satisfies MapFamilyOptions,
@@ -425,7 +425,6 @@ export const mapDescriptor: ChartFamilyDescriptor = {
   wells: MAP_WELLS,
   zones: MAP_ZONES,
 
-  dualAxisY: false,
   supportsMapping: false,         // bindings live in familyOptions, not the `mapping` envelope
   supportsCartesianAxes: false,
   enforcesAxisUnit: false,
@@ -433,7 +432,7 @@ export const mapDescriptor: ChartFamilyDescriptor = {
   hasLegend: false,
   hasCustomizeOptions: true,
   supportsComparePrevious: false,
-  sidebarWidthClass: "cv:w-40",
+  sidebarWidthClass: "cv-sidebar--default",
 
   // Host hooks — the editor dispatches to these for the map family:
   Customize: MapCustomize,
@@ -490,6 +489,22 @@ from the picker entirely while keeping them available for joins and row-level se
 
 ## Breaking changes
 
+### Spec v2 + TanStack Charts renderer (semver-major)
+
+- **Recharts was replaced by `@tanstack/charts` 0.9.** The `(NormalizedChartData, ChartOptions)`
+  family seam is unchanged; specs are renderer-agnostic as designed. Legend, tooltip, and motion
+  now come from TanStack built-ins: legend placement is **top/bottom only** (`left`/`right`
+  degrade to `bottom` — and pie now renders its legend correctly), tooltips are interactive and
+  **pinnable via click**, and charts animate with spring motion. Brush/zoom becomes possible
+  future work on this stack.
+- **The `combo` family and all dual-axis support were removed** in `SCHEMA_VERSION` 2:
+  `axes.y2`, per-series `meta.axis: "left"|"right"`, reference-line `side`, and the descriptor's
+  `dualAxisY`/`assignSeriesAxis` are gone. `loadSpec` migrates v1 specs automatically — a combo
+  widget becomes `bar` (if any series rendered bars) or `line`, and axis metadata is stripped.
+- **A new `heatmap` family was added** (two dimensions × one measure; see the family list above).
+- **The Tailwind toolchain and the `cv:` utility stylesheet were removed.** `cube-viz/styles.css`
+  is now hand-authored semantic `cv-` CSS; hosts bring their own CSS setup — nothing to configure.
+
 ### Immutable, injected family registry (semver-major)
 
 The module-global chart-family registry was replaced by an **immutable `FamilyRegistry`** built by
@@ -500,7 +515,7 @@ surface:
   `getFamilyDescriptor`, `listFamilyDescriptors`, `chartFamilies`, `familyDefaults`,
   `familyOptionsSchema`. There is no module-global `Map` to mutate.
 - **Replaced by:** `buildFamilyRegistry(defaults, host?)`, `builtinFamilyRegistry`,
-  `defaultChartFamilies`, the per-family named exports (`barChartFamily` … `comboChartFamily`),
+  `defaultChartFamilies`, the per-family named exports (`barChartFamily` … `tableChartFamily`),
   `useFamilyRegistry()`, and the `FamilyRegistry` value's methods
   (`get`/`require`/`list`/`families`/`defaults`/`optionsSchema`/`resolveOptions`).
 - **Migration:** drop any `registerChartFamily(...)` call — pass `families={[...]}` to

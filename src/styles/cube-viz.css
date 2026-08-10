@@ -12,24 +12,15 @@
  * custom properties restyles everything here by cascade.
  *
  * NO PREFLIGHT: the host's reset is already present in the WebView document.
- * The two base rules below are the minimal surrogate the components rely on.
+ * base.css carries the minimal surrogate the components rely on.
+ *
+ * NOTE: @import must precede every other rule (CSS spec — later imports are
+ * silently dropped), so ALL sheets are imported here and base rules live in
+ * base.css.
  */
 
-/* Minimal preflight surrogate. */
-:where(.cube-viz-root, .cube-viz-root *),
-*,
-::before,
-::after {
-  box-sizing: border-box;
-}
-
-/* Tailwind v4 dropped Preflight's `button { cursor: pointer }`; the host's v4
-   reset leaves buttons on the default arrow. Enabled interactive elements get
-   the pointer (later component rules — e.g. the canvas's move cursor — win). */
-button:not(:disabled),
-[role="button"]:not([aria-disabled="true"]) {
-  cursor: pointer;
-}
+/* Base preflight surrogate (box-sizing + button cursor). */
+@import "./base.css";
 
 /* Component styles, one sheet per subsystem. */
 @import "./charts.css";

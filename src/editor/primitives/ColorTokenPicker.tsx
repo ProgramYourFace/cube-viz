@@ -34,7 +34,7 @@ export function ColorTokenPicker({
       data-slot="color-token-picker"
       role="radiogroup"
       aria-label="Series color"
-      className={cn("cv:flex cv:flex-wrap cv:items-center cv:gap-1.5", className)}
+      className={cn("cv-color-picker", className)}
     >
       {allowClear ? (
         <button
@@ -45,10 +45,8 @@ export function ColorTokenPicker({
           disabled={disabled}
           onClick={() => onChange(null)}
           className={cn(
-            "cv:relative cv:flex cv:size-6 cv:items-center cv:justify-center cv:rounded-full cv:border cv:text-[9px] cv:font-medium cv:uppercase cv:text-muted-foreground cv:transition-shadow cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:opacity-50",
-            value === undefined
-              ? "cv:border-ring cv:ring-2 cv:ring-ring/40"
-              : "cv:border-input cv:hover:border-ring",
+            "cv-color-swatch cv-color-swatch--auto",
+            value === undefined && "cv-color-swatch--selected",
           )}
         >
           A
@@ -67,8 +65,8 @@ export function ColorTokenPicker({
             disabled={disabled}
             onClick={() => onChange(selected && allowClear ? null : token)}
             className={cn(
-              "cv:size-6 cv:rounded-full cv:border cv:transition-shadow cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:opacity-50",
-              selected ? "cv:border-ring cv:ring-2 cv:ring-ring/40" : "cv:border-black/10 cv:hover:border-ring",
+              "cv-color-swatch cv-color-swatch--token",
+              selected && "cv-color-swatch--selected",
             )}
             style={{ backgroundColor: `var(--${token})` }}
           />

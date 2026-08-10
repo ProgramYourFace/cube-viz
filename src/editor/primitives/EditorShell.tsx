@@ -99,13 +99,13 @@ export function EditorShell({
           data-slot="editor-shell"
           data-mode="two-pane"
           data-layout="stacked"
-          className={cn("cv:flex cv:w-full cv:flex-col", fill && "cv:h-full", className)}
+          className={cn("cv-editor-shell cv-editor-shell--stacked", fill && "cv-editor-shell--fill", className)}
         >
-          <div className={cn("cv:w-full", fill && "cv:shrink-0")} style={fill ? { height: "42vh" } : { minHeight }}>
+          <div className={cn("cv-editor-shell-pane", fill && "cv-editor-shell-pane--fixed")} style={fill ? { height: "42vh" } : { minHeight }}>
             {canvas}
           </div>
-          <Separator className="cv:my-3" />
-          <div className={cn("cv:w-full", fill && "cv:min-h-0 cv:flex-1 cv:overflow-y-auto")}>{panel}</div>
+          <Separator className="cv-editor-shell-gap" />
+          <div className={cn("cv-editor-shell-pane", fill && "cv-editor-shell-pane--scroll")}>{panel}</div>
         </div>
       );
     }
@@ -115,17 +115,17 @@ export function EditorShell({
         data-slot="editor-shell"
         data-mode="two-pane"
         data-layout="split"
-        className={cn("cv:flex cv:w-full cv:items-stretch", fill && "cv:h-full", className)}
+        className={cn("cv-editor-shell cv-editor-shell--split", fill && "cv-editor-shell--fill", className)}
         style={fill ? undefined : { minHeight }}
       >
         <div
-          className="cv:shrink-0 cv:overflow-y-auto cv:pr-3"
+          className="cv-editor-shell-config"
           style={{ width: panelWidth }}
         >
           {panel}
         </div>
         <Separator orientation="vertical" />
-        <div className="cv:min-w-0 cv:flex-1 cv:pl-3">{canvas}</div>
+        <div className="cv-editor-shell-preview">{canvas}</div>
       </div>
     );
   }
@@ -140,10 +140,10 @@ export function EditorShell({
         data-slot="editor-shell"
         data-mode="canvas-panel"
         data-layout="stacked"
-        className={cn("cv:flex cv:w-full cv:flex-col", className)}
+        className={cn("cv-editor-shell cv-editor-shell--stacked", className)}
       >
         {!isControlled || onPanelOpenChange ? (
-          <div className="cv:mb-2 cv:flex cv:items-center cv:justify-end">
+          <div className="cv-editor-shell-toggle-row">
             <Button
               variant={open ? "secondary" : "outline"}
               size="sm"
@@ -158,15 +158,15 @@ export function EditorShell({
         {open ? (
           <div
             data-slot="editor-shell-panel"
-            className="cv:mb-3 cv:w-full cv:rounded-lg cv:border cv:border-border cv:bg-card"
+            className="cv-editor-shell-panel-card"
           >
             {panelTitle ? (
-              <div className="cv:flex cv:items-center cv:justify-between cv:border-b cv:border-border cv:px-3 cv:py-2">
-                <span className="cv:text-sm cv:font-medium">{panelTitle}</span>
+              <div className="cv-editor-shell-panel-header">
+                <span className="cv-editor-shell-panel-title">{panelTitle}</span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="cv:size-7"
+                  className="cv-ed-btn-7"
                   onClick={() => setOpen(false)}
                   aria-label="Close panel"
                 >
@@ -174,10 +174,10 @@ export function EditorShell({
                 </Button>
               </div>
             ) : null}
-            <div className="cv:p-3">{panel}</div>
+            <div className="cv-editor-shell-panel-body">{panel}</div>
           </div>
         ) : null}
-        <div className="cv:w-full" style={{ minHeight }}>
+        <div className="cv-editor-shell-pane" style={{ minHeight }}>
           {canvas}
         </div>
       </div>
@@ -190,20 +190,20 @@ export function EditorShell({
   const panelNode = showPanel ? (
     <div
       data-slot="editor-shell-panel"
-      className="cv:shrink-0 cv:overflow-y-auto"
+      className="cv-editor-shell-dock"
       style={{ width: panelWidth }}
     >
       {panelTitle ? (
-        <div className="cv:flex cv:items-center cv:justify-between cv:px-3 cv:pb-2 cv:pt-1">
-          <span className="cv:flex cv:items-center cv:gap-1.5 cv:text-sm cv:font-medium">
-            <Settings2 className="cv:size-4 cv:text-muted-foreground" />
+        <div className="cv-editor-shell-dock-header">
+          <span className="cv-editor-shell-dock-title">
+            <Settings2 className="cv-editor-shell-dock-icon" />
             {panelTitle}
           </span>
           {onPanelOpenChange ? (
             <Button
               variant="ghost"
               size="icon"
-              className="cv:size-7"
+              className="cv-ed-btn-7"
               onClick={() => setOpen(false)}
               aria-label="Close panel"
             >
@@ -212,7 +212,7 @@ export function EditorShell({
           ) : null}
         </div>
       ) : null}
-      <div className={cn(panelSide === "right" ? "cv:pl-3" : "cv:pr-3")}>{panel}</div>
+      <div className={cn(panelSide === "right" ? "cv-editor-shell-dock-body--right" : "cv-editor-shell-dock-body--left")}>{panel}</div>
     </div>
   ) : null;
 
@@ -222,12 +222,12 @@ export function EditorShell({
       data-slot="editor-shell"
       data-mode="canvas-panel"
       data-layout="docked"
-      className={cn("cv:flex cv:w-full cv:items-stretch", className)}
+      className={cn("cv-editor-shell cv-editor-shell--split", className)}
       style={{ minHeight }}
     >
       {panelSide === "left" && panelNode}
       {panelSide === "left" && showPanel && <Separator orientation="vertical" />}
-      <div className={cn("cv:min-w-0 cv:flex-1", showPanel && panelSide === "right" && "cv:pr-3", showPanel && panelSide === "left" && "cv:pl-3")}>
+      <div className={cn("cv-editor-shell-canvas-main", showPanel && panelSide === "right" && "cv-editor-shell-canvas-main--pad-right", showPanel && panelSide === "left" && "cv-editor-shell-canvas-main--pad-left")}>
         {canvas}
       </div>
       {panelSide === "right" && showPanel && <Separator orientation="vertical" />}
