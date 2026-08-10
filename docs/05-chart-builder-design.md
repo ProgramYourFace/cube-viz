@@ -1,6 +1,6 @@
 I now have a complete and authoritative picture of the spec model, the per-family `familyOptions` mappings, the editor state engine, the responsive shell, and every reusable primitive. I'm ready to write the design doc.
 
-Note: the combo family reads `mapping.category` for its x but its series live in `familyOptions.series` (each with `render`), so a combo well-set must write both. Scatter/kpi/table carry their own member references inside `familyOptions`. This is decisive for the well→spec mapping below.
+Note: scatter/kpi/table carry their own member references inside `familyOptions`; bar/line/area/pie/heatmap use the generic `mapping` envelope. This is decisive for the well→spec mapping below. (The combo family this note originally covered was removed in spec v2, along with dual-axis; the heatmap family was added.)
 
 ---
 
@@ -122,16 +122,17 @@ No X, no color. (Comparison is a Customize toggle, §4.)
 | **Columns** | many | any (`#`/`🗓`/`⌗`) | each column → `query.measures`/`dimensions`/`timeDimensions` by its kind, **and** appends `familyOptions.columns[] = { member, label? }` (order preserved) |
 | **Group by** *(opt)* | one | `⌗` | a Customize-level pivot toggle; v2 ships **Columns only** and parks Group-by as a stub well (pivot table isn't in the renderer today — keep it out of the first cut). |
 
-### combo  (shared category + per-series render in `familyOptions.series`)
+### heatmap  (roles in the generic `mapping` envelope — added in spec v2)
 
 | Well | Card. | Kind | Writes |
 |---|---|---|---|
-| **Break it down by** | one | `🗓`/`⌗` | `mapping.category={member}` + query as for bar |
-| **The numbers** | many | `#` | each number → `query.measures[]` **and** `familyOptions.series[] = { member, render }` where `render` defaults `line`/`bar` alternating; each chip gets a per-series **bar/line/area** toggle (the one place combo earns an extra control) |
+| **Value** | one | `#` | `query.measures=[member]` + `mapping.series = { mode:"pivot", value: member, pivot: <rows> }` |
+| **Rows** | one | `⌗` | `query.dimensions += [member]` + `mapping.series.pivot = member` |
+| **Columns** | one | `🗓`/`⌗` | `query.dimensions`/`timeDimensions` by kind + `mapping.category = { member }` |
 
-Combo is the only family whose number chips carry a render-type selector; everything else's chips are uniform.
+All chips are uniform (no render-type selector on any family since combo was removed in spec v2).
 
-**Decisive principle:** for `mapping`-based families the wells are a thin restatement of today's `measuresOf`/`categoryOf`/`buildMapping`; for `familyOptions`-based families (scatter/kpi/table/combo) the wells write the family's own member fields. Both paths emit a full `ChartSpec` and run through the **unchanged** `update → validate(ChartSpecSchema) → debounce-emit`.
+**Decisive principle:** for `mapping`-based families (bar/line/area/pie/heatmap) the wells are a thin restatement of today's `measuresOf`/`categoryOf`/`buildMapping`; for `familyOptions`-based families (scatter/kpi/table) the wells write the family's own member fields. Both paths emit a full `ChartSpec` and run through the **unchanged** `update → validate(ChartSpecSchema) → debounce-emit`.
 
 ---
 
@@ -158,9 +159,9 @@ A search box (reuse the `MemberMultiPicker` search) filters by `label`/`name`. B
 
 ### 3.3 A placed field = a **Chip**
 
-A `Chip` is the in-well token: `[icon · label · (date→granularity ▾) · (combo→render ▾) · ✎ · ● · ✕]`. Minimal controls:
+A `Chip` is the in-well token: `[icon · label · (date→granularity ▾) · ✎ · ● · ✕]`. Minimal controls:
 
-- **Rename (✎):** inline text → writes `mapping.series.meta[member].label` (numbers) / column label (table) / series label (combo). Reuses the label field already in `SeriesMetaEditor`.
+- **Rename (✎):** inline text → writes `mapping.series.meta[member].label` (numbers) / column label (table). Reuses the label field already in `SeriesMetaEditor`.
 - **Recolor (●):** the existing `ColorTokenPicker` in a popover → `meta[member].colorToken`. Only on number/series chips.
 - **Remove (✕):** unbinds the field from the well and from the query (reuses the removal logic in `onMeasuresChange`/`onCategoryChange`).
 - **Granularity (▾):** only on a **date** chip in a break-down/x well — a compact `GranularityPicker` writing `timeDimensions[0].granularity`. **Adaptive default:** when first dropped, granularity is chosen from the bound date range if one exists (range ≤ ~2 days → `hour`, ≤ ~90 days → `day`, ≤ ~2 years → `month`, else `year`), instead of the flat `day` default. Falls back to `day` when no range is set.
@@ -191,14 +192,14 @@ The **Customize** `Section` (collapsed by default) shows only meaning-changing t
 | **scatter** | **Bubble shape** (circle default) | `familyOptions.shape` (kept minimal; optional) |
 | **kpi** | **Compare to previous period** (toggle) · **Show as %** | `familyOptions.comparison` |
 | **table** | **Compact rows** (toggle) | `familyOptions.rowHeight` |
-| **combo** | per-series **bar/line/area** lives on the chip; no envelope extras | `familyOptions.series[i].render` |
+| **heatmap** | **Show values** (toggle) | `familyOptions.showValues` |
 
-**Orientation:** rendered **only for bar** (per the user's rule). Auto-default stays `vertical`; flips to `horizontal` is a manual toggle. **Removed entirely** from line/area/combo/pie/kpi/table.
+**Orientation:** rendered **only for bar** (per the user's rule). Auto-default stays `vertical`; flips to `horizontal` is a manual toggle. **Removed entirely** from line/area/pie/heatmap/kpi/table.
 
 ### Becomes automatic (no UI at all)
 
-- **Legend show/hide & position** — auto: shown when >1 series, hidden for single-series; position stays the family default in `DEFAULTS`. The **position picker is deleted**; an optional "Show legend" lives only behind nothing-by-default (we drop it; legend auto-manages and the on-chart legend click handles hide). `chart.legend` is simply left to defaults.
-- **Tooltip** — always on (family default); no toggle.
+- **Legend show/hide & position** — auto: shown when >1 series, hidden for single-series; position stays the family default in `DEFAULTS`. The **position picker is deleted**; an optional "Show legend" lives only behind nothing-by-default (we drop it; legend auto-manages and the on-chart legend click handles hide). `chart.legend` is simply left to defaults. (Since the TanStack migration the rendered legend supports **top/bottom** placement only — `left`/`right` degrade to `bottom` — and pie renders its legend correctly.)
+- **Tooltip** — always on (family default); no toggle. (TanStack built-in tooltips are interactive — pinnable via click.)
 - **Axis labels / scale / domain** — auto from field names; `chart.axes` left to defaults. (Log scale + manual range are dropped from the UI; still expressible in raw JSON for power users.)
 - **Number / date / unit formatting** — auto via the host `ChartFormat` (`format.value`/`format.category`), driven by member `meta` (unit/quantity). `chart.format` defaults to `{ kind:"auto" }`; the per-series `FormatOptionsEditor` is removed.
 - **Granularity** — adaptive default (§3.3), still editable on the date chip.
@@ -236,7 +237,7 @@ All new components live in `src/editor/chart/builder/` and emit changes **only**
 
 **Pure seam (no React) — `builder/wells.ts`:** the single place that knows the well↔spec mapping.
 - `type WellId` per family; `getWells(family): WellDef[]` (name, cardinality, allowed kinds).
-- `readWells(spec): Record<WellId, string[]>` — derives chip contents from the spec (extends `measuresOf`/`categoryOf`/`timeDimensionOf` + reads `familyOptions` for scatter/kpi/table/combo).
+- `readWells(spec): Record<WellId, string[]>` — derives chip contents from the spec (extends `measuresOf`/`categoryOf`/`timeDimensionOf` + reads `familyOptions` for scatter/kpi/table, the `mapping` envelope for heatmap).
 - `placeField(spec, well, member, meta): ChartSpec` and `removeField(spec, well, member): ChartSpec` — the writers (wrap/extend `buildMapping`/`buildSeries`, plus the pivot + `familyOptions` branches). Pure, unit-testable, returns a full spec for `update`.
 
 **Components:**
@@ -247,7 +248,7 @@ All new components live in `src/editor/chart/builder/` and emit changes **only**
 | `TypePicker` | Top family strip (reuse `SegmentedControl` + `FAMILY_LABELS`); on change → `update({...spec, chart:{...chart, family, familyOptions: undefined}})` (today's `onFamilyChange`) | `update` |
 | `FieldPalette` | `listMembers`-driven, grouped (Numbers/Dates/Labels), searchable; drag source + click-to-add menu; hosts "Change data source" | drag payload / `onAdd(member, kind)` |
 | `Well` | One typed slot: label, drop-target (kind-gated highlight), empty-state microcopy, renders `Chip`s; legality + cardinality enforcement | `onPlace`/`onRemove` → `wells.ts` |
-| `Chip` | Placed field token: label, rename (✎), color (● → `ColorTokenPicker`), remove (✕), conditional **granularity ▾** (`GranularityPicker`) and **render ▾** (combo); reorder for many-wells | patch callbacks |
+| `Chip` | Placed field token: label, rename (✎), color (● → `ColorTokenPicker`), remove (✕), conditional **granularity ▾** (`GranularityPicker`); reorder for many-wells | patch callbacks |
 | `CustomizeSection` | Per-family small toggle set (§4), inside one collapsed `Section` | `setEnvelope`/`familyOptions` patch (today's helpers) |
 | `useWells(spec)` | Thin hook wrapping `readWells` + memoized `MemberOption` lookups (`findMember`) for chip labels/icons | — |
 | `useFieldDrag()` | Shared drag state (dragged `{name,kind}`, legal-well predicate) for Palette↔Well; touch-safe (drag optional) | — |

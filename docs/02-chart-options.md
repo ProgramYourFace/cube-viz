@@ -2,15 +2,15 @@ I'll produce the chart-options surface design directly. This is a writing task g
 
 # cube-viz Chart-Options Surface — One Configurable Component per Chart Family
 
-> **Status:** Stable contract proposal, v1. This fills `ChartOptions.familyOptions` from the spec-schema design (§3) and defines the per-family option catalog. It is the chart-options agent's deliverable: the renderer maps `NormalizedChartData` + `ChartOptions` onto Recharts; specs never carry a single Recharts prop. Anything below the line `ChartOptions` → `NormalizedChartData` boundary is implementation; anything above is contract.
+> **Status:** Stable contract, updated for spec v2 (2026-08). This fills `ChartOptions.familyOptions` from the spec-schema design (§3) and defines the per-family option catalog. It is the chart-options agent's deliverable: the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks (Recharts was replaced in 2026-08); specs never carry a single renderer prop. Anything below the line `ChartOptions` → `NormalizedChartData` boundary is implementation; anything above is contract. **v2 changes:** the `combo` family and all dual-axis support were removed; a `heatmap` family was added; the renderer seam is now `src/charts/tanstack.tsx` (§3).
 
 ---
 
 ## 0. Design axioms for the option layer
 
 1. **One component per *family*, not per *variant*.** Embeddable ships orientation and stacking as separate *component identities* (`BarChartStackedHorizontalPro`, `LineChartGroupedPro`, …). cube-viz inverts this: a single `<BarChart>` takes `orientation` + `stackMode` as typed inputs. The chart-options agent owns exactly the **family-specific** knobs (`familyOptions`); cross-family knobs (legend/tooltip/axes/colors/format) live in the shared envelope already defined in spec-schema §3.
-2. **Options are pure data.** Every option is JSON-serializable; no `var()` strings, no functions, no Recharts elements. The renderer is the *only* place Recharts types appear.
-3. **The mapping is the seam.** Family components consume `NormalizedChartData` (`{ categories, series[], raw, empty }`) plus `ChartOptions`. They translate to Recharts props *internally*. Swapping Recharts touches only family components — never specs, the adapter, or `familyOptions`.
+2. **Options are pure data.** Every option is JSON-serializable; no `var()` strings, no functions, no renderer elements. The family components are the *only* place TanStack Charts types appear.
+3. **The mapping is the seam.** Family components consume `NormalizedChartData` (`{ categories, series[], raw, empty }`) plus `ChartOptions`. They translate to `defineChart` marks *internally*. Swapping the render library touches only family components — never specs, the adapter, or `familyOptions`. (This guarantee was exercised for real in the 2026-08 Recharts → `@tanstack/charts` migration.)
 4. **Defaults are total.** Every family has a complete default option object; a stored spec carries only *overrides*, deep-merged over defaults so a `{}` familyOptions renders a sensible chart.
 5. **Format intelligence lives on the data model, behavior on the theme.** We mirror Embeddable's `withUnits` *intent* (member `meta.{unit,quantity,convert}` drives formatting) but **not** its HOC mechanism — see §5.
 
@@ -29,30 +29,30 @@ cube-viz ships **eight** families. The table below shows which Embeddable `*Pro`
 | **`scatter`** | `ScatterChartPro`, `BubbleChartPro` | bubble is "bind a measure to `size`"; not a separate component |
 | **`kpi`** | `KPIChartPro`, `KPINumberPro`, `ComparisonKPIPro` | comparison is `comparison: {...}`; one Number component |
 | **`table`** | `TableChartPro`, `PivotTableChartPro` | pivot is `mapping.series.mode:"pivot"`; one Table component |
-| **`combo`** | `ComboChartPro`, `BarLineChartPro`, `DualAxisChartPro` | per-series `render: bar\|line\|area` + `axis: left\|right` |
+| **`heatmap`** | *(no Embeddable ancestor — added in spec v2)* | two dimensions × one measure; color IS the value encoding |
 
-**Justification of the list.** These eight are the union of every chart shape present in the aa-app Cube model's natural questions: time series of measures (`line`/`area`/`bar` over `start_time`/`timestamp`), categorical comparison (`bar` over `device_id`/`event_type`), part-to-whole (`pie` over `event_category`/`shape_kind`), correlation (`scatter` of `avg_speed` × `fuel_efficiency`, bubble-sized by `count`), single-figure roll-ups (`kpi` for `fleet_overview` measures), tabular detail (`table` for `tablePivot` of any view), and mixed-metric overlays (`combo` for `total_distance` bars + `avg_speed` line on dual axes). Anything Embeddable does beyond this (radar, funnel, sankey, treemap, sunburst) has **no member in the aa-app model** that motivates it; they are deliberately out of scope for v1 and can be added as families later without breaking the contract. Radial is folded into `kpi` (a gauge KPI) rather than shipped standalone, since the only radial use here is single-value progress.
+**Justification of the list.** These eight are the union of every chart shape present in the aa-app Cube model's natural questions: time series of measures (`line`/`area`/`bar` over `start_time`/`timestamp`), categorical comparison (`bar` over `device_id`/`event_type`), part-to-whole (`pie` over `event_category`/`shape_kind`), correlation (`scatter` of `avg_speed` × `fuel_efficiency`, bubble-sized by `count`), single-figure roll-ups (`kpi` for `fleet_overview` measures), tabular detail (`table` for `tablePivot` of any view), and density matrices (`heatmap` of a measure over e.g. day × device). Anything Embeddable does beyond this (radar, funnel, sankey, treemap, sunburst) has **no member in the aa-app model** that motivates it; they are deliberately out of scope and can be added as families later without breaking the contract. Radial is folded into `kpi` (a gauge KPI) rather than shipped standalone, since the only radial use here is single-value progress.
 
-> Naming note: spec-schema §3 listed `family` as `bar|line|area|pie|scatter|radial|composed|kpi|table`. This design **finalizes** that list to the eight above: `composed → combo` (clearer), and `radial` folded into `kpi` (`kpi.display:"gauge"`). This is an additive/rename refinement; if the spec-schema enum ships first, the renderer treats `composed` as an alias of `combo` and `radial` as `kpi{display:"gauge"}`.
+> Naming note: spec-schema §3 originally listed `family` as `bar|line|area|pie|scatter|radial|composed|kpi|table`; v1 finalized `composed → combo` and folded `radial` into `kpi` (`kpi.display:"gauge"`). **Spec v2 then removed `combo` entirely** (with all dual-axis support) and added `heatmap` — `loadSpec` migrates v1 combo widgets to `bar`/`line` (see docs/01-spec-schema.md and `src/spec/migrate.ts`).
 
 ---
 
 ## 2. Per-family option catalog
 
-All families share the envelope from spec-schema §3 (`mapping`, `orientation`, `stackMode`, `legend`, `tooltip`, `axes`, `colors`, `format`). Below, **`familyOptions`** is the *family-specific* extension validated by a family-specific zod schema. Each option lists its **Recharts/shadcn primitive**.
+All families share the envelope from spec-schema §3 (`mapping`, `orientation`, `stackMode`, `legend`, `tooltip`, `axes`, `colors`, `format`). Below, **`familyOptions`** is the *family-specific* extension validated by a family-specific zod schema. Each option lists its **renderer primitive** — since the 2026-08 migration these are `@tanstack/charts` mark options (the doc's original Recharts annotations were rewritten to match).
 
 ### 2.0 Cross-family states (every family implements these identically)
 
 These are not in `familyOptions` — they are rendering states the family component derives from `NormalizedChartData` + fetch status, so they're specified once:
 
-| State | Trigger | Recharts/shadcn implementation |
+| State | Trigger | Implementation |
 |---|---|---|
-| **loading** | adapter fetch pending (`cube().load` in flight, incl. `Continue wait` polling) | shadcn `<Skeleton>` sized to `ChartContainer`'s height class; no Recharts mount yet |
-| **error** | adapter threw / non-200 | shadcn `<Alert variant="destructive">` with `annotation`-free message; never leaks tenant data |
-| **empty** | `NormalizedChartData.empty === true` (noFilter dropped everything or zero rows) | centered muted `<div>` "No data" inside `ChartContainer`; Recharts not mounted (avoids 0-row axis glitches) |
+| **loading** | adapter fetch pending (`cube().load` in flight, incl. `Continue wait` polling) | `cv-chart-skeleton` placeholder sized to the widget body; no chart mount yet |
+| **error** | adapter threw / non-200 | `cv-chart-error` alert with `annotation`-free message; never leaks tenant data |
+| **empty** | `NormalizedChartData.empty === true` (noFilter dropped everything or zero rows) | centered muted `cv-chart-empty` "No data"; the chart is not mounted (avoids 0-row axis glitches) |
 | **partial** | some series empty | render present series; legend marks absent keys as muted |
 
-`ChartContainer` **always** carries a height class (`min-h-[200px]`/`aspect-*`) so `ResponsiveContainer` can measure on first paint — a hard Recharts 3 requirement.
+The chart shell (`CvChart` in `src/charts/tanstack.tsx`) measures its own box with a `ResizeObserver` and only mounts the TanStack `<Chart>` once it has a non-zero width, with a `minHeight` floor (200px; sparklines exempt) — the widget body sizes charts via CSS.
 
 ---
 
@@ -62,12 +62,13 @@ These are not in `familyOptions` — they are rendering states the family compon
 interface BarFamilyOptions {
   // orientation + stackMode come from the SHARED envelope (ChartOptions), not here.
   // familyOptions = bar-specific geometry only:
-  barRadius?: number;             // rounded bar corners → <Bar radius={[r,r,0,0]} /> (top corners; flips for horizontal)
-  barCategoryGap?: number | string; // → <BarChart barCategoryGap>  (gap between category clusters)
-  barGap?: number | string;       // → <BarChart barGap>  (gap between bars in a grouped cluster)
-  maxBarSize?: number;            // → <Bar maxBarSize>
-  showValueLabels?: boolean;      // → <LabelList dataKey valueAccessor> on each <Bar>
-  referenceLines?: ReferenceLineOpt[]; // → <ReferenceLine y={..}|x={..} label stroke>
+  barRadius?: number;             // rounded bar corners → bar mark `radius`
+  barCategoryGap?: number | string; // → band-scale `padding` (gap between category clusters)
+  barGap?: number | string;       // → `group({ padding })` (gap between bars in a grouped cluster)
+  maxBarSize?: number;            // → bar mark `maxThickness`
+  showValueLabels?: boolean;      // → a `text` mark per non-null row (valueLabelMarks)
+  referenceLines?: ReferenceLineOpt[]; // → `ruleX`/`ruleY` marks + optional `text` labels
+  comparePrevious?: boolean;      // previous-period companion series (muted; §2.x shared)
 }
 
 interface ReferenceLineOpt {
@@ -80,19 +81,19 @@ interface ReferenceLineOpt {
 
 **How one component covers all six Bar Pros:**
 
-| Spec input | Recharts translation (inside `<BarChart>`) |
+| Spec input | Translation (inside the bar family, TanStack marks) |
 |---|---|
-| `orientation:"vertical"` (default) | `<BarChart>` default layout; `XAxis type="category"`, `YAxis type="number"` |
-| `orientation:"horizontal"` | `<BarChart layout="vertical">`; **swap**: `YAxis type="category" dataKey=index`, `XAxis type="number"` |
-| `stackMode:"none"` | each series `<Bar>` with **no** `stackId` → grouped side-by-side (Recharts default for multiple Bars) |
-| `stackMode:"grouped"` | same as `none` for bars (explicit alias); distinct `stackId` per series |
-| `stackMode:"stacked"` | every `<Bar>` shares one `stackId="s"` (or `SeriesMeta.stackId` groups) |
-| `stackMode:"percent"` | shared `stackId` + `<BarChart stackOffset="expand">`; y-axis `tickFormat` forced to `percent` |
-| single vs multi series | `series.length === 1` → one `<Bar>`; N → N `<Bar>` elements mapped from `NormalizedSeries[]` |
-| legend on/off | shared envelope `legend` → `<ChartLegend content={<ChartLegendContent/>}/>` rendered or omitted |
-| tooltip | `tooltip` → `<ChartTooltip content={<ChartTooltipContent indicator=.. />}/>` |
-| axis config | `axes.x/y` → `<XAxis/>`/`<YAxis/>` `hide`/`scale`/`domain`/`tickFormatter` |
-| color per series | `NormalizedSeries.colorToken` → `<Bar fill="var(--chart-N)">` (via `ChartConfig` `--color-<key>`) |
+| `orientation:"vertical"` (default) | `barY` mark; x = band (category) scale, y = value scale |
+| `orientation:"horizontal"` | `barX` mark — the same rows with x/y channels swapped (axis hide/scale options swap with them) |
+| `stackMode:"none"` | `layout: group()` → side-by-side bars per category |
+| `stackMode:"grouped"` | same as `none` for bars (explicit alias) |
+| `stackMode:"stacked"` | implicit stack: repeated categories stack automatically once `z` is set |
+| `stackMode:"percent"` | `layout: stack({ offset: "normalize" })`; value ticks forced to `percent` |
+| single vs multi series | ONE mark renders all series from long `SeriesRow`s (§3); `z`/`color` = series label |
+| legend on/off | shared envelope `legend` → `colorLegend({ placement })` on the chart color scale, or omitted |
+| tooltip | `tooltip` → the shared `cubeTooltip` (structured title + swatched rows, member-aware formatting) |
+| axis config | `axes.x/y` → axis `label`/`hide`, `valueScale` (`linear`/`log`, explicit domain), tick format |
+| color per series | `NormalizedSeries.colorToken` → chart color scale `domain` (labels) + `range` (`var(--chart-N)`) |
 
 ---
 
@@ -100,25 +101,25 @@ interface ReferenceLineOpt {
 
 ```ts
 interface LineFamilyOptions {
-  curve?: "linear" | "monotone" | "step" | "natural"; // → <Line type=...>
-  strokeWidth?: number;           // → <Line strokeWidth>
-  dots?: boolean | "active";      // → <Line dot={false|true} activeDot>
-  connectNulls?: boolean;         // → <Line connectNulls>  (gaps from null in NormalizedSeries.data)
-  showArea?: boolean;             // light area fill under line → switch to <Area> w/ low fillOpacity
+  curve?: "linear" | "monotone" | "step" | "natural"; // → d3Curve(...) on the lineY mark
+  strokeWidth?: number;           // → lineY `strokeWidth`
+  dots?: boolean | "active";      // → lineY `points` (true = always; "active" = focus only)
+  connectNulls?: boolean;         // null rows skipped (true) vs preserved as gaps (false)
   chrome?: "full" | "none";       // "none" = sparkline: hide axes/grid/legend/tooltip
   referenceLines?: ReferenceLineOpt[];
-  showValueLabels?: boolean;      // → <LabelList> on <Line>
+  showValueLabels?: boolean;      // → text marks (valueLabelMarks)
+  comparePrevious?: boolean;      // dashed/muted previous-period companion series
 }
 ```
 
-| Spec input | Recharts |
+| Spec input | Translation |
 |---|---|
-| multi-series | one `<Line dataKey>` per `NormalizedSeries.key` inside `<LineChart>` |
-| `chrome:"none"` (sparkline) | `<LineChart>` with `<XAxis hide/> <YAxis hide/>` no grid/legend/tooltip; container `aspect-[4/1]` |
-| `connectNulls` | `<Line connectNulls={true}>`; otherwise nulls break the line |
-| dual axis | `SeriesMeta.axis:"right"` → that `<Line yAxisId="right">` + a second `<YAxis yAxisId="right" orientation="right">` |
+| multi-series | one `lineY` mark per `NormalizedSeries` (rows built per series via `buildSeriesRows`) |
+| `chrome:"none"` (sparkline) | axes/grid/guides/legend/tooltip off, `margin: 4`, compact aspect via `cv-chart--sparkline` |
+| `connectNulls` | `skipNull` row filtering (true) — otherwise null rows break the line |
+| single data point | forced visible point so a one-bucket series degrades gracefully instead of rendering nothing |
 
-Line ignores `orientation`/`stackMode` (validated: a warning if set, no effect — lines don't stack in cube-viz; stacked-line use `area`).
+Line ignores `orientation`/`stackMode` (validated: a warning if set, no effect — lines don't stack in cube-viz; stacked-line use `area`). **Dual-axis (`SeriesMeta.axis:"right"` + a second y axis) was removed in spec v2** along with the combo family; a series' `meta.axis` is stripped by the v1→v2 migration and ignored.
 
 ---
 
@@ -126,24 +127,25 @@ Line ignores `orientation`/`stackMode` (validated: a warning if set, no effect �
 
 ```ts
 interface AreaFamilyOptions {
-  curve?: "linear" | "monotone" | "step" | "natural"; // → <Area type>
-  fillOpacity?: number;           // → <Area fillOpacity>  (default 0.4)
+  curve?: "linear" | "monotone" | "step" | "natural"; // → d3Curve(...) on the areaY mark
+  fillOpacity?: number;           // → area fill opacity (default 0.4; gradient fill)
   strokeWidth?: number;
   connectNulls?: boolean;
   dots?: boolean;
   referenceLines?: ReferenceLineOpt[];
+  comparePrevious?: boolean;
 }
 ```
 
 `stackMode` is the load-bearing input (absorbs `StackedAreaChartPro`/`AreaChartPercentPro`):
 
-| `stackMode` | Recharts |
+| `stackMode` | Translation |
 |---|---|
-| `none` | overlapping `<Area>` (each own baseline), `fillOpacity` lets them show through |
-| `stacked` | every `<Area stackId="a">` |
-| `percent` | shared `stackId` + `<AreaChart stackOffset="expand">`; y forced `percent` |
+| `none` | overlapping `areaY` marks (each own baseline, stacking opted out), `fillOpacity` lets them show through |
+| `stacked` | implicit stack (repeated categories stack once `z` is set) |
+| `percent` | `stack({ offset: "normalize" })`; y ticks forced `percent` |
 
-`orientation` is ignored (areas are time-series-vertical only).
+When the spec sets no `stackMode`, the area family defaults it **shape-awarely**: a color-split pivot stacks (parts of a whole); multiple independent measures overlap instead of summing into a misleading band. `orientation` is ignored (areas are time-series-vertical only).
 
 ---
 
@@ -151,24 +153,24 @@ interface AreaFamilyOptions {
 
 ```ts
 interface PieFamilyOptions {
-  innerRadiusPct?: number;        // 0 = pie, >0 = donut → <Pie innerRadius={`${n}%`}>
-  outerRadiusPct?: number;        // → <Pie outerRadius>
-  padAngle?: number;              // → <Pie paddingAngle>
-  cornerRadius?: number;          // → <Pie cornerRadius>
-  showLabels?: "none" | "value" | "percent" | "name"; // → <Pie label> / <LabelList>
-  centerLabel?: { value?: "total" | string; label?: string }; // donut center text (custom <text>)
+  innerRadiusPct?: number;        // 0 = pie, >0 = donut → radialArc inner radius
+  outerRadiusPct?: number;        // → radialArc outer radius
+  padAngle?: number;              // → pie() transform `gapAngle`
+  cornerRadius?: number;          // → radialArc corner radius
+  showLabels?: "none" | "value" | "percent" | "name"; // → radialText slice labels
+  centerLabel?: { value?: "total" | string; label?: string }; // donut center text (radialText)
   maxSlices?: number;             // top-N; remainder grouped → "Other" slice (adapter-side aggregation)
 }
 ```
 
-Pie uses `mapping.category` as the slice dimension and **one** measure (`mapping.series.mode:"measures"` with a single member, or `mode:"pivot"` is invalid for pie → validation error). Per-slice color comes from the **data row** (`fill: "var(--chart-N)"`), not the series element — a Recharts 3 requirement for `<Cell>`. The renderer assigns `chart-1..5` round-robin (cycling for >5 slices), matching Embeddable's numbered ramp.
+Pie uses `mapping.category` as the slice dimension and **one** measure (`mapping.series.mode:"measures"` with a single member, or `mode:"pivot"` is invalid for pie → validation error). It renders on the TanStack **polar** marks: the eager `pie()` transform allocates angles, `radialArc` draws the slices, `radialText` draws slice/center labels. Per-slice color: the arc's `color` channel is the slice label, and the chart color scale gets an explicit domain (labels) + range (`chart-1..5` token vars, round-robin — cycling for >5 slices, matching Embeddable's numbered ramp), so the built-in legend renders one swatch per slice and pie legends now render correctly.
 
-| Spec input | Recharts |
+| Spec input | Translation |
 |---|---|
-| `innerRadiusPct:0` | `<Pie>` (full pie) |
-| `innerRadiusPct:60` | `<Pie innerRadius="60%">` (donut) |
-| per-slice color | `data.map((d,i) => <Cell fill={`var(--chart-${(i%5)+1})`}/>)` |
-| `centerLabel` | absolutely-positioned `<text>` in donut hole via `<Label content>` |
+| `innerRadiusPct:0` | full pie (`radialArc` from center) |
+| `innerRadiusPct:60` | donut (`radialArc` with 60% inner radius) |
+| per-slice color | color scale `domain` = slice labels, `range` = `var(--chart-N)` by post-rollup slice index |
+| `centerLabel` | `radialText` in the donut hole |
 
 ---
 
@@ -177,17 +179,17 @@ Pie uses `mapping.category` as the slice dimension and **one** measure (`mapping
 ```ts
 interface ScatterFamilyOptions {
   // mapping for scatter is special: x AND y are measures/dimensions, not category+series.
-  x: Member;                      // → <XAxis type="number" dataKey>  (e.g. device_locations.avg_speed)
-  y: Member;                      // → <YAxis type="number" dataKey>  (e.g. device_trips.fuel_efficiency)
-  size?: Member;                  // bubble radius measure → <ZAxis dataKey range=[min,max]>
-  sizeRange?: [number, number];   // → <ZAxis range>
-  groupBy?: Member;               // one <Scatter> series per distinct value (e.g. per device_id)
-  shape?: "circle" | "square" | "triangle" | "diamond"; // → <Scatter shape>
+  x: Member;                      // → numeric x channel  (e.g. device_locations.avg_speed)
+  y: Member;                      // → numeric y channel  (e.g. device_trips.fuel_efficiency)
+  size?: Member;                  // bubble radius measure → per-point radius
+  sizeRange?: [number, number];   // area-px² range mapped through a sqrt radius scale
+  groupBy?: Member;               // color points per distinct value (e.g. per device_id)
+  shape?: "circle" | "square" | "triangle" | "diamond"; // → point symbol
   referenceLines?: ReferenceLineOpt[];
 }
 ```
 
-Scatter is the one family whose mapping does **not** reduce to category+series: it consumes `raw.rows` (the `tablePivot` output) and projects `{x,y,z}` per point. `size` present ⇒ bubble (absorbs `BubbleChartPro`) via Recharts `<ZAxis>`. `groupBy` ⇒ multiple `<Scatter>` series, each colored from the ramp.
+Scatter is the one family whose mapping does **not** reduce to category+series: it consumes `raw.rows` (the `tablePivot` output) and projects `{x,y,size}` per point onto a `dot` mark. `size` present ⇒ bubble (absorbs `BubbleChartPro`) via a sqrt bubble-radius scale (the `sizeRange` values keep their historical area-px² semantics). `groupBy` ⇒ the point's color channel with a fixed first-seen domain → ramp-token mapping, so a filtered group never repaints the survivors.
 
 ---
 
@@ -211,12 +213,12 @@ interface KpiFamilyOptions {
 
 | Spec input | implementation |
 |---|---|
-| `display:"number"` | plain styled `<div>` (NOT Recharts): big number formatted via `format`, optional delta chip |
+| `display:"number"` | plain styled `<div>` (NOT a chart): big number formatted via `format`, optional delta chip |
 | `comparison` | delta computed adapter-side from `compareDateRange`; arrow + color from `goodDirection` |
-| `sparkline` | embed a `line` family render with `chrome:"none"` |
-| `display:"gauge"` | Recharts `<RadialBarChart><RadialBar/></RadialBarChart>` with `startAngle/endAngle`; thresholds → colored arcs |
+| `sparkline` | inline `areaY` footer (`currentColor`, inheriting the delta trend color) |
+| `display:"gauge"` | polar `radialArc` track + value (240° sweep, parity with the old `RadialBarChart`); thresholds → colored bands, HTML center readout |
 
-A `number` KPI is intentionally **not** Recharts — it's a formatted value with a delta, so it renders as a shadcn card. This is the family where "one component" most reduces vendor sprawl (`KPIChartPro`+`KPINumberPro`+`ComparisonKPIPro` → one `<Kpi>`).
+A `number` KPI is intentionally **not** a chart — it's a formatted value with a delta, so it renders as a styled card (`cv-kpi-*`). This is the family where "one component" most reduces vendor sprawl (`KPIChartPro`+`KPINumberPro`+`ComparisonKPIPro` → one `<Kpi>`).
 
 ---
 
@@ -249,101 +251,70 @@ interface CondFormatRule {
 }
 ```
 
-Table does **not** use Recharts. It renders shadcn `<Table>` from `raw.rows` (`resultSet.tablePivot()`) and `raw.annotation` (`resultSet.tableColumns()` → titles/types). Pivot mode (`mapping.series.mode:"pivot"`) produces grouped columns via `tableColumns`' nested `children`. Sorting/paging are client-side over `raw.rows`.
+Table does **not** use the chart renderer. It renders a plain styled table (`cv-table-*`) from `raw.rows` (`resultSet.tablePivot()`) and `raw.annotation` (`resultSet.tableColumns()` → titles/types). Pivot mode (`mapping.series.mode:"pivot"`) produces grouped columns via `tableColumns`' nested `children`. Sorting/paging are client-side over `raw.rows`.
 
 ---
 
-### 2.8 `combo` (covers combo / bar+line / dual-axis)
+### 2.8 `heatmap` (added in spec v2)
 
 ```ts
-interface ComboFamilyOptions {
-  series: ComboSeriesOpt[];       // per-series render type + axis — THIS is the combo seam
-  referenceLines?: ReferenceLineOpt[];
-}
-
-interface ComboSeriesOpt {
-  member: Member;                 // a measure from query
-  render: "bar" | "line" | "area";// → <Bar>|<Line>|<Area> inside <ComposedChart>
-  axis?: "left" | "right";        // → yAxisId; "right" mounts a 2nd <YAxis>
-  colorToken?: ChartColorToken;
-  stackId?: string;               // bars/areas with same stackId stack
-  curve?: "linear" | "monotone" | "step"; // line/area only
-  label?: string;
+interface HeatmapFamilyOptions {
+  colorToken?: ChartColorToken;   // the single-hue ramp token; cells shade light→dark within it
+  showValues?: boolean;           // print each cell's formatted value inside the cell
 }
 ```
 
-Combo renders `<ComposedChart>` and maps each `ComboSeriesOpt` to `<Bar>`/`<Line>`/`<Area>` by `render`, with `yAxisId` from `axis`. This single family absorbs `ComboChartPro` (mixed), `BarLineChartPro` (one bar + one line), and `DualAxisChartPro` (`axis:"right"` on some series). `mapping.category` is the shared x; `mapping.series` is ignored (combo declares series inline so each can pick its render type).
+A two-dimension × one-measure matrix drawn with the TanStack `cell` mark. Deliberately minimal options (simplicity over knobs) — the grid's members live in the **generic `mapping` envelope**, not in `familyOptions`:
+
+| Mapping role | Heatmap meaning |
+|---|---|
+| `mapping.category.member` | the **column** (x) dimension |
+| `mapping.series.pivot` | the **row** (y) dimension |
+| `mapping.series.value` | the measure that colors each cell |
+
+Both axes are band scales; the value encodes as a single-hue sequential ramp on `colorToken` (`opacity 0.15 → 1.0` realized as `color-mix(var(--chart-N) P%, transparent)`, so it stays theme-adaptive in light and dark). Like scatter/table it consumes `raw.rows` directly (one row per (x, y) pair; duplicates keep the last row). There is **no series legend** (color IS the value encoding) and no cartesian display envelope (orientation/stacking/axis-scale don't apply). The combo family that previously occupied this section was **removed in spec v2** together with all dual-axis support — v1 combo specs migrate to `bar`/`line` (see docs/01-spec-schema.md).
 
 ---
 
-## 3. The mapping seam — adapter → Recharts, with specs never seeing Recharts props
+## 3. The renderer seam — adapter → TanStack marks, with specs never seeing renderer props
 
-The family component is a pure function `(NormalizedChartData, ChartOptions) → ReactElement`. Here is the **bar** family's seam in full, showing that no Recharts shape ever appears in the spec — it's all derived from the normalized adapter output.
+The family component is a pure function `(NormalizedChartData, ChartOptions) → ReactElement`: it translates the normalized adapter output into a TanStack `defineChart` definition (marks + scales + color + tooltip) and hands it to the shared `CvChart` shell. The seam lives in **`src/charts/tanstack.tsx`** — the only file that knows how cube-viz's `NormalizedChartData` maps onto the TanStack grammar (the same role `_shared.ts` played for the Recharts stack this seam replaced).
 
-```tsx
-function BarChartFamily({ data, options }: { data: NormalizedChartData; options: ChartOptions }) {
-  if (loading) return <Skeleton className="min-h-[240px]" />;
-  if (error)   return <Alert variant="destructive">…</Alert>;
-  if (data.empty) return <EmptyState />;
+**The long-row shape.** Families feed marks with LONG rows — `SeriesRow`, one row per `(category, series)` pair — built by `buildSeriesRows(data)`:
 
-  const fo = mergeDefaults("bar", options.familyOptions);   // §4
-  const horizontal = options.orientation === "horizontal";
-  const stacked = options.stackMode === "stacked" || options.stackMode === "percent";
-
-  // 1) ChartConfig is DERIVED from normalized series — colors/labels flow to shadcn --color-<key>
-  const chartConfig: ChartConfig = Object.fromEntries(
-    data.series.map(s => [s.key, { label: s.label, color: `var(--${s.colorToken ?? defaultRamp(s)})` }])
-  );
-
-  // 2) recharts-shaped row array is built HERE, from categories + series.data (never in the spec)
-  const rows = data.categories.map((cat, i) => ({
-    __cat: cat,
-    ...Object.fromEntries(data.series.map(s => [s.key, s.data[i]])),
-  }));
-
-  const numberFmt = makeFormatter(options.format, data.raw.annotation); // §5
-
-  return (
-    <ChartContainer config={chartConfig} className="min-h-[240px] w-full">
-      <BarChart data={rows} layout={horizontal ? "vertical" : "horizontal"}
-                stackOffset={options.stackMode === "percent" ? "expand" : undefined}
-                barGap={fo.barGap} barCategoryGap={fo.barCategoryGap}>
-        <CartesianGrid vertical={!horizontal} />
-        {horizontal
-          ? (<><YAxis type="category" dataKey="__cat" hide={options.axes?.y?.hide}/>
-                <XAxis type="number" tickFormatter={numberFmt} domain={domainOf(options.axes?.x)}/></>)
-          : (<><XAxis type="category" dataKey="__cat" hide={options.axes?.x?.hide}/>
-                <YAxis type="number" tickFormatter={numberFmt} scale={options.axes?.y?.scale ?? "auto"}/></>)}
-        {options.tooltip?.show !== false &&
-          <ChartTooltip content={<ChartTooltipContent indicator={options.tooltip?.indicator ?? "dot"} />} />}
-        {options.legend?.show &&
-          <ChartLegend content={<ChartLegendContent />} verticalAlign={legendVA(options.legend.position)} />}
-        {data.series.map(s => (
-          <Bar key={s.key} dataKey={s.key}
-               stackId={stacked ? (s.meta?.stackId ?? "stack") : undefined}
-               fill={`var(--color-${s.key})`}            // resolves via ChartConfig
-               radius={cornerRadius(fo.barRadius, horizontal)}
-               maxBarSize={fo.maxBarSize}>
-            {fo.showValueLabels && <LabelList dataKey={s.key} formatter={numberFmt} />}
-          </Bar>
-        ))}
-        {fo.referenceLines?.map((r, k) => (
-          <ReferenceLine key={k} {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
-                         label={r.label} stroke={`var(--${r.colorToken ?? "muted-foreground"})`} />
-        ))}
-      </BarChart>
-    </ChartContainer>
-  );
+```ts
+/** One (category, series) observation in mark-ready long form. Lives ONLY in src/charts/tanstack.tsx. */
+interface SeriesRow {
+  cat: string | number;   // category value (x for vertical, y for horizontal charts)
+  value: number | null;   // the measured value (null gaps preserved by the marks)
+  key: string;            // series key (Cube member or pivot value) — identity, not display
+  label: string;          // series display label — the z/color channel value
+  member?: string;        // source measure driving unit formatting for this row
+  companion?: boolean;    // previous-period companion series (dashed/lighter styling)
+  i: number;              // category index (stable positional identity for motion)
 }
 ```
+
+`z`/`color` are keyed by the series **label** so the built-in legend and grouped tooltip read naturally, while the row still carries the series **key** + source **member** so tooltip/label formatting stays unit-aware. This row shape never appears in a spec and is not exported from the public barrel.
+
+**The shared helpers** (all in `tanstack.tsx`, consumed by every family):
+
+- `seriesColor(data)` — the categorical color mapping: explicit `domain` (labels) + `range` (`var(--chart-N)` token vars) in series order, so a filtered series never repaints the survivors; optionally attaches `colorLegend({ placement })`.
+- `legendPlacement` / `legendDisplay` — TanStack legends are **top/bottom only**; `left`/`right` degrade to `bottom` (as before).
+- `bandScale` / `pointScale` / `valueScale` — category and value scales; `valueScale` honors the spec's `scale` (`"linear" | "log"`) and `domain` (`[min|"auto", max|"auto"]`).
+- `chartCurve` — cube-viz curve name → TanStack curve contract (via `d3-shape`).
+- `resolvedAxisLabels` — spec override wins, else the mapped member's `shortTitle`. (Dual-axis support was removed with the combo family; a series' `meta.axis` is ignored.)
+- `cubeTooltip` — the built-in interactive tooltip wired for cube data: structured content (title = formatted category, one swatched row per focused series), member-aware value formatting, `percentShare` for the percent stackMode. Tooltips are pinnable via click (a TanStack built-in behavior).
+- `referenceLineMarks` / `valueLabelMarks` — `ruleX`/`ruleY` + `text` marks for reference lines and direct value labels.
+- `CvChart` — the family-facing shell: measures its container (`ResizeObserver`), mounts the TanStack React `<Chart>` with the shared **spring-motion renderer** (entrance animation disable-able for live tiles/editor churn), and scopes gradient/clip IDs per instance so several charts share one document.
 
 **The seam, stated:**
 
-- **Spec side** carries only `mapping` (which members are categories vs series), `orientation`, `stackMode`, semantic `colorToken`s, and abstract axis/legend/tooltip options. None of these are Recharts names.
+- **Spec side** carries only `mapping` (which members are categories vs series), `orientation`, `stackMode`, semantic `colorToken`s, and abstract axis/legend/tooltip options. None of these are renderer names.
 - **Adapter side** turns the Cube `ResultSet` into `{ categories, series:[{key,label,data,colorToken,meta}] }` — already aligned, already labeled, already formatted-hint-bearing.
-- **Family component** is the *only* place that knows `layout="vertical"`, `stackId`, `<Bar dataKey>`, `stackOffset="expand"`, `<ZAxis>`, `yAxisId`, `<Cell fill>`, etc. exist.
+- **Family component** is the *only* place that knows `barY`/`lineY`/`areaY`/`cell`, `group()`/`stack({offset})`, band/point scales, `colorLegend`, etc. exist — and `tanstack.tsx` is the only place that knows the `SeriesRow` shape.
 
-So to swap Recharts for a different lib, you reimplement the eight family components against the *same* `(NormalizedChartData, ChartOptions)` signature — the spec, the `familyOptions` schemas, the adapter, the variable model, and every stored JSON file are untouched. This is the abstraction-seam guarantee the brief demanded.
+So to swap the render library, you reimplement the family components (plus `tanstack.tsx`) against the *same* `(NormalizedChartData, ChartOptions)` signature — the spec, the `familyOptions` schemas, the adapter, the variable model, and every stored JSON file are untouched. This guarantee was exercised in 2026-08 when Recharts was replaced by `@tanstack/charts` with zero spec changes (the simultaneous v2 spec bump came from the combo/dual-axis *feature* removal, not the renderer swap). Interaction gains from the new stack: pinnable tooltips, keyboard focus, spring motion — and brush/zoom becomes feasible future work.
 
 ---
 
@@ -367,7 +338,9 @@ const DEFAULTS: Record<ChartFamily, { envelope: Partial<ChartOptions>; familyOpt
     familyOptions: { curve: "monotone", strokeWidth: 2, dots: "active", connectNulls: false, chrome: "full" } satisfies LineFamilyOptions,
   },
   area: {
-    envelope: { stackMode: "stacked", legend: { show: true, position: "bottom" }, tooltip: { show: true } },
+    // No static stackMode: the area renderer defaults it SHAPE-AWARELY (§2.3);
+    // an explicit spec stackMode always wins.
+    envelope: { legend: { show: true, position: "bottom" }, tooltip: { show: true } },
     familyOptions: { curve: "monotone", fillOpacity: 0.4, strokeWidth: 2, connectNulls: false } satisfies AreaFamilyOptions,
   },
   pie: {
@@ -386,9 +359,10 @@ const DEFAULTS: Record<ChartFamily, { envelope: Partial<ChartOptions>; familyOpt
     envelope: {},
     familyOptions: { pageSize: 25, sortable: true, stickyHeader: true, rowHeight: "default" } satisfies TableFamilyOptions,
   },
-  combo: {
-    envelope: { legend: { show: true, position: "bottom" }, tooltip: { show: true } },
-    familyOptions: { series: [] } satisfies ComboFamilyOptions, // series is required from the spec
+  heatmap: {
+    // No legend envelope: the heatmap has no series legend (color encodes the value).
+    envelope: { tooltip: { show: true, indicator: "dot" }, format: { kind: "auto" } },
+    familyOptions: { colorToken: "chart-1", showValues: false } satisfies HeatmapFamilyOptions,
   },
 };
 
@@ -405,13 +379,13 @@ function resolveOptions(opts: ChartOptions): ChartOptions {
 
 - **bar** — vertical + unstacked is the least-surprising comparison chart; rounded corners + legend match the shadcn examples.
 - **line** — `monotone` curve and `connectNulls:false` (gaps are honest; `fillMissingDates:true` in the adapter already injects bucket rows, so a genuine null = a genuine gap).
-- **area** — defaults to `stacked` because a single-series area is rare; multi-series area without stacking is visually muddy.
+- **area** — no static `stackMode` default: the renderer picks shape-awarely (§2.3 — pivot splits stack, independent measures overlap); an explicit spec value wins.
 - **pie** — `maxSlices:8` + auto-"Other" prevents the 30-slice unreadable pie that the aa-app `device_id`/`address` dimensions would otherwise produce.
 - **kpi** — `number` (the 90% case); gauge is opt-in.
 - **table** — paged + sortable + sticky header (the obvious table affordances).
-- **combo** — `series:[]` is intentionally empty: combo *requires* the author to declare each series' render type, so an empty combo renders the empty state rather than guessing.
+- **heatmap** — `chart-1` ramp + `showValues:false`: the color field is the signal; in-cell numbers are opt-in.
 
-Validation (zod) runs **after** merge so required-but-defaulted fields (e.g. `combo.series` non-empty, `scatter.x`/`y` present, `pie` single-measure) are enforced on the resolved object.
+Validation (zod) runs **after** merge so required-but-defaulted fields (e.g. `scatter.x`/`y` present, `pie` single-measure) are enforced on the resolved object.
 
 ---
 
@@ -463,15 +437,15 @@ This gives the same DRY, unit-aware, duration-savvy behavior `withUnits` deliver
 
 ## 6. Summary
 
-| Family | Absorbs (Embeddable Pro) | Load-bearing inputs | Recharts/shadcn primitive | Uses Recharts? |
+| Family | Absorbs (Embeddable Pro) | Load-bearing inputs | Renderer primitive (TanStack marks) | Uses the chart renderer? |
 |---|---|---|---|---|
-| `bar` | 6 Bar Pros | `orientation`×`stackMode`, multi-`series` | `BarChart`+`Bar` (`layout`,`stackId`,`stackOffset`) | yes |
-| `line` | Line/Grouped/Multi/Sparkline | `series.length`, `chrome`, `connectNulls`, dual-axis | `LineChart`+`Line` | yes |
-| `area` | Area/Stacked/Percent | `stackMode` | `AreaChart`+`Area` (`stackOffset`) | yes |
-| `pie` | Pie/Donut | `innerRadiusPct`, `maxSlices` | `PieChart`+`Pie`+`Cell` | yes |
-| `scatter` | Scatter/Bubble | `x`/`y`/`size`/`groupBy` | `ScatterChart`+`Scatter`+`ZAxis` | yes |
-| `kpi` | KPI/Number/Comparison/Radial | `display`, `comparison`, `gauge` | shadcn card / `RadialBarChart` | gauge only |
-| `table` | Table/Pivot | `columns`, pivot via `mapping` | shadcn `Table` | no |
-| `combo` | Combo/BarLine/DualAxis | per-`series.render`+`axis` | `ComposedChart`+`Bar`/`Line`/`Area` | yes |
+| `bar` | 6 Bar Pros | `orientation`×`stackMode`, multi-`series` | `barY`/`barX` (`group()`/implicit stack/`stack({offset:"normalize"})`) | yes |
+| `line` | Line/Grouped/Multi/Sparkline | `series.length`, `chrome`, `connectNulls` | `lineY` (+ crosshair) | yes |
+| `area` | Area/Stacked/Percent | `stackMode` (shape-aware default) | `areaY` (implicit stack / `offset:"normalize"`) | yes |
+| `pie` | Pie/Donut | `innerRadiusPct`, `maxSlices` | polar `pie()`+`radialArc`+`radialText` | yes |
+| `scatter` | Scatter/Bubble | `x`/`y`/`size`/`groupBy` | `dot` (sqrt bubble-radius scale) | yes |
+| `kpi` | KPI/Number/Comparison/Radial | `display`, `comparison`, `gauge` | styled card / polar `radialArc` gauge + `areaY` sparkline | gauge/sparkline only |
+| `table` | Table/Pivot | `columns`, pivot via `mapping` | styled `cv-table-*` table | no |
+| `heatmap` | *(new in v2)* | `mapping` (category=columns, pivot=rows, value=measure), `colorToken`, `showValues` | `cell` (+ optional `text`) | yes |
 
-**The contract:** eight families; cross-family knobs in the shared envelope; family-specific knobs in `familyOptions` (one zod schema per family); every family is a pure `(NormalizedChartData, ChartOptions) → ReactElement` with Recharts confined inside; total defaults deep-merged (arrays replaced) then validated; formatting driven by Cube member `meta` with overrides, implemented as one resolver using vetted unit/date libraries — mirroring `withUnits`' data-model intent while discarding its HOC. Specs never contain a Recharts prop, so the rendering library can be replaced by reimplementing eight components against this unchanged signature.
+**The contract:** eight families; cross-family knobs in the shared envelope; family-specific knobs in `familyOptions` (one zod schema per family); every family is a pure `(NormalizedChartData, ChartOptions) → ReactElement` with the render library confined inside (`src/charts/tanstack.tsx` + the family files); total defaults deep-merged (arrays replaced) then validated; formatting driven by Cube member `meta` with overrides, implemented as one resolver using vetted unit/date libraries — mirroring `withUnits`' data-model intent while discarding its HOC. Specs never contain a renderer prop, so the rendering library can be replaced by reimplementing eight components against this unchanged signature — proven by the 2026-08 Recharts → `@tanstack/charts` swap.

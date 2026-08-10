@@ -1,7 +1,7 @@
 {
   "name": "cube-viz",
   "version": "0.6.1",
-  "description": "Render and edit JSON dashboard/chart specs backed by Cube. shadcn/Recharts renderer, react-grid-layout, TipTap. Web-first, embeddable in a mobile WebView.",
+  "description": "Cube-backed dashboard/chart spec renderer + editor for React — @tanstack/charts marks with semantic cv- CSS",
   "type": "module",
   "license": "MIT",
   "sideEffects": [
