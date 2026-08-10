@@ -1,5 +1,5 @@
 import * as React from "react";
-import { areaY, defineChart } from "@tanstack/charts";
+import { areaY, defineChart, lineY } from "@tanstack/charts";
 import { polar, radialArc } from "@tanstack/charts/polar";
 import { ArrowDown, ArrowUp, CalendarRange, Minus } from "lucide-react";
 
@@ -182,6 +182,9 @@ function KpiSparkline({
     const y = valueScale(undefined);
     return defineChart({
       marks: [
+        // The area's own stroke outlines the WHOLE closed path (baseline and
+        // sides included) — a boxed look. Fill-only area + a lineY overlay
+        // strokes just the top edge, matching the old sparkline.
         areaY(rows, {
           id: "cv-kpi-spark",
           x: "cat",
@@ -191,6 +194,13 @@ function KpiSparkline({
           curve: chartCurve("monotone"),
           fill: "currentColor",
           fillOpacity: 0.15,
+        }),
+        lineY(rows, {
+          id: "cv-kpi-spark-line",
+          x: "cat",
+          y: "value",
+          key: "i",
+          curve: chartCurve("monotone"),
           stroke: "currentColor",
           strokeWidth: 1.75,
         }),
