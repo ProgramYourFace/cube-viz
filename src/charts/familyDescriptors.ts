@@ -149,8 +149,8 @@ export interface ChartFamilyDescriptor {
 // The label/icon/order were previously inlined in CenterTypePicker + helpers; the
 // descriptor is now the home and those modules re-derive their maps from here.
 
-const SIDEBAR_DEFAULT = "cv:w-40";
-const SIDEBAR_WIDE = "cv:w-56";
+const SIDEBAR_DEFAULT = "cv-sidebar--default";
+const SIDEBAR_WIDE = "cv-sidebar--wide";
 
 /* ─────────────────────────── per-family well sets ─────────────────────────── */
 //

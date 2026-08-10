@@ -62,12 +62,12 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
   const compact = fo.rowHeight === "compact";
 
   return (
-    <div className="cv:flex cv:h-full cv:w-full cv:flex-col">
-      <div className={cn("cv:w-full", fo.stickyHeader && "cv:max-h-full cv:overflow-auto")}>
+    <div className="cv-table">
+      <div className={cn("cv-table-scroll", fo.stickyHeader && "cv-table-scroll--sticky")}>
         <Table>
-          <TableHeader className={cn(fo.stickyHeader && "cv:sticky cv:top-0 cv:z-10 cv:bg-background")}>
+          <TableHeader className={cn(fo.stickyHeader && "cv-table-header--sticky")}>
             <TableRow>
-              {fo.showRowNumbers && <TableHead className="cv:w-10 cv:text-right">#</TableHead>}
+              {fo.showRowNumbers && <TableHead className="cv-table-rownum">#</TableHead>}
               {columns.map((col) => (
                 <TableHead
                   key={col.member}
@@ -77,7 +77,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
                   {sortable ? (
                     <Button
                       variant="ghost"
-                      className="cv:-ml-2 cv:h-7 cv:px-2 cv:text-muted-foreground"
+                      className="cv-table-sort"
                       onClick={() => onSort(col.member)}
                     >
                       {col.label}
@@ -94,7 +94,12 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
             {pageRows.map((row, ri) => (
               <TableRow key={ri}>
                 {fo.showRowNumbers && (
-                  <TableCell className={cn("cv:text-right cv:text-muted-foreground", compact && "cv:py-1")}>
+                  <TableCell
+                    className={cn(
+                      "cv-table-cell--right cv-table-cell--muted",
+                      compact && "cv-table-cell--compact",
+                    )}
+                  >
                     {safePage * pageSize + ri + 1}
                   </TableCell>
                 )}
@@ -103,7 +108,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
                   return (
                     <TableCell
                       key={col.member}
-                      className={cn(alignClass(col.align), compact && "cv:py-1")}
+                      className={cn(alignClass(col.align), compact && "cv-table-cell--compact")}
                       style={tint ? { color: tint } : undefined}
                     >
                       {col.render(row[col.member])}
@@ -116,7 +121,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
               <TableRow>
                 <TableCell
                   colSpan={columns.length + (fo.showRowNumbers ? 1 : 0)}
-                  className="cv:h-24 cv:text-center cv:text-muted-foreground"
+                  className="cv-table-empty"
                 >
                   No data
                 </TableCell>
@@ -126,15 +131,15 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
         </Table>
       </div>
       {sorted.length > pageSize && (
-        <div className="cv:flex cv:items-center cv:justify-between cv:gap-2 cv:px-2 cv:py-2 cv:text-sm cv:text-muted-foreground">
+        <div className="cv-table-pagination">
           <span>
             {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, sorted.length)} of{" "}
             {sorted.length}
           </span>
-          <div className="cv:flex cv:gap-2">
+          <div className="cv-table-pager">
             <Button
               variant="outline"
-              className="cv:h-7 cv:px-2"
+              className="cv-table-page-btn"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
             >
@@ -142,7 +147,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
             </Button>
             <Button
               variant="outline"
-              className="cv:h-7 cv:px-2"
+              className="cv-table-page-btn"
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
             >
@@ -228,17 +233,17 @@ function memberMeta(ann: ResultAnnotation, member: string) {
 }
 
 function alignClass(align?: TableColumnOpt["align"]): string {
-  if (align === "right") return "cv:text-right";
-  if (align === "center") return "cv:text-center";
-  return "cv:text-left";
+  if (align === "right") return "cv-table-cell--right";
+  if (align === "center") return "cv-table-cell--center";
+  return "cv-table-cell--left";
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir?: "asc" | "desc" }): React.ReactElement {
-  if (!active) return <ChevronsUpDown className="cv:ml-1 cv:size-3.5 cv:opacity-50" />;
+  if (!active) return <ChevronsUpDown className="cv-table-sort-icon cv-table-sort-icon--idle" />;
   return dir === "asc" ? (
-    <ArrowUp className="cv:ml-1 cv:size-3.5" />
+    <ArrowUp className="cv-table-sort-icon" />
   ) : (
-    <ArrowDown className="cv:ml-1 cv:size-3.5" />
+    <ArrowDown className="cv-table-sort-icon" />
   );
 }
 

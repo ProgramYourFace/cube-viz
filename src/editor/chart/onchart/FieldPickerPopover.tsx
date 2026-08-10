@@ -38,11 +38,11 @@ export interface FieldPickerPopoverProps {
 // share the "Numbers" label so a well accepting both renders ONE merged bucket
 // (groupsFor keys fallback buckets by label).
 const GROUP_META: Record<FieldKind, { label: string; icon: React.ReactElement; metaKind: MemberKind }> = {
-  geoPoint: { label: "Location", icon: <MapPin className="cv:size-3" />, metaKind: "geoPoint" },
-  number: { label: "Numbers", icon: <Hash className="cv:size-3" />, metaKind: "measure" },
-  numberDimension: { label: "Numbers", icon: <Hash className="cv:size-3" />, metaKind: "numberDimension" },
-  category: { label: "Categories", icon: <Type className="cv:size-3" />, metaKind: "dimension" },
-  time: { label: "Dates", icon: <Calendar className="cv:size-3" />, metaKind: "time" },
+  geoPoint: { label: "Location", icon: <MapPin className="cv-ec-icon--sm" />, metaKind: "geoPoint" },
+  number: { label: "Numbers", icon: <Hash className="cv-ec-icon--sm" />, metaKind: "measure" },
+  numberDimension: { label: "Numbers", icon: <Hash className="cv-ec-icon--sm" />, metaKind: "numberDimension" },
+  category: { label: "Categories", icon: <Type className="cv-ec-icon--sm" />, metaKind: "dimension" },
+  time: { label: "Dates", icon: <Calendar className="cv-ec-icon--sm" />, metaKind: "time" },
 };
 const KIND_ORDER: FieldKind[] = ["geoPoint", "number", "numberDimension", "category", "time"];
 
@@ -169,16 +169,16 @@ export function FieldPickerPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent align={align} side={side} className="cv:w-80 cv:p-2">
-        <div className="cv:flex cv:items-center cv:gap-2 cv:pb-1.5">
-          <div className="cv:flex cv:min-w-0 cv:flex-1 cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2">
-            <Search className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />
+      <PopoverContent align={align} side={side} className="cv-picker">
+        <div className="cv-picker-header">
+          <div className="cv-picker-search">
+            <Search className="cv-ec-icon cv-ec-icon--muted" />
             <input
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={isLoading ? "Loading fields…" : "Search fields…"}
-              className="cv:h-8 cv:w-full cv:bg-transparent cv:text-sm cv:text-foreground cv:outline-none cv:placeholder:text-muted-foreground"
+              className="cv-picker-search-input"
             />
           </div>
           <SourceMenu
@@ -189,9 +189,9 @@ export function FieldPickerPopover({
           />
         </div>
 
-        <div className="cv:max-h-80 cv:overflow-y-auto">
+        <div className="cv-picker-list">
           {!hasAny ? (
-            <p className="cv:px-1 cv:py-6 cv:text-center cv:text-xs cv:text-muted-foreground">
+            <p className="cv-picker-empty">
               {isLoading ? "Loading fields…" : "No fields match."}
             </p>
           ) : (
@@ -205,7 +205,7 @@ export function FieldPickerPopover({
               return (
                 <div key={section.cube.name}>
                   {section.tag === "related" && idx > 0 && rendered[idx - 1].section.tag !== "related" ? (
-                    <div className="cv:px-1 cv:pb-1 cv:pt-2 cv:text-[10px] cv:font-semibold cv:uppercase cv:tracking-wide cv:text-muted-foreground/70">
+                    <div className="cv-picker-related-heading">
                       Related tables
                     </div>
                   ) : null}
@@ -214,33 +214,33 @@ export function FieldPickerPopover({
                     onClick={() =>
                       setCollapsedOverride((m) => ({ ...m, [section.cube.name]: !effectiveCollapsed }))
                     }
-                    className="cv:flex cv:w-full cv:items-center cv:gap-1.5 cv:rounded-sm cv:px-1 cv:py-1 cv:text-left cv:text-foreground cv:hover:bg-accent/50"
+                    className="cv-picker-table"
                   >
                     {expanded ? (
-                      <ChevronDown className="cv:size-3 cv:shrink-0 cv:text-muted-foreground" />
+                      <ChevronDown className="cv-ec-icon--sm cv-ec-icon--muted" />
                     ) : (
-                      <ChevronRight className="cv:size-3 cv:shrink-0 cv:text-muted-foreground" />
+                      <ChevronRight className="cv-ec-icon--sm cv-ec-icon--muted" />
                     )}
-                    <Table2 className="cv:size-3 cv:shrink-0 cv:text-muted-foreground" />
-                    <span className="cv:truncate cv:text-xs cv:font-medium">{section.cube.title}</span>
+                    <Table2 className="cv-ec-icon--sm cv-ec-icon--muted" />
+                    <span className="cv-picker-table-title">{section.cube.title}</span>
                     {section.tag === "source" ? (
-                      <span className="cv:rounded-sm cv:bg-primary/10 cv:px-1 cv:py-px cv:text-[9px] cv:font-medium cv:uppercase cv:text-primary">
+                      <span className="cv-picker-tag cv-picker-tag--primary">
                         Main table
                       </span>
                     ) : section.tag === "dataset" ? (
-                      <span className="cv:rounded-sm cv:bg-muted cv:px-1 cv:py-px cv:text-[9px] cv:font-medium cv:uppercase cv:text-muted-foreground">
+                      <span className="cv-picker-tag cv-picker-tag--muted">
                         dataset
                       </span>
                     ) : null}
-                    <span className="cv:ml-auto cv:shrink-0 cv:pr-1 cv:text-[10px] cv:tabular-nums cv:text-muted-foreground/70">
+                    <span className="cv-picker-count">
                       {count}
                     </span>
                   </button>
                   {expanded
                     ? groups.map((g) => (
-                        <div key={g.key} className="cv:pb-0.5 cv:pl-4">
+                        <div key={g.key} className="cv-picker-group">
                           {groups.length > 1 ? (
-                            <div className="cv:flex cv:items-center cv:gap-1.5 cv:px-2 cv:pb-0.5 cv:pt-1 cv:text-[9px] cv:uppercase cv:tracking-wide cv:text-muted-foreground/70">
+                            <div className="cv-picker-group-header">
                               {g.headerIcon}
                               {g.label}
                             </div>
@@ -285,26 +285,26 @@ function SourceMenu({ browse, label, views, onBrowse }: SourceMenuProps): React.
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className="cv:flex cv:h-8 cv:max-w-[9rem] cv:shrink-0 cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-2 cv:text-xs cv:text-foreground cv:hover:bg-accent"
+        className="cv-picker-source-trigger"
         title={`Data source: ${label}`}
       >
-        <Database className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />
-        <span className="cv:truncate">{label}</span>
+        <Database className="cv-ec-icon cv-ec-icon--muted" />
+        <span className="cv-ec-truncate">{label}</span>
       </PopoverTrigger>
-      <PopoverContent align="end" className="cv:w-60 cv:p-1">
-        <MenuItem active={browse === "tables"} icon={<Table2 className="cv:size-3.5" />} onClick={() => choose("tables")}>
+      <PopoverContent align="end" className="cv-picker-source-menu">
+        <MenuItem active={browse === "tables"} icon={<Table2 className="cv-ec-icon" />} onClick={() => choose("tables")}>
           All related tables
         </MenuItem>
         {views.length > 0 ? (
           <>
-            <div className="cv:px-2 cv:pb-0.5 cv:pt-1.5 cv:text-[10px] cv:uppercase cv:tracking-wide cv:text-muted-foreground">
+            <div className="cv-ec-menu-heading">
               Saved datasets
             </div>
             {views.map((v) => (
               <MenuItem
                 key={v.name}
                 active={browse === v.name}
-                icon={<Layers className="cv:size-3.5" />}
+                icon={<Layers className="cv-ec-icon" />}
                 onClick={() => choose(v.name)}
               >
                 {v.title}
@@ -333,13 +333,13 @@ function MenuItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:hover:bg-accent",
-        active && "cv:bg-accent/60",
+        "cv-ec-menu-item",
+        active && "cv-ec-menu-item--active",
       )}
     >
-      <span className="cv:text-muted-foreground">{icon}</span>
-      <span className="cv:min-w-0 cv:flex-1 cv:truncate">{children}</span>
-      {active ? <Check className="cv:size-3.5 cv:shrink-0" /> : null}
+      <span className="cv-ec-menu-icon">{icon}</span>
+      <span className="cv-ec-menu-label">{children}</span>
+      {active ? <Check className="cv-ec-icon" /> : null}
     </button>
   );
 }
@@ -362,13 +362,13 @@ function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps):
         tabIndex={0}
         aria-disabled
         title={reason}
-        className="cv:flex cv:cursor-not-allowed cv:items-center cv:justify-between cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:opacity-45 cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring"
+        className="cv-picker-row--disabled"
       >
-        <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-1.5">
+        <span className="cv-picker-row-main">
           {kindIcon}
-          <span className="cv:truncate">{option.label}</span>
+          <span className="cv-ec-truncate">{option.label}</span>
         </span>
-        <span className="cv:shrink-0 cv:text-[10px] cv:text-muted-foreground">Not available</span>
+        <span className="cv-picker-row-reason">Not available</span>
       </span>
     );
   }
@@ -377,12 +377,12 @@ function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps):
       type="button"
       onClick={onPick}
       title={option.description ?? option.name}
-      className="cv:flex cv:w-full cv:items-center cv:gap-1.5 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:hover:bg-accent cv:hover:text-accent-foreground"
+      className="cv-picker-row"
     >
       {kindIcon}
-      <span className="cv:min-w-0 cv:truncate">{option.label}</span>
+      <span className="cv-picker-row-label">{option.label}</span>
       {badge ? (
-        <span className="cv:ml-auto cv:shrink-0 cv:rounded-sm cv:bg-primary/10 cv:px-1 cv:py-px cv:text-[9px] cv:font-medium cv:uppercase cv:text-primary">
+        <span className="cv-picker-badge">
           {badge}
         </span>
       ) : null}

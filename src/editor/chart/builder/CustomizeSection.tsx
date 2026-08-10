@@ -96,7 +96,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           <>
             {StackControl}
             {chart.stackMode === undefined ? (
-              <p className="cv:px-0.5 cv:pt-1 cv:text-[10px] cv:leading-tight cv:text-muted-foreground/80">
+              <p className="cv-ec-hint cv-customize-hint">
                 {chart.mapping?.series?.mode === "pivot"
                   ? "Color-split areas stack into a whole by default — set this to change it."
                   : "Separate measures overlap by default; stacking adds them into one band."}
@@ -131,7 +131,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
               <Input
                 type="number"
                 min={1}
-                className="cv:h-8"
+                className="cv-ec-h8"
                 value={(fo.maxSlices as number | undefined) ?? ""}
                 placeholder="8"
                 onChange={(e) => {
@@ -192,7 +192,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     }
   })();
 
-  return <div className="cv:flex cv:flex-col">{body}</div>;
+  return <div className="cv-customize">{body}</div>;
 }
 
 /**
@@ -215,8 +215,8 @@ export function hasCustomizeOptions(
 /** A vertical labeled field (caption above the control) for the option pickers. */
 function KField({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
   return (
-    <div className="cv:flex cv:flex-col cv:gap-1 cv:py-1">
-      <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">{label}</span>
+    <div className="cv-customize-field">
+      <span className="cv-ec-label">{label}</span>
       {children}
     </div>
   );

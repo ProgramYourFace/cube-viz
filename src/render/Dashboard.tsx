@@ -101,7 +101,7 @@ export function Dashboard({ spec, editable = false, families }: DashboardProps):
   return (
     <FamilyRegistryOverride families={families}>
       <DashboardProvider spec={spec}>
-      <div ref={ref} className="cv:w-full">
+      <div ref={ref} className="cv-dashboard">
         {width <= 0 ? null : stacked ? (
           <div
             style={{
@@ -139,7 +139,7 @@ export function Dashboard({ spec, editable = false, families }: DashboardProps):
               const widget = widgetsById.get(item.i);
               if (!widget) return null;
               return (
-                <div key={item.i} className="cv:h-full cv:w-full">
+                <div key={item.i} className="cv-dashboard-cell">
                   <RenderWidget widget={widget} editable={editable} />
                 </div>
               );
@@ -170,7 +170,7 @@ export interface ChartViewProps {
 export function ChartView({ spec, families }: ChartViewProps): ReactElement {
   return (
     <FamilyRegistryOverride families={families}>
-    <div className="cv:h-full cv:w-full">
+    <div className="cv-chart-view">
       <WidgetChrome
         widget={{
           id: spec.id,

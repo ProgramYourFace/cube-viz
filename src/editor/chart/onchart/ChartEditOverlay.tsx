@@ -282,7 +282,7 @@ export function ChartEditOverlay({
     const kfo = (chart.familyOptions ?? {}) as Record<string, unknown>;
     return (
       <>
-        <div className="cv:flex cv:flex-col cv:gap-2">
+        <div className="cv-edit-kpi-value">
           {valueWell ? renderGroup(valueWell, "vertical") : null}
           {hasValue ? (
             <KpiSectionPopover
@@ -308,14 +308,14 @@ export function ChartEditOverlay({
   };
 
   return (
-    <div data-slot="chart-edit-overlay" className="cv:flex cv:h-full cv:w-full cv:flex-col cv:gap-2">
-      <div className="cv:flex cv:items-center cv:justify-between cv:gap-2">
-        <div className="cv:flex cv:min-w-0 cv:flex-1 cv:items-center cv:gap-2">{toolbar}</div>
+    <div data-slot="chart-edit-overlay" className="cv-edit-overlay">
+      <div className="cv-edit-overlay-topbar">
+        <div className="cv-edit-overlay-toolbar">{toolbar}</div>
         {/* Chart-type picker lives here (top centre) rather than over the chart — an
             on-chart pill was unclickable behind the live preview. Built charts only;
             an empty chart shows the centred chooser overlay instead. */}
         {!isEmpty || queryless ? <ChartTypePill spec={spec} update={update} /> : null}
-        <div className="cv:flex cv:flex-1 cv:items-center cv:justify-end cv:gap-1.5">
+        <div className="cv-edit-overlay-actions">
           <ChartSourcePopover
             currentName={scope.viewLocked ?? scope.sourceCube?.name}
             hasFields={allPlaced.length > 0}
@@ -325,9 +325,9 @@ export function ChartEditOverlay({
         </div>
       </div>
 
-      <div className="cv:flex cv:min-h-0 cv:flex-1 cv:gap-2">
+      <div className="cv-edit-overlay-body">
         {leftWells.length > 0 ? (
-          <div className={cn("cv:flex cv:shrink-0 cv:flex-col cv:gap-3 cv:overflow-y-auto cv:pr-1", descriptor.sidebarWidthClass)}>
+          <div className={cn("cv-edit-sidebar", descriptor.sidebarWidthClass)}>
             {/* A KPI is three inline components — Value (measure + time/range/display),
                 Comparison, and Sparkline — each its own bordered block with its own config. */}
             {family === "kpi"
@@ -338,8 +338,8 @@ export function ChartEditOverlay({
           </div>
         ) : null}
 
-        <div className="cv:flex cv:min-w-0 cv:flex-1 cv:flex-col cv:gap-2">
-          <div className="cv:relative cv:min-h-0 cv:flex-1">
+        <div className="cv-edit-overlay-main">
+          <div className="cv-edit-overlay-canvas">
             {children}
             {/* A query-less family is never "empty" for chooser purposes — it configures
                 via its Customize panel (reached from the type pill), not by placing fields. */}
@@ -349,7 +349,7 @@ export function ChartEditOverlay({
           {/* The category / split wells (each carrying its own axis-title box above its field),
               with the legend show/hide sitting in line with them. */}
           {bottomWells.length > 0 ? (
-            <div className="cv:flex cv:flex-wrap cv:items-start cv:gap-x-5 cv:gap-y-2 cv:pl-1">
+            <div className="cv-edit-overlay-bottom">
               {bottomWells.map((w) => renderGroup(w, "horizontal"))}
               {hasLegend && !isEmpty ? <LegendChrome spec={spec} update={update} /> : null}
             </div>

@@ -47,21 +47,21 @@ export function DateRangeValueEditor({ value, onChange }: DateRangeValueEditorPr
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={cn("cv:h-8 cv:w-full cv:justify-start cv:gap-1.5 cv:font-normal")}>
-          <CalendarIcon className="cv:size-3.5 cv:text-muted-foreground" />
-          <span className={cn("cv:min-w-0 cv:flex-1 cv:truncate cv:text-left", triggerLabel === "Any time" && "cv:text-muted-foreground")}>
+        <Button variant="outline" size="sm" className={cn("cv-daterange-trigger")}>
+          <CalendarIcon className="cv-ec-icon cv-ec-icon--muted" />
+          <span className={cn("cv-daterange-label", triggerLabel === "Any time" && "cv-daterange-label--placeholder")}>
             {triggerLabel}
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="cv:flex cv:w-auto cv:gap-2 cv:p-2">
-        <div className="cv:flex cv:w-32 cv:flex-col cv:gap-0.5 cv:border-r cv:pr-2">
+      <PopoverContent align="start" className="cv-daterange-popover">
+        <div className="cv-daterange-presets">
           {PRESETS.map((preset) => (
             <Button
               key={preset}
               variant="ghost"
               size="sm"
-              className={cn("cv:justify-start cv:font-normal", value === preset && "cv:bg-accent")}
+              className={cn("cv-daterange-preset", value === preset && "cv-daterange-preset--active")}
               onClick={() => {
                 onChange(preset);
                 setOpen(false);
@@ -73,7 +73,7 @@ export function DateRangeValueEditor({ value, onChange }: DateRangeValueEditorPr
           <Button
             variant="ghost"
             size="sm"
-            className="cv:justify-start cv:font-normal cv:text-muted-foreground"
+            className="cv-daterange-preset cv-daterange-preset--muted"
             onClick={() => {
               onChange(undefined);
               setOpen(false);

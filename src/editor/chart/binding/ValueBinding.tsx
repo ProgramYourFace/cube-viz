@@ -32,14 +32,11 @@ export function ValueBinding<T>({ kind, value, onChange, renderFixed }: ValueBin
   }, [bound]);
 
   const seg = (active: boolean): string =>
-    cn(
-      "cv:flex-1 cv:rounded-sm cv:px-2 cv:py-1 cv:text-center cv:transition-colors",
-      active ? "cv:bg-background cv:font-medium cv:shadow-sm" : "cv:text-muted-foreground cv:hover:text-foreground",
-    );
+    cn("cv-bind-seg", active && "cv-bind-seg--active");
 
   return (
-    <div className="cv:flex cv:flex-col cv:gap-1.5">
-      <div className="cv:flex cv:rounded-md cv:bg-muted cv:p-0.5 cv:text-[11px]">
+    <div className="cv-bind">
+      <div className="cv-bind-toggle">
         <button
           type="button"
           className={seg(mode === "fixed")}

@@ -1,0 +1,803 @@
+/*
+ * UI-primitive styles (the shadcn/ui "new-york" kit under src/components/ui/ +
+ * the provider root wrapper). Plain CSS — cube-viz no longer ships Tailwind
+ * utilities. Class prefix: `cv-` (semantic, hand-authored); modifiers use `--`.
+ * Colors come from the theme tokens (src/theme/tokens.css): --background,
+ * --foreground, --primary, --border, --input, --ring, … Dark mode is free via
+ * the `.dark` token set — no per-component dark rules needed.
+ *
+ * Conventions (faithful translations of the old cv:-prefixed utilities):
+ *   spacing scale ×0.25rem · text-xs=.75rem/1rem · text-sm=.875rem/1.25rem
+ *   rounded-sm=calc(var(--radius) - 4px) · rounded-md=calc(var(--radius) - 2px)
+ *   rounded-lg=var(--radius) · rounded-xl=calc(var(--radius) + 4px)
+ *   shadow-sm = 0 1px 2px 0 rgb(0 0 0 / 0.05)
+ *   shadow    = 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)
+ *   shadow-md = 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)
+ *   color/NN opacity → color-mix(in oklab, var(--token) NN%, transparent)
+ */
+
+/* ── Provider root ─────────────────────────────────────────────────────────
+ * Layout-transparent wrapper that scopes theme mode; token custom properties
+ * still cascade through `display: contents`. */
+.cv-root {
+  display: contents;
+  color: var(--foreground);
+}
+
+/* ── Shared icon sizing (the old cv:size-4 on lucide icons) ──────────────── */
+.cv-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* ── Popover / Select enter-exit animation ─────────────────────────────────
+ * Reproduces tailwindcss-animate's data-[state=open]:animate-in fade-in-0
+ * zoom-in-95 + per-side slide-in-from-*-2 (and the mirrored animate-out).
+ * ~150ms, standard easing. Side-dependent slide distances and the persistent
+ * popper offset (translate-*-1) are fed through custom properties so a single
+ * keyframe pair serves every side.
+ */
+@keyframes cv-content-show {
+  from {
+    opacity: 0;
+    transform: translate(
+        calc(var(--cv-offset-x, 0px) + var(--cv-slide-x, 0px)),
+        calc(var(--cv-offset-y, 0px) + var(--cv-slide-y, 0px))
+      )
+      scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(var(--cv-offset-x, 0px), var(--cv-offset-y, 0px)) scale(1);
+  }
+}
+
+@keyframes cv-content-hide {
+  from {
+    opacity: 1;
+    transform: translate(var(--cv-offset-x, 0px), var(--cv-offset-y, 0px)) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(
+        calc(var(--cv-offset-x, 0px) + var(--cv-slide-x, 0px)),
+        calc(var(--cv-offset-y, 0px) + var(--cv-slide-y, 0px))
+      )
+      scale(0.95);
+  }
+}
+
+/* Applied to both .cv-popover-content and .cv-select-content. */
+.cv-popper-anim {
+  transform: translate(var(--cv-offset-x, 0px), var(--cv-offset-y, 0px));
+}
+.cv-popper-anim[data-side="bottom"] {
+  --cv-slide-y: -0.5rem; /* slide-in-from-top-2 */
+}
+.cv-popper-anim[data-side="top"] {
+  --cv-slide-y: 0.5rem; /* slide-in-from-bottom-2 */
+}
+.cv-popper-anim[data-side="left"] {
+  --cv-slide-x: 0.5rem; /* slide-in-from-right-2 */
+}
+.cv-popper-anim[data-side="right"] {
+  --cv-slide-x: -0.5rem; /* slide-in-from-left-2 */
+}
+.cv-popper-anim[data-state="open"] {
+  animation: cv-content-show 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cv-popper-anim[data-state="closed"] {
+  animation: cv-content-hide 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Button ────────────────────────────────────────────────────────────────
+ * `transition` + `:active` scale give every button a tactile press response;
+ * disabled buttons get pointer-events:none so they never animate. The resting
+ * elevation lives in --cv-btn-shadow so the focus ring can compose with it.
+ */
+.cv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  box-shadow: var(--cv-btn-shadow, 0 0 #0000);
+  transition-property: color, background-color, border-color, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 100ms;
+}
+.cv-btn:active {
+  transform: scale(0.97);
+}
+.cv-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--ring),
+    var(--cv-btn-shadow, 0 0 #0000);
+}
+.cv-btn:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+.cv-btn svg {
+  pointer-events: none;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+/* Button variants */
+.cv-btn--default {
+  --cv-btn-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.cv-btn--default:hover {
+  background: color-mix(in oklab, var(--primary) 90%, transparent);
+}
+.cv-btn--secondary {
+  --cv-btn-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.cv-btn--secondary:hover {
+  background: color-mix(in oklab, var(--secondary) 80%, transparent);
+}
+.cv-btn--outline {
+  --cv-btn-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  border: 1px solid var(--input);
+  background: var(--background);
+  color: var(--foreground);
+}
+.cv-btn--outline:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.cv-btn--ghost {
+  color: var(--foreground);
+}
+.cv-btn--ghost:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.cv-btn--destructive {
+  --cv-btn-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+.cv-btn--destructive:hover {
+  background: color-mix(in oklab, var(--destructive) 90%, transparent);
+}
+
+/* Button sizes */
+.cv-btn--size-sm {
+  height: 2rem;
+  border-radius: calc(var(--radius) - 2px);
+  padding-inline: 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+.cv-btn--size-default {
+  height: 2.25rem;
+  padding: 0.5rem 1rem;
+}
+.cv-btn--size-lg {
+  height: 2.5rem;
+  border-radius: calc(var(--radius) - 2px);
+  padding-inline: 2rem;
+}
+.cv-btn--size-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+/* ── Badge ──────────────────────────────────────────────────────────────── */
+.cv-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.cv-badge:focus {
+  outline: none;
+  /* ring-2 ring-ring ring-offset-2 */
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--ring);
+}
+.cv-badge--default {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+.cv-badge--default:hover {
+  background: color-mix(in oklab, var(--primary) 80%, transparent);
+}
+.cv-badge--secondary {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.cv-badge--secondary:hover {
+  background: color-mix(in oklab, var(--secondary) 80%, transparent);
+}
+.cv-badge--outline {
+  border-color: currentColor;
+  color: var(--foreground);
+}
+.cv-badge--destructive {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+.cv-badge--destructive:hover {
+  background: color-mix(in oklab, var(--destructive) 80%, transparent);
+}
+
+/* ── Card ──────────────────────────────────────────────────────────────── */
+.cv-card {
+  border-radius: calc(var(--radius) + 4px);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--card-foreground);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+.cv-card-header {
+  display: grid;
+  grid-auto-rows: min-content;
+  grid-template-rows: auto auto;
+  align-items: start;
+  gap: 0.375rem;
+  padding: 1.5rem 1.5rem 0;
+}
+.cv-card-header:has([data-slot="card-action"]) {
+  grid-template-columns: 1fr auto;
+}
+.cv-card-title {
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+.cv-card-description {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+}
+.cv-card-action {
+  grid-column-start: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  justify-self: end;
+}
+.cv-card-content {
+  padding: 0 1.5rem 1.5rem;
+}
+.cv-card-footer {
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem 1.5rem;
+}
+
+/* ── Input ─────────────────────────────────────────────────────────────── */
+.cv-input {
+  display: flex;
+  height: 2.25rem;
+  width: 100%;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--input);
+  background: var(--background);
+  padding: 0.25rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.cv-input::file-selector-button {
+  border: 0;
+  background: transparent;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: inherit;
+}
+.cv-input::placeholder {
+  color: var(--muted-foreground);
+}
+.cv-input:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--ring),
+    0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+.cv-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ── Label ─────────────────────────────────────────────────────────────── */
+.cv-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  font-weight: 500;
+  user-select: none;
+}
+/* peer-disabled: a label following a disabled `.peer` control dims. */
+.peer:disabled ~ .cv-label {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* ── Select ────────────────────────────────────────────────────────────── */
+.cv-select-trigger {
+  display: flex;
+  height: 2.25rem;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  white-space: nowrap;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--input);
+  background: var(--background);
+  padding: 0.5rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+.cv-select-trigger:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--ring),
+    0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+.cv-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.cv-select-trigger > span {
+  /* line-clamp-1 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+.cv-select-trigger[data-placeholder] {
+  color: var(--muted-foreground);
+}
+.cv-select-trigger svg {
+  pointer-events: none;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+.cv-select-trigger-icon {
+  opacity: 0.5;
+}
+
+.cv-select-scroll-btn {
+  display: flex;
+  cursor: default;
+  align-items: center;
+  justify-content: center;
+  padding-block: 0.25rem;
+}
+.cv-select-scroll-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cv-select-content {
+  position: relative;
+  z-index: 50;
+  max-height: var(--radix-select-content-available-height);
+  min-width: 8rem;
+  transform-origin: var(--radix-select-content-transform-origin);
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+/* position="popper": nudge content 0.25rem away from the trigger. */
+.cv-select-content--popper[data-side="bottom"] {
+  --cv-offset-y: 0.25rem;
+}
+.cv-select-content--popper[data-side="top"] {
+  --cv-offset-y: -0.25rem;
+}
+.cv-select-content--popper[data-side="left"] {
+  --cv-offset-x: -0.25rem;
+}
+.cv-select-content--popper[data-side="right"] {
+  --cv-offset-x: 0.25rem;
+}
+
+.cv-select-viewport {
+  padding: 0.25rem;
+}
+.cv-select-viewport--popper {
+  height: var(--radix-select-trigger-height);
+  width: 100%;
+  min-width: var(--radix-select-trigger-width);
+}
+
+.cv-select-label {
+  padding: 0.375rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.cv-select-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  cursor: default;
+  user-select: none;
+  align-items: center;
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.375rem 2rem 0.375rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  outline: none;
+}
+.cv-select-item:focus {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.cv-select-item[data-disabled] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+.cv-select-item-indicator {
+  position: absolute;
+  right: 0.5rem;
+  display: flex;
+  width: 0.875rem;
+  height: 0.875rem;
+  align-items: center;
+  justify-content: center;
+}
+.cv-select-item-indicator svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cv-select-separator {
+  margin: 0.25rem -0.25rem;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Popover ───────────────────────────────────────────────────────────── */
+.cv-popover-content {
+  z-index: 50;
+  width: 18rem;
+  transform-origin: var(--radix-popover-content-transform-origin);
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 1rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  outline: none;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────────────── */
+.cv-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.cv-tabs-list {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.25rem;
+  border-radius: var(--radius);
+  background: var(--muted);
+  padding: 0.25rem;
+  color: var(--muted-foreground);
+}
+.cv-tabs-trigger {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  white-space: nowrap;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  padding: 0.25rem 0.625rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cv-tabs-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+.cv-tabs-trigger:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+.cv-tabs-trigger[data-state="active"] {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+.cv-tabs-trigger[data-state="inactive"] {
+  color: var(--muted-foreground);
+}
+.cv-tabs-trigger[data-state="inactive"]:hover {
+  color: var(--foreground);
+}
+.cv-tabs-content {
+  flex: 1;
+  outline: none;
+}
+
+/* ── Table ─────────────────────────────────────────────────────────────── */
+.cv-table-wrap {
+  position: relative;
+  width: 100%;
+  overflow: auto;
+}
+.cv-table {
+  width: 100%;
+  caption-side: bottom;
+  border-collapse: collapse; /* preflight surrogate — row borders must abut */
+  text-indent: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.cv-table-header tr {
+  border-bottom: 1px solid var(--border);
+}
+.cv-table-body tr:last-child {
+  border-bottom: 0;
+}
+.cv-table-row {
+  border-bottom: 1px solid var(--border);
+  transition-property: color, background-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.cv-table-row:hover {
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
+}
+.cv-table-row[data-state="selected"] {
+  background: var(--muted);
+}
+.cv-table-head {
+  height: 2.5rem;
+  padding-inline: 0.5rem;
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.cv-table-head:has([role="checkbox"]) {
+  padding-right: 0;
+}
+.cv-table-cell {
+  padding: 0.5rem;
+  vertical-align: middle;
+}
+.cv-table-cell:has([role="checkbox"]) {
+  padding-right: 0;
+}
+.cv-table-caption {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+}
+
+/* ── Alert ─────────────────────────────────────────────────────────────── */
+.cv-alert {
+  position: relative;
+  display: grid;
+  width: 100%;
+  grid-template-columns: 0 1fr;
+  row-gap: 0.125rem;
+  align-items: start;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.cv-alert:has(> svg) {
+  grid-template-columns: 1rem 1fr;
+  column-gap: 0.75rem;
+}
+.cv-alert > svg {
+  width: 1rem;
+  height: 1rem;
+  transform: translateY(0.125rem);
+  color: currentColor;
+}
+.cv-alert--default {
+  background: var(--card);
+  color: var(--card-foreground);
+}
+.cv-alert--destructive {
+  background: var(--card);
+  color: var(--destructive);
+}
+.cv-alert--destructive > [data-slot="alert-description"] {
+  color: color-mix(in oklab, var(--destructive) 90%, transparent);
+}
+.cv-alert-title {
+  grid-column-start: 2;
+  min-height: 1rem;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  /* line-clamp-1 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+.cv-alert-description {
+  grid-column-start: 2;
+  display: grid;
+  justify-items: start;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+}
+.cv-alert-description p {
+  line-height: 1.625;
+}
+
+/* ── Skeleton ──────────────────────────────────────────────────────────── */
+@keyframes cv-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+.cv-skeleton {
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--muted);
+  animation: cv-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ── Separator ─────────────────────────────────────────────────────────── */
+.cv-separator {
+  flex-shrink: 0;
+  background: var(--border);
+}
+.cv-separator--horizontal {
+  height: 1px;
+  width: 100%;
+}
+.cv-separator--vertical {
+  height: 100%;
+  width: 1px;
+}
+
+/* ── Calendar (react-day-picker v9 wrapper) ────────────────────────────── */
+.cv-cal {
+  padding: 0.75rem;
+}
+.cv-cal-months {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+@media (min-width: 640px) {
+  .cv-cal-months {
+    flex-direction: row;
+  }
+}
+.cv-cal-month {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.cv-cal-caption {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+.cv-cal-caption-label {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+/* Nav buttons layer on top of .cv-btn.cv-btn--outline. */
+.cv-cal-nav-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  padding: 0;
+}
+.cv-cal-nav-btn--dim {
+  opacity: 0.4;
+}
+/* Native table grid: <th> weekdays + <td> days share columns -> aligned. */
+.cv-cal-grid {
+  border-collapse: collapse;
+}
+.cv-cal-weekday {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.cv-cal-day {
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+.cv-cal-hidden {
+  visibility: hidden;
+}
+/* Day cell: size-9 cells touch edge-to-edge, so a contiguous selected range
+ * reads as one band. Text color is set inline (purge-proof) by DayButton. */
+.cv-cal-day-btn {
+  display: flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  transition-property: color, background-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.cv-cal-day-btn:hover {
+  background: var(--accent);
+}
+.cv-cal-day-btn--selected,
+.cv-cal-day-btn--selected:hover {
+  background: var(--primary);
+}
+.cv-cal-day-btn--today {
+  border: 1px solid var(--primary);
+}
+.cv-cal-day-btn--disabled {
+  opacity: 0.4;
+}

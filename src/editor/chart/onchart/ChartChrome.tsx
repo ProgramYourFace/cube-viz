@@ -42,12 +42,12 @@ export function AxisChrome({
   return (
     <div
       className={cn(
-        "cv:flex cv:w-full cv:min-w-[8rem] cv:items-center cv:gap-1 cv:rounded-md cv:border cv:border-border cv:bg-background cv:px-1.5 cv:py-1 cv:transition-opacity",
-        hidden && "cv:opacity-50",
+        "cv-axis-chrome",
+        hidden && "cv-axis-chrome--hidden",
       )}
     >
       {title ? (
-        <span className="cv:shrink-0 cv:text-[10px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">
+        <span className="cv-axis-chrome-label">
           {title}
         </span>
       ) : null}
@@ -57,7 +57,7 @@ export function AxisChrome({
         disabled={hidden}
         onChange={(e) => patchAxis(spec, update, axis, { label: e.target.value || undefined })}
         title={`Axis title${auto ? ` — defaults to “${auto}”` : ""} (leave blank for the default)`}
-        className="cv:h-6 cv:min-w-0 cv:flex-1 cv:rounded cv:border cv:border-input cv:bg-background cv:px-1.5 cv:text-xs cv:text-foreground cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:cursor-not-allowed"
+        className="cv-axis-chrome-input"
       />
       <EyeButton
         hidden={hidden}
@@ -83,8 +83,8 @@ export function LegendChrome({
 }): React.ReactElement {
   const hidden = spec.chart.legend?.show === false;
   return (
-    <div className={cn("cv:flex cv:flex-col cv:gap-1 cv:transition-opacity", hidden && "cv:opacity-50")}>
-      <span className="cv:px-0.5 cv:text-[10px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">
+    <div className={cn("cv-legend-chrome", hidden && "cv-legend-chrome--hidden")}>
+      <span className="cv-legend-chrome-label">
         Show legend
       </span>
       <button
@@ -94,9 +94,9 @@ export function LegendChrome({
         }
         aria-label={hidden ? "Show legend" : "Hide legend"}
         title={hidden ? "Show legend" : "Hide legend"}
-        className="cv:flex cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-border cv:bg-background cv:px-2 cv:py-1 cv:text-xs cv:text-muted-foreground cv:transition-colors cv:hover:bg-accent cv:hover:text-foreground"
+        className="cv-legend-chrome-toggle"
       >
-        {hidden ? <EyeOff className="cv:size-3.5" /> : <Eye className="cv:size-3.5" />}
+        {hidden ? <EyeOff className="cv-ec-icon" /> : <Eye className="cv-ec-icon" />}
         {hidden ? "Hidden" : "Shown"}
       </button>
     </div>
@@ -118,9 +118,9 @@ function EyeButton({
       onClick={onClick}
       aria-label={hidden ? `Show ${what}` : `Hide ${what}`}
       title={hidden ? `Show ${what}` : `Hide ${what}`}
-      className="cv:rounded cv:p-0.5 cv:text-muted-foreground cv:transition-colors cv:hover:bg-accent cv:hover:text-foreground"
+      className="cv-chrome-eye"
     >
-      {hidden ? <EyeOff className="cv:size-3.5" /> : <Eye className="cv:size-3.5" />}
+      {hidden ? <EyeOff className="cv-ec-icon" /> : <Eye className="cv-ec-icon" />}
     </button>
   );
 }
