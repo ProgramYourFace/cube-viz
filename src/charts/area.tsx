@@ -1,52 +1,46 @@
-import type * as React from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
-
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+import * as React from "react";
+import { areaY, defineChart, lineY, stack, type ChartMark } from "@tanstack/charts";
+import { crosshair } from "@tanstack/charts/crosshair";
 
 import type { ChartComponentProps } from "./types";
 import type { AreaFamilyOptions } from "./defaults";
 import {
-  axisDomain,
-  axisScale,
-  buildRows,
-  isStacked,
-  legendAlign,
+  buildSeriesRows,
+  chartCurve,
+  cubeTooltip,
+  CvChart,
   legendDisplay,
-  legendLayout,
-  legendVerticalAlign,
-  memberByKey,
-  percentShareFormatter,
+  legendPlacement,
   percentTick,
+  pointScale,
+  referenceLineMarks,
   resolvedAxisLabels,
+  seriesColor,
   seriesColorVar,
+  seriesLabel,
   seriesMember,
-  tooltipValueFormatter,
-} from "./_shared";
+  valueScale,
+  type CurveName,
+  type SeriesRow,
+} from "./tanstack";
 
 /**
  * `area` — absorbs Area/StackedArea/AreaPercent (docs/02-chart-options.md §2.3).
- * `stackMode` is the load-bearing input: none = overlapping areas, stacked =
- * shared stackId, percent = stackId + stackOffset="expand". orientation ignored.
+ * `stackMode` is the load-bearing input, translated to the TanStack grammar:
+ *  - none    → one areaY PER SERIES with an explicit `y1: 0` baseline (explicit
+ *              endpoints opt out of implicit stacking → overlapping fills).
+ *  - stacked → ONE areaY over long rows with `z`/`color` = label, so repeated x
+ *              positions stack implicitly by series.
+ *  - percent → the stacked mark plus `layout: stack({ offset: "normalize" })`,
+ *              percent value ticks, and share-of-total tooltip rows.
+ * TanStack areas don't draw their upper line; the boundary stroke comes from the
+ * areaY mark's own `stroke` channel (no separate line layer needed).
+ * orientation is ignored, as before. Dual-axis was removed with the combo family.
  */
 export function AreaChartFamily({
   data,
   options,
-  config,
   format,
-  editing,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as AreaFamilyOptions;
   // Shape-aware default: a color-split (pivot) area stacks (parts of a whole), but
@@ -54,127 +48,155 @@ export function AreaChartFamily({
   // series into a meaningless cumulative band. An explicit `stackMode` always wins.
   const isPivot = options.mapping?.series?.mode === "pivot";
   const stackMode = options.stackMode ?? (isPivot ? "stacked" : "none");
-  const stacked = isStacked(stackMode);
+  const stacked = stackMode === "stacked" || stackMode === "percent";
   const percent = stackMode === "percent";
 
-  const rows = buildRows(data);
-  const catFmt = (v: string | number) => format.category(v);
-  const curve = fo.curve ?? "monotone";
-  // The value-axis unit comes from the series' SOURCE measure (a pivot series' own key
-  // is a pivot value with no unit).
-  const keyToMember = memberByKey(data);
-  const valueMember = seriesMember(data.series[0]);
-  const axl = resolvedAxisLabels(data, options);
+  const definition = React.useMemo(() => {
+    const connectNulls = fo.connectNulls ?? false;
+    const curve = chartCurve((fo.curve ?? "monotone") as CurveName);
+    const fillOpacity = fo.fillOpacity ?? 0.4;
+    const strokeWidth = fo.strokeWidth ?? 2;
+    const axl = resolvedAxisLabels(data, options);
+    const y = valueScale(options.axes?.y);
+    // The value-axis unit comes from the series' SOURCE measure (a pivot series' own
+    // key is a pivot value with no unit).
+    const valueMember = seriesMember(data.series[0]);
 
-  return (
-    <ChartContainer config={config} className="cv:h-full cv:w-full cv:min-h-[200px]">
-      <AreaChart accessibilityLayer data={rows} stackOffset={percent ? "expand" : undefined}>
-        <CartesianGrid vertical={false} />
-        <defs>
-          {data.series.map((s) => (
-            <linearGradient key={s.key} id={`fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={seriesColorVar(s)} stopOpacity={fo.fillOpacity ?? 0.4} />
-              <stop offset="95%" stopColor={seriesColorVar(s)} stopOpacity={(fo.fillOpacity ?? 0.4) * 0.2} />
-            </linearGradient>
-          ))}
-        </defs>
-        <XAxis
-          type="category"
-          dataKey="__cat"
-          hide={options.axes?.x?.hide}
-          tickFormatter={catFmt}
-          label={axl.x ? { value: axl.x, position: "insideBottom", offset: -2 } : undefined}
-        />
-        <YAxis
-          type="number"
-          hide={options.axes?.y?.hide}
-          scale={axisScale(options.axes?.y)}
-          domain={axisDomain(options.axes?.y)}
-          tickFormatter={(v: number) =>
-            percent ? percentTick(v) : format.value(v, valueMember, "axis")
-          }
-          label={
-            axl.left
-              ? { value: axl.left, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }
-              : undefined
-          }
-        />
-        {options.tooltip?.show !== false && (
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(label) => format.category(label as string | number)}
-                indicator={options.tooltip?.indicator ?? "dot"}
-                valueFormatter={
-                  percent
-                    ? percentShareFormatter()
-                    : tooltipValueFormatter(format, undefined, keyToMember)
-                }
-              />
-            }
-          />
-        )}
-        {legendDisplay(options, editing).show && (
-          <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
-            verticalAlign={legendVerticalAlign(options.legend?.position)}
-            layout={legendLayout(options.legend?.position)}
-            align={legendAlign(options.legend?.position)}
-          />
-        )}
-        {data.series.map((s) => {
-          // Percent (expand) mode forces the Y axis to 0..1; a companion doesn't stack,
-          // so its RAW values would plot far off-scale. Drop it rather than draw it off
-          // the top (degrade visibly, never off-scale). none/stacked modes are unaffected.
-          if (percent && s.meta?.companion) return null;
-          return (
-            <Area
-              key={s.key}
-              type={s.meta?.curve ?? curve}
-              dataKey={s.key}
-              name={s.label}
-              // A companion (previous period) never stacks — it overlays as a dashed,
-              // fill-less line so it reads as a reference, not part of the whole.
-              stackId={stacked && !s.meta?.companion ? (s.meta?.stackId ?? "stack") : undefined}
-              stroke={seriesColorVar(s)}
-              strokeWidth={fo.strokeWidth ?? 2}
-              strokeDasharray={s.meta?.companion ? "5 4" : undefined}
-              strokeOpacity={s.meta?.companion ? 0.55 : undefined}
-              fill={s.meta?.companion ? "none" : `url(#fill-${s.key})`}
-              fillOpacity={1}
-              dot={s.meta?.companion ? false : (s.meta?.dots ?? (fo.dots ?? false))}
-              connectNulls={fo.connectNulls ?? false}
-            />
-          );
-        })}
-        {fo.referenceLines?.map((r, k) => {
-          // The x axis is a CATEGORY (band) scale keyed by string buckets, so a numeric
-          // x value never matches a band and the line silently drops. Reproject a numeric
-          // x to the rendered category at that INDEX; skip (visible no-op) when out of range.
-          if (r.axis === "x") {
-            const xVal = rows[r.value]?.__cat;
-            if (xVal === undefined || xVal === null) return null;
-            return (
-              <ReferenceLine
-                key={k}
-                x={xVal}
-                label={r.label}
-                stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-                strokeDasharray="4 4"
-              />
-            );
-          }
-          return (
-            <ReferenceLine
-              key={k}
-              y={r.value}
-              label={r.label}
-              stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-              strokeDasharray="4 4"
-            />
-          );
-        })}
-      </AreaChart>
-    </ChartContainer>
-  );
+    const primaries = data.series.filter((s) => !s.meta?.companion);
+    // Percent (normalize) mode forces the y axis to 0..1; a companion doesn't stack,
+    // so its RAW values would plot far off-scale. Drop it rather than draw it off the
+    // top (degrade visibly, never off-scale). none/stacked modes keep companions.
+    const companions = percent ? [] : data.series.filter((s) => s.meta?.companion);
+    const colorByKey = new Map(data.series.map((s) => [s.key, seriesColorVar(s)]));
+
+    const marks: ChartMark[] = [];
+    // Overlap-mode fills keep the old vertical gradient fade (fillOpacity at the
+    // top → ~15% at the baseline) via declared gradient resources. CvChart sets a
+    // per-instance idPrefix so several charts in one document can't collide.
+    const gradientId = (key: string): string =>
+      `cv-area-fill-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+    const gradients = !stacked
+      ? primaries.map((s) => ({
+          id: gradientId(s.key),
+          x1: 0,
+          y1: 1,
+          x2: 0,
+          y2: 0,
+          stops: [
+            { offset: 0, color: seriesColorVar(s), opacity: fillOpacity * 0.15 },
+            { offset: 1, color: seriesColorVar(s), opacity: fillOpacity },
+          ],
+        }))
+      : undefined;
+
+    if (stacked) {
+      // One mark over long rows: repeated x positions stack implicitly by `z`.
+      const rows = buildSeriesRows(data, { series: primaries, skipNull: connectNulls });
+      marks.push(
+        areaY(rows, {
+          id: "cv-area-stack",
+          x: "cat",
+          y: "value",
+          z: "label",
+          color: "label",
+          // "i" alone collides across series inside a single multi-series mark.
+          key: (r: SeriesRow) => `${r.key}:${r.i}`,
+          curve,
+          fillOpacity,
+          // Boundary stroke; evaluated from each z-group's first row → per-series color.
+          stroke: (r: SeriesRow) => colorByKey.get(r.key) ?? "currentColor",
+          strokeWidth,
+          layout: percent ? stack({ offset: "normalize" }) : undefined,
+        }),
+      );
+    } else {
+      // Overlap mode: explicit y1 baseline opts each series out of implicit stacking,
+      // so every fill runs from zero (one mark per series, like the line family).
+      for (const s of primaries) {
+        const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls });
+        marks.push(
+          areaY(rows, {
+            id: `cv-area-${s.key}`,
+            x: "cat",
+            y: "value",
+            y1: 0,
+            z: "label",
+            color: "label",
+            key: "i",
+            curve,
+            fill: `url(#${gradientId(s.key)})`,
+            stroke: seriesColorVar(s),
+            strokeWidth,
+          }),
+        );
+      }
+    }
+
+    // A companion (previous period) never stacks — it overlays at its RAW values as a
+    // dashed, fill-less line so it reads as a reference, not part of the whole (the
+    // exact Recharts behavior: stroke-only Area with `stackId` unset).
+    for (const s of companions) {
+      const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls });
+      marks.push(
+        lineY(rows, {
+          id: `cv-area-prev-${s.key}`,
+          x: "cat",
+          y: "value",
+          z: "label",
+          color: "label",
+          key: "i",
+          curve,
+          strokeWidth,
+          strokeDasharray: "5 4",
+          strokeOpacity: 0.55,
+          stroke: seriesColorVar(s),
+        }),
+      );
+    }
+
+    marks.push(...referenceLineMarks(fo.referenceLines, data.categories));
+    marks.push(crosshair({ x: {}, y: false }));
+
+    return defineChart({
+      marks,
+      gradients,
+      x: {
+        scale: pointScale,
+        axis: options.axes?.x?.hide
+          ? false
+          : {
+              label: axl.x,
+              ticks: { format: (v: string | number) => format.category(v) },
+            },
+      },
+      y: {
+        scale: y.scale,
+        nice: y.nice,
+        grid: true,
+        axis: options.axes?.y?.hide
+          ? false
+          : {
+              label: axl.y,
+              ticks: {
+                format: (v: number) =>
+                  percent ? percentTick(v) : format.value(v, valueMember, "axis"),
+              },
+            },
+      },
+      color: seriesColor(data, {
+        legend: legendDisplay(options) && data.series.length > 1,
+        legendPlacement: legendPlacement(options.legend?.position),
+      }),
+      focus: "group-x",
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      tooltip:
+        options.tooltip?.show === false
+          ? undefined
+          : cubeTooltip({ format, percentShare: percent }),
+      keyboard: true,
+    });
+  }, [data, options, format, fo, stacked, percent]);
+
+  const label = data.series.map(seriesLabel).join(", ") || "Area chart";
+  return <CvChart definition={definition} ariaLabel={label} className="cv-chart--fill" />;
 }
