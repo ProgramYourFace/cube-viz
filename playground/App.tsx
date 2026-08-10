@@ -228,12 +228,12 @@ const INITIAL: Settings = {
 
 function Panel({ title, note, wide, children }: { title: string; note?: string; wide?: boolean; children: React.ReactNode }) {
   return (
-    <div className={`rounded-xl border border-border bg-card p-4 shadow-sm ${wide ? "md:col-span-2" : ""}`}>
-      <div className="mb-3 flex items-baseline justify-between">
-        <span className="text-sm font-medium text-card-foreground">{title}</span>
-        {note && <span className="text-xs text-muted-foreground">{note}</span>}
+    <div className={wide ? "pg-tile pg-tile--wide" : "pg-tile"}>
+      <div className="pg-tile-head">
+        <span className="pg-tile-title">{title}</span>
+        {note && <span className="pg-tile-note">{note}</span>}
       </div>
-      <div className="h-[300px]">{children}</div>
+      <div className="pg-tile-body">{children}</div>
     </div>
   );
 }
@@ -241,21 +241,21 @@ function Panel({ title, note, wide, children }: { title: string; note?: string; 
 function SettingsPanel({ value, onChange }: { value: Settings; onChange: (s: Settings) => void }) {
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => onChange({ ...value, [k]: v });
   return (
-    <div className="grid grid-cols-1 gap-4 rounded-xl border border-border bg-card p-4 shadow-sm md:grid-cols-3">
-      <div className="space-y-1.5 md:col-span-2">
+    <div className="pg-settings">
+      <div className="pg-field pg-field--wide">
         <Label>Cube endpoint</Label>
         <Input value={value.endpoint} placeholder="https://…cubecloudapp.dev" onChange={(e) => set("endpoint", e.target.value)} />
-        <p className="text-xs text-muted-foreground">From the server .env; override to point elsewhere.</p>
+        <p className="pg-hint">From the server .env; override to point elsewhere.</p>
       </div>
-      <div className="space-y-1.5">
+      <div className="pg-field">
         <Label>API secret (optional override)</Label>
         <Input type="password" value={value.secret} placeholder="using server .env" onChange={(e) => set("secret", e.target.value)} />
       </div>
-      <div className="space-y-1.5">
+      <div className="pg-field">
         <Label>Security context — systemIds (CSV)</Label>
         <Input value={value.systemIds} placeholder="(empty = all, admin only)" onChange={(e) => set("systemIds", e.target.value)} />
       </div>
-      <div className="space-y-1.5">
+      <div className="pg-field">
         <Label>Roles</Label>
         <Select value={value.roles} onValueChange={(v) => set("roles", v)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -265,7 +265,7 @@ function SettingsPanel({ value, onChange }: { value: Settings; onChange: (s: Set
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5">
+      <div className="pg-field">
         <Label>Unit system</Label>
         <Select value={value.unitSystem} onValueChange={(v) => set("unitSystem", v as Settings["unitSystem"]) }>
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -275,7 +275,7 @@ function SettingsPanel({ value, onChange }: { value: Settings; onChange: (s: Set
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5">
+      <div className="pg-field">
         <Label>Theme</Label>
         <Select value={value.theme} onValueChange={(v) => set("theme", v as Settings["theme"]) }>
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -285,7 +285,7 @@ function SettingsPanel({ value, onChange }: { value: Settings; onChange: (s: Set
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5">
+      <div className="pg-field">
         <Label>Locale</Label>
         <Input value={value.locale} onChange={(e) => set("locale", e.target.value)} />
       </div>
@@ -355,14 +355,14 @@ export function App() {
       // playground has none, so the `map` family renders its graceful placeholder.
       maps={{ apiKey: undefined }}
     >
-      <div className="mx-auto max-w-7xl space-y-6 p-6">
-        <header className="flex flex-wrap items-center justify-between gap-3">
+      <div className="pg-shell">
+        <header className="pg-header">
           <div>
-            <h1 className="text-2xl font-bold">cube-viz</h1>
-            <p className="text-sm text-muted-foreground">Live preview · {settings.unitSystem}</p>
+            <h1 className="pg-title">cube-viz</h1>
+            <p className="pg-subtitle">Live preview · {settings.unitSystem}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-md border border-border p-0.5">
+          <div className="pg-actions">
+            <div className="pg-mode-switch">
               <Button size="sm" variant={mode === "gallery" ? "secondary" : "ghost"} onClick={() => setMode("gallery")}>Gallery</Button>
               <Button size="sm" variant={mode === "edit" ? "secondary" : "ghost"} onClick={() => setMode("edit")}>Edit dashboard</Button>
             </div>
@@ -379,11 +379,11 @@ export function App() {
 
         {mode === "gallery" ? (
           <DashboardProvider spec={CONTROLS_SPEC}>
-            <div className="grid grid-cols-1 gap-4 rounded-xl border border-border bg-card p-4 shadow-sm sm:grid-cols-2 md:max-w-2xl">
+            <div className="pg-controls">
               <InputWidgetView control={{ variable: "dateRange", control: { kind: "dateRange", allowFuture: false, presets: ["last 24 hours", "last 7 days", "last 30 days", "last 90 days", "this year"] } }} />
               <AdaptiveGranularityControl />
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="pg-grid">
               {EXAMPLES.map((ex) => (
                 <Panel key={ex.title} title={ex.title} note={ex.note} wide={ex.wide}>
                   <CubeChart query={ex.query} chart={ex.chart} />
@@ -392,7 +392,7 @@ export function App() {
             </div>
           </DashboardProvider>
         ) : (
-          <div className="rounded-xl border border-border bg-card p-2 shadow-sm">
+          <div className="pg-editor">
             <DashboardEditor spec={editSpec} onChange={setEditSpec} />
           </div>
         )}
