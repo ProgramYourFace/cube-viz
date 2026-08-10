@@ -15,7 +15,6 @@ import { ChartFiltersPopover } from "./ChartFiltersPopover";
 import { ChartSourcePopover } from "./ChartSourcePopover";
 import { AxisChrome, LegendChrome } from "./ChartChrome";
 import { CenterTypePicker, ChartTypePill } from "./CenterTypePicker";
-import { withSeriesAxis } from "./chip-bindings";
 import { computeJoinScope, cubeInJoinScope } from "./join-scope";
 import { WellGroup } from "./WellGroup";
 import {
@@ -111,69 +110,16 @@ export function ChartEditOverlay({
   );
 
   /* ── value-axis unit consistency ─────────────────────────────────────────
-   * The value well ("y") must keep each axis to ONE kind of quantity. bar/area have a
-   * single value axis (one unit). line/combo have TWO (left/right), each its own unit —
-   * so a measure with a new unit auto-lands on the free axis, and only a THIRD unit is
-   * rejected. The member's axis lives in SeriesMeta.axis (cartesian) / series.axis (combo). */
-  const dualAxis = descriptor.dualAxisY;
-
-  // Assign a freshly-placed measure to a value axis. Builtins use the shared
-  // `withSeriesAxis` (combo / cartesian `mapping.series` meta). A HOST family that
-  // supplies its own placeField stores fields in its own shape, so the builtin-shaped
-  // write would either orphan data on its spec or silently no-op — route through the
-  // host's `assignSeriesAxis` hook when present, and NEVER run `withSeriesAxis` on a
-  // host spec (it understands only the builtin shapes).
-  const assignAxis = React.useCallback(
-    (next: ChartSpec, member: string, side: "left" | "right"): ChartSpec => {
-      if (descriptor.assignSeriesAxis) return descriptor.assignSeriesAxis(next, member, side);
-      if (descriptor.placeField) return next; // host placement, no axis hook — leave as-is
-      return withSeriesAxis(next, family, member, side);
-    },
-    [descriptor, family],
-  );
-
-  const axisOfMember = React.useCallback(
-    (m: string): "left" | "right" => {
-      if (family === "combo") {
-        const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
-        const s = (Array.isArray(fo.series) ? fo.series : []).find(
-          (x) => (x as { member?: string }).member === m,
-        ) as { axis?: string } | undefined;
-        return s?.axis === "right" ? "right" : "left";
-      }
-      const s = chart.mapping?.series;
-      // Per-member axis lives in the mapping meta for BOTH measures and pivot (color) mode.
-      const ax = s && (s.mode === "measures" || s.mode === "pivot") ? s.meta?.[m]?.axis : undefined;
-      return ax === "right" ? "right" : "left";
-    },
-    [family, chart.familyOptions, chart.mapping],
-  );
-
+   * The value well ("y") must keep the single value axis to ONE kind of quantity:
+   * every measure plotted on it must share the first measure's unit key. */
   const valueAxes = React.useMemo(() => {
-    const yMembers = placed.y ?? [];
-    const first = (side: "left" | "right") => yMembers.find((m) => axisOfMember(m) === side);
-    const leftM = first("left");
-    const rightM = dualAxis ? first("right") : undefined;
-    const opt = (m?: string) => (m ? findMember(meta, m) : undefined);
+    const leftM = (placed.y ?? [])[0];
+    const opt = leftM ? findMember(meta, leftM) : undefined;
     return {
-      leftKey: leftM ? axisKeyOf(opt(leftM)) : undefined,
-      rightKey: rightM ? axisKeyOf(opt(rightM)) : undefined,
-      leftLabel: leftM ? axisBadgeLabel(opt(leftM), displayUnit(opt(leftM)?.unit)) : undefined,
-      rightLabel: rightM ? axisBadgeLabel(opt(rightM), displayUnit(opt(rightM)?.unit)) : undefined,
+      leftKey: leftM ? axisKeyOf(opt) : undefined,
+      leftLabel: leftM ? axisBadgeLabel(opt, displayUnit(opt?.unit)) : undefined,
     };
-  }, [placed, dualAxis, axisOfMember, meta, displayUnit]);
-
-  /** The value axis a freshly-added measure should land on (by its unit). */
-  const targetAxis = React.useCallback(
-    (option: MemberOption | undefined): "left" | "right" => {
-      const k = axisKeyOf(option);
-      const { leftKey, rightKey } = valueAxes;
-      if (leftKey === undefined || k === leftKey) return "left";
-      if (rightKey === undefined || k === rightKey) return "right";
-      return "left";
-    },
-    [valueAxes],
-  );
+  }, [placed, meta, displayUnit]);
 
   const blockReason = React.useCallback(
     (wellId: string, option: MemberOption | undefined): string | undefined => {
@@ -189,25 +135,18 @@ export function ChartEditOverlay({
       }
       // 3) Value-axis unit consistency on the "y" well.
       if (wellId === "y" && option.memberType === "measure") {
-        const { leftKey, rightKey, leftLabel, rightLabel } = valueAxes;
-        const k = axisKeyOf(option);
-        if (!dualAxis) {
-          if (leftKey !== undefined && k !== leftKey) {
-            return `This axis shows ${leftLabel}; ${option.label ?? "this field"} is ${axisLabelOf(option)}`;
-          }
-        } else if (leftKey !== undefined && rightKey !== undefined && k !== leftKey && k !== rightKey) {
-          return `Both axes show ${leftLabel} & ${rightLabel} — remove one to add a third unit.`;
+        const { leftKey, leftLabel } = valueAxes;
+        if (leftKey !== undefined && axisKeyOf(option) !== leftKey) {
+          return `This axis shows ${leftLabel}; ${option.label ?? "this field"} is ${axisLabelOf(option)}`;
         }
       }
       return undefined;
     },
-    [scope, valueAxes, dualAxis],
+    [scope, valueAxes],
   );
 
-  // The value-well badge: one unit (single axis) or "Left · Right" (dual axis).
-  const valueBadge = dualAxis
-    ? [valueAxes.leftLabel, valueAxes.rightLabel].filter(Boolean).join(" · ") || undefined
-    : valueAxes.leftLabel;
+  // The value-well badge: the axis' unit label.
+  const valueBadge = valueAxes.leftLabel;
 
   /* ── resolved series colours (single source of truth, shared with renderer) ─ */
   const seriesColors = React.useMemo<Record<string, ChartColorToken>>(() => {
@@ -221,20 +160,9 @@ export function ChartEditOverlay({
           out[m] = resolved[i];
         });
       }
-    } else if (family === "combo") {
-      const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
-      const series = (Array.isArray(fo.series) ? fo.series : []) as {
-        member: string;
-        colorToken?: ChartColorToken;
-      }[];
-      const list = series.map((s) => ({ key: s.member, colorToken: s.colorToken }));
-      const resolved = resolveSeriesColors(list, chart.colors);
-      series.forEach((s, i) => {
-        out[s.member] = resolved[i];
-      });
     }
     return out;
-  }, [family, chart.mapping, chart.colors, chart.familyOptions]);
+  }, [family, chart.mapping, chart.colors]);
 
   /* ── place / cube switch via the pure seam ──────────────────────────────── */
   const place = React.useCallback(
@@ -252,11 +180,9 @@ export function ChartEditOverlay({
               families,
             )
           : placeField(spec, family, wellId, name, kind, families);
-      // On a dual-axis family, auto-assign the new measure to the axis matching its unit.
-      if (dualAxis && wellId === "y") next = assignAxis(next, name, targetAxis(option));
       // Auto-fill the family's time well (descriptor.canonicalTimeWell) with the cube's
       // canonical time axis (member meta `canonicalTime: true`) when it's still empty —
-      // a line/area/combo comes up as a proper time series (and a map path comes up
+      // a line/area comes up as a proper time series (and a map path comes up
       // chronological) from the FIRST field drop. Plain placement; one tap removes it.
       const timeWell = descriptor.canonicalTimeWell;
       if (timeWell && wellId !== timeWell && (placed[timeWell] ?? []).length === 0) {
@@ -267,37 +193,7 @@ export function ChartEditOverlay({
       }
       update(next);
     },
-    [blockReason, meta, update, spec, family, dualAxis, targetAxis, assignAxis, families, descriptor, placed],
-  );
-
-  /* ── dual-axis: explicit Left/Right value wells, each its own unit ───────── */
-  const blockReasonForAxis = React.useCallback(
-    (side: "left" | "right", option: MemberOption | undefined): string | undefined => {
-      if (!option) return undefined;
-      if (!cubeInJoinScope(scope, option.cube)) {
-        return "Clear the current fields to use a different dataset.";
-      }
-      if (option.memberType === "measure" && scope.measureSource && option.cube !== scope.measureSource) {
-        return `Measures come from one table (${scope.sourceCube?.title ?? scope.measureSource}). Remove them to switch.`;
-      }
-      const key = side === "left" ? valueAxes.leftKey : valueAxes.rightKey;
-      const label = side === "left" ? valueAxes.leftLabel : valueAxes.rightLabel;
-      if (key !== undefined && axisKeyOf(option) !== key) {
-        return `This axis shows ${label}; ${option.label ?? "this field"} is ${axisLabelOf(option)}`;
-      }
-      return undefined;
-    },
-    [scope, valueAxes],
-  );
-
-  // Place a measure on a SPECIFIC value axis (the explicit Left/Right well's add slot).
-  const placeOnAxis = React.useCallback(
-    (side: "left" | "right", name: string, kind: FieldKind): void => {
-      const option = findMember(meta, name);
-      if (blockReasonForAxis(side, option)) return;
-      update(assignAxis(placeField(spec, family, "y", name, kind, families), name, side));
-    },
-    [blockReasonForAxis, meta, update, spec, family, assignAxis, families],
+    [blockReason, meta, update, spec, family, families, descriptor, placed],
   );
 
   // Zones adapt to STATE: a horizontal bar swaps its value + category axes (value on the
@@ -325,9 +221,7 @@ export function ChartEditOverlay({
   // (axisTitleControl / renderAxisGroup); the legend toggle sits in line with the bottom
   // category / split wells.
   const hasLegend = descriptor.hasLegend;
-  const yMembers = placed.y ?? [];
-  const leftYMember = yMembers.find((m) => axisOfMember(m) !== "right");
-  const rightYMember = dualAxis ? yMembers.find((m) => axisOfMember(m) === "right") : undefined;
+  const leftYMember = (placed.y ?? [])[0];
   const autoLabel = (m: string | undefined): string | undefined => {
     if (!m) return undefined;
     // Prefer the series' display label (the chart's rendered auto-label) so the editor
@@ -341,13 +235,13 @@ export function ChartEditOverlay({
   // attached by WELL ID so it follows the well across zones (a horizontal bar swaps the
   // value + category axes): the value well carries the value-axis title (axes.y), the
   // category / X well carries the category title (axes.x). It appears only once the axis
-  // has a field. Dual value axes (line / combo) are handled per side in renderAxisGroup.
+  // has a field.
   const axisTitleControl = (wellId: string): React.ReactNode => {
     const box = (axisKey: "x" | "y", member: string | undefined): React.ReactNode =>
       member ? <AxisChrome spec={spec} update={update} axis={axisKey} title="Title" auto={autoLabel(member)} /> : null;
     switch (wellId) {
       case "y":
-        return box("y", leftYMember); // single value axis (bar / area)
+        return box("y", leftYMember); // the single value axis
       case "x":
         return box("x", chart.mapping?.category?.member);
       case "sy":
@@ -378,44 +272,6 @@ export function ChartEditOverlay({
       control={axisTitleControl(well.id)}
     />
   );
-
-  // Dual-axis families show the value well as two explicit axis sections (Left / Right),
-  // each a filtered subset that forces its axis on add and enforces its own unit.
-  const yWell = wellById.get("y");
-  const renderAxisGroup = (side: "left" | "right"): React.ReactElement | null => {
-    if (!yWell) return null;
-    const member = side === "left" ? leftYMember : rightYMember;
-    return (
-      <WellGroup
-        key={`y-${side}`}
-        spec={spec}
-        update={update}
-        well={yWell}
-        label={side === "left" ? "Left axis" : "Right axis"}
-        placed={(placed.y ?? []).filter((m) => axisOfMember(m) === side)}
-        allPlaced={allPlaced}
-        optionFor={(m) => findMember(meta, m)}
-        colorFor={(m) => seriesColors[m]}
-        scope={scope}
-        blockReason={(opt) => blockReasonForAxis(side, opt)}
-        onAdd={(name, kind) => placeOnAxis(side, name, kind)}
-        badge={side === "left" ? valueAxes.leftLabel : valueAxes.rightLabel}
-        orientation="vertical"
-        disableReorder
-        control={
-          member ? (
-            <AxisChrome
-              spec={spec}
-              update={update}
-              axis={side === "left" ? "y" : "y2"}
-              title="Title"
-              auto={autoLabel(member)}
-            />
-          ) : null
-        }
-      />
-    );
-  };
 
   // The KPI config strip: three compact components, each opening its own options popover —
   // Value (the measure pill + a "time, range & display" popover), then the optional
@@ -477,12 +333,8 @@ export function ChartEditOverlay({
             {family === "kpi"
               ? renderKpiConfig()
               : /* Each value well carries its axis-title box as a control above its fields (see
-                   axisTitleControl / renderAxisGroup), so the title sits with the measures it names. */
-                leftWells.flatMap((w) =>
-                  dualAxis && w.id === "y"
-                    ? [renderAxisGroup("left"), renderAxisGroup("right")]
-                    : [renderGroup(w, "vertical")],
-                )}
+                   axisTitleControl), so the title sits with the measures it names. */
+                leftWells.map((w) => renderGroup(w, "vertical"))}
           </div>
         ) : null}
 

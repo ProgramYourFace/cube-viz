@@ -1,10 +1,11 @@
 /**
  * The chart-families layer: eight pure `(NormalizedChartData, ChartOptions,
- * ChartConfig) → ReactElement` families, the options framework (defaults +
- * per-family zod schemas + default-merge), and the pure dispatcher.
+ * ChartConfig) → ReactElement` families (bar/line/area/pie/scatter/heatmap/kpi/
+ * table), the options framework (defaults + per-family zod schemas +
+ * default-merge), and the pure dispatcher.
  *
- * Recharts is confined to the family components; specs never carry a Recharts
- * prop. See docs/02-chart-options.md.
+ * The charting library is confined to the family components; specs never carry
+ * a library prop. See docs/02-chart-options.md.
  */
 
 // Dispatcher + builtin table.
@@ -31,9 +32,9 @@ export {
   areaChartFamily,
   pieChartFamily,
   scatterChartFamily,
+  heatmapChartFamily,
   kpiChartFamily,
   tableChartFamily,
-  comboChartFamily,
 } from "./familyRegistry";
 export type { FamilyRegistry } from "./familyRegistry";
 
@@ -43,9 +44,9 @@ export { LineChartFamily } from "./line";
 export { AreaChartFamily } from "./area";
 export { PieChartFamily } from "./pie";
 export { ScatterChartFamily } from "./scatter";
+export { HeatmapChartFamily } from "./heatmap";
 export { KpiFamily } from "./kpi";
 export { TableFamily } from "./table";
-export { ComboChartFamily } from "./combo";
 
 // Types.
 export type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
@@ -63,12 +64,11 @@ export {
   AreaFamilyOptionsSchema,
   PieFamilyOptionsSchema,
   ScatterFamilyOptionsSchema,
+  HeatmapFamilyOptionsSchema,
   KpiFamilyOptionsSchema,
   TableFamilyOptionsSchema,
-  ComboFamilyOptionsSchema,
   TableColumnOptSchema,
   CondFormatRuleSchema,
-  ComboSeriesOptSchema,
 } from "./defaults";
 export type {
   FamilyDefault,
@@ -78,10 +78,9 @@ export type {
   AreaFamilyOptions,
   PieFamilyOptions,
   ScatterFamilyOptions,
+  HeatmapFamilyOptions,
   KpiFamilyOptions,
   TableFamilyOptions,
   TableColumnOpt,
   CondFormatRule,
-  ComboFamilyOptions,
-  ComboSeriesOpt,
 } from "./defaults";

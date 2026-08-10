@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ChartOptions, CubeQuery, DashboardSpec, Granularity } from "@/spec";
-import { loadSpec } from "@/spec";
+import { loadSpec, SCHEMA_VERSION } from "@/spec";
 import { CubeVizProvider } from "@/provider";
 import { CubeChart, InputWidgetView } from "@/render";
 import { DashboardProvider, useDashboard } from "@/hooks";
@@ -155,20 +155,22 @@ const EXAMPLES: Example[] = [
     },
   },
   {
-    title: "Combo — distance + efficiency",
-    note: "dual axis · km / km·L",
+    title: "Heatmap — distance by device over time",
+    note: "device × time · km",
     wide: true,
-    query: { measures: ["device_trips.total_distance", "device_trips.avg_trip_fuel_efficiency"], timeDimensions: tsTime, order: [[TIME, "asc"]] },
+    query: {
+      measures: ["device_trips.total_distance"],
+      dimensions: [DEVICE],
+      timeDimensions: tsTime,
+      order: [[TIME, "asc"]],
+    },
     chart: {
-      family: "combo",
-      mapping: { category: { member: TIME }, series: { mode: "measures", members: ["device_trips.total_distance", "device_trips.avg_trip_fuel_efficiency"] } },
-      familyOptions: {
-        series: [
-          { member: "device_trips.total_distance", render: "bar", colorToken: "chart-1", label: "Distance" },
-          { member: "device_trips.avg_trip_fuel_efficiency", render: "line", axis: "right", colorToken: "chart-3", label: "Efficiency" },
-        ],
+      family: "heatmap",
+      mapping: {
+        category: { member: TIME },
+        series: { mode: "pivot", value: "device_trips.total_distance", pivot: DEVICE },
       },
-      legend: { show: true },
+      familyOptions: { colorToken: "chart-1" },
     },
   },
   {
@@ -189,7 +191,7 @@ const EXAMPLES: Example[] = [
 /* ───────────────────────────── control variables ────────────────────────── */
 
 const CONTROLS_SPEC: DashboardSpec = {
-  schemaVersion: 1,
+  schemaVersion: SCHEMA_VERSION,
   kind: "dashboard",
   id: "preview-controls",
   variables: [

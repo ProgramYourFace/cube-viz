@@ -17,7 +17,7 @@ export interface CenterTypePickerProps {
   empty: boolean;
 }
 
-/** Switch the chart family, carrying field bindings across (kpi/scatter/table/combo
+/** Switch the chart family, carrying field bindings across (kpi/scatter/table
  *  store fields in familyOptions, so a plain reset would empty the new chart). */
 function useSetFamily(
   spec: ChartSpec,
@@ -87,7 +87,7 @@ export function ChartTypePill({ spec, update }: { spec: ChartSpec; update: (next
         </div>
         {/* The few remaining type-level options (stacking, donut, KPI, table…). Most
             config is in-context: per-measure on the field pills, chrome on the chart.
-            Families with nothing left (line / combo / scatter) show no Options at all. */}
+            Families with nothing left (line / scatter) show no Options at all. */}
         {hasCustomizeOptions(family, families) ? (
           <div className="cv:flex cv:flex-col cv:gap-1.5 cv:border-t cv:border-border cv:pt-2.5">
             <p className="cv:text-[11px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">Options</p>

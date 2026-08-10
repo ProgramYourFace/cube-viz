@@ -8,7 +8,7 @@ import { z } from "zod";
  * See docs/01-spec-schema.md for the full rationale.
  */
 
-export const SCHEMA_VERSION = 1 as const;
+export const SCHEMA_VERSION = 2 as const;
 
 /* ────────────────────────── variable reference token ────────────────────── */
 
@@ -146,16 +146,17 @@ export type CubeQuery = z.infer<typeof CubeQuerySchema>;
 export const ChartFamilySchema = z.string().min(1);
 export type ChartFamily = z.infer<typeof ChartFamilySchema>;
 
-/** The families cube-viz ships in-box (the picker order). `map` REMOVED. */
+/** The families cube-viz ships in-box (the picker order). `map` and `combo` REMOVED
+ *  (combo + dual-axis were dropped in schemaVersion 2; `heatmap` was added). */
 export const BUILTIN_CHART_FAMILIES = [
   "bar",
   "line",
   "area",
   "pie",
   "scatter",
+  "heatmap",
   "kpi",
   "table",
-  "combo",
 ] as const;
 export type BuiltinChartFamily = (typeof BUILTIN_CHART_FAMILIES)[number];
 
@@ -192,7 +193,6 @@ export const SeriesMetaSchema = z
     label: z.string().optional(),
     colorToken: ChartColorTokenSchema.optional(),
     stackId: z.string().optional(),
-    axis: z.enum(["left", "right"]).optional(),
     /** Per-series line shape (line/area) — overrides the family default. */
     curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
     /** Per-series point markers (line/area) — overrides the family default. */
@@ -224,9 +224,8 @@ export const SeriesMappingSchema = z
            *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
           values: z.array(MemberSchema).optional(),
           pivot: MemberSchema,
-          /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-           *  each measure's series sit on, so a multi-measure color split can be
-           *  dual-axis (each axis one unit). */
+          /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+           *  each split measure's series. */
           meta: z.record(MemberSchema, SeriesMetaSchema).optional(),
         })
         .strict(),
@@ -270,7 +269,6 @@ export const AxesOptionsSchema = z
   .object({
     x: AxisOptionsSchema.optional(),
     y: AxisOptionsSchema.optional(),
-    y2: AxisOptionsSchema.optional(),
   })
   .strict();
 export type AxesOptions = z.infer<typeof AxesOptionsSchema>;
@@ -286,7 +284,7 @@ export type ColorAssignment = z.infer<typeof ColorAssignmentSchema>;
 export const ChartOptionsSchema = z
   .object({
     family: ChartFamilySchema,
-    /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+    /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
         carry their own mapping inside familyOptions, so this is optional at the envelope. */
     mapping: SeriesMappingSchema.optional(),
     orientation: z.enum(["vertical", "horizontal"]).optional(),

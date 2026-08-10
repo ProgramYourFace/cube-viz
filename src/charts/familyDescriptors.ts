@@ -1,8 +1,8 @@
 import {
   AreaChart,
   BarChart3,
-  BarChart4,
   Gauge,
+  Grid3X3,
   LineChart,
   PieChart,
   ScatterChart,
@@ -28,16 +28,16 @@ import { LineChartFamily } from "./line";
 import { AreaChartFamily } from "./area";
 import { PieChartFamily } from "./pie";
 import { ScatterChartFamily } from "./scatter";
+import { HeatmapChartFamily } from "./heatmap";
 import { KpiFamily } from "./kpi";
 import { TableFamily } from "./table";
-import { ComboChartFamily } from "./combo";
 
 /**
  * The SINGLE SOURCE OF TRUTH for per-chart-family behaviour.
  *
  * Before this registry, each family's identity was smeared across ~10 scattered
  * tables/switches/Sets (icon + label in the picker, component in the dispatcher,
- * option schema + defaults in `defaults.ts`, wells + zones + dual-axis + legend in
+ * option schema + defaults in `defaults.ts`, wells + zones + legend in
  * the editor overlay, customize-options Set, mapping/cartesian/measure-only/compare
  * booleans, axis-enforcement). A {@link ChartFamilyDescriptor} centralizes all of
  * that DATA + dispatch so adding a family later is "write one descriptor (+ its
@@ -71,8 +71,6 @@ export interface ChartFamilyDescriptor {
   /** Which wells anchor LEFT (value axis) vs BOTTOM (category + splits) in the overlay. */
   zones: { left: string[]; bottom: string[] };
 
-  /** Has TWO renderer-supported value axes (left + right). */
-  dualAxisY: boolean;
   /** Consumes the generic `mapping` envelope (vs. storing fields in `familyOptions`). */
   supportsMapping: boolean;
   /** Exposes the cross-family display envelope (orientation/stack/axes). */
@@ -121,7 +119,7 @@ export interface ChartFamilyDescriptor {
    * A well id the editor AUTO-FILLS with the cube's canonical time dimension (member
    * meta `canonicalTime: true`) when a field is placed and this well is still empty —
    * so time-oriented families come up chronological without the user picking "the"
-   * time axis. Builtins: `line`/`area`/`combo` → `"x"`; `bar` deliberately unset (its
+   * time axis. Builtins: `line`/`area` → `"x"`; `bar` deliberately unset (its
    * default axis is categorical). A host family points this at its own time well
    * (e.g. the map's `"time"` path-order well). The auto-fill is a plain placement —
    * one tap removes it.
@@ -144,15 +142,6 @@ export interface ChartFamilyDescriptor {
   removeField?: (spec: ChartSpec, wellId: string, member: string) => ChartSpec;
   /** Derive each well's current member name(s) from the spec (inverse of place/remove). */
   readWells?: (spec: ChartSpec) => Record<string, string[]>;
-  /**
-   * Assign `member` to a value axis (`"left"`/`"right"`) for a `dualAxisY` family,
-   * returning a FULL next spec. The editor calls this after `placeField` on a
-   * dual-axis family so the axis lands in the SAME shape the host's own
-   * placeField/readWells read. Builtins leave this unset and the editor falls back to
-   * the builtin `withSeriesAxis` (combo / cartesian `mapping.series` meta) — so a host
-   * with its own field storage must supply this to control dual-axis assignment.
-   */
-  assignSeriesAxis?: (spec: ChartSpec, member: string, side: "left" | "right") => ChartSpec;
 }
 
 /* ─────────────────────────── per-family icons + order ─────────────────────── */
@@ -184,9 +173,10 @@ const CARTESIAN_WELLS: WellDef[] = [
   },
 ];
 
-const COMBO_WELLS: WellDef[] = [
-  { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
-  { id: "y", label: "Values", hint: "the numbers to show", cardinality: "many", kinds: ["number"] },
+const HEATMAP_WELLS: WellDef[] = [
+  { id: "value", label: "Value", hint: "the number that colors each cell", cardinality: "one", kinds: ["number"] },
+  { id: "hy", label: "Rows", hint: "a category (one row each)", cardinality: "one", kinds: ["category"] },
+  { id: "hx", label: "Columns", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
 ];
 
 const PIE_WELLS: WellDef[] = [
@@ -222,7 +212,7 @@ const TABLE_WELLS: WellDef[] = [
  * The ordered builtin array + per-family named exports live in `./familyRegistry`
  * (which imports this record), keeping this module a pure data leaf.
  */
-const ORDER: BuiltinChartFamily[] = ["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"];
+const ORDER: BuiltinChartFamily[] = ["bar", "line", "area", "pie", "scatter", "heatmap", "kpi", "table"];
 const orderOf = (family: BuiltinChartFamily): number => ORDER.indexOf(family);
 
 export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDescriptor> = {
@@ -236,7 +226,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.bar,
     wells: CARTESIAN_WELLS,
     zones: { left: ["y"], bottom: ["x", "color"] },
-    dualAxisY: false,
     supportsMapping: true,
     supportsCartesianAxes: true,
     enforcesAxisUnit: true,
@@ -258,7 +247,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.line,
     wells: CARTESIAN_WELLS,
     zones: { left: ["y"], bottom: ["x", "color"] },
-    dualAxisY: true,
     supportsMapping: true,
     supportsCartesianAxes: true,
     enforcesAxisUnit: true,
@@ -280,7 +268,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.area,
     wells: CARTESIAN_WELLS,
     zones: { left: ["y"], bottom: ["x", "color"] },
-    dualAxisY: false,
     supportsMapping: true,
     supportsCartesianAxes: true,
     enforcesAxisUnit: true,
@@ -301,7 +288,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.pie,
     wells: PIE_WELLS,
     zones: { left: ["size"], bottom: ["slices"] },
-    dualAxisY: false,
     supportsMapping: true,
     supportsCartesianAxes: false,
     enforcesAxisUnit: false,
@@ -321,7 +307,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.scatter,
     wells: SCATTER_WELLS,
     zones: { left: ["sy"], bottom: ["sx", "size", "color"] },
-    dualAxisY: false,
     supportsMapping: false,
     supportsCartesianAxes: false,
     enforcesAxisUnit: false,
@@ -341,7 +326,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.kpi,
     wells: KPI_WELLS,
     zones: { left: ["value"], bottom: [] },
-    dualAxisY: false,
     supportsMapping: false,
     supportsCartesianAxes: false,
     enforcesAxisUnit: false,
@@ -362,7 +346,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.table,
     wells: TABLE_WELLS,
     zones: { left: ["columns"], bottom: [] },
-    dualAxisY: false,
     supportsMapping: false,
     supportsCartesianAxes: false,
     enforcesAxisUnit: false,
@@ -372,25 +355,28 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     supportsComparePrevious: false,
     sidebarWidthClass: SIDEBAR_DEFAULT,
   },
-  combo: {
-    family: "combo",
-    canonicalTimeWell: "x",
-    label: "Combo",
-    icon: BarChart4,
-    order: orderOf("combo"),
-    component: ComboChartFamily,
-    optionsSchema: BUILTIN_FAMILY_OPTION_SCHEMAS.combo,
-    defaults: BUILTIN_DEFAULTS.combo,
-    wells: COMBO_WELLS,
-    zones: { left: ["y"], bottom: ["x"] },
-    dualAxisY: true,
+  heatmap: {
+    family: "heatmap",
+    label: "Heatmap",
+    icon: Grid3X3,
+    order: orderOf("heatmap"),
+    component: HeatmapChartFamily,
+    optionsSchema: BUILTIN_FAMILY_OPTION_SCHEMAS.heatmap,
+    defaults: BUILTIN_DEFAULTS.heatmap,
+    wells: HEATMAP_WELLS,
+    zones: { left: ["value", "hy"], bottom: ["hx"] },
+    // Roles live in the generic mapping envelope: category = x, pivot = y, value = measure.
     supportsMapping: true,
-    supportsCartesianAxes: true,
-    enforcesAxisUnit: false, // combo is the dual-axis "mix" chart — exempt by design.
+    // No cartesian display envelope: both axes are band (category) axes and color is the
+    // value — orientation/stacking/axis-scale options don't apply, so the editor shows no
+    // axis chrome for the heatmap (coherent with pie/scatter).
+    supportsCartesianAxes: false,
+    enforcesAxisUnit: false, // single measure — nothing to keep consistent
     measureOnly: false,
-    hasLegend: true,
-    hasCustomizeOptions: false,
+    hasLegend: false, // the color ramp IS the value encoding; no series legend
+    hasCustomizeOptions: true, // the "Show values" toggle
     supportsComparePrevious: false,
+    requiresMeasure: true,
     sidebarWidthClass: SIDEBAR_DEFAULT,
   },
 };

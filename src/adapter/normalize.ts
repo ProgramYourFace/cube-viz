@@ -48,7 +48,7 @@ type AnyResultSet = ResultSet<Record<string, unknown>>;
  * `empty` flag keys on row count alone, so a query returning rows whose measure is
  * null in every bucket would render a fully-mounted but blank cartesian chart. Folding
  * this into `empty` lets ChartRenderer's shared muted "No data" fire once for the
- * series-reading families (line/bar/area/combo) — the polar/raw families (pie/scatter/
+ * series-reading families (line/bar/area) — the polar/raw families (pie/scatter/
  * kpi/table) keep their own guards and never reach this (they return `series: []`).
  */
 function allSeriesNull(series: NormalizedSeries[]): boolean {
@@ -173,7 +173,7 @@ function findMember(ann: ResultAnnotation, member: string): AnnotatedMember | un
 
 /**
  * Build the per-series value meta: formatting hints from the member's Cube
- * `meta.{unit,quantity,convert}`, then spec overrides (axis/stackId/format).
+ * `meta.{unit,quantity,convert}`, then spec overrides (stackId/format).
  */
 function resolveSeriesMeta(
   memberMeta: AnnotatedMember | undefined,
@@ -204,7 +204,6 @@ function resolveSeriesMeta(
   }
   if (format) out.format = format;
 
-  if (specMeta?.axis) out.axis = specMeta.axis;
   if (specMeta?.stackId) out.stackId = specMeta.stackId;
   if (specMeta?.curve) out.curve = specMeta.curve;
   if (specMeta?.dots !== undefined) out.dots = specMeta.dots;
@@ -449,7 +448,7 @@ function normalizePivot(
     const base = pivotValue ?? sn.shortTitle ?? sn.title ?? sn.key;
     const label = multiMeasure ? `${measureLabel} · ${base}` : base;
     const data = chartRows.map((row) => coerceNumber(row[sn.key]));
-    // Per-MEASURE spec meta carries the value-axis (left/right) for dual-axis splits.
+    // Per-MEASURE spec meta (label/color/format overrides for the split measure).
     const measureSpecMeta = series.meta?.[measure];
     return {
       key: sn.key,

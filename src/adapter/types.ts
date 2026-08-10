@@ -12,7 +12,6 @@ export interface SeriesValueMeta {
   unit?: string;
   quantity?: string;
   convert?: boolean;
-  axis?: "left" | "right";
   stackId?: string;
   /** Per-series line shape (line/area) carried from the spec's SeriesMeta. */
   curve?: "linear" | "monotone" | "step" | "natural";

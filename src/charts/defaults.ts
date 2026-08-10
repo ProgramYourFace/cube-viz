@@ -23,12 +23,11 @@ import {
 
 /* ─────────────────────── shared familyOptions sub-schemas ────────────────── */
 
-/** A reference line on the x or y axis (bar/line/area/scatter/combo). */
+/** A reference line on the x or y axis (bar/line/area/scatter). */
 export const ReferenceLineOptSchema = z
   .object({
     axis: z.enum(["x", "y"]),
     value: z.number(),
-    side: z.enum(["left", "right"]).optional(), // combo dual-axis: which y-scale
     label: z.string().optional(),
     colorToken: ChartColorTokenSchema.optional(),
   })
@@ -194,35 +193,20 @@ export const TableFamilyOptionsSchema = z
   .strict();
 export type TableFamilyOptions = z.infer<typeof TableFamilyOptionsSchema>;
 
-export const ComboSeriesOptSchema = z
+/**
+ * `heatmap` options — deliberately minimal (simplicity over knobs). The grid's
+ * members (x dimension, y dimension, value measure) live in the generic `mapping`
+ * envelope (category = x, pivot = y, value = measure), NOT here.
+ */
+export const HeatmapFamilyOptionsSchema = z
   .object({
-    member: MemberSchema,
-    render: z.enum(["bar", "line", "area"]),
-    axis: z.enum(["left", "right"]).optional(),
+    /** The single-hue ramp token; cells shade light→dark within this hue. */
     colorToken: ChartColorTokenSchema.optional(),
-    stackId: z.string().optional(),
-    curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
-    dots: z.boolean().optional(),
-    label: z.string().optional(),
+    /** Print each cell's formatted value inside the cell. */
+    showValues: z.boolean().optional(),
   })
   .strict();
-export type ComboSeriesOpt = z.infer<typeof ComboSeriesOptSchema>;
-
-export const ComboFamilyOptionsSchema = z
-  .object({
-    series: z.array(ComboSeriesOptSchema),
-    referenceLines: z.array(ReferenceLineOptSchema).optional(),
-    // Global render options applied per render-type (line/area get curve+dots+connectNulls
-    // +strokeWidth; area gets fillOpacity) — so combo isn't stuck on hard-coded defaults.
-    curve: CurveSchema.optional(),
-    dots: z.boolean().optional(),
-    connectNulls: z.boolean().optional(),
-    strokeWidth: z.number().optional(),
-    fillOpacity: z.number().optional(),
-    barRadius: z.number().optional(),
-  })
-  .strict();
-export type ComboFamilyOptions = z.infer<typeof ComboFamilyOptionsSchema>;
+export type HeatmapFamilyOptions = z.infer<typeof HeatmapFamilyOptionsSchema>;
 
 /**
  * The builtin family → `familyOptions` zod schemas (validated AFTER default-merge).
@@ -237,9 +221,9 @@ export const BUILTIN_FAMILY_OPTION_SCHEMAS = {
   area: AreaFamilyOptionsSchema,
   pie: PieFamilyOptionsSchema,
   scatter: ScatterFamilyOptionsSchema,
+  heatmap: HeatmapFamilyOptionsSchema,
   kpi: KpiFamilyOptionsSchema,
   table: TableFamilyOptionsSchema,
-  combo: ComboFamilyOptionsSchema,
 } satisfies Record<BuiltinChartFamily, z.ZodTypeAny>;
 
 /* ──────────────────────────────── defaults ───────────────────────────────── */
@@ -329,6 +313,17 @@ export const BUILTIN_DEFAULTS = {
     // measure is required from the spec.
     familyOptions: { display: "number" } as Record<string, unknown>,
   },
+  heatmap: {
+    // No legend envelope: the heatmap has no series legend (color encodes value).
+    envelope: {
+      tooltip: { show: true, indicator: "dot" },
+      format: { kind: "auto" },
+    },
+    familyOptions: {
+      colorToken: "chart-1",
+      showValues: false,
+    } satisfies HeatmapFamilyOptions,
+  },
   table: {
     envelope: {},
     familyOptions: {
@@ -337,15 +332,6 @@ export const BUILTIN_DEFAULTS = {
       stickyHeader: true,
       rowHeight: "default",
     } satisfies TableFamilyOptions,
-  },
-  combo: {
-    envelope: {
-      legend: { show: true, position: "bottom" },
-      tooltip: { show: true, indicator: "dot" },
-      format: { kind: "auto" },
-    },
-    // series is required from the spec; an empty combo renders the empty state.
-    familyOptions: { series: [] } satisfies ComboFamilyOptions,
   },
 } satisfies Record<BuiltinChartFamily, FamilyDefault>;
 

@@ -175,10 +175,14 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           </>
         );
 
-      // Combo is configured entirely per-measure (render type, line shape, points,
-      // axis, color) on each Values field — no type-level options.
-      case "combo":
-        return null;
+      case "heatmap":
+        return (
+          <SwitchRow
+            label="Show values"
+            checked={fo.showValues === true}
+            onChange={(on) => setFamilyOptions({ showValues: on || undefined })}
+          />
+        );
 
       case "scatter":
         return null;
@@ -193,7 +197,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
 
 /**
  * Whether the type picker should show an "Options" section for this family. For a
- * builtin it's the descriptor flag (line / combo / scatter / kpi are fully edited in
+ * builtin it's the descriptor flag (line / scatter / kpi are fully edited in
  * context — per-measure pills + on-chart chrome / the KPI strip — so they have none).
  * A HOST family that supplies its own `descriptor.Customize` panel ALWAYS shows it,
  * regardless of the builtin-options flag — the two are independent, and a self-contained

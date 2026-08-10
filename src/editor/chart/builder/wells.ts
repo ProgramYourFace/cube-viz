@@ -63,14 +63,6 @@ export function getWells(family: ChartFamily, registry: FamilyRegistry): WellDef
 
 /* ─────────────────────────────── read model ──────────────────────────────── */
 
-/** A combo series option (`familyOptions.series[i]`). */
-interface ComboSeriesEntry {
-  member: string;
-  render: "bar" | "line" | "area";
-  label?: string;
-  colorToken?: string;
-}
-
 /** A table column option (`familyOptions.columns[i]`). */
 interface TableColumnEntry {
   member: string;
@@ -79,11 +71,6 @@ interface TableColumnEntry {
 
 function familyOptions(spec: ChartSpec): Record<string, unknown> {
   return (spec.chart.familyOptions ?? {}) as Record<string, unknown>;
-}
-
-function comboSeries(spec: ChartSpec): ComboSeriesEntry[] {
-  const series = familyOptions(spec).series;
-  return Array.isArray(series) ? (series as ComboSeriesEntry[]) : [];
 }
 
 function tableColumns(spec: ChartSpec): TableColumnEntry[] {
@@ -126,11 +113,8 @@ export function readWells(spec: ChartSpec, registry: FamilyRegistry): Record<str
           : measuresOf(chart);
       return { y, x: one(categoryOf(chart)), color: one(color) };
     }
-    case "combo": {
-      return {
-        x: one(categoryOf(chart)),
-        y: comboSeries(spec).map((s) => s.member),
-      };
+    case "heatmap": {
+      return readHeatmapWells(spec);
     }
     case "pie": {
       // `size` is a one-cardinality well — clamp to a single measure for an imported spec.
@@ -277,8 +261,8 @@ export function placeField(
     case "line":
     case "area":
       return placeCartesian(spec, wellId, member, kind, registry);
-    case "combo":
-      return placeCombo(spec, wellId, member, kind);
+    case "heatmap":
+      return placeHeatmap(spec, wellId, member, kind);
     case "pie":
       return placePie(spec, wellId, member, kind);
     case "scatter":
@@ -312,8 +296,8 @@ export function removeField(
     case "line":
     case "area":
       return removeCartesian(spec, wellId, member, registry);
-    case "combo":
-      return removeCombo(spec, wellId, member);
+    case "heatmap":
+      return removeHeatmap(spec, wellId, member);
     case "pie":
       return removePie(spec, wellId, member);
     case "scatter":
@@ -470,25 +454,76 @@ function removeCartesian(
   return spec;
 }
 
-/* ── combo ─────────────────────────────────────────────────────────────────── */
+/* ── heatmap ───────────────────────────────────────────────────────────────── */
+//
+// The heatmap stores its roles in the GENERIC mapping envelope: with the full
+// (x, y, value) trio placed it is a PIVOT mapping — `mapping.category.member` =
+// the x (Columns) dimension, `series.pivot` = the y (Rows) dimension,
+// `series.value` = the measure — which is exactly what the renderer reads. A
+// pivot mapping's zod shape REQUIRES value + pivot, so partial placements are
+// held as a measures-mode mapping while x is known (category = x, members =
+// [value?]), and as query-only members before x exists. `readWells` inverts
+// that: pivot → the trio; measures-mode → x = category, y = the other query
+// dimension; no mapping → x was never placed, so a lone dimension is y.
 
-const COMBO_RENDER_CYCLE: ComboSeriesEntry["render"][] = ["line", "bar"];
+/** The heatmap's placed members: mapping first (pivot, then measures), query rest. */
+function heatmapMembersOf(spec: ChartSpec): {
+  x?: string;
+  y?: string;
+  value?: string;
+} {
+  const { chart, query } = spec;
+  const series = chart.mapping?.series;
+  const dims = query.dimensions ?? [];
+  if (chart.mapping && series && series.mode === "pivot") {
+    return { x: chart.mapping.category.member, y: series.pivot, value: series.value };
+  }
+  if (chart.mapping && series && series.mode === "measures") {
+    const x = chart.mapping.category.member;
+    return {
+      x,
+      y: dims.find((d) => d !== x),
+      value: series.members[0] ?? query.measures?.[0],
+    };
+  }
+  // No mapping ⇒ x has never been placed (placing x always writes one), so any
+  // dimension on the query is the y (Rows) member.
+  return { x: undefined, y: dims[0], value: query.measures?.[0] };
+}
 
-function placeCombo(
+function readHeatmapWells(spec: ChartSpec): Record<string, string[]> {
+  const { x, y, value } = heatmapMembersOf(spec);
+  const one = (m: string | undefined): string[] => (m ? [m] : []);
+  return { hx: one(x), hy: one(y), value: one(value) };
+}
+
+/** The mapping for the current trio: pivot when complete, measures-mode while
+ *  only x (± value) is known, undefined before x is placed. */
+function heatmapMapping(
+  x: string | undefined,
+  y: string | undefined,
+  value: string | undefined,
+): SeriesMapping | undefined {
+  if (!x) return undefined;
+  if (y && value) return { category: { member: x }, series: { mode: "pivot", value, pivot: y } };
+  return { category: { member: x }, series: { mode: "measures", members: value ? [value] : [] } };
+}
+
+function placeHeatmap(
   spec: ChartSpec,
   wellId: string,
   member: string,
   kind: FieldKind,
 ): ChartSpec {
   const { query, chart } = spec;
-  const fo = familyOptions(spec);
+  const prev = heatmapMembersOf(spec);
 
-  if (wellId === "x") {
+  if (wellId === "hx") {
+    // Replace any existing X: drop the previous member from the query first.
     let q = query;
-    const prevCategory = categoryOf(chart);
     const prevTime = timeDimensionOf(query);
-    if (prevTime && prevCategory === prevTime.dimension) q = setTimeDimension(q, undefined);
-    else if (prevCategory) q = dropDimension(q, prevCategory);
+    if (prevTime && prev.x === prevTime.dimension) q = setTimeDimension(q, undefined);
+    else if (prev.x) q = dropDimension(q, prev.x);
 
     if (kind === "time") {
       const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
@@ -496,57 +531,53 @@ function placeCombo(
     } else {
       q = ensureDimension(q, member);
     }
-    return { ...spec, query: q, chart: { ...chart, mapping: { category: { member }, series: comboSeriesAsMapping(spec) } } };
+    return { ...spec, query: q, chart: { ...chart, mapping: heatmapMapping(member, prev.y, prev.value) } };
   }
 
-  if (wellId === "y") {
-    const series = comboSeries(spec);
-    if (series.some((s) => s.member === member)) return spec;
-    const render = COMBO_RENDER_CYCLE[series.length % COMBO_RENDER_CYCLE.length];
-    const nextSeries = [...series, { member, render }];
+  if (wellId === "hy") {
+    let q = query;
+    if (prev.y && prev.y !== member) q = dropDimension(q, prev.y);
+    q = ensureDimension(q, member);
+    return { ...spec, query: q, chart: { ...chart, mapping: heatmapMapping(prev.x, member, prev.value) } };
+  }
+
+  if (wellId === "value") {
+    // Single-measure family: the value well replaces.
     return {
       ...spec,
-      query: { ...query, measures: withMember(query.measures, member) },
-      // Keep mapping.series in lockstep with familyOptions.series — normalize() drives
-      // categories + per-series data off mapping, so a stale mapping makes the renderer
-      // fall back to raw rows (unbucketed time → collapsed x → stuck tooltip).
-      chart: { ...chart, familyOptions: { ...fo, series: nextSeries }, mapping: comboMapping(chart, nextSeries) },
+      query: { ...query, measures: [member] },
+      chart: { ...chart, mapping: heatmapMapping(prev.x, prev.y, member) },
     };
   }
 
   return spec;
 }
 
-/** The envelope mapping for combo, kept in sync with its `familyOptions.series`. */
-function comboMapping(chart: ChartOptions, series: { member: string }[]): SeriesMapping | undefined {
-  const category = categoryOf(chart);
-  if (!category) return chart.mapping;
-  return { category: { member: category }, series: { mode: "measures", members: series.map((s) => s.member) } };
-}
-
-function comboSeriesAsMapping(spec: ChartSpec): SeriesMapping["series"] {
-  return { mode: "measures", members: comboSeries(spec).map((s) => s.member) };
-}
-
-function removeCombo(spec: ChartSpec, wellId: string, member: string): ChartSpec {
+function removeHeatmap(spec: ChartSpec, wellId: string, member: string): ChartSpec {
   const { query, chart } = spec;
-  const fo = familyOptions(spec);
+  const prev = heatmapMembersOf(spec);
 
-  if (wellId === "x") {
+  if (wellId === "hx") {
     let q = query;
     const prevTime = timeDimensionOf(query);
     if (prevTime && prevTime.dimension === member) q = setTimeDimension(q, undefined);
     else q = dropDimension(q, member);
-    return { ...spec, query: q, chart: { ...chart, mapping: undefined } };
+    return { ...spec, query: q, chart: { ...chart, mapping: heatmapMapping(undefined, prev.y, prev.value) } };
   }
 
-  if (wellId === "y") {
-    const nextSeries = comboSeries(spec).filter((s) => s.member !== member);
-    const measures = withoutMember(query.measures, member);
+  if (wellId === "hy") {
     return {
       ...spec,
-      query: { ...query, measures },
-      chart: { ...chart, familyOptions: { ...fo, series: nextSeries }, mapping: comboMapping(chart, nextSeries) },
+      query: dropDimension(query, member),
+      chart: { ...chart, mapping: heatmapMapping(prev.x, undefined, prev.value) },
+    };
+  }
+
+  if (wellId === "value") {
+    return {
+      ...spec,
+      query: { ...query, measures: [] },
+      chart: { ...chart, mapping: heatmapMapping(prev.x, prev.y, undefined) },
     };
   }
 

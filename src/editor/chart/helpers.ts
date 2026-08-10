@@ -102,7 +102,7 @@ export const DEFAULT_GRANULARITY: Granularity = "day";
 
 /**
  * Switch a chart to `next` family WITHOUT losing the field bindings. Each family stores
- * its fields differently (cartesian/pie in `mapping`; kpi/scatter/table/combo in
+ * its fields differently (cartesian/pie/heatmap in `mapping`; kpi/scatter/table in
  * `familyOptions`), so a naive `familyOptions: undefined` reset drops the user's work and
  * leaves the new family empty. This re-derives the new family's structure from the query
  * (measures + the first category/dimension/time member), so type-switching is lossless.
@@ -135,13 +135,19 @@ export function migrateToFamily(
     case "area":
     case "pie":
       return withChart({ mapping: cartesianMapping });
-    case "combo":
-      return withChart({
-        mapping: cartesianMapping,
-        familyOptions: {
-          series: measures.map((m, i) => ({ member: m, render: i % 2 === 1 ? "bar" : "line" })),
-        },
-      });
+    case "heatmap": {
+      // x = the current category; y = another query dimension; value = the first
+      // measure. The trio complete → the heatmap's pivot mapping; partial → the
+      // category-only measures mapping (the same shapes `wells.ts` writes).
+      const y = query.dimensions?.find((d) => d !== category);
+      const value = measures[0];
+      const mapping: SeriesMapping | undefined = !category
+        ? undefined
+        : y && value
+          ? { category: { member: category }, series: { mode: "pivot", value, pivot: y } }
+          : { category: { member: category }, series: { mode: "measures", members: value ? [value] : [] } };
+      return withChart({ mapping });
+    }
     case "kpi":
       return withChart({
         familyOptions: { display: "number", ...(measures[0] ? { measure: measures[0] } : {}) },

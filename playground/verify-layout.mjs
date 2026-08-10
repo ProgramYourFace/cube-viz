@@ -23,7 +23,7 @@ await page.waitForSelector('[data-slot="chart-edit-overlay"]', { timeout: 10000 
 await page.waitForSelector(".recharts-surface", { timeout: 15000 }).catch(() => {});
 await page.waitForTimeout(2000);
 
-// Ensure a 2nd value measure so combo/scatter (2 measures) and dual-axis are exercised.
+// Ensure a 2nd value measure so scatter (2 measures) is exercised.
 async function ensureTwoValues() {
   const yCount = await page.evaluate(() => {
     const strip = document.querySelector('[data-slot="chart-edit-overlay"] .w-40');
@@ -139,7 +139,7 @@ async function toggleHorizontal() {
   await page.waitForTimeout(2000);
 }
 
-const families = ["line", "bar", "area", "combo", "pie", "scatter", "kpi", "table"];
+const families = ["line", "bar", "area", "pie", "scatter", "heatmap", "kpi", "table"];
 const out = {};
 // Capture the as-opened (line) state first.
 out["line(opened)"] = await report();

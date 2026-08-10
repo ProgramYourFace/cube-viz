@@ -7,9 +7,8 @@ import type { MemberOption } from "../../primitives/meta-helpers";
  * An axis should always be consistent in units: every variable plotted on one
  * value-axis must describe the same KIND of quantity (two lines must show the same
  * kind of data). We enforce this on the multi-number value wells of bar/line/area
- * ("Y axis"). Combo is deliberately EXEMPT — it is the dual-axis "mix" chart, so it
- * may mix quantities. Single-field axes (scatter X/Y, pie Size, KPI) need no
- * multi-field enforcement.
+ * ("Y axis"). Single-field axes (scatter X/Y, pie Size, heatmap Value, KPI) need
+ * no multi-field enforcement.
  */
 
 /** The compatibility key for a member OPTION (mirrors {@link axisKey} on meta). */

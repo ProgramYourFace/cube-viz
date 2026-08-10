@@ -35,9 +35,9 @@ export const lineChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.l
 export const areaChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.area;
 export const pieChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.pie;
 export const scatterChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.scatter;
+export const heatmapChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.heatmap;
 export const kpiChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.kpi;
 export const tableChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.table;
-export const comboChartFamily: ChartFamilyDescriptor = builtinFamilyDescriptors.combo;
 
 /**
  * The eight builtin families, in picker (`order`) order. Pass to
@@ -50,9 +50,9 @@ export const defaultChartFamilies: readonly ChartFamilyDescriptor[] = [
   areaChartFamily,
   pieChartFamily,
   scatterChartFamily,
+  heatmapChartFamily,
   kpiChartFamily,
   tableChartFamily,
-  comboChartFamily,
 ];
 
 /* ─────────────────────────── the registry interface ───────────────────────── */

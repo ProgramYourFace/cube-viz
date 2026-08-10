@@ -106,15 +106,15 @@ export function primaryMember(data: NormalizedChartData): string | undefined {
 }
 
 /**
- * The text for each axis label: the spec override (`axes.{x,y,y2}.label`) when set,
- * else AUTO-derived from the mapped members — the category member for x, the left/right
- * value series for y/y2 (the pivot value measure in color-split mode). The editor lets a
+ * The text for each axis label: the spec override (`axes.{x,y}.label`) when set,
+ * else AUTO-derived from the mapped members — the category member for x, the first
+ * value series for y (the pivot value measure in color-split mode). The editor lets a
  * user type an override directly on the chart; otherwise these sensible labels just show.
  */
 export function resolvedAxisLabels(
   data: NormalizedChartData,
   options: ChartOptions,
-): { x?: string; left?: string; right?: string } {
+): { x?: string; left?: string } {
   const a = data.raw.annotation;
   const lbl = (m?: string): string | undefined => {
     if (!m) return undefined;
@@ -128,8 +128,7 @@ export function resolvedAxisLabels(
       m
     );
   };
-  const left = data.series.find((s) => (s.meta?.axis ?? "left") !== "right");
-  const right = data.series.find((s) => s.meta?.axis === "right");
+  const left = data.series[0];
   // Prefer the series' SOURCE measure for the axis title (a pivot series' own key is a
   // pivot value — a device name — with no unit; its `meta.measure` is the real measure).
   const axisLbl = (s?: NormalizedSeries): string | undefined =>
@@ -137,7 +136,6 @@ export function resolvedAxisLabels(
   return {
     x: options.axes?.x?.labelHide ? undefined : (options.axes?.x?.label ?? lbl(options.mapping?.category?.member)),
     left: options.axes?.y?.labelHide ? undefined : (options.axes?.y?.label ?? axisLbl(left)),
-    right: options.axes?.y2?.labelHide ? undefined : (options.axes?.y2?.label ?? axisLbl(right)),
   };
 }
 

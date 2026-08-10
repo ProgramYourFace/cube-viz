@@ -14,7 +14,7 @@ import { Switch } from "../../primitives/SwitchRow";
 import { memberTypeIcon } from "../../primitives/MemberPicker";
 import type { MemberOption } from "../../primitives/meta-helpers";
 import type { WellDef } from "../builder/wells";
-import { chipBindings, type ComboRender, type LineCurve } from "./chip-bindings";
+import { chipBindings, type LineCurve } from "./chip-bindings";
 import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
 import { ValueBinding } from "../binding/ValueBinding";
 
@@ -43,7 +43,6 @@ export interface FieldPillProps {
   className?: string;
 }
 
-const RENDER_LABELS: Record<ComboRender, string> = { bar: "Bar", line: "Line", area: "Area" };
 const LINE_SHAPES: ReadonlyArray<readonly [LineCurve, string]> = [
   ["monotone", "Smooth"],
   ["linear", "Straight"],
@@ -53,9 +52,9 @@ const LINE_SHAPES: ReadonlyArray<readonly [LineCurve, string]> = [
 
 /**
  * A placed-field token (on-chart). The body opens a context popover with every
- * relevant control for the field (rename, colour, granularity, combo render, move,
- * remove); a quick × removes it. The colour swatch is the resolved series colour —
- * the single source of truth shared with the renderer — so it never lies.
+ * relevant control for the field (rename, colour, granularity, move, remove); a
+ * quick × removes it. The colour swatch is the resolved series colour — the
+ * single source of truth shared with the renderer — so it never lies.
  */
 export function FieldPill({
   spec,
@@ -78,8 +77,6 @@ export function FieldPill({
     showSwatch ||
     b.isTimeField ||
     b.isCategoryField ||
-    (b.isComboY && !!b.render) ||
-    b.canAxis ||
     b.canLineStyle ||
     !!reorder;
 
@@ -237,52 +234,6 @@ export function FieldPill({
                   />
                 </label>
               </>
-            ) : null}
-
-            {b.isComboY && b.render ? (
-              <div className="cv:flex cv:flex-col cv:gap-1.5">
-                <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Draw as</span>
-                <div className="cv:flex cv:gap-1">
-                  {(Object.keys(RENDER_LABELS) as ComboRender[]).map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => b.onRender(r)}
-                      className={cn(
-                        "cv:flex cv:flex-1 cv:items-center cv:justify-center cv:gap-1 cv:rounded-md cv:border cv:px-2 cv:py-1 cv:text-xs",
-                        b.render === r
-                          ? "cv:border-ring cv:bg-accent"
-                          : "cv:border-input cv:hover:bg-accent/50",
-                      )}
-                    >
-                      {RENDER_LABELS[r]}
-                      {b.render === r ? <Check className="cv:size-3" /> : null}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {b.canAxis ? (
-              <div className="cv:flex cv:flex-col cv:gap-1.5">
-                <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">Side</span>
-                <div className="cv:flex cv:gap-1">
-                  {(["left", "right"] as const).map((side) => (
-                    <button
-                      key={side}
-                      type="button"
-                      onClick={() => b.onAxis(side)}
-                      className={cn(
-                        "cv:flex cv:flex-1 cv:items-center cv:justify-center cv:gap-1 cv:rounded-md cv:border cv:px-2 cv:py-1 cv:text-xs cv:capitalize",
-                        b.axis === side ? "cv:border-ring cv:bg-accent" : "cv:border-input cv:hover:bg-accent/50",
-                      )}
-                    >
-                      {side}
-                      {b.axis === side ? <Check className="cv:size-3" /> : null}
-                    </button>
-                  ))}
-                </div>
-              </div>
             ) : null}
 
             {b.canLineStyle ? (

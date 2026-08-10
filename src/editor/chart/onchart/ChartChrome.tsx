@@ -11,7 +11,7 @@ import type { AxisOptions, ChartSpec } from "@/spec";
  * edit on the chart" surface; the renderers honor `axes.*.{label,hide}` + `legend.show`.
  */
 
-type AxisKey = "x" | "y" | "y2";
+type AxisKey = "x" | "y";
 
 function patchAxis(
   spec: ChartSpec,
