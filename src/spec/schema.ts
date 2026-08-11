@@ -281,6 +281,36 @@ export const ColorAssignmentSchema = z
   .strict();
 export type ColorAssignment = z.infer<typeof ColorAssignmentSchema>;
 
+/** The default trailing window (in categories) for a `rollingAvg` transform. */
+export const DEFAULT_TRANSFORM_WINDOW = 7;
+
+export const TransformKindSchema = z.enum(["rollingAvg", "cumulative", "percentOfTotal"]);
+export type TransformKind = z.infer<typeof TransformKindSchema>;
+
+/**
+ * A PRESENTATION transform applied to the already-aggregated, already-normalized
+ * series — the seam TanStack Charts deliberately leaves to the view layer while the
+ * semantic layer (Cube) owns aggregation. It lets "7-day rolling average" / "running
+ * total" / "% of total" be a display choice instead of three new Cube measures.
+ *
+ * Envelope-level (NOT per-family) on purpose: it reshapes the generic
+ * `{categories, series[].data}` shape, so every cartesian family gets it for free
+ * and no family option schema grows a knob. Applied in `ChartRenderer` before the
+ * family component sees the data (see `src/charts/transforms.ts`).
+ */
+export const ChartTransformSchema = z
+  .object({
+    kind: TransformKindSchema,
+    /**
+     * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+     * (ignored by cumulative / percentOfTotal); defaults to
+     * {@link DEFAULT_TRANSFORM_WINDOW}.
+     */
+    window: z.number().int().min(2).max(90).optional(),
+  })
+  .strict();
+export type ChartTransform = z.infer<typeof ChartTransformSchema>;
+
 export const ChartOptionsSchema = z
   .object({
     family: ChartFamilySchema,
@@ -294,6 +324,12 @@ export const ChartOptionsSchema = z
     axes: AxesOptionsSchema.optional(),
     colors: ColorAssignmentSchema.optional(),
     format: FormatOptionsSchema.optional(),
+    /**
+     * Presentation-only reshaping of the normalized series (rolling average /
+     * running total / share of category total). Purely additive + optional, so it
+     * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+     */
+    transform: ChartTransformSchema.optional(),
     /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
     familyOptions: z.record(z.string(), z.unknown()).optional(),
   })

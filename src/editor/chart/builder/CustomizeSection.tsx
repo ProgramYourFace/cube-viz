@@ -1,9 +1,17 @@
 import * as React from "react";
 
 import type { FamilyRegistry } from "@/charts";
+import { familySupportsTransform } from "@/charts/transforms";
 import { useFamilyRegistry } from "@/provider";
-import type { ChartOptions, ChartSpec } from "@/spec";
+import { DEFAULT_TRANSFORM_WINDOW, type ChartOptions, type ChartSpec, type TransformKind } from "@/spec";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { FieldRow } from "../../primitives/FieldRow";
 import { SegmentedControl } from "../../primitives/SegmentedControl";
@@ -15,6 +23,23 @@ export interface CustomizeSectionProps {
 }
 
 type StackChoice = "none" | "stacked" | "percent";
+
+/** The "Compare" select's options — the three presentation transforms, plus off. */
+type TransformChoice = "none" | TransformKind;
+
+const TRANSFORM_LABELS: Record<TransformChoice, string> = {
+  none: "None",
+  rollingAvg: "Rolling average",
+  cumulative: "Running total",
+  percentOfTotal: "% of total",
+};
+
+const TRANSFORM_CHOICES: TransformChoice[] = [
+  "none",
+  "rollingAvg",
+  "cumulative",
+  "percentOfTotal",
+];
 
 /**
  * The per-family option set — ONLY the meaning-changing knobs for each chart type
@@ -54,6 +79,69 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     "none";
   const stackValue: StackChoice =
     effectiveStack === "stacked" ? "stacked" : effectiveStack === "percent" ? "percent" : "none";
+
+  /**
+   * The single PRESENTATION-transform control (spec: `chart.transform`). One select
+   * covers rolling average / running total / % of total — the three questions that
+   * would otherwise each need a new Cube measure. The window input is revealed ONLY
+   * for a rolling average (it is meaningless for the other two), keeping the default
+   * surface at exactly one knob. Shown only where the transform actually applies
+   * (cartesian, mapping-driven families — see `familySupportsTransform`).
+   */
+  const transformKind: TransformChoice = chart.transform?.kind ?? "none";
+  const TransformControl = familySupportsTransform(descriptor) ? (
+    <>
+      <FieldRow
+        label="Compare"
+        hint={
+          transformKind === "percentOfTotal"
+            ? "Each value as a share of its category total."
+            : undefined
+        }
+      >
+        <Select
+          value={transformKind}
+          onValueChange={(v) =>
+            setEnvelope({
+              transform:
+                v === "none"
+                  ? undefined
+                  : v === "rollingAvg"
+                    ? { kind: "rollingAvg", window: chart.transform?.window ?? DEFAULT_TRANSFORM_WINDOW }
+                    : { kind: v as Exclude<TransformKind, "rollingAvg"> },
+            })
+          }
+        >
+          <SelectTrigger aria-label="Compare" className="cv-ec-h8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TRANSFORM_CHOICES.map((c) => (
+              <SelectItem key={c} value={c}>
+                {TRANSFORM_LABELS[c]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldRow>
+      {transformKind === "rollingAvg" ? (
+        <KField label="Window (points)">
+          <Input
+            type="number"
+            min={2}
+            max={90}
+            className="cv-ec-h8 cv-transform-window"
+            value={chart.transform?.window ?? DEFAULT_TRANSFORM_WINDOW}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10);
+              const window = Number.isFinite(n) ? Math.min(90, Math.max(2, n)) : DEFAULT_TRANSFORM_WINDOW;
+              setEnvelope({ transform: { kind: "rollingAvg", window } });
+            }}
+          />
+        </KField>
+      ) : null}
+    </>
+  ) : null;
 
   const StackControl = (
     <FieldRow label="Stacked">
@@ -192,7 +280,14 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     }
   })();
 
-  return <div className="cv-customize">{body}</div>;
+  // The transform is an ENVELOPE option, not a family knob, so it renders once after
+  // the per-family body (and is `null` for families it doesn't apply to).
+  return (
+    <div className="cv-customize">
+      {body}
+      {TransformControl}
+    </div>
+  );
 }
 
 /**
@@ -203,13 +298,21 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
  * regardless of the builtin-options flag — the two are independent, and a self-contained
  * host that sets `hasCustomizeOptions: false` would otherwise have its panel suppressed
  * (CenterTypePicker short-circuits before CustomizeSection's host dispatch runs).
+ *
+ * A family that supports the envelope-level PRESENTATION transform also shows the
+ * section even when it has no family knobs of its own (that's `line`: fully edited in
+ * context otherwise, but the "Compare" select still needs somewhere to live).
  */
 export function hasCustomizeOptions(
   family: ChartSpec["chart"]["family"],
   families: FamilyRegistry,
 ): boolean {
   const descriptor = families.require(family);
-  return descriptor.hasCustomizeOptions || descriptor.Customize !== undefined;
+  return (
+    descriptor.hasCustomizeOptions ||
+    descriptor.Customize !== undefined ||
+    familySupportsTransform(descriptor)
+  );
 }
 
 /** A vertical labeled field (caption above the control) for the option pickers. */

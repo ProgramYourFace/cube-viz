@@ -285,3 +285,12 @@
   font-size: 0.75rem;
   color: var(--muted-foreground);
 }
+
+/* ───────────── presentation transform (chart.transform) — editor control ─────────────
+ * The rolling-average window is a small integer (2…90), so its number input stays
+ * compact instead of stretching the full options column like a text field. Pairs with
+ * .cv-ec-h8 (the shared compact-control height, editor-chart.css).
+ */
+.cv-transform-window {
+  max-width: 6rem;
+}
