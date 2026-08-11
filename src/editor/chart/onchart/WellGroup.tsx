@@ -5,6 +5,7 @@ import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartSpec } from "@/spec";
 
 import type { MemberOption } from "../../primitives/meta-helpers";
+import { placementBlockReason, wellAccepts } from "../builder/channels";
 import type { FieldKind, WellDef } from "../builder/wells";
 import { reorderWell } from "./chip-bindings";
 import { FieldPickerPopover } from "./FieldPickerPopover";
@@ -86,10 +87,29 @@ export function WellGroup({
   const vertical = orientation === "vertical";
   const groupLabel = label ?? well.label;
 
+  // What this slot takes, in the SAME words the picker uses to refuse a field
+  // ("Category takes a date or category"), so the add button and the greyed-out rows
+  // inside it never disagree. A well that takes everything (a table column) has
+  // nothing to refuse, so it falls back to its own hint.
+  const takesHint =
+    (["number", "category", "time"] as FieldKind[])
+      .filter((k) => !wellAccepts(well, k))
+      .map((k) => placementBlockReason(well, k, placed))
+      .find((r): r is string => r !== undefined) ?? well.hint;
+
+  // Nothing on the chart yet: name the ONE move that gets the user started, in the
+  // strip they are looking at. Anchored to the required value slot (the measure is
+  // what every family needs first), so it appears exactly once.
+  const startHint =
+    allPlaced.length === 0 && !well.optional && wellAccepts(well, "number")
+      ? "Add a measure to start"
+      : undefined;
+
   const addSlot = (
     <FieldPickerPopover
       well={well}
       placed={allPlaced}
+      inWell={placed}
       scope={scope}
       blockReason={blockReason}
       onSelect={onAdd}
@@ -98,6 +118,7 @@ export function WellGroup({
     >
       <button
         type="button"
+        title={takesHint}
         className={cn(
           "cv-well-add",
           vertical && "cv-well-add--full",
@@ -153,6 +174,8 @@ export function WellGroup({
         ))}
         {showAdd ? addSlot : null}
       </div>
+
+      {startHint ? <p className="cv-ec-hint cv-well-start-hint">{startHint}</p> : null}
 
       {note ? (
         <p className="cv-ec-hint cv-well-note">{note}</p>

@@ -14,14 +14,17 @@ import {
   type MemberKind,
   type MemberOption,
 } from "../../primitives/meta-helpers";
+import { placementBlockReason, wellAccepts } from "../builder/channels";
 import type { FieldKind, WellDef } from "../builder/wells";
 import type { JoinScope } from "./join-scope";
 
 export interface FieldPickerPopoverProps {
-  /** The slot being filled — its `kinds` decide which data-type groups show. */
+  /** The slot being filled — its `kinds` order the list; the rest show disabled. */
   well: WellDef;
   /** Members already placed anywhere — hidden from the list. */
   placed: string[];
+  /** Members in THIS well (cardinality context for the block reason). */
+  inWell?: string[];
   /** Cross-table scope (source table, related tables, views) — see join-scope.ts. */
   scope: JoinScope;
   /** Why an option can't be added (cross-dataset / measure-source / axis-unit). */
@@ -58,20 +61,30 @@ interface PickGroup {
   label: string;
   /** Data-type icon — set only for kind-fallback buckets (semantic groups may mix kinds). */
   headerIcon?: React.ReactElement;
-  items: { option: MemberOption; kind: FieldKind }[];
+  /** Every item is of a type this slot cannot take (a fully-disabled bucket). */
+  rejected?: boolean;
+  items: { option: MemberOption; kind: FieldKind; blocked?: string }[];
 }
 
 /**
  * The cross-table field picker. Fields are grouped FIRST by relation to the source
  * dataset (the source table, then related joined tables) and THEN by data type
  * (Numbers / Categories / Dates). A source selector switches between "All related
- * tables" and the curated views. Incompatible picks (a 2nd measure table, a field
- * from another dataset, an axis-unit mismatch) are disabled with a reason, so the
- * user can only build queries Cube will actually resolve.
+ * tables" and the curated views.
+ *
+ * Nothing is hidden. Fields of a type this slot cannot take used to be omitted
+ * entirely, so hunting for "Revenue" in the Category slot found *nothing* and the
+ * user had no way to learn why. They are now listed after the usable ones, disabled,
+ * each carrying the same short reason the slot would give
+ * ({@link placementBlockReason} — "Category takes a date or category"). The other
+ * blocks (a 2nd measure table, a field from another dataset, an axis-unit mismatch)
+ * read the same way, so the user can only build queries Cube will actually resolve —
+ * and always knows which slot to try instead.
  */
 export function FieldPickerPopover({
   well,
   placed,
+  inWell,
   scope,
   blockReason,
   onSelect,
@@ -107,9 +120,17 @@ export function FieldPickerPopover({
     return out;
   }, [browse, scope, meta]);
 
-  // Show a per-row data-type icon only when the well mixes kinds (e.g. a table's
-  // columns) — single-kind wells don't need it, and it would clutter the semantic groups.
-  const showRowIcon = well.kinds.length > 1;
+  // Every list now mixes kinds (the ones this slot cannot take come last, disabled),
+  // so the per-row data-type icon always earns its place: it is the fastest way to
+  // see WHY a row is greyed out.
+  const showRowIcon = true;
+
+  // Usable kinds first (in the picker's canonical order), then the ones this slot
+  // rejects — so the list still leads with what the user can actually pick.
+  const kindOrder: FieldKind[] = [
+    ...KIND_ORDER.filter((k) => wellAccepts(well, k)),
+    ...KIND_ORDER.filter((k) => !wellAccepts(well, k)),
+  ];
 
   // Members for `cubeName` (across the well's allowed kinds, minus already-placed and
   // non-matching-search), grouped by their SEMANTIC `meta.group` (Fuel / Safety /
@@ -119,9 +140,11 @@ export function FieldPickerPopover({
   const groupsFor = (cubeName: string): PickGroup[] => {
     const order: string[] = [];
     const byKey = new Map<string, PickGroup>();
-    for (const k of KIND_ORDER) {
-      if (!well.kinds.includes(k)) continue;
+    for (const k of kindOrder) {
       const gm = GROUP_META[k];
+      // The slot-level reason ("Slices takes a date or category") — undefined for the
+      // kinds this well accepts.
+      const kindBlock = placementBlockReason(well, k, inWell ?? []);
       let members = listMembers(meta, gm.metaKind, cubeName);
       // The cube's canonical time axis sorts first (stable) so the right date is
       // always the top pick; PickerRow badges it "default".
@@ -140,11 +163,19 @@ export function FieldPickerPopover({
         if (!grp) {
           // Semantic groups can mix kinds, so they carry no header icon; the kind-fallback
           // buckets keep their data-type icon + label.
-          grp = { key, label: group ?? gm.label, headerIcon: group ? undefined : gm.icon, items: [] };
+          grp = {
+            key,
+            label: group ?? gm.label,
+            headerIcon: group ? undefined : gm.icon,
+            rejected: kindBlock !== undefined,
+            items: [],
+          };
           byKey.set(key, grp);
           order.push(key);
         }
-        grp.items.push({ option: o, kind: k });
+        // A semantic group that mixes usable and unusable kinds is not "rejected".
+        if (kindBlock === undefined) grp.rejected = false;
+        grp.items.push({ option: o, kind: k, blocked: kindBlock });
       }
     }
     return order.map((key) => byKey.get(key)!);
@@ -238,20 +269,32 @@ export function FieldPickerPopover({
                   </button>
                   {expanded
                     ? groups.map((g) => (
-                        <div key={g.key} className="cv-picker-group">
+                        <div
+                          key={g.key}
+                          className={cn(
+                            "cv-picker-group",
+                            g.rejected && "cv-picker-group--rejected",
+                          )}
+                        >
                           {groups.length > 1 ? (
                             <div className="cv-picker-group-header">
                               {g.headerIcon}
                               {g.label}
+                              {g.rejected ? (
+                                <span className="cv-picker-group-note">not for this slot</span>
+                              ) : null}
                             </div>
                           ) : null}
-                          {g.items.map(({ option, kind }) => (
+                          {g.items.map(({ option, kind, blocked }) => (
                             <PickerRow
                               key={option.name}
                               option={option}
                               kindIcon={showRowIcon ? GROUP_META[kind].icon : undefined}
                               badge={kind === "time" && memberCanonicalTime(option) ? "default" : undefined}
-                              reason={blockReason(option)}
+                              // The slot's own "wrong kind of field" reason wins: it names
+                              // the fix ("put a measure here instead"), where the dataset /
+                              // axis-unit blocks describe the model.
+                              reason={blocked ?? blockReason(option)}
                               onPick={() => pick(option.name, kind)}
                             />
                           ))}
@@ -354,7 +397,11 @@ interface PickerRowProps {
   badge?: string;
 }
 
-/** One member row; disabled-with-reason rows stay focusable so the hint is reachable. */
+/**
+ * One member row. A blocked row is muted, `aria-disabled`, and still focusable so the
+ * hint is reachable — and it SHOWS the reason inline rather than only in the tooltip:
+ * a WebView has no hover, so a title-only hint is invisible on touch.
+ */
 function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps): React.ReactElement {
   if (reason) {
     return (
@@ -368,7 +415,7 @@ function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps):
           {kindIcon}
           <span className="cv-ec-truncate">{option.label}</span>
         </span>
-        <span className="cv-picker-row-reason">Not available</span>
+        <span className="cv-picker-row-reason">{reason}</span>
       </span>
     );
   }

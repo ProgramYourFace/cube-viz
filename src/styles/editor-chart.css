@@ -1535,3 +1535,166 @@
   gap: 0.25rem;
   padding-block: 0.25rem;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Guided builder: live type previews, fit suggestions, forgiving drop targets.
+   Appended block — every rule below either introduces a new class or refines an
+   earlier one (same specificity, later in the sheet, so it wins).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ───────────────── the type picker: suggestions + preview tiles ───────────── */
+
+/* The tiles are miniature CHARTS now, not icons, so the popover needs the width
+   for a three-across grid. */
+.cv-type-popover--preview {
+  width: 25rem;
+}
+
+.cv-type-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+/* Fixed tile columns: the miniature inside is drawn at 3× and scaled down, so its
+   box must not be fluid or the scale would stop matching. Keep in sync with
+   --cv-tile-w / --cv-tile-h below. */
+.cv-type-grid--preview {
+  --cv-tile-w: 108px;
+  --cv-tile-h: 68px;
+  grid-template-columns: repeat(3, var(--cv-tile-w));
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* One tile. Reuses .cv-type-tile for the frame (border, hover, --active) and turns
+   it into a card: figure on top, caption underneath, one transparent hit target
+   covering both. */
+.cv-type-tile--card {
+  position: relative;
+  width: var(--cv-tile-w);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cv-type-tile-figure {
+  position: relative;
+  display: grid;
+  height: var(--cv-tile-h);
+  place-items: center;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+}
+
+/* The miniature is decoration: no pointer, no hit testing, no text selection. */
+.cv-type-tile-preview {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Drawn at 3× and scaled: the chart shell enforces a 200px minimum height, so a
+   68px-tall chart would otherwise be all margin and no marks. */
+.cv-type-tile-canvas {
+  width: calc(var(--cv-tile-w) * 3);
+  height: calc(var(--cv-tile-h) * 3);
+  transform: scale(0.33333);
+  transform-origin: top left;
+}
+
+.cv-type-tile-canvas .cv-chart--fill,
+.cv-type-tile-canvas .cv-chart {
+  min-height: 0;
+}
+
+.cv-type-tile-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0.25rem 0.25rem 0.3125rem;
+  text-align: center;
+}
+
+.cv-type-tile-label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* The one-line "why this type" under a suggested tile. */
+.cv-type-tile-reason {
+  font-size: 9px;
+  line-height: 1.25;
+  color: var(--muted-foreground);
+}
+
+.cv-type-tile--active .cv-type-tile-reason {
+  color: color-mix(in oklab, var(--foreground) 70%, transparent);
+}
+
+/* The whole tile is one tab stop; the chart underneath never is. */
+.cv-type-tile-hit {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.cv-type-tile-hit:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* ─────────────── forgiving drop targets (wells + field picker) ────────────── */
+
+/* "Add a measure to start" — the one move that gets an empty chart going. */
+.cv-well-start-hint {
+  padding-top: 0.125rem;
+  font-style: italic;
+}
+
+/* A whole data-type bucket this slot cannot take: still listed (so searching finds
+   it) but visibly secondary, under a "not for this slot" header. */
+.cv-picker-group--rejected {
+  border-top: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+}
+
+.cv-picker-group-note {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 400;
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--muted-foreground);
+}
+
+/* The reason now shows INLINE (a WebView has no hover, so a title-only hint is
+   invisible on touch) — bound its width so a long one cannot push the field name out. */
+.cv-picker-row-reason {
+  flex: 0 1 auto;
+  max-width: 52%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A blocked row is muted, not illegible: 0.45 opacity hid the reason we just
+   started showing. */
+.cv-picker-row--disabled {
+  opacity: 1;
+  color: var(--muted-foreground);
+}
