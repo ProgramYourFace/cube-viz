@@ -10,6 +10,13 @@ import { ReactNode } from 'react';
 import { ResultSet } from '@cubejs-client/core';
 import { z } from 'zod';
 
+/**
+ * Adaptive default granularity for a freshly-placed date X: pick from the bound
+ * dateRange span when present (≤2 days→hour, ≤90→day, ≤730→month, else year),
+ * else fall back to `day` (docs/05 §3.3).
+ */
+export declare function adaptiveGranularity(dateRange: TimeDimension["dateRange"]): Granularity;
+
 /** Subset of Cube's annotation we rely on for labels + formatting. */
 export declare interface AnnotatedMember {
     title?: string;
@@ -877,8 +884,8 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
         size?: string | undefined;
-        groupBy?: string | undefined;
         sizeRange?: [number, number] | undefined;
+        groupBy?: string | undefined;
     }, {
         x: string;
         y: string;
@@ -890,8 +897,8 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
         size?: string | undefined;
-        groupBy?: string | undefined;
         sizeRange?: [number, number] | undefined;
+        groupBy?: string | undefined;
     }>;
     heatmap: z.ZodObject<{
         /** The single-hue ramp token; cells shade light→dark within this hue. */
@@ -998,7 +1005,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         icon: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         measure: string;
-        display?: "number" | "gauge" | undefined;
         gauge?: {
             max: number;
             min?: number | undefined;
@@ -1007,6 +1013,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
             }[] | undefined;
         } | undefined;
+        display?: "number" | "gauge" | undefined;
         goodDirection?: "up" | "down" | undefined;
         comparison?: {
             mode: "value" | "previousPeriod";
@@ -1027,7 +1034,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         icon?: string | undefined;
     }, {
         measure: string;
-        display?: "number" | "gauge" | undefined;
         gauge?: {
             max: number;
             min?: number | undefined;
@@ -1036,6 +1042,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
             }[] | undefined;
         } | undefined;
+        display?: "number" | "gauge" | undefined;
         goodDirection?: "up" | "down" | undefined;
         comparison?: {
             mode: "value" | "previousPeriod";
@@ -1245,6 +1252,19 @@ export declare const builtinFamilyRegistry: FamilyRegistry;
 /** The breakpoint key under which {@link Dashboard} stores the canonical layout. */
 export declare const CANONICAL_BREAKPOINT: "lg";
 
+/**
+ * The visual role a well feeds. Two families that expose the same channel mean
+ * the same thing by it, which is what makes type-switching lossless
+ * ({@link unifyChannels}), fit-ranking possible, and the editor uniform: the
+ * "category" well behaves identically in bar, line, area and heatmap because it
+ * IS the same channel.
+ *
+ * `row` is a second categorical POSITION channel (the heatmap's rows) as opposed
+ * to `color`, which is a categorical PAINT channel (a bar/line split). Both are
+ * stored the same way (a pivot dimension); they differ in how the mark reads them.
+ */
+export declare type Channel = "x" | "y" | "color" | "size" | "row" | "detail";
+
 export declare type ChartColorToken = z.infer<typeof ChartColorTokenSchema>;
 
 export declare const ChartColorTokenSchema: z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>;
@@ -1394,11 +1414,15 @@ export declare type ChartFamily = z.infer<typeof ChartFamilySchema>;
  * that DATA + dispatch so adding a family later is "write one descriptor (+ its
  * procedural field writers)" rather than editing every table.
  *
- * What is INTENTIONALLY NOT absorbed (Phase 1): the procedural per-family bodies —
- * `placeField`/`removeField` impls (`wells.ts`), `migrateToFamily`, the
- * `CustomizeSection` per-family control JSX, the chip-binding patch writers, and
- * `readWells`. Those READ descriptor flags but their bodies stay; the DATA/dispatch
- * is what centralizes here.
+ * Field placement is DATA here too: each well declares its `target` (where its member
+ * lives in the spec) + `channel` (which visual role it feeds), and the generic
+ * interpreter in `editor/chart/builder/channels.ts` reads/writes every builtin family
+ * from those two facts. The per-family `placeField`/`removeField`/`readWells`/
+ * `migrateToFamily` switches are GONE.
+ *
+ * What is still INTENTIONALLY NOT absorbed: the `CustomizeSection` per-family control
+ * JSX and the chip-binding patch writers. Those READ descriptor flags but their bodies
+ * stay; the DATA/dispatch is what centralizes here.
  */
 export declare interface ChartFamilyDescriptor {
     /** The family key (the discriminator). */
@@ -1512,6 +1536,66 @@ export declare interface ChartFormat {
      * granularity from the chart options/query when discoverable.
      */
     category: (value: string | number | null | undefined) => string;
+}
+
+/** The optional handler pair a host supplies at any level. */
+export declare interface ChartInteractionHandlers {
+    /**
+     * A time range was brushed on a chart with a TEMPORAL category axis. Called
+     * with `null` when the brush is cleared (a click on empty plot).
+     */
+    onRangeSelect?: RangeSelectHandler;
+    /**
+     * A bar / point / slice / cell was clicked. Called with `null` when the reader
+     * clicks the blank surface (clear the cross-filter).
+     */
+    onPointSelect?: PointSelectHandler;
+}
+
+/**
+ * Publish (or override) the interaction handlers for a subtree. Nesting is
+ * innermost-wins PER CHANNEL: a chart that supplies only `onPointSelect` still
+ * inherits the dashboard's `onRangeSelect`. `widgetId` and `target` are merged
+ * the same way, so the widget level names the source without the dashboard level
+ * having to know about it.
+ */
+export declare function ChartInteractionProvider({ widgetId, onRangeSelect, onPointSelect, target, children, }: ChartInteractionProviderProps): React_2.ReactElement;
+
+export declare interface ChartInteractionProviderProps extends ChartInteractionHandlers {
+    /** Names the source widget on every selection emitted below this provider. */
+    widgetId?: string;
+    /** Per-chart semantic context (category/pivot member + label formatter). */
+    target?: ChartInteractionTarget;
+    children: React_2.ReactNode;
+}
+
+/** What a chart reads: capability flags, the semantic target, and stable emitters. */
+export declare interface ChartInteractions {
+    /** The innermost widget id, stamped onto every emitted selection. */
+    widgetId?: string;
+    target: ChartInteractionTarget;
+    /** A range handler exists somewhere up the tree ⇒ mount the brush. */
+    rangeEnabled: boolean;
+    /** A point handler exists somewhere up the tree ⇒ attach `onSelect`. */
+    pointEnabled: boolean;
+    /** Stable for the provider's lifetime — safe inside a definition `useMemo`. */
+    emitRange: RangeSelectHandler;
+    /** Stable for the provider's lifetime — safe inside a definition `useMemo`. */
+    emitPoint: PointSelectHandler;
+}
+
+/**
+ * The per-chart semantic context the emitters need to name what was clicked.
+ * Supplied by {@link import("@/render").CubeChart} (it is the layer that holds
+ * both the resolved `mapping` and the bound formatter); charts only READ it.
+ */
+export declare interface ChartInteractionTarget {
+    /** `mapping.category.member` — the dimension on the category axis. */
+    categoryMember?: string;
+    /** `mapping.series.pivot` — the colour-split dimension, when the series ARE a split. */
+    pivotMember?: string;
+    /** The chart's bound category formatter, for a selection's display label. */
+    formatCategory?: (value: string | number) => string;
 }
 
 export declare type ChartOptions = z.infer<typeof ChartOptionsSchema>;
@@ -2137,6 +2221,26 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         unitSystem?: "metric" | "imperial" | undefined;
         dateFormat?: string | undefined;
     }>>;
+    /**
+     * Presentation-only reshaping of the normalized series (rolling average /
+     * running total / share of category total). Purely additive + optional, so it
+     * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+     */
+    transform: z.ZodOptional<z.ZodObject<{
+        kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+        /**
+         * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+         * (ignored by cumulative / percentOfTotal); defaults to
+         * {@link DEFAULT_TRANSFORM_WINDOW}.
+         */
+        window: z.ZodOptional<z.ZodNumber>;
+    }, "strict", z.ZodTypeAny, {
+        kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+        window?: number | undefined;
+    }, {
+        kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+        window?: number | undefined;
+    }>>;
     /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
     familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
 }, "strict", z.ZodTypeAny, {
@@ -2250,6 +2354,10 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
         ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
     } | undefined;
+    transform?: {
+        kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+        window?: number | undefined;
+    } | undefined;
     familyOptions?: Record<string, unknown> | undefined;
 }, {
     family: string;
@@ -2361,6 +2469,10 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     colors?: {
         byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
         ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+    } | undefined;
+    transform?: {
+        kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+        window?: number | undefined;
     } | undefined;
     familyOptions?: Record<string, unknown> | undefined;
 }>;
@@ -3116,6 +3228,26 @@ export declare const ChartSpecSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }>>;
+        /**
+         * Presentation-only reshaping of the normalized series (rolling average /
+         * running total / share of category total). Purely additive + optional, so it
+         * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+         */
+        transform: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+            /**
+             * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+             * (ignored by cumulative / percentOfTotal); defaults to
+             * {@link DEFAULT_TRANSFORM_WINDOW}.
+             */
+            window: z.ZodOptional<z.ZodNumber>;
+        }, "strict", z.ZodTypeAny, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }>>;
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
@@ -3229,6 +3361,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
         family: string;
@@ -3340,6 +3476,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
@@ -3461,6 +3601,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -3608,6 +3752,10 @@ export declare const ChartSpecSchema: z.ZodObject<{
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
     id: string;
@@ -3643,14 +3791,43 @@ export declare const ChartSpecSchema: z.ZodObject<{
     updatedAt?: string | undefined;
 }>;
 
+export declare type ChartTransform = z.infer<typeof ChartTransformSchema>;
+
+/**
+ * A PRESENTATION transform applied to the already-aggregated, already-normalized
+ * series — the seam TanStack Charts deliberately leaves to the view layer while the
+ * semantic layer (Cube) owns aggregation. It lets "7-day rolling average" / "running
+ * total" / "% of total" be a display choice instead of three new Cube measures.
+ *
+ * Envelope-level (NOT per-family) on purpose: it reshapes the generic
+ * `{categories, series[].data}` shape, so every cartesian family gets it for free
+ * and no family option schema grows a knob. Applied in `ChartRenderer` before the
+ * family component sees the data (see `src/charts/transforms.ts`).
+ */
+export declare const ChartTransformSchema: z.ZodObject<{
+    kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+    /**
+     * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+     * (ignored by cumulative / percentOfTotal); defaults to
+     * {@link DEFAULT_TRANSFORM_WINDOW}.
+     */
+    window: z.ZodOptional<z.ZodNumber>;
+}, "strict", z.ZodTypeAny, {
+    kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+    window?: number | undefined;
+}, {
+    kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+    window?: number | undefined;
+}>;
+
 /**
  * Render a standalone {@link ChartSpec} inside the default {@link WidgetChrome}, so a
  * lone chart file looks consistent with a dashboard cell. No `DashboardProvider` —
  * a top-level chart resolves variables against an empty store (fail-safe noFilter).
  */
-export declare function ChartView({ spec, families }: ChartViewProps): ReactElement;
+export declare function ChartView({ spec, families, onRangeSelect, onPointSelect, }: ChartViewProps): ReactElement;
 
-export declare interface ChartViewProps {
+export declare interface ChartViewProps extends ChartInteractionHandlers {
     /** A standalone chart spec to render (no dashboard / variables). */
     spec: ChartSpec;
     /**
@@ -4392,6 +4569,26 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }>>;
+        /**
+         * Presentation-only reshaping of the normalized series (rolling average /
+         * running total / share of category total). Purely additive + optional, so it
+         * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+         */
+        transform: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+            /**
+             * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+             * (ignored by cumulative / percentOfTotal); defaults to
+             * {@link DEFAULT_TRANSFORM_WINDOW}.
+             */
+            window: z.ZodOptional<z.ZodNumber>;
+        }, "strict", z.ZodTypeAny, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }>>;
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
@@ -4505,6 +4702,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
         family: string;
@@ -4616,6 +4817,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
@@ -4733,6 +4938,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -4875,6 +5084,10 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -5022,7 +5235,7 @@ export declare function createUnitsFormatter(conversions?: Record<string, UnitDe
  */
 export declare function createVariableStore(decls: VariableDecl[], seed?: Record<string, VariableValue>): VariableStore;
 
-export declare function CubeChart({ query, chart, onState, editing, updateFamilyOptions }: CubeChartProps): ReactElement;
+export declare function CubeChart({ query, chart, onState, editing, updateFamilyOptions, widgetId, onRangeSelect, onPointSelect, }: CubeChartProps): ReactElement;
 
 /**
  * The data-fetching wrapper around the pure {@link ChartRenderer}
@@ -5037,11 +5250,17 @@ export declare function CubeChart({ query, chart, onState, editing, updateFamily
  * the renderer only maps `NormalizedChartData` → Recharts. Loading / error / empty
  * pass straight through to `ChartRenderer`, which renders the shared state chrome.
  */
-export declare interface CubeChartProps {
+export declare interface CubeChartProps extends ChartInteractionHandlers {
     /** The Cube query (may carry `{var}` tokens — resolved by the surrounding dashboard). */
     query: CubeQuery;
     /** The chart option envelope (family, mapping, axes, …). */
     chart: ChartOptions;
+    /**
+     * Names this chart on every {@link import("@/provider").RangeSelection} /
+     * {@link import("@/provider").PointSelection} it emits, so ONE dashboard-wide
+     * handler pair can tell its widgets apart. Set automatically by `RenderWidget`.
+     */
+    widgetId?: string;
     /** Lifts the resolved rows + a refetch up to the chrome (for export / refresh). */
     onState?: (state: {
         rows: Record<string, unknown>[];
@@ -5055,9 +5274,9 @@ export declare interface CubeChartProps {
 }
 
 /** Convenience wrapper that renders a standalone {@link ChartSpec}. */
-export declare function CubeChartSpec({ spec }: CubeChartSpecProps): ReactElement;
+export declare function CubeChartSpec({ spec, onRangeSelect, onPointSelect, }: CubeChartSpecProps): ReactElement;
 
-export declare interface CubeChartSpecProps {
+export declare interface CubeChartSpecProps extends ChartInteractionHandlers {
     /** A standalone chart spec; its `query` + `chart` drive the render. */
     spec: ChartSpec;
 }
@@ -5267,7 +5486,7 @@ export declare type CubeVizLocaleConfig = ResolvedLocale;
  */
 export declare type CubeVizMapsConfig = ResolvedMaps;
 
-export declare function CubeVizProvider({ cube, theme, locale, maps, registry, families, children, }: CubeVizProviderProps): React_2.ReactElement;
+export declare function CubeVizProvider({ cube, theme, locale, maps, registry, families, interactions, children, }: CubeVizProviderProps): React_2.ReactElement;
 
 export declare interface CubeVizProviderProps {
     /**
@@ -5298,6 +5517,14 @@ export declare interface CubeVizProviderProps {
      * does NOT churn the registry identity.
      */
     families?: ChartFamilyDescriptor[];
+    /**
+     * App-wide semantic interaction handlers (brush-to-drill / click-to-cross-filter).
+     * This is the OUTERMOST level of the innermost-wins chain
+     * provider → `<Dashboard>` → `<CubeChart>`; every emitted selection names its
+     * source widget. Omit it and no chart mounts a brush or a click handler, so an
+     * existing embed is untouched.
+     */
+    interactions?: ChartInteractionHandlers;
     children: React_2.ReactNode;
 }
 
@@ -5319,7 +5546,13 @@ export declare interface CubeVizThemeConfig {
     mode?: "light" | "dark" | "system";
 }
 
-export declare function Dashboard({ spec, editable, families }: DashboardProps): ReactElement;
+/**
+ * `onRangeSelect` / `onPointSelect` are DASHBOARD-WIDE: one handler pair serves
+ * every widget, and each emitted selection carries the source `widgetId`. A single
+ * widget can still override either channel by rendering its own `CubeChart`. Omit
+ * both and nothing interactive is mounted (no brush, no click handler).
+ */
+export declare function Dashboard({ spec, editable, families, onRangeSelect, onPointSelect, }: DashboardProps): ReactElement;
 
 /**
  * The dashboard variable layer (docs/03-override-theme-preview.md §A2.5): a React
@@ -5430,7 +5663,7 @@ export declare interface DashboardEditorProps {
     className?: string;
 }
 
-export declare interface DashboardProps {
+export declare interface DashboardProps extends ChartInteractionHandlers {
     /** The dashboard spec (variables + widgets + canonical layout + grid). */
     spec: DashboardSpec;
     /** Edit mode: enables drag/resize (handle = chrome header). Default `false`. */
@@ -6213,6 +6446,26 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }>>;
+            /**
+             * Presentation-only reshaping of the normalized series (rolling average /
+             * running total / share of category total). Purely additive + optional, so it
+             * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+             */
+            transform: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+                /**
+                 * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+                 * (ignored by cumulative / percentOfTotal); defaults to
+                 * {@link DEFAULT_TRANSFORM_WINDOW}.
+                 */
+                window: z.ZodOptional<z.ZodNumber>;
+            }, "strict", z.ZodTypeAny, {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            }, {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            }>>;
             /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
             familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         }, "strict", z.ZodTypeAny, {
@@ -6326,6 +6579,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
             } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }, {
             family: string;
@@ -6437,6 +6694,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }>;
@@ -6554,6 +6815,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -6696,6 +6961,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -7168,6 +7437,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
             } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
         query: {
@@ -7387,6 +7660,10 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
             } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
         id: string;
@@ -7506,6 +7783,9 @@ export declare const DEFAULT_COLOR_RAMP: ChartColorToken[];
 
 /** Mirror of {@link Dashboard}'s default grid column count (12). */
 export declare const DEFAULT_COLS = 12;
+
+/** The default trailing window (in categories) for a `rollingAvg` transform. */
+export declare const DEFAULT_TRANSFORM_WINDOW = 7;
 
 /**
  * The default metric-storage-unit → imperial display rule table. EXTENSIBLE: hosts
@@ -7679,20 +7959,33 @@ export declare function FamilyRegistryOverride({ families, children, }: {
 export declare function fetchMeta(api: CubeClient): Promise<CubeMeta>;
 
 /**
- * Chart Builder v2 — the PURE seam (no React). It is the single place that knows
- * the typed-well ↔ {@link ChartSpec} mapping (docs/05 §2). Every writer returns a
- * FULL `ChartSpec`, so the panel funnels each edit through the unchanged
- * `update → validate → debounce-emit` engine. Unit-testable in isolation.
+ * Chart Builder v4 — the CHANNEL model (docs/05 §2).
+ *
+ * A well is not a family-specific slot; it is a binding of a *visual channel*
+ * (x / y / color / size …) to a *place in the spec* (the mapping envelope or a
+ * `familyOptions` key). Declaring that binding on the descriptor lets ONE
+ * interpreter answer every question the editor used to answer per family:
+ *
+ *  - "what is in this well?"          → {@link readChannelWells}
+ *  - "may this field go here?"        → {@link wellAccepts}
+ *  - "put it here"                    → {@link placeInChannelWell}
+ *  - "take it out"                    → {@link removeFromChannelWell}
+ *  - "keep my fields when I switch"   → {@link unifyChannels}
+ *
+ * The per-family `placeField`/`removeField`/`readWells` switches this replaces
+ * re-answered those questions in five dialects. Host families (map/ai) still
+ * bring their own hooks — a well with no {@link WellTarget} is host-managed.
  */
 /**
  * A field's primitive role: a measure / a non-time dimension / a time dimension /
- * a NUMERIC dimension / a synthetic geographic point. `numberDimension` exists because Cube models coordinates and
- * other per-row numbers (latitude, longitude, headings) as `type: number`
- * DIMENSIONS — the `number` kind only surfaces measures, so a well that wants raw
- * per-row numbers opts in with `kinds: ["number", "numberDimension"]`. Placement
- * writers route the kinds differently (`number` → `query.measures`,
- * `numberDimension` → `query.dimensions`). `geoPoint` bundles a model-authored
- * latitude/longitude pair; the editor fans it out to a host family's internal wells.
+ * a NUMERIC dimension / a synthetic geographic point. `numberDimension` exists
+ * because Cube models coordinates and other per-row numbers (latitude, longitude,
+ * headings) as `type: number` DIMENSIONS — the `number` kind only surfaces
+ * measures, so a well that wants raw per-row numbers opts in with
+ * `kinds: ["number", "numberDimension"]`. Placement routes the kinds differently
+ * (`number` → `query.measures`, `numberDimension` → `query.dimensions`).
+ * `geoPoint` bundles a model-authored latitude/longitude pair; the editor fans it
+ * out to a host family's internal wells.
  */
 export declare type FieldKind = "number" | "category" | "time" | "numberDimension" | "geoPoint";
 
@@ -8509,7 +8802,6 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
     icon: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     measure: string;
-    display?: "number" | "gauge" | undefined;
     gauge?: {
         max: number;
         min?: number | undefined;
@@ -8518,6 +8810,7 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
             colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
         }[] | undefined;
     } | undefined;
+    display?: "number" | "gauge" | undefined;
     goodDirection?: "up" | "down" | undefined;
     comparison?: {
         mode: "value" | "previousPeriod";
@@ -8538,7 +8831,6 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
     icon?: string | undefined;
 }, {
     measure: string;
-    display?: "number" | "gauge" | undefined;
     gauge?: {
         max: number;
         min?: number | undefined;
@@ -8547,6 +8839,7 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
             colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
         }[] | undefined;
     } | undefined;
+    display?: "number" | "gauge" | undefined;
     goodDirection?: "up" | "down" | undefined;
     comparison?: {
         mode: "value" | "previousPeriod";
@@ -8642,6 +8935,10 @@ export declare const LegendOptionsSchema: z.ZodObject<{
  * Multi-series = one lineY mark per series; sparkline = `chrome:"none"` (no
  * axes/grid/legend/tooltip). Line ignores orientation/stackMode (stacked lines
  * use the `area` family). Dual-axis was removed with the combo family.
+ *
+ * A TIME-DIMENSION category axis renders on a real `scaleUtc` (see
+ * {@link annotationToAxis}): buckets sit at their true elapsed distance, so a
+ * missing day now draws as a gap instead of collapsing into the next bucket.
  */
 export declare function LineChartFamily({ data, options, format, }: ChartComponentProps): React_2.ReactElement;
 
@@ -8928,6 +9225,20 @@ export declare const PieFamilyOptionsSchema: z.ZodObject<{
  */
 export declare function placeNewItem(existing: LayoutItem[], id: string, type: WidgetSpec["type"], cols?: number): LayoutItem;
 
+export declare type PointSelectHandler = (selection: PointSelection | null) => void;
+
+/** A clicked datum, reported as the dimension member + value it stands for. */
+export declare interface PointSelection {
+    /** The widget the selection came from. */
+    widgetId?: string;
+    /** The Cube dimension member the value belongs to (category or colour split). */
+    member: string;
+    /** The RAW member value — what a host puts in a Cube `equals` filter. */
+    value: string | number;
+    /** The rendered display label for that value (already formatted). */
+    label: string;
+}
+
 /**
  * A human label for an axis-consistency message. Prefers the quantity
  * ("fuelEfficiency" → "Fuel efficiency"), falls back to the unit, else "number".
@@ -8946,6 +9257,47 @@ export declare interface QueryState {
     data?: NormalizedChartData;
     isLoading: boolean;
     error?: Error;
+}
+
+export declare type RangeSelectHandler = (selection: RangeSelection | null) => void;
+
+/**
+ * The SEMANTIC interaction seam (drill / cross-filter). cube-viz never hands a
+ * host pixels, scene coordinates, or renderer points: a chart reports what the
+ * reader pointed AT in Cube terms — a member plus either an ISO time range or a
+ * dimension value — and the host decides what that means (drill into a window,
+ * cross-filter the other widgets, navigate…).
+ *
+ * Two levels supply the handlers, innermost wins:
+ *  - dashboard/app-wide: `<CubeVizProvider interactions={…}>` or
+ *    `<Dashboard onRangeSelect onPointSelect>` — one pair for every widget;
+ *    `widgetId` on the emitted selection names the source widget.
+ *  - per chart: `<CubeChart onRangeSelect onPointSelect>` / `<ChartView …>` —
+ *    overrides the ambient handler for that chart only.
+ *
+ * Handlers are OPTIONAL end to end. With none supplied `rangeEnabled` /
+ * `pointEnabled` stay false: no brush is mounted and no `onSelect` is attached,
+ * so an existing embed renders and behaves exactly as before.
+ *
+ * **Identity discipline.** A chart definition is memoized and its identity is the
+ * update boundary, so this context value must NOT change when a host passes a
+ * fresh inline arrow every render. The handlers are therefore held in a ref and
+ * reached through the two STABLE emitters below; the context value's identity
+ * only changes when a capability flag, the widget id, or the semantic target
+ * changes.
+ */
+/** A committed time-range brush, in the mapped time dimension's own terms. */
+export declare interface RangeSelection {
+    /** The widget the selection came from (dashboard-wide handlers disambiguate with it). */
+    widgetId?: string;
+    /** The Cube time-dimension member the range applies to (e.g. `trips.start_time`). */
+    member: string;
+    /** The bucket granularity of that member, when the annotation carries one. */
+    granularity?: Granularity;
+    /** Inclusive ISO start — the first selected bucket, exactly as Cube emitted it. */
+    from: string;
+    /** Inclusive ISO end — the last selected bucket, exactly as Cube emitted it. */
+    to: string;
 }
 
 export declare type ReferenceLineOpt = z.infer<typeof ReferenceLineOptSchema>;
@@ -8971,7 +9323,7 @@ export declare const ReferenceLineOptSchema: z.ZodObject<{
 /** A dashboard spec with one widget (+ its layout item) removed. Pure. */
 export declare function removeWidget(spec: DashboardSpec, id: string): DashboardSpec;
 
-export declare function RenderWidget({ widget, dragHandleProps, editable }: RenderWidgetProps): ReactElement;
+export declare function RenderWidget({ widget, dragHandleProps, editable, onRangeSelect, onPointSelect, }: RenderWidgetProps): ReactElement;
 
 /**
  * Dispatch a {@link WidgetSpec} by `type` (chart / text / input) to its renderer,
@@ -8982,7 +9334,7 @@ export declare function RenderWidget({ widget, dragHandleProps, editable }: Rend
  * `dragHandleProps` come from the Dashboard's grid item and are spread onto the
  * chrome header so the title bar is the RGL drag handle in edit mode.
  */
-export declare interface RenderWidgetProps {
+export declare interface RenderWidgetProps extends ChartInteractionHandlers {
     /** The widget to render. */
     widget: WidgetSpec;
     /** Spread onto the chrome header so it acts as the RGL drag handle. */
@@ -9160,8 +9512,8 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
     size?: string | undefined;
-    groupBy?: string | undefined;
     sizeRange?: [number, number] | undefined;
+    groupBy?: string | undefined;
 }, {
     x: string;
     y: string;
@@ -9173,8 +9525,8 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
     size?: string | undefined;
-    groupBy?: string | undefined;
     sizeRange?: [number, number] | undefined;
+    groupBy?: string | undefined;
 }>;
 
 /**
@@ -10361,6 +10713,26 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }>>;
+        /**
+         * Presentation-only reshaping of the normalized series (rolling average /
+         * running total / share of category total). Purely additive + optional, so it
+         * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+         */
+        transform: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+            /**
+             * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+             * (ignored by cumulative / percentOfTotal); defaults to
+             * {@link DEFAULT_TRANSFORM_WINDOW}.
+             */
+            window: z.ZodOptional<z.ZodNumber>;
+        }, "strict", z.ZodTypeAny, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }>>;
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
@@ -10474,6 +10846,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
         family: string;
@@ -10585,6 +10961,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
@@ -10706,6 +11086,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -10852,6 +11236,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -11637,6 +12025,26 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }>>;
+            /**
+             * Presentation-only reshaping of the normalized series (rolling average /
+             * running total / share of category total). Purely additive + optional, so it
+             * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+             */
+            transform: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+                /**
+                 * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+                 * (ignored by cumulative / percentOfTotal); defaults to
+                 * {@link DEFAULT_TRANSFORM_WINDOW}.
+                 */
+                window: z.ZodOptional<z.ZodNumber>;
+            }, "strict", z.ZodTypeAny, {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            }, {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            }>>;
             /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
             familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         }, "strict", z.ZodTypeAny, {
@@ -11750,6 +12158,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
             } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }, {
             family: string;
@@ -11861,6 +12273,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }>;
@@ -11978,6 +12394,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -12120,6 +12540,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -12592,6 +13016,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
             } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
         query: {
@@ -12810,6 +13238,10 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -13345,6 +13777,10 @@ export declare function toResultAnnotation(raw: {
     }>;
 }): ResultAnnotation;
 
+export declare type TransformKind = z.infer<typeof TransformKindSchema>;
+
+export declare const TransformKindSchema: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+
 export declare interface Transport {
     init(): Promise<TransportInit>;
     onSpec(cb: (spec: Spec) => void): () => void;
@@ -13411,6 +13847,13 @@ export declare interface UseChartEditorStateOptions {
     /** Debounce for `onChange` (ms). Default 250. */
     debounceMs?: number;
 }
+
+/**
+ * Read the ambient interaction seam. Outside any provider this returns a FROZEN
+ * module-level value, so a standalone family (or a preview harness) mounts with
+ * no brush, no select handler, and no re-render churn.
+ */
+export declare function useChartInteractions(): ChartInteractions;
 
 /**
  * Measure the **container** width of the attached element via `ResizeObserver`
@@ -13655,7 +14098,7 @@ export declare const VarRefSchema: z.ZodObject<{
     var: string;
 }>;
 
-/** A typed slot in the builder. `kinds` gates which fields may be dropped/clicked in. */
+/** A typed slot in the builder. `kinds` gates which fields may be dropped in. */
 export declare interface WellDef {
     id: string;
     label: string;
@@ -13664,7 +14107,38 @@ export declare interface WellDef {
     kinds: FieldKind[];
     /** Optional wells render a muted "(optional)" affordance. */
     optional?: boolean;
+    /**
+     * Where this well's field(s) live in the spec. ABSENT ⇒ host-managed: the
+     * descriptor's own `readWells`/`placeField`/`removeField` own it.
+     */
+    target?: WellTarget;
+    /** The visual channel this well feeds. Absent ⇒ excluded from unification. */
+    channel?: Channel;
 }
+
+/**
+ * Where a well's field(s) live in the spec.
+ *
+ *  - `category` → `mapping.category.member` (+ the query dimension/timeDimension)
+ *  - `measures` → the mapped measure list (`series.members`, or `series.values`
+ *    in pivot mode) + `query.measures`
+ *  - `pivot`    → `mapping.series.pivot`, the dimension that splits the measures
+ *  - `option`   → `familyOptions[key] = member` (scatter's x/y/size, kpi's measure)
+ *  - `optionList` → `familyOptions[key] = [{ member }, …]` (table columns)
+ */
+export declare type WellTarget = {
+    kind: "category";
+} | {
+    kind: "measures";
+} | {
+    kind: "pivot";
+} | {
+    kind: "option";
+    key: string;
+} | {
+    kind: "optionList";
+    key: string;
+};
 
 export declare function WidgetChrome(props: WidgetChromeProps): ReactElement;
 
@@ -14461,6 +14935,26 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }>>;
+        /**
+         * Presentation-only reshaping of the normalized series (rolling average /
+         * running total / share of category total). Purely additive + optional, so it
+         * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+         */
+        transform: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+            /**
+             * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+             * (ignored by cumulative / percentOfTotal); defaults to
+             * {@link DEFAULT_TRANSFORM_WINDOW}.
+             */
+            window: z.ZodOptional<z.ZodNumber>;
+        }, "strict", z.ZodTypeAny, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }>>;
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
@@ -14574,6 +15068,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
         family: string;
@@ -14685,6 +15183,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
@@ -14802,6 +15304,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -14944,6 +15450,10 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
