@@ -25,6 +25,7 @@
     "preview:playground": "vite preview",
     "typecheck": "tsc --noEmit",
     "shot": "bun playground/shot.mjs",
+    "shots": "node scripts/shots.mjs",
     "test": "vitest run"
   },
   "peerDependencies": {

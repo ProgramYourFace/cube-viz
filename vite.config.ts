@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 import { cubeDevProxy } from "./playground/vite-cube-dev";
+import { cubeMock } from "./playground/vite-cube-mock";
 
 // Dev/playground config: serves index.html → playground/main.tsx against the
 // library source directly (no build step while developing). cubeDevProxy mints a
@@ -12,7 +13,12 @@ export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
 
   return {
-    plugins: [react(), cubeDevProxy()],
+    // cubeDevProxy serves `/__cube/*` against a REAL Cube (needs CUBE_API_URL +
+    // CUBE_API_SECRET). cubeMock serves `/cubejs-api/v1/*` entirely offline and
+    // self-disables when those env vars are present (unless CUBE_MOCK=1 forces it),
+    // so the live-data dev path is untouched while CI — which has neither the
+    // server nor the secrets — still renders real charts.
+    plugins: [react(), cubeDevProxy(), cubeMock()],
     resolve: {
       alias: { "@": resolve(__dirname, "src") },
     },
