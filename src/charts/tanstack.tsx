@@ -101,6 +101,21 @@ export function buildSeriesRows(
   return rows;
 }
 
+/**
+ * The key a Cube `tablePivot()` row actually uses for `member`.
+ *
+ * A BUCKETED time dimension is selected as `trips.start_time` but comes back
+ * keyed `trips.start_time.day`, so indexing a row by the bare member misses and
+ * the cell reads as no-data. Falls back to the member itself when nothing
+ * matches, so a genuinely absent column still renders its empty state.
+ */
+export function rowKeyFor(rows: readonly Record<string, unknown>[], member: string): string {
+  const first = rows[0];
+  if (!first || member in first) return member;
+  const prefix = `${member}.`;
+  return Object.keys(first).find((k) => k.startsWith(prefix)) ?? member;
+}
+
 /** Series display label (legend/tooltip identity). Falls back to the key. */
 export function seriesLabel(s: NormalizedSeries): string {
   return s.label || s.key;

@@ -2,6 +2,7 @@ import * as React from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
 import { cn } from "@/components/ui/utils";
+import { rowKeyFor } from "./tanstack";
 import {
   Table,
   TableBody,
@@ -42,8 +43,11 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
   const sorted = React.useMemo(() => {
     if (!sort) return rows;
     const dir = sort.dir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => compareCell(a[sort.member], b[sort.member]) * dir);
-  }, [rows, sort]);
+    // Sort state stores the MEMBER (that is what the header identifies), so the
+    // comparator resolves it to the row key the same way the cells do.
+    const key = columns.find((c) => c.member === sort.member)?.key ?? sort.member;
+    return [...rows].sort((a, b) => compareCell(a[key], b[key]) * dir);
+  }, [rows, sort, columns]);
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
@@ -104,14 +108,14 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
                   </TableCell>
                 )}
                 {columns.map((col) => {
-                  const tint = condTint(col.member, row[col.member], fo.conditionalFormat);
+                  const tint = condTint(col.member, row[col.key], fo.conditionalFormat);
                   return (
                     <TableCell
                       key={col.member}
                       className={cn(alignClass(col.align), compact && "cv-table-cell--compact")}
                       style={tint ? { color: tint } : undefined}
                     >
-                      {col.render(row[col.member])}
+                      {col.render(row[col.key])}
                     </TableCell>
                   );
                 })}
@@ -161,7 +165,10 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
 }
 
 interface ResolvedColumn {
+  /** The member as SELECTED (annotation lookups, sort identity, format rules). */
   member: string;
+  /** The key this member actually occupies in a tablePivot row (see rowKeyFor). */
+  key: string;
   label: string;
   align?: TableColumnOpt["align"];
   width?: number;
@@ -185,12 +192,14 @@ function resolveColumns(
     .filter((c) => !c.hidden)
     .map((c) => {
       const member = c.member;
+      const key = rowKeyFor(rows, member);
       const meta = ann ? memberMeta(ann, member) : undefined;
       const isMeasure = ann ? member in ann.measures : false;
       const label = c.label ?? meta?.shortTitle ?? meta?.title ?? member;
       const align: TableColumnOpt["align"] = c.align ?? (isMeasure ? "right" : "left");
       return {
         member,
+        key,
         label,
         align,
         width: c.width,

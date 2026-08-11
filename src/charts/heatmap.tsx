@@ -3,7 +3,7 @@ import { cell, defineChart, text, type ChartMark } from "@tanstack/charts";
 
 import type { ChartComponentProps } from "./types";
 import type { HeatmapFamilyOptions } from "./defaults";
-import { bandScale, cubeTooltip, CvChart, type SeriesRow } from "./tanstack";
+import { bandScale, cubeTooltip, CvChart, rowKeyFor, type SeriesRow } from "./tanstack";
 
 /**
  * `heatmap` — a two-dimension × one-measure matrix drawn with the TanStack `cell`
@@ -42,13 +42,6 @@ function heatmapMembers(options: ChartComponentProps["options"]): {
  * Resolve the raw-row key for a member. Cube's `tablePivot` keys a bucketed time
  * dimension as `<member>.<granularity>`, so fall back to the first prefixed key.
  */
-function rowKeyFor(rows: Record<string, unknown>[], member: string): string {
-  const first = rows[0];
-  if (!first || member in first) return member;
-  const prefix = `${member}.`;
-  return Object.keys(first).find((k) => k.startsWith(prefix)) ?? member;
-}
-
 function coerceNumber(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
