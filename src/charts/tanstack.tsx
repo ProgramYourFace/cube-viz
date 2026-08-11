@@ -1,6 +1,7 @@
 import * as React from "react";
 import type {
   ChartColorOptions,
+  ChartControl,
   ChartMark,
   ChartPoint,
   ChartTooltipContent,
@@ -15,12 +16,21 @@ import { Chart } from "@tanstack/charts/react/core";
 import { motion } from "@tanstack/charts/motion";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { d3Curve } from "@tanstack/charts/d3/shape";
-import { scaleLog } from "d3-scale";
+import { brushX, type BrushRange, type BrushXChange } from "@tanstack/charts/interaction/brush";
+import { controlledSignal } from "@tanstack/charts/interaction/signal";
+import { scaleLog, scaleUtc } from "d3-scale";
 import { curveMonotoneX, curveNatural, curveStepAfter } from "d3-shape";
 
-import type { ChartOptions, AxisOptions, LegendOptions } from "@/spec";
+import type { ChartOptions, AxisOptions, Granularity, LegendOptions } from "@/spec";
+import { GranularitySchema } from "@/spec";
 import type { NormalizedChartData, NormalizedSeries } from "@/adapter/types";
 import type { ChartFormat } from "@/format";
+import { looksLikeIsoDate, toDate } from "@/format/dates";
+import {
+  useChartInteractions,
+  type ChartInteractionTarget,
+  type PointSelection,
+} from "@/provider/interactions";
 
 /**
  * Shared TanStack Charts seam for the built-in families (NOT a family; not
@@ -38,6 +48,13 @@ import type { ChartFormat } from "@/format";
 export interface SeriesRow {
   /** Category value (x for vertical, y for horizontal charts). */
   cat: string | number;
+  /**
+   * TEMPORAL category axis only: `cat` parsed to a UTC-anchored Date, used as the
+   * x channel against a `scaleUtc` so buckets sit at their true elapsed distance
+   * (see {@link annotationToAxis}). Absent on every non-temporal chart, which
+   * keeps reading `cat` against a point/band scale exactly as before.
+   */
+  t?: Date;
   /** The measured value (null gaps are preserved by the marks). */
   value: number | null;
   /** Series key (Cube member or pivot value) — identity, not display. */
@@ -55,16 +72,23 @@ export interface SeriesRow {
 /** Build long rows from `categories` + each series' aligned `data`. */
 export function buildSeriesRows(
   data: NormalizedChartData,
-  opts?: { series?: readonly NormalizedSeries[]; skipNull?: boolean },
+  opts?: {
+    series?: readonly NormalizedSeries[];
+    skipNull?: boolean;
+    /** When set, every row also carries `t` (the bucket's Date) for a utc x scale. */
+    temporal?: TemporalAxis | null;
+  },
 ): SeriesRow[] {
   const series = opts?.series ?? data.series;
   const rows: SeriesRow[] = [];
   data.categories.forEach((cat, i) => {
+    const t = opts?.temporal?.dates[i];
     for (const s of series) {
       const value = s.data[i] ?? null;
       if (value === null && opts?.skipNull) continue;
       rows.push({
         cat: typeof cat === "number" ? cat : String(cat),
+        ...(t ? { t } : {}),
         value,
         key: s.key,
         label: s.label,
@@ -131,6 +155,321 @@ export function bandScale(padding = 0.2) {
 /** Category scale for point-positioned marks (lines, areas). */
 export function pointScale() {
   return scalePoint().padding(0.02);
+}
+
+/* --------------------------------------------------- temporal category axis */
+
+/**
+ * A category axis that is HONESTLY temporal: the mapped category member is a
+ * time dimension AND every bucket parses as a date, so the axis can carry real
+ * elapsed-time spacing (d3 `scaleUtc`) instead of an evenly-spaced point/band
+ * scale. This is the bridge TanStack's guidance calls for — a missing day must
+ * leave a gap, and irregular buckets must not read as regular ones.
+ */
+export interface TemporalAxis {
+  /** The Cube time-dimension member (WITHOUT the `.granularity` suffix). */
+  member: string;
+  /** Bucket granularity parsed off the annotation key, when it carries one. */
+  granularity?: Granularity;
+  /** UTC-anchored Date per category index — aligned 1:1 with `data.categories`. */
+  dates: Date[];
+  /** The original category values, kept so labels/selections round-trip exactly. */
+  categories: readonly (string | number)[];
+  /** Ascending, de-duplicated bucket candidates (brush snapping + keyboard steps). */
+  values: Date[];
+}
+
+/**
+ * A zone-less Cube bucket ("2026-07-15", "2026-07-15T00:00:00.000"). Those carry
+ * NO offset, so reading them as local time and then plotting/ticking in UTC would
+ * shift labels across a day boundary. We anchor them in UTC instead and render
+ * labels back through the same wall clock ({@link utcNaiveIso}), which makes the
+ * round trip exact regardless of the viewer's timezone.
+ */
+const NAIVE_ISO = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/;
+
+/** Parse a category to a UTC-anchored Date (zone-less buckets read AS UTC). */
+function toUtcDate(value: string | number): Date | null {
+  if (typeof value === "string" && NAIVE_ISO.test(value)) {
+    const iso = value.replace(" ", "T");
+    const d = new Date(iso.length <= 10 ? `${iso}T00:00:00Z` : `${iso}Z`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  // Offset-bearing strings / epoch millis: the vetted parser already resolves them.
+  return toDate(value);
+}
+
+/** A UTC-anchored Date back to its zone-less ISO wall clock ("…T00:00:00.000"). */
+function utcNaiveIso(d: Date): string {
+  return d.toISOString().slice(0, -1);
+}
+
+/** The trailing `.day` / `.month` / … segment of an annotation key, when it is one. */
+function trailingGranularity(key: string, prefix?: string): Granularity | undefined {
+  const tail = prefix ? key.slice(prefix.length + 1) : key.slice(key.lastIndexOf(".") + 1);
+  const parsed = GranularitySchema.safeParse(tail);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Decide whether this chart's category axis is temporal, and if so materialize it.
+ *
+ * The rule (BOTH halves must hold — annotation alone is not enough, and
+ * date-looking strings alone are not either):
+ *  1. `mapping.category.member` resolves to a `timeDimensions` entry of the result
+ *     annotation. Cube keys bucketed time dimensions as `<member>.<granularity>`,
+ *     so an exact key match OR a `<member>.` prefix match counts, and the trailing
+ *     segment yields the granularity.
+ *  2. EVERY category parses as a date: an ISO-shaped string (`looksLikeIsoDate`),
+ *     or a bare number ONLY when a granularity says it is an epoch bucket — a
+ *     plain numeric dimension must never be silently read as epoch millis.
+ *
+ * Returns `null` when either half fails, which leaves the existing point/band
+ * category-scale path untouched.
+ */
+export function annotationToAxis(
+  data: NormalizedChartData,
+  options: ChartOptions,
+): TemporalAxis | null {
+  const member = options.mapping?.category?.member;
+  const timeDimensions = data.raw.annotation?.timeDimensions;
+  if (!member || !timeDimensions || data.categories.length === 0) return null;
+
+  let matched: string | undefined;
+  for (const key of Object.keys(timeDimensions)) {
+    if (key === member || key.startsWith(`${member}.`)) {
+      matched = key;
+      break;
+    }
+  }
+  if (matched === undefined) return null;
+
+  // `trips.start_time` + key `trips.start_time.day` → day; a mapping that already
+  // names the bucketed key (`trips.start_time.day`) yields it from the member.
+  const granularity =
+    matched === member ? trailingGranularity(member) : trailingGranularity(matched, member);
+  // The semantic member a host filters on never carries the granularity suffix.
+  const bare = granularity && member.endsWith(`.${granularity}`)
+    ? member.slice(0, -(granularity.length + 1))
+    : member;
+
+  const dates: Date[] = [];
+  for (const cat of data.categories) {
+    if (typeof cat === "number" && granularity === undefined) return null;
+    if (typeof cat === "string" && !looksLikeIsoDate(cat)) return null;
+    const d = toUtcDate(cat);
+    if (!d) return null;
+    dates.push(d);
+  }
+
+  // Brush candidates must be unique and strictly monotone in scale position.
+  const seen = new Set<number>();
+  const values = dates
+    .filter((d) => (seen.has(d.getTime()) ? false : (seen.add(d.getTime()), true)))
+    .sort((a, b) => a.getTime() - b.getTime());
+  // One distinct bucket has no elapsed spacing to be honest about, and a
+  // degenerate utc domain would pin it to the plot edge — keep the point scale,
+  // which centres it exactly as before.
+  if (values.length < 2) return null;
+
+  return { member: bare, granularity, dates, categories: data.categories, values };
+}
+
+/**
+ * The x-axis scale input for a point-positioned family: real UTC time when the
+ * axis is temporal, else the compact evenly-spaced point scale. Bars and heatmap
+ * cells keep their band scale — a bar needs a bandwidth to be drawn in.
+ */
+export function categoryScale(temporal: TemporalAxis | null): typeof scaleUtc | typeof pointScale {
+  return temporal ? scaleUtc : pointScale;
+}
+
+/** The row field the x channel reads: the Date on a temporal axis, else the category. */
+export function categoryChannel(temporal: TemporalAxis | null): "t" | "cat" {
+  return temporal ? "t" : "cat";
+}
+
+/**
+ * Category label formatter for axis ticks / tooltips / crosshair, granularity-aware
+ * through the existing `format.category` path. A tick that lands exactly on a bucket
+ * formats the ORIGINAL category value (byte-identical to the pre-temporal labels);
+ * a `scaleUtc` tick between buckets formats its UTC wall clock instead.
+ */
+export function categoryLabeler(
+  temporal: TemporalAxis | null,
+  format: ChartFormat,
+): (value: ChartValue) => string {
+  if (!temporal) return (v) => format.category(v as string | number);
+  const byTime = new Map<number, string | number>();
+  temporal.dates.forEach((d, i) => {
+    const cat = temporal.categories[i];
+    if (cat !== undefined) byTime.set(d.getTime(), cat);
+  });
+  return (v) =>
+    v instanceof Date
+      ? format.category(byTime.get(v.getTime()) ?? utcNaiveIso(v))
+      : format.category(v as string | number);
+}
+
+/* ----------------------------------------------------------- range brushing */
+
+/** The semantic ISO bound for a brushed endpoint: the bucket string Cube emitted. */
+function semanticIso(temporal: TemporalAxis, d: Date): string {
+  const i = temporal.dates.findIndex((c) => c.getTime() === d.getTime());
+  const cat = i >= 0 ? temporal.categories[i] : undefined;
+  return typeof cat === "string" ? cat : utcNaiveIso(d);
+}
+
+/**
+ * Mount a controlled `brushX` over a TEMPORAL x axis when — and only when — a host
+ * supplied an `onRangeSelect` handler somewhere up the tree. Committing a drag
+ * calls it with the semantic ISO range of the mapped time member; a blank click
+ * commits a zero-width range, which we read as "cleared" and report as `null`.
+ *
+ * Returns a MEMOIZED control array (or `undefined`), so a family can drop it
+ * straight into `defineChart({ controls })` and into that definition's deps: the
+ * identity changes only when the brush range or the bucket set actually changes,
+ * never because the host re-rendered with a new handler closure.
+ *
+ * Note the deliberate trade-off: the brush overlay owns pointer events across the
+ * plot, so an enabled range brush replaces hover-tooltip inspection with
+ * drag-to-select (keyboard focus + the handles' slider role still work).
+ */
+export function useTemporalBrush(
+  temporal: TemporalAxis | null,
+  opts: { label: (value: ChartValue) => string; ariaLabel?: string },
+): readonly ChartControl[] | undefined {
+  const interactions = useChartInteractions();
+  const [range, setRange] = React.useState<BrushRange<Date> | null>(null);
+
+  // Latest-ref for everything read at GESTURE time (label formatter, emitter,
+  // axis): none of them may participate in the control's memo identity.
+  const latest = React.useRef({ opts, interactions, temporal });
+  React.useLayoutEffect(() => {
+    latest.current = { opts, interactions, temporal };
+  });
+
+  // A temporal axis already guarantees ≥2 distinct buckets, which is also the
+  // minimum a brush can span.
+  const enabled = interactions.rangeEnabled && temporal !== null;
+
+  return React.useMemo(() => {
+    if (!enabled || !temporal) return undefined;
+    const values = temporal.values;
+    const has = (d: Date | undefined): boolean =>
+      d !== undefined && values.some((v) => v.getTime() === d.getTime());
+    // brushX's range is NON-NULLABLE, so "nothing selected" still needs SOME range.
+    // It is a COLLAPSED one parked on the first bucket, drawn with nothing painted
+    // at all (see `resting` below) — deliberately not the full extent, because a
+    // selection spanning the plot would swallow every new drag as a move-selection
+    // gesture and make the brush impossible to re-draw. A range left over from
+    // previous data (buckets that no longer exist) falls back to it.
+    const committed = range && has(range.start) && has(range.end) ? range : null;
+    const first = values[0] as Date;
+    const current: BrushRange<Date> = committed ?? { start: first, end: first };
+    const resting = committed === null;
+
+    return [
+      brushX<Date>({
+        id: "cv-brush-x",
+        values,
+        range: controlledSignal<BrushRange<Date>, BrushXChange<Date>>(
+          current,
+          (next, { reason }) => {
+            // Previews follow the pointer locally; only a COMMIT is application state.
+            if (reason.type !== "commit") return;
+            const axis = latest.current.temporal;
+            const cleared = next.start.getTime() === next.end.getTime();
+            setRange(cleared ? null : next);
+            if (cleared || !axis) {
+              latest.current.interactions.emitRange(null);
+              return;
+            }
+            latest.current.interactions.emitRange({
+              member: axis.member,
+              granularity: axis.granularity,
+              from: semanticIso(axis, next.start),
+              to: semanticIso(axis, next.end),
+            });
+          },
+        ),
+        format: (v) => latest.current.opts.label(v),
+        ariaLabel: opts.ariaLabel ?? "Time range",
+        startAriaLabel: "Range start",
+        endAriaLabel: "Range end",
+        // The behavior PAINTS its handles (they are its keyboard sliders), so the
+        // collapsed resting range would otherwise show as a solid block against the
+        // first bucket. Resting paints nothing at all; a committed range gets the
+        // real selection wash plus visible grips.
+        handleSize: 10,
+        selectionStyle: resting
+          ? { fill: "none", stroke: "none" }
+          : {
+              fill: "var(--foreground)",
+              fillOpacity: 0.08,
+              stroke: "var(--foreground)",
+              strokeOpacity: 0.35,
+              strokeWidth: 1,
+            },
+        // Resting handles paint nothing (they still keep their slider role +
+        // tab stop, and charts.css gives them a visible focus ring).
+        handleStyle: resting
+          ? { fill: "none" }
+          : { fill: "var(--muted-foreground)", fillOpacity: 0.6 },
+      }),
+    ];
+    // `opts` is read through the ref at gesture time; only the axis + committed
+    // range may rebuild the control (and therefore the chart definition).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, temporal, range]);
+}
+
+/* -------------------------------------------------------- point → selection */
+
+/**
+ * Map a clicked chart point to the Cube member + value it stands for.
+ *
+ * The rule, in order:
+ *  1. **Colour split wins over category.** When the chart's series ARE a pivot
+ *     (`mapping.series.mode === "pivot"`) and the clicked datum belongs to a
+ *     z/colour group, the click identifies a SERIES, so we report the split
+ *     dimension and that series' raw pivot value — the more specific signal, and
+ *     the one a host cross-filters on. (A stacked bar segment, a heatmap cell, or
+ *     one line of a colour-split chart all land here.)
+ *  2. Otherwise report the CATEGORY dimension with the row's raw category value,
+ *     labelled through the chart's own bound formatter.
+ *  3. Marks whose datum keeps only a display label (pie slices) report that label
+ *     as both value and label against the category member.
+ * A click with no point (blank surface) is a CLEAR and reports `null`.
+ */
+export function resolvePointSelection(
+  point: ChartPoint<unknown, ChartValue, ChartValue> | null,
+  target: ChartInteractionTarget,
+): PointSelection | null {
+  if (!point) return null;
+  const datum = point.datum as Record<string, unknown> | null | undefined;
+  if (!datum || typeof datum !== "object") return null;
+
+  const key = typeof datum.key === "string" ? datum.key : undefined;
+  const label = typeof datum.label === "string" ? datum.label : undefined;
+
+  if (target.pivotMember && key !== undefined && point.group !== null) {
+    return { member: target.pivotMember, value: key, label: label ?? key };
+  }
+  if (!target.categoryMember) return null;
+
+  const cat = datum.cat;
+  if (typeof cat === "string" || typeof cat === "number") {
+    return {
+      member: target.categoryMember,
+      value: cat,
+      label: target.formatCategory?.(cat) ?? String(cat),
+    };
+  }
+  if (label !== undefined) {
+    return { member: target.categoryMember, value: label, label };
+  }
+  return null;
 }
 
 /**
@@ -320,7 +659,9 @@ export interface ReferenceLineOpt {
  */
 export function referenceLineMarks(
   refs: readonly ReferenceLineOpt[] | undefined,
-  categories: readonly (string | number)[],
+  // Dates appear here on a TEMPORAL axis: a category rule must be reprojected to
+  // the same x value the marks plot against, not to the raw bucket string.
+  categories: readonly (string | number | Date)[],
   opts?: { swap?: boolean },
 ): ChartMark[] {
   if (!refs?.length) return [];
@@ -380,15 +721,17 @@ export function referenceLineMarks(
 export function valueLabelMarks(
   rows: readonly SeriesRow[],
   format: ChartFormat,
-  opts?: { swap?: boolean },
+  opts?: { swap?: boolean; temporal?: TemporalAxis | null },
 ): ChartMark[] {
   const labeled = rows.filter((r) => r.value !== null && !r.companion);
   if (!labeled.length) return [];
+  // The label must sit on the same channel the data marks use (`t` when temporal).
+  const catField = categoryChannel(opts?.temporal ?? null);
   return [
     text(labeled, {
       id: "cv-value-labels",
-      x: opts?.swap ? "value" : "cat",
-      y: opts?.swap ? "cat" : "value",
+      x: opts?.swap ? "value" : catField,
+      y: opts?.swap ? catField : "value",
       text: (r: SeriesRow) => format.value(r.value, r.member, "label"),
       fill: "currentColor",
       fontSize: 10,
@@ -418,6 +761,15 @@ export interface CvChartProps {
   animateInitial?: boolean;
   minHeight?: number;
   onSelect?: (point: ChartPoint<unknown, ChartValue, ChartValue> | null) => void;
+  /**
+   * Family override for the semantic click contract. Most families feed
+   * {@link SeriesRow}s, which {@link resolvePointSelection} already reads; a family
+   * whose datum has its own shape (scatter's projected points) supplies this to
+   * name the member/value itself. Only consulted when a host enabled point select.
+   */
+  resolveSelection?: (
+    point: ChartPoint<unknown, ChartValue, ChartValue> | null,
+  ) => PointSelection | null;
 }
 
 /**
@@ -425,6 +777,12 @@ export interface CvChartProps {
  * charts via CSS), measures its box, and mounts the TanStack React renderer
  * component with the shared spring-motion renderer. Definitions must be
  * memoized by the caller — definition identity is the update boundary.
+ *
+ * It is ALSO the single place click-to-cross-filter is wired: every family
+ * renders through here, so attaching `onSelect` once gives bars, points, slices
+ * and cells the same semantic {@link PointSelection} contract without each family
+ * knowing about it. The handler is attached only when a host actually supplied an
+ * `onPointSelect` (and never on a sparkline), so nothing changes otherwise.
  */
 export function CvChart({
   definition,
@@ -434,8 +792,35 @@ export function CvChart({
   animateInitial = true,
   minHeight = 200,
   onSelect,
+  resolveSelection,
 }: CvChartProps): React.ReactElement {
   const ref = React.useRef<HTMLDivElement | null>(null);
+  const interactions = useChartInteractions();
+  const pointSelect = interactions.pointEnabled && !sparkline;
+  // Latest-ref so a family's inline resolver never re-attaches the handler.
+  const resolverRef = React.useRef(resolveSelection);
+  React.useLayoutEffect(() => {
+    resolverRef.current = resolveSelection;
+  });
+  // `interactions` is stable across handler-identity changes, so this callback is
+  // too — it never forces the renderer to re-attach.
+  const handleSelect = React.useCallback(
+    (point: ChartPoint<unknown, ChartValue, ChartValue> | null) => {
+      // A blank-surface click is an explicit CLEAR. A click that lands on a datum
+      // this chart cannot name semantically (a KPI gauge arc, an ungrouped bubble)
+      // is IGNORED rather than reported as a clear — it was not a "deselect".
+      if (point === null) {
+        interactions.emitPoint(null);
+        return;
+      }
+      const resolve = resolverRef.current;
+      const selection = resolve
+        ? resolve(point)
+        : resolvePointSelection(point, interactions.target);
+      if (selection) interactions.emitPoint(selection);
+    },
+    [interactions],
+  );
   const [size, setSize] = React.useState<{ w: number; h: number }>({ w: 0, h: 0 });
   // Per-instance resource scope: gradient/clip IDs must be unique when several
   // charts share one document (a dashboard grid).
@@ -471,7 +856,7 @@ export function CvChart({
           height={height}
           ariaLabel={ariaLabel}
           idPrefix={idPrefix}
-          onSelect={onSelect}
+          onSelect={onSelect ?? (pointSelect ? handleSelect : undefined)}
         />
       )}
     </div>

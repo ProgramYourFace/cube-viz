@@ -5,18 +5,22 @@ import { crosshair } from "@tanstack/charts/crosshair";
 import type { ChartComponentProps } from "./types";
 import type { LineFamilyOptions } from "./defaults";
 import {
+  annotationToAxis,
   buildSeriesRows,
+  categoryChannel,
+  categoryLabeler,
+  categoryScale,
   chartCurve,
   cubeTooltip,
   CvChart,
   legendDisplay,
   legendPlacement,
-  pointScale,
   referenceLineMarks,
   resolvedAxisLabels,
   seriesColor,
   seriesColorVar,
   seriesLabel,
+  useTemporalBrush,
   valueLabelMarks,
   valueScale,
   type CurveName,
@@ -27,6 +31,10 @@ import {
  * Multi-series = one lineY mark per series; sparkline = `chrome:"none"` (no
  * axes/grid/legend/tooltip). Line ignores orientation/stackMode (stacked lines
  * use the `area` family). Dual-axis was removed with the combo family.
+ *
+ * A TIME-DIMENSION category axis renders on a real `scaleUtc` (see
+ * {@link annotationToAxis}): buckets sit at their true elapsed distance, so a
+ * missing day now draws as a gap instead of collapsing into the next bucket.
  */
 export function LineChartFamily({
   data,
@@ -36,7 +44,20 @@ export function LineChartFamily({
   const fo = (options.familyOptions ?? {}) as LineFamilyOptions;
   const sparkline = fo.chrome === "none";
 
+  // A sparkline is a shape, not an axis: it has no ticks and no room for a brush,
+  // so it stays on the compact point scale.
+  const temporal = React.useMemo(
+    () => (sparkline ? null : annotationToAxis(data, options)),
+    [data, options, sparkline],
+  );
+  const catLabel = React.useMemo(() => categoryLabeler(temporal, format), [temporal, format]);
+  const controls = useTemporalBrush(temporal, {
+    label: catLabel,
+    ariaLabel: "Time range",
+  });
+
   const definition = React.useMemo(() => {
+    const xField = categoryChannel(temporal);
     const connectNulls = fo.connectNulls ?? false;
     const curve = chartCurve((fo.curve ?? "monotone") as CurveName);
     const axl = resolvedAxisLabels(data, options);
@@ -46,10 +67,10 @@ export function LineChartFamily({
     const singlePoint = data.categories.length <= 1;
 
     const marks: ChartMark[] = data.series.map((s) => {
-      const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls });
+      const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls, temporal });
       return lineY(rows, {
         id: `cv-line-${s.key}`,
-        x: "cat",
+        x: xField,
         y: "value",
         z: "label",
         color: "label",
@@ -66,10 +87,11 @@ export function LineChartFamily({
 
     if (!sparkline) {
       marks.push(
-        ...referenceLineMarks(fo.referenceLines, data.categories),
+        ...referenceLineMarks(fo.referenceLines, temporal?.dates ?? data.categories),
         ...valueLabelMarks(
-          fo.showValueLabels ? buildSeriesRows(data, { skipNull: true }) : [],
+          fo.showValueLabels ? buildSeriesRows(data, { skipNull: true, temporal }) : [],
           format,
+          { temporal },
         ),
       );
       marks.push(crosshair({ x: {}, y: false }));
@@ -78,12 +100,12 @@ export function LineChartFamily({
     return defineChart({
       marks,
       x: {
-        scale: pointScale,
+        scale: categoryScale(temporal),
         axis: sparkline || options.axes?.x?.hide
           ? false
           : {
               label: axl.x,
-              ticks: { format: (v: string | number) => format.category(v) },
+              ticks: { format: catLabel },
             },
       },
       y: {
@@ -110,11 +132,12 @@ export function LineChartFamily({
       tooltip:
         sparkline || options.tooltip?.show === false
           ? undefined
-          : cubeTooltip({ format }),
+          : cubeTooltip({ format, category: catLabel }),
       margin: sparkline ? 4 : undefined,
       keyboard: !sparkline,
+      controls,
     });
-  }, [data, options, format, fo, sparkline]);
+  }, [data, options, format, fo, sparkline, temporal, catLabel, controls]);
 
   const label = data.series.map(seriesLabel).join(", ") || "Line chart";
   return (

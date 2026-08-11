@@ -17,6 +17,7 @@ import { tooltip } from "@tanstack/charts/tooltip";
 import { scaleSqrt } from "d3-scale";
 
 import { DEFAULT_COLOR_RAMP } from "@/adapter";
+import type { PointSelection } from "@/provider/interactions";
 import type { ChartComponentProps } from "./types";
 import type { ScatterFamilyOptions } from "./defaults";
 import { CvChart, legendDisplay, legendPlacement, valueScale } from "./tanstack";
@@ -235,6 +236,18 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
     });
   }, [data, options, format, fo, xLabel, yLabel, sizeLabel]);
 
+  // Scatter has NO category axis, so the shared SeriesRow click contract does not
+  // apply: the only dimension a point stands for is its `groupBy` value. Ungrouped
+  // bubbles carry no member at all and report nothing (a blank click still clears).
+  const groupBy = fo.groupBy;
+  const resolveSelection = (
+    point: ChartPoint<unknown, ChartValue, ChartValue> | null,
+  ): PointSelection | null => {
+    if (!point || !groupBy) return null;
+    const group = (point.datum as ScatterRow | undefined)?.group;
+    return group === undefined ? null : { member: groupBy, value: group, label: group };
+  };
+
   if (!definition) {
     return <div style={EMPTY_STYLE}>No data</div>;
   }
@@ -244,6 +257,7 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
       definition={definition}
       ariaLabel={`${xLabel} vs ${yLabel} scatter chart`}
       className="cv-chart--fill"
+      resolveSelection={resolveSelection}
     />
   );
 }

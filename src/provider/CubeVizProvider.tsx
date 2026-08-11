@@ -19,6 +19,7 @@ import {
   type ResolvedMaps,
   type ResolvedTheme,
 } from "./context";
+import { ChartInteractionProvider, type ChartInteractionHandlers } from "./interactions";
 import type { ComponentRegistry } from "./registry";
 
 /**
@@ -80,6 +81,14 @@ export interface CubeVizProviderProps {
    * does NOT churn the registry identity.
    */
   families?: ChartFamilyDescriptor[];
+  /**
+   * App-wide semantic interaction handlers (brush-to-drill / click-to-cross-filter).
+   * This is the OUTERMOST level of the innermost-wins chain
+   * provider → `<Dashboard>` → `<CubeChart>`; every emitted selection names its
+   * source widget. Omit it and no chart mounts a brush or a click handler, so an
+   * existing embed is untouched.
+   */
+  interactions?: ChartInteractionHandlers;
   children: React.ReactNode;
 }
 
@@ -103,6 +112,7 @@ export function CubeVizProvider({
   maps,
   registry,
   families,
+  interactions,
   children,
 }: CubeVizProviderProps): React.ReactElement {
   // Build the immutable family registry (builtins seeded in order, then host families
@@ -175,7 +185,12 @@ export function CubeVizProvider({
           resolvedTheme.mode === "light" && "cube-viz-light",
         )}
       >
-        {children}
+        <ChartInteractionProvider
+          onRangeSelect={interactions?.onRangeSelect}
+          onPointSelect={interactions?.onPointSelect}
+        >
+          {children}
+        </ChartInteractionProvider>
       </div>
     </CubeVizContext.Provider>
   );

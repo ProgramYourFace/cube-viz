@@ -294,3 +294,37 @@
 .cv-transform-window {
   max-width: 6rem;
 }
+
+/* ─────────────────── temporal range brush (onRangeSelect) ───────────────────
+ * Mounted ONLY when a host supplies an `onRangeSelect` handler and the chart's
+ * category axis is temporal (see charts/tanstack.tsx → useTemporalBrush). The
+ * behavior paints its own selection/handle geometry from the definition's scene
+ * styles; this sheet only adds the pointer affordances and the keyboard focus
+ * ring the D3-backed overlay can't express as scene style.
+ *
+ * The overlay is a sibling <svg> the host stamps with `data-chart-brush`; inside
+ * it d3-brush emits `.overlay`, `.selection` and `.handle--w/--e`, and the
+ * behavior tags the live ones with `data-chart-brush-selection` / -handle.
+ */
+.cv-chart [data-chart-brush] .overlay {
+  cursor: crosshair;
+}
+
+.cv-chart [data-chart-brush] .selection {
+  cursor: move;
+}
+
+.cv-chart [data-chart-brush] .handle--w,
+.cv-chart [data-chart-brush] .handle--e {
+  cursor: ew-resize;
+}
+
+/* The handles are the brush's accessible sliders (role="slider", tabindex 0), so
+   they need a visible keyboard focus indicator — the plot has no other one. */
+.cv-chart [data-chart-brush] [data-chart-brush-handle]:focus-visible {
+  outline: none;
+  fill: var(--ring);
+  fill-opacity: 0.6;
+  stroke: var(--ring);
+  stroke-width: 2;
+}

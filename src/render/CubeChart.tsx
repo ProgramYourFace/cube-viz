@@ -9,6 +9,11 @@ import { makeChartFormat } from "@/format";
 import type { ChartFormat } from "@/format";
 import { createUnitsFormatter, mergeUnitConversions } from "@/units";
 import { resolveChart, useCubeVizContext, useFamilyRegistry } from "@/provider";
+import {
+  ChartInteractionProvider,
+  type ChartInteractionHandlers,
+  type ChartInteractionTarget,
+} from "@/provider/interactions";
 import { kpiSparklineInput } from "./kpiSparkline";
 import { comparePreviousInput } from "./comparePrevious";
 
@@ -26,11 +31,17 @@ import { comparePreviousInput } from "./comparePrevious";
  * pass straight through to `ChartRenderer`, which renders the shared state chrome.
  */
 
-export interface CubeChartProps {
+export interface CubeChartProps extends ChartInteractionHandlers {
   /** The Cube query (may carry `{var}` tokens — resolved by the surrounding dashboard). */
   query: CubeQuery;
   /** The chart option envelope (family, mapping, axes, …). */
   chart: ChartOptions;
+  /**
+   * Names this chart on every {@link import("@/provider").RangeSelection} /
+   * {@link import("@/provider").PointSelection} it emits, so ONE dashboard-wide
+   * handler pair can tell its widgets apart. Set automatically by `RenderWidget`.
+   */
+  widgetId?: string;
   /** Lifts the resolved rows + a refetch up to the chrome (for export / refresh). */
   onState?: (state: { rows: Record<string, unknown>[]; refetch?: () => void; isLoading: boolean }) => void;
   /** Editing surface: hidden chrome renders greyed (not removed) — see ChartComponentProps. */
@@ -47,7 +58,16 @@ const EMPTY_DATA: NormalizedChartData = {
   empty: true,
 };
 
-export function CubeChart({ query, chart, onState, editing, updateFamilyOptions }: CubeChartProps): ReactElement {
+export function CubeChart({
+  query,
+  chart,
+  onState,
+  editing,
+  updateFamilyOptions,
+  widgetId,
+  onRangeSelect,
+  onPointSelect,
+}: CubeChartProps): ReactElement {
   const { registry, locale } = useCubeVizContext();
   // The family registry (builtins + host families), read ONCE so resolveChart,
   // comparePreviousInput, and ChartRenderer all share one stable identity.
@@ -232,27 +252,61 @@ export function CubeChart({ query, chart, onState, editing, updateFamilyOptions 
     [renderData.raw.annotation, resolvedChart, valueFormatter, locale.locale, locale.unitSystem],
   );
 
+  // The SEMANTIC target for click-to-cross-filter. This is the only layer that has
+  // both the resolved `mapping` and the bound formatter, so it publishes them to the
+  // chart shell (which turns a clicked point into a member + value + label) instead
+  // of every family re-deriving them. Memoized: it sits in the interaction context
+  // value, whose identity gates chart re-renders.
+  const mapping = resolvedChart.mapping;
+  const interactionTarget = useMemo<ChartInteractionTarget>(
+    () => ({
+      categoryMember: mapping?.category.member,
+      pivotMember: mapping?.series.mode === "pivot" ? mapping.series.pivot : undefined,
+      formatCategory: format.category,
+    }),
+    [mapping, format],
+  );
+
   return (
-    <ChartRenderer
-      data={renderData}
-      options={resolvedChart}
-      config={emptyConfig}
-      format={format}
-      state={queryless ? { loading: false } : { loading: isLoading && !data, error }}
-      components={components}
-      registry={families}
-      editing={editing}
-      updateFamilyOptions={updateFamilyOptions}
-    />
+    <ChartInteractionProvider
+      widgetId={widgetId}
+      target={interactionTarget}
+      onRangeSelect={onRangeSelect}
+      onPointSelect={onPointSelect}
+    >
+      <ChartRenderer
+        data={renderData}
+        options={resolvedChart}
+        config={emptyConfig}
+        format={format}
+        state={queryless ? { loading: false } : { loading: isLoading && !data, error }}
+        components={components}
+        registry={families}
+        editing={editing}
+        updateFamilyOptions={updateFamilyOptions}
+      />
+    </ChartInteractionProvider>
   );
 }
 
-export interface CubeChartSpecProps {
+export interface CubeChartSpecProps extends ChartInteractionHandlers {
   /** A standalone chart spec; its `query` + `chart` drive the render. */
   spec: ChartSpec;
 }
 
 /** Convenience wrapper that renders a standalone {@link ChartSpec}. */
-export function CubeChartSpec({ spec }: CubeChartSpecProps): ReactElement {
-  return <CubeChart query={spec.query} chart={spec.chart} />;
+export function CubeChartSpec({
+  spec,
+  onRangeSelect,
+  onPointSelect,
+}: CubeChartSpecProps): ReactElement {
+  return (
+    <CubeChart
+      query={spec.query}
+      chart={spec.chart}
+      widgetId={spec.id}
+      onRangeSelect={onRangeSelect}
+      onPointSelect={onPointSelect}
+    />
+  );
 }

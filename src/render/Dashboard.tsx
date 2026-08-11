@@ -13,6 +13,10 @@ import type { ChartSpec, DashboardSpec, GridConfig, LayoutItem } from "@/spec";
 import type { ChartFamilyDescriptor } from "@/charts";
 import { DashboardProvider } from "@/hooks";
 import { FamilyRegistryOverride } from "@/provider";
+import {
+  ChartInteractionProvider,
+  type ChartInteractionHandlers,
+} from "@/provider/interactions";
 
 import { useContainerWidth } from "./useContainerWidth";
 import { RenderWidget } from "./RenderWidget";
@@ -58,7 +62,7 @@ function toRglLayout(items: LayoutItem[]): RglLayoutItem[] {
   });
 }
 
-export interface DashboardProps {
+export interface DashboardProps extends ChartInteractionHandlers {
   /** The dashboard spec (variables + widgets + canonical layout + grid). */
   spec: DashboardSpec;
   /** Edit mode: enables drag/resize (handle = chrome header). Default `false`. */
@@ -72,7 +76,19 @@ export interface DashboardProps {
   families?: ChartFamilyDescriptor[];
 }
 
-export function Dashboard({ spec, editable = false, families }: DashboardProps): ReactElement {
+/**
+ * `onRangeSelect` / `onPointSelect` are DASHBOARD-WIDE: one handler pair serves
+ * every widget, and each emitted selection carries the source `widgetId`. A single
+ * widget can still override either channel by rendering its own `CubeChart`. Omit
+ * both and nothing interactive is mounted (no brush, no click handler).
+ */
+export function Dashboard({
+  spec,
+  editable = false,
+  families,
+  onRangeSelect,
+  onPointSelect,
+}: DashboardProps): ReactElement {
   const [ref, width] = useContainerWidth<HTMLDivElement>();
 
   const grid: GridConfig = spec.grid ?? {};
@@ -100,6 +116,7 @@ export function Dashboard({ spec, editable = false, families }: DashboardProps):
 
   return (
     <FamilyRegistryOverride families={families}>
+      <ChartInteractionProvider onRangeSelect={onRangeSelect} onPointSelect={onPointSelect}>
       <DashboardProvider spec={spec}>
       <div ref={ref} className="cv-dashboard">
         {width <= 0 ? null : stacked ? (
@@ -148,11 +165,12 @@ export function Dashboard({ spec, editable = false, families }: DashboardProps):
         )}
       </div>
       </DashboardProvider>
+      </ChartInteractionProvider>
     </FamilyRegistryOverride>
   );
 }
 
-export interface ChartViewProps {
+export interface ChartViewProps extends ChartInteractionHandlers {
   /** A standalone chart spec to render (no dashboard / variables). */
   spec: ChartSpec;
   /**
@@ -167,7 +185,12 @@ export interface ChartViewProps {
  * lone chart file looks consistent with a dashboard cell. No `DashboardProvider` —
  * a top-level chart resolves variables against an empty store (fail-safe noFilter).
  */
-export function ChartView({ spec, families }: ChartViewProps): ReactElement {
+export function ChartView({
+  spec,
+  families,
+  onRangeSelect,
+  onPointSelect,
+}: ChartViewProps): ReactElement {
   return (
     <FamilyRegistryOverride families={families}>
     <div className="cv-chart-view">
@@ -184,7 +207,11 @@ export function ChartView({ spec, families }: ChartViewProps): ReactElement {
         dragHandleProps={{}}
         state={{ loading: false, empty: false }}
       >
-        <CubeChartSpec spec={spec} />
+        <CubeChartSpec
+          spec={spec}
+          onRangeSelect={onRangeSelect}
+          onPointSelect={onPointSelect}
+        />
       </WidgetChrome>
     </div>
     </FamilyRegistryOverride>

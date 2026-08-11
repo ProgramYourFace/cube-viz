@@ -5,20 +5,24 @@ import { crosshair } from "@tanstack/charts/crosshair";
 import type { ChartComponentProps } from "./types";
 import type { AreaFamilyOptions } from "./defaults";
 import {
+  annotationToAxis,
   buildSeriesRows,
+  categoryChannel,
+  categoryLabeler,
+  categoryScale,
   chartCurve,
   cubeTooltip,
   CvChart,
   legendDisplay,
   legendPlacement,
   percentTick,
-  pointScale,
   referenceLineMarks,
   resolvedAxisLabels,
   seriesColor,
   seriesColorVar,
   seriesLabel,
   seriesMember,
+  useTemporalBrush,
   valueScale,
   type CurveName,
   type SeriesRow,
@@ -51,7 +55,14 @@ export function AreaChartFamily({
   const stacked = stackMode === "stacked" || stackMode === "percent";
   const percent = stackMode === "percent";
 
+  // A time-dimension category axis becomes a real utc scale (elapsed-time spacing,
+  // honest gaps) — see annotationToAxis. Everything else keeps the point scale.
+  const temporal = React.useMemo(() => annotationToAxis(data, options), [data, options]);
+  const catLabel = React.useMemo(() => categoryLabeler(temporal, format), [temporal, format]);
+  const controls = useTemporalBrush(temporal, { label: catLabel, ariaLabel: "Time range" });
+
   const definition = React.useMemo(() => {
+    const xField = categoryChannel(temporal);
     const connectNulls = fo.connectNulls ?? false;
     const curve = chartCurve((fo.curve ?? "monotone") as CurveName);
     const fillOpacity = fo.fillOpacity ?? 0.4;
@@ -91,11 +102,11 @@ export function AreaChartFamily({
 
     if (stacked) {
       // One mark over long rows: repeated x positions stack implicitly by `z`.
-      const rows = buildSeriesRows(data, { series: primaries, skipNull: connectNulls });
+      const rows = buildSeriesRows(data, { series: primaries, skipNull: connectNulls, temporal });
       marks.push(
         areaY(rows, {
           id: "cv-area-stack",
-          x: "cat",
+          x: xField,
           y: "value",
           z: "label",
           color: "label",
@@ -113,11 +124,11 @@ export function AreaChartFamily({
       // Overlap mode: explicit y1 baseline opts each series out of implicit stacking,
       // so every fill runs from zero (one mark per series, like the line family).
       for (const s of primaries) {
-        const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls });
+        const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls, temporal });
         marks.push(
           areaY(rows, {
             id: `cv-area-${s.key}`,
-            x: "cat",
+            x: xField,
             y: "value",
             y1: 0,
             z: "label",
@@ -136,11 +147,11 @@ export function AreaChartFamily({
     // dashed, fill-less line so it reads as a reference, not part of the whole (the
     // exact Recharts behavior: stroke-only Area with `stackId` unset).
     for (const s of companions) {
-      const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls });
+      const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls, temporal });
       marks.push(
         lineY(rows, {
           id: `cv-area-prev-${s.key}`,
-          x: "cat",
+          x: xField,
           y: "value",
           z: "label",
           color: "label",
@@ -154,19 +165,19 @@ export function AreaChartFamily({
       );
     }
 
-    marks.push(...referenceLineMarks(fo.referenceLines, data.categories));
+    marks.push(...referenceLineMarks(fo.referenceLines, temporal?.dates ?? data.categories));
     marks.push(crosshair({ x: {}, y: false }));
 
     return defineChart({
       marks,
       gradients,
       x: {
-        scale: pointScale,
+        scale: categoryScale(temporal),
         axis: options.axes?.x?.hide
           ? false
           : {
               label: axl.x,
-              ticks: { format: (v: string | number) => format.category(v) },
+              ticks: { format: catLabel },
             },
       },
       y: {
@@ -192,10 +203,11 @@ export function AreaChartFamily({
       tooltip:
         options.tooltip?.show === false
           ? undefined
-          : cubeTooltip({ format, percentShare: percent }),
+          : cubeTooltip({ format, percentShare: percent, category: catLabel }),
       keyboard: true,
+      controls,
     });
-  }, [data, options, format, fo, stacked, percent]);
+  }, [data, options, format, fo, stacked, percent, temporal, catLabel, controls]);
 
   const label = data.series.map(seriesLabel).join(", ") || "Area chart";
   return <CvChart definition={definition} ariaLabel={label} className="cv-chart--fill" />;

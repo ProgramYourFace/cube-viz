@@ -40,3 +40,20 @@ export type {
   DashboardProps,
   ChartViewProps,
 } from "./Dashboard";
+
+// The semantic interaction contract every render surface above accepts: a chart
+// reports a Cube member + ISO range (brush-to-drill) or member + value
+// (click-to-cross-filter), never pixels. Defined in the provider layer (that is
+// where the ambient handlers live) and re-published here so a host importing the
+// render surface gets the types with it.
+export { ChartInteractionProvider, useChartInteractions } from "@/provider/interactions";
+export type {
+  RangeSelection,
+  PointSelection,
+  RangeSelectHandler,
+  PointSelectHandler,
+  ChartInteractionHandlers,
+  ChartInteractionProviderProps,
+  ChartInteractionTarget,
+  ChartInteractions,
+} from "@/provider/interactions";
