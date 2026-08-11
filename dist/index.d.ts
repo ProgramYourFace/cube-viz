@@ -5552,7 +5552,7 @@ export declare interface CubeVizThemeConfig {
  * widget can still override either channel by rendering its own `CubeChart`. Omit
  * both and nothing interactive is mounted (no brush, no click handler).
  */
-export declare function Dashboard({ spec, editable, families, onRangeSelect, onPointSelect, }: DashboardProps): ReactElement;
+export declare function Dashboard({ spec, editable, families, drill, onRangeSelect, onPointSelect, }: DashboardProps): ReactElement;
 
 /**
  * The dashboard variable layer (docs/03-override-theme-preview.md §A2.5): a React
@@ -5668,6 +5668,13 @@ export declare interface DashboardProps extends ChartInteractionHandlers {
     spec: DashboardSpec;
     /** Edit mode: enables drag/resize (handle = chrome header). Default `false`. */
     editable?: boolean;
+    /**
+     * Opt in to brush/click drilling: a selection narrows the dashboard variables
+     * its widgets already read. Default `false` — see {@link DashboardDrillProps.drill}
+     * for why enabling it is a deliberate trade (the brush takes over hover
+     * inspection on temporal charts).
+     */
+    drill?: boolean;
     /**
      * Per-component chart-families override. When set, this dashboard's subtree resolves
      * families from a registry built from `defaultChartFamilies` + these descriptors —
