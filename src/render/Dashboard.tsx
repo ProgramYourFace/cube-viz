@@ -13,15 +13,13 @@ import type { ChartSpec, DashboardSpec, GridConfig, LayoutItem } from "@/spec";
 import type { ChartFamilyDescriptor } from "@/charts";
 import { DashboardProvider } from "@/hooks";
 import { FamilyRegistryOverride } from "@/provider";
-import {
-  ChartInteractionProvider,
-  type ChartInteractionHandlers,
-} from "@/provider/interactions";
+import type { ChartInteractionHandlers } from "@/provider/interactions";
 
 import { useContainerWidth } from "./useContainerWidth";
 import { RenderWidget } from "./RenderWidget";
 import { CubeChartSpec } from "./CubeChart";
 import { WidgetChrome, DRAG_HANDLE_CLASS } from "./WidgetChrome";
+import { DashboardDrill } from "./drill";
 
 /**
  * The dashboard render surface (docs/01-spec-schema.md §4,
@@ -116,8 +114,10 @@ export function Dashboard({
 
   return (
     <FamilyRegistryOverride families={families}>
-      <ChartInteractionProvider onRangeSelect={onRangeSelect} onPointSelect={onPointSelect}>
+      {/* Inside the provider on purpose: DashboardDrill resolves a brush/click
+          against THIS board's variable store before handing it to the host. */}
       <DashboardProvider spec={spec}>
+      <DashboardDrill spec={spec} onRangeSelect={onRangeSelect} onPointSelect={onPointSelect}>
       <div ref={ref} className="cv-dashboard">
         {width <= 0 ? null : stacked ? (
           <div
@@ -164,8 +164,8 @@ export function Dashboard({
           </ResponsiveGridLayout>
         )}
       </div>
+      </DashboardDrill>
       </DashboardProvider>
-      </ChartInteractionProvider>
     </FamilyRegistryOverride>
   );
 }
