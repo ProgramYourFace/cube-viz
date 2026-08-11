@@ -39,8 +39,8 @@ type ChartWidget = Extract<WidgetSpec, { type: "chart" }>;
 const chartWidgets = (widgets: readonly WidgetSpec[]): ChartWidget[] =>
   widgets.filter((w): w is ChartWidget => w.type === "chart");
 
-/** widgetId → the variable name bound to that widget's time window. */
-function dateRangeVarByWidget(widgets: readonly WidgetSpec[]): Map<string, string> {
+/** widgetId → the variable name bound to that widget's time window. @internal exported for tests */
+export function dateRangeVarByWidget(widgets: readonly WidgetSpec[]): Map<string, string> {
   const out = new Map<string, string>();
   for (const w of chartWidgets(widgets)) {
     const td = w.query?.timeDimensions?.[0];
@@ -54,7 +54,7 @@ function dateRangeVarByWidget(widgets: readonly WidgetSpec[]): Map<string, strin
  * A dimension is usually filtered on ONE variable across a dashboard (that is the
  * point of a shared control), so the first binding found wins.
  */
-function filterVarByMember(widgets: readonly WidgetSpec[]): Map<string, string> {
+export function filterVarByMember(widgets: readonly WidgetSpec[]): Map<string, string> {
   const out = new Map<string, string>();
   // `filters` is a recursive and/or tree, so a binding can sit at any depth.
   const walk = (filters: readonly QueryFilter[]): void => {
