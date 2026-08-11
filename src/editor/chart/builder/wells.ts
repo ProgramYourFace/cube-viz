@@ -1,61 +1,53 @@
-import type {
-  ChartFamily,
-  ChartOptions,
-  ChartSpec,
-  CubeQuery,
-  Granularity,
-  SeriesMeta,
-  SeriesMapping,
-  TimeDimension,
-} from "@/spec";
+import type { ChartFamily, ChartSpec, TimeDimension } from "@/spec";
 
 import type { FamilyRegistry } from "@/charts";
 
 import {
-  buildSeries,
-  categoryOf,
-  DEFAULT_GRANULARITY,
-  measuresOf,
-  seriesMetaOf,
-  timeDimensionOf,
-} from "../helpers";
+  placeInChannelWell,
+  pivotOf,
+  readChannelWells,
+  removeFromChannelWell,
+  type Channel,
+  type FieldKind,
+  type WellDef,
+  type WellTarget,
+} from "./channels";
 
 /**
- * Chart Builder v2 — the PURE seam (no React). It is the single place that knows
- * the typed-well ↔ {@link ChartSpec} mapping (docs/05 §2). Every writer returns a
- * FULL `ChartSpec`, so the panel funnels each edit through the unchanged
- * `update → validate → debounce-emit` engine. Unit-testable in isolation.
+ * Chart Builder v4 — the PURE seam (no React) between the editor UI and a
+ * {@link ChartSpec}. Every writer returns a FULL spec, so the panel funnels each edit
+ * through the unchanged `update → validate → debounce-emit` engine.
+ *
+ * This module used to BE the mapping: ~600 lines of per-family `switch` arms
+ * (`placeCartesian`/`placeHeatmap`/`placePie`/`placeScatter`/`placeKpi`/`placeTable`
+ * + a remover each + their own query mutators), each re-answering "what's in this
+ * well / put it here / take it out" in its own dialect. That knowledge is now DATA on
+ * the descriptor — every builtin well declares a `target` (where its member lives in
+ * the spec) and a `channel` (which visual role it feeds) — and ONE interpreter
+ * (`./channels`) reads and writes it. What remains here is dispatch:
+ *
+ *   descriptor hook (host families)  →  else the channel interpreter.
+ *
+ * The public shape (`getWells`/`readWells`/`placeField`/`removeField`, plus the
+ * {@link WellDef}/`FieldKind` types and {@link adaptiveGranularity}) is unchanged, so
+ * every call site — and every host family built against it — keeps compiling.
  */
 
-/**
- * A field's primitive role: a measure / a non-time dimension / a time dimension /
- * a NUMERIC dimension / a synthetic geographic point. `numberDimension` exists because Cube models coordinates and
- * other per-row numbers (latitude, longitude, headings) as `type: number`
- * DIMENSIONS — the `number` kind only surfaces measures, so a well that wants raw
- * per-row numbers opts in with `kinds: ["number", "numberDimension"]`. Placement
- * writers route the kinds differently (`number` → `query.measures`,
- * `numberDimension` → `query.dimensions`). `geoPoint` bundles a model-authored
- * latitude/longitude pair; the editor fans it out to a host family's internal wells.
- */
-export type FieldKind = "number" | "category" | "time" | "numberDimension" | "geoPoint";
+// The well SHAPE moved to `./channels` (it grew the `target`/`channel` bindings).
+// Re-exported here because `familyDescriptors`, the on-chart editor components and
+// host-registered families all import these types from this path.
+export type { Channel, FieldKind, WellDef, WellTarget };
 
-/** A typed slot in the builder. `kinds` gates which fields may be dropped/clicked in. */
-export interface WellDef {
-  id: string;
-  label: string;
-  hint?: string;
-  cardinality: "one" | "many";
-  kinds: FieldKind[];
-  /** Optional wells render a muted "(optional)" affordance. */
-  optional?: boolean;
-}
+// The map/geo host families derive a default time bucket with this; keep the export
+// path stable (it was defined in this module before the channel model absorbed it).
+export { adaptiveGranularity } from "./channels";
 
 /* ─────────────────────────── per-family well sets ─────────────────────────── */
 
 /**
- * The typed wells for a family, top→bottom (docs/05 §2). Plain, axis-oriented
- * names. Reads NOTHING from the spec — pure shape. The well DATA now lives on the
- * {@link ChartFamilyDescriptor} (single source of truth); this is the accessor.
+ * The typed wells for a family, top→bottom (docs/05 §2). Reads NOTHING from the spec —
+ * pure shape. The well DATA lives on the {@link ChartFamilyDescriptor} (single source
+ * of truth); this is the accessor.
  */
 export function getWells(family: ChartFamily, registry: FamilyRegistry): WellDef[] {
   return registry.require(family).wells;
@@ -63,186 +55,31 @@ export function getWells(family: ChartFamily, registry: FamilyRegistry): WellDef
 
 /* ─────────────────────────────── read model ──────────────────────────────── */
 
-/** A table column option (`familyOptions.columns[i]`). */
-interface TableColumnEntry {
-  member: string;
-  label?: string;
-}
-
-function familyOptions(spec: ChartSpec): Record<string, unknown> {
-  return (spec.chart.familyOptions ?? {}) as Record<string, unknown>;
-}
-
-function tableColumns(spec: ChartSpec): TableColumnEntry[] {
-  const cols = familyOptions(spec).columns;
-  return Array.isArray(cols) ? (cols as TableColumnEntry[]) : [];
-}
-
-/** The pivot color member, if the mapping is in pivot mode. */
+/** The pivot (split) member, if the mapping is in pivot mode. */
 export function pivotColorOf(spec: ChartSpec): string | undefined {
-  const series = spec.chart.mapping?.series;
-  return series && series.mode === "pivot" ? series.pivot : undefined;
+  return pivotOf(spec.chart);
 }
 
 /**
- * Derive each well's current member name(s) from the spec (docs/05 §6). The
- * inverse of {@link placeField}/{@link removeField}.
+ * Derive each well's current member name(s) from the spec (docs/05 §6) — the inverse
+ * of {@link placeField}/{@link removeField}.
+ *
+ * Channel wells are read by the generic interpreter; a host family's `readWells` hook
+ * wins for the wells IT returns, so a host may declare targets on the wells the
+ * interpreter can service and hook only the rest.
  */
 export function readWells(spec: ChartSpec, registry: FamilyRegistry): Record<string, string[]> {
-  const { chart } = spec;
-  const family = chart.family;
-  const one = (m: string | undefined): string[] => (m ? [m] : []);
-
-  // Host families read their own wells off the descriptor.
-  const hostRead = registry.require(family).readWells;
-  if (hostRead) return hostRead(spec);
-
-  switch (family) {
-    case "bar":
-    case "line":
-    case "area": {
-      const color = pivotColorOf(spec);
-      // In pivot mode the measures live in `series.values` (or the single `series.value`);
-      // in measures mode they're `members`.
-      const series = chart.mapping?.series;
-      const y =
-        series && series.mode === "pivot"
-          ? series.values && series.values.length > 0
-            ? series.values
-            : one(series.value)
-          : measuresOf(chart);
-      return { y, x: one(categoryOf(chart)), color: one(color) };
-    }
-    case "heatmap": {
-      return readHeatmapWells(spec);
-    }
-    case "pie": {
-      // `size` is a one-cardinality well — clamp to a single measure for an imported spec.
-      return { slices: one(categoryOf(chart)), size: one(measuresOf(chart)[0]) };
-    }
-    case "scatter": {
-      const fo = familyOptions(spec);
-      return {
-        sx: one(fo.x as string | undefined),
-        sy: one(fo.y as string | undefined),
-        size: one(fo.size as string | undefined),
-        color: one(fo.groupBy as string | undefined),
-      };
-    }
-    case "kpi": {
-      return { value: one(familyOptions(spec).measure as string | undefined) };
-    }
-    case "table": {
-      return { columns: tableColumns(spec).map((c) => c.member) };
-    }
-    default:
-      return {};
-  }
-}
-
-/* ──────────────────────────── granularity helper ─────────────────────────── */
-
-/**
- * Adaptive default granularity for a freshly-placed date X: pick from the bound
- * dateRange span when present (≤2 days→hour, ≤90→day, ≤730→month, else year),
- * else fall back to `day` (docs/05 §3.3).
- */
-export function adaptiveGranularity(dateRange: TimeDimension["dateRange"]): Granularity {
-  const days = spanDays(dateRange);
-  if (days === undefined) return DEFAULT_GRANULARITY;
-  if (days <= 2) return "hour";
-  if (days <= 90) return "day";
-  if (days <= 730) return "month";
-  return "year";
-}
-
-/** Approximate day-span of an absolute `[from,to]` range; `undefined` for relative/var. */
-function spanDays(dateRange: TimeDimension["dateRange"]): number | undefined {
-  if (!Array.isArray(dateRange) || dateRange.length !== 2) return undefined;
-  const from = Date.parse(dateRange[0]);
-  const to = Date.parse(dateRange[1]);
-  if (Number.isNaN(from) || Number.isNaN(to)) return undefined;
-  return Math.abs(to - from) / 86_400_000;
-}
-
-/* ───────────────────────────── query mutators ────────────────────────────── */
-
-function withMember(list: string[] | undefined, member: string): string[] {
-  const base = list ?? [];
-  return base.includes(member) ? base : [...base, member];
-}
-
-function withoutMember(list: string[] | undefined, member: string): string[] {
-  return (list ?? []).filter((m) => m !== member);
-}
-
-/** Ensure a category dimension is present on the query (used for X/Color labels). */
-function ensureDimension(query: CubeQuery, member: string): CubeQuery {
-  return { ...query, dimensions: withMember(query.dimensions, member) };
-}
-
-/** Drop a dimension from the query (and clean an empty list to undefined). */
-function dropDimension(query: CubeQuery, member: string): CubeQuery {
-  const dims = withoutMember(query.dimensions, member);
-  return { ...query, dimensions: dims.length ? dims : undefined };
-}
-
-/** Set the single edited time dimension, preserving granularity/dateRange. */
-function setTimeDimension(query: CubeQuery, td: TimeDimension | undefined): CubeQuery {
-  return { ...query, timeDimensions: td ? [td] : undefined };
-}
-
-/* ─────────────────────────── mapping (cartesian) ─────────────────────────── */
-
-/** Compose a measures-mode mapping from a category + measures + carried meta. */
-function measuresMapping(
-  category: string | undefined,
-  members: string[],
-  meta: Record<string, SeriesMeta>,
-): SeriesMapping | undefined {
-  if (!category) return undefined;
-  return { category: { member: category }, series: buildSeries(members, meta) };
-}
-
-/** The existing per-measure pivot meta (axis/etc.) on a chart, if it's in pivot mode. */
-function pivotMetaOf(chart: ChartOptions): Record<string, SeriesMeta> | undefined {
-  const s = chart.mapping?.series;
-  return s && s.mode === "pivot" ? s.meta : undefined;
-}
-
-/**
- * Compose a pivot-mode mapping: one or more measures split by a color dimension.
- * `value` stays the primary (first) measure for the axis unit; `values` is added
- * only when more than one measure is split (series = measure × pivot value).
- * `prevMeta` carries forward each still-present measure's meta (e.g. its value axis),
- * so adding/removing a measure never wipes the others' axis assignments.
- */
-function pivotMapping(
-  category: string | undefined,
-  measures: string[],
-  pivot: string,
-  prevMeta?: Record<string, SeriesMeta>,
-): SeriesMapping | undefined {
-  if (!category || measures.length === 0) return undefined;
-  const meta: Record<string, SeriesMeta> = {};
-  for (const m of measures) {
-    const entry = prevMeta?.[m];
-    if (entry && Object.keys(entry).length > 0) meta[m] = entry;
-  }
-  const hasMeta = Object.keys(meta).length > 0;
-  const series: SeriesMapping["series"] =
-    measures.length > 1
-      ? { mode: "pivot", value: measures[0], values: measures, pivot, ...(hasMeta ? { meta } : {}) }
-      : { mode: "pivot", value: measures[0], pivot, ...(hasMeta ? { meta } : {}) };
-  return { category: { member: category }, series };
+  const descriptor = registry.require(spec.chart.family);
+  const generic = readChannelWells(spec, descriptor.wells);
+  const host = descriptor.readWells?.(spec);
+  return host ? { ...generic, ...host } : generic;
 }
 
 /* ─────────────────────────────── writers ─────────────────────────────────── */
 
 /**
- * Place `member` (of `kind`) into well `wellId` for `family`, returning a full
- * spec. One-cardinality wells replace; many-cardinality wells append. Implements
- * the §2 mapping precisely.
+ * Place `member` (of `kind`) into well `wellId` for `family`, returning a full spec.
+ * One-cardinality wells replace; many-cardinality wells append.
  */
 export function placeField(
   spec: ChartSpec,
@@ -252,28 +89,11 @@ export function placeField(
   kind: FieldKind,
   registry: FamilyRegistry,
 ): ChartSpec {
+  const descriptor = registry.require(family);
   // Host families supply their own placement writer on the descriptor.
-  const hostPlace = registry.require(family).placeField;
-  if (hostPlace) return hostPlace(spec, wellId, member, kind);
-
-  switch (family) {
-    case "bar":
-    case "line":
-    case "area":
-      return placeCartesian(spec, wellId, member, kind, registry);
-    case "heatmap":
-      return placeHeatmap(spec, wellId, member, kind);
-    case "pie":
-      return placePie(spec, wellId, member, kind);
-    case "scatter":
-      return placeScatter(spec, wellId, member);
-    case "kpi":
-      return placeKpi(spec, member);
-    case "table":
-      return placeTable(spec, member, kind);
-    default:
-      return spec;
-  }
+  if (descriptor.placeField) return descriptor.placeField(spec, wellId, member, kind);
+  const next = placeInChannelWell(spec, descriptor.wells, wellId, member, kind);
+  return keepTimeAxes(spec, next, descriptor.wells);
 }
 
 /**
@@ -287,465 +107,67 @@ export function removeField(
   member: string,
   registry: FamilyRegistry,
 ): ChartSpec {
+  const descriptor = registry.require(family);
   // Host families supply their own removal writer on the descriptor.
-  const hostRemove = registry.require(family).removeField;
-  if (hostRemove) return hostRemove(spec, wellId, member);
-
-  switch (family) {
-    case "bar":
-    case "line":
-    case "area":
-      return removeCartesian(spec, wellId, member, registry);
-    case "heatmap":
-      return removeHeatmap(spec, wellId, member);
-    case "pie":
-      return removePie(spec, wellId, member);
-    case "scatter":
-      return removeScatter(spec, wellId, member);
-    case "kpi":
-      return removeKpi(spec, member);
-    case "table":
-      return removeTable(spec, member);
-    default:
-      return spec;
-  }
+  if (descriptor.removeField) return descriptor.removeField(spec, wellId, member);
+  const next = removeFromChannelWell(spec, descriptor.wells, wellId, member);
+  return keepPlacedTimeDimensions(spec, next, descriptor.wells);
 }
 
-/* ── bar / line / area ─────────────────────────────────────────────────────── */
-
-function placeCartesian(
-  spec: ChartSpec,
-  wellId: string,
-  member: string,
-  kind: FieldKind,
-  registry: FamilyRegistry,
-): ChartSpec {
-  const { query, chart } = spec;
-  const wells = readWells(spec, registry);
-  const color = wells.color[0];
-  const category = categoryOf(chart);
-  const meta = seriesMetaOf(chart);
-
-  if (wellId === "y") {
-    const measures = wells.y;
-    const next = withMember(measures, member);
-    if (color) {
-      // Multi-measure × color: every measure is split by the colour dimension
-      // (series = measure × value). The colour split is NO LONGER cleared when a
-      // 2nd measure is added — both coexist (the well shows a series-count note).
-      // Carry forward existing per-measure axis assignments.
-      return {
-        ...spec,
-        query: { ...query, measures: next },
-        chart: { ...chart, mapping: pivotMapping(category, next, color, pivotMetaOf(chart)) },
-      };
-    }
-    return {
-      ...spec,
-      query: { ...query, measures: next },
-      chart: { ...chart, mapping: measuresMapping(category, next, meta) },
-    };
-  }
-
-  if (wellId === "x") {
-    return placeCartesianX(spec, member, kind, color, registry);
-  }
-
-  if (wellId === "color") {
-    // A color split = pivot. Every selected measure is split into a series per
-    // category value (series = measure × value). All measures stay on the query.
-    const measures = wells.y;
-    if (measures.length === 0) return spec; // nothing to pivot yet
-    const q = ensureDimension({ ...query, measures }, member);
-    return {
-      ...spec,
-      query: q,
-      chart: { ...chart, mapping: pivotMapping(category, measures, member, pivotMetaOf(chart)) },
-    };
-  }
-
-  return spec;
-}
-
-function placeCartesianX(
-  spec: ChartSpec,
-  member: string,
-  kind: FieldKind,
-  color: string | undefined,
-  registry: FamilyRegistry,
-): ChartSpec {
-  const { query, chart } = spec;
-  const prevCategory = categoryOf(chart);
-  const measures = readWells(spec, registry).y;
-  const meta = seriesMetaOf(chart);
-
-  // Replace any existing X: drop the previous category dim from the query.
-  let q = query;
-  const prevTime = timeDimensionOf(query);
-  if (prevTime && prevCategory === prevTime.dimension) {
-    q = setTimeDimension(q, undefined);
-  } else if (prevCategory) {
-    q = dropDimension(q, prevCategory);
-  }
-
-  if (kind === "time") {
-    const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
-    q = setTimeDimension(q, {
-      dimension: member,
-      granularity,
-      dateRange: prevTime?.dateRange,
-    });
-  } else {
-    q = ensureDimension(q, member);
-  }
-
-  const mapping = color
-    ? pivotMapping(member, measures, color, pivotMetaOf(chart))
-    : measuresMapping(member, measures, meta);
-  return { ...spec, query: q, chart: { ...chart, mapping } };
-}
-
-function removeCartesian(
-  spec: ChartSpec,
-  wellId: string,
-  member: string,
-  registry: FamilyRegistry,
-): ChartSpec {
-  const { query, chart } = spec;
-  const wells = readWells(spec, registry);
-  const category = categoryOf(chart);
-  const color = wells.color[0];
-  const meta = seriesMetaOf(chart);
-
-  if (wellId === "y") {
-    const measures = withoutMember(wells.y, member);
-    if (color && measures.length >= 1) {
-      // Still ≥1 measure to split — stay in pivot mode with the remaining measures
-      // (and their carried-forward axis assignments).
-      return {
-        ...spec,
-        query: { ...query, measures },
-        chart: { ...chart, mapping: pivotMapping(category, measures, color, pivotMetaOf(chart)) },
-      };
-    }
-    // No measures left (or no color): drop the pivot dim if present, fall back to measures mode.
-    const q: CubeQuery = color ? dropDimension({ ...query, measures }, color) : { ...query, measures };
-    return { ...spec, query: q, chart: { ...chart, mapping: measuresMapping(category, measures, meta) } };
-  }
-
-  if (wellId === "x") {
-    let q = query;
-    const prevTime = timeDimensionOf(query);
-    if (prevTime && prevTime.dimension === member) q = setTimeDimension(q, undefined);
-    else q = dropDimension(q, member);
-    // No category → mapping collapses to undefined.
-    return { ...spec, query: q, chart: { ...chart, mapping: undefined } };
-  }
-
-  if (wellId === "color") {
-    const q = dropDimension(query, member);
-    return {
-      ...spec,
-      query: q,
-      chart: { ...chart, mapping: measuresMapping(category, wells.y, meta) },
-    };
-  }
-
-  return spec;
-}
-
-/* ── heatmap ───────────────────────────────────────────────────────────────── */
+/* ───────────────────── interpreter guards (multi-time axes) ───────────────── */
 //
-// The heatmap stores its roles in the GENERIC mapping envelope: with the full
-// (x, y, value) trio placed it is a PIVOT mapping — `mapping.category.member` =
-// the x (Columns) dimension, `series.pivot` = the y (Rows) dimension,
-// `series.value` = the measure — which is exactly what the renderer reads. A
-// pivot mapping's zod shape REQUIRES value + pivot, so partial placements are
-// held as a measures-mode mapping while x is known (category = x, members =
-// [value?]), and as query-only members before x exists. `readWells` inverts
-// that: pivot → the trio; measures-mode → x = category, y = the other query
-// dimension; no mapping → x was never placed, so a lone dimension is y.
+// The interpreter edits a SINGLE time dimension (`query.timeDimensions[0]`), which is
+// exactly right for the one-time-axis families (bar/line/area/pie/heatmap) but not for
+// the table, whose `columns` well may hold several date fields. These guards reconcile
+// the result with what the wells actually hold. They never PRUNE a time dimension: a
+// `dateRange`-only entry that no well claims is the chart's date FILTER.
 
-/** The heatmap's placed members: mapping first (pivot, then measures), query rest. */
-function heatmapMembersOf(spec: ChartSpec): {
-  x?: string;
-  y?: string;
-  value?: string;
-} {
-  const { chart, query } = spec;
-  const series = chart.mapping?.series;
-  const dims = query.dimensions ?? [];
-  if (chart.mapping && series && series.mode === "pivot") {
-    return { x: chart.mapping.category.member, y: series.pivot, value: series.value };
-  }
-  if (chart.mapping && series && series.mode === "measures") {
-    const x = chart.mapping.category.member;
-    return {
-      x,
-      y: dims.find((d) => d !== x),
-      value: series.members[0] ?? query.measures?.[0],
-    };
-  }
-  // No mapping ⇒ x has never been placed (placing x always writes one), so any
-  // dimension on the query is the y (Rows) member.
-  return { x: undefined, y: dims[0], value: query.measures?.[0] };
+/**
+ * Restore the time dimensions the single-time-dimension write dropped, THEN carry the
+ * edited window across if this was a straight one-for-one swap of the time axis.
+ */
+function keepTimeAxes(before: ChartSpec, after: ChartSpec, wells: readonly WellDef[]): ChartSpec {
+  return keepTimeWindow(before, keepPlacedTimeDimensions(before, after, wells));
 }
 
-function readHeatmapWells(spec: ChartSpec): Record<string, string[]> {
-  const { x, y, value } = heatmapMembersOf(spec);
-  const one = (m: string | undefined): string[] => (m ? [m] : []);
-  return { hx: one(x), hy: one(y), value: one(value) };
+/**
+ * Carry the edited time window across a time-axis SWAP. Replacing X unbinds the
+ * outgoing time dimension before binding the incoming one, which would drop the user's
+ * granularity + dateRange with it; the old per-family writers captured them first.
+ * Only applies to the single-time-axis case (one entry before, one after).
+ */
+function keepTimeWindow(before: ChartSpec, after: ChartSpec): ChartSpec {
+  const prevList = before.query?.timeDimensions ?? [];
+  const nextList = after.query?.timeDimensions ?? [];
+  if (prevList.length !== 1 || nextList.length !== 1) return after;
+  const [prev] = prevList;
+  const [next] = nextList;
+  if (prev.dimension === next.dimension || next.dateRange !== undefined) return after;
+  if (prev.dateRange === undefined) return after;
+  const merged: TimeDimension = {
+    ...next,
+    granularity: prev.granularity ?? next.granularity,
+    dateRange: prev.dateRange,
+  };
+  return { ...after, query: { ...(after.query ?? {}), timeDimensions: [merged] } };
 }
 
-/** The mapping for the current trio: pivot when complete, measures-mode while
- *  only x (± value) is known, undefined before x is placed. */
-function heatmapMapping(
-  x: string | undefined,
-  y: string | undefined,
-  value: string | undefined,
-): SeriesMapping | undefined {
-  if (!x) return undefined;
-  if (y && value) return { category: { member: x }, series: { mode: "pivot", value, pivot: y } };
-  return { category: { member: x }, series: { mode: "measures", members: value ? [value] : [] } };
-}
-
-function placeHeatmap(
-  spec: ChartSpec,
-  wellId: string,
-  member: string,
-  kind: FieldKind,
+/**
+ * Restore every time dimension that is STILL placed in a well but fell off the query
+ * (the single-time-dimension write dropped it) — a table's other date columns.
+ */
+function keepPlacedTimeDimensions(
+  before: ChartSpec,
+  after: ChartSpec,
+  wells: readonly WellDef[],
 ): ChartSpec {
-  const { query, chart } = spec;
-  const prev = heatmapMembersOf(spec);
-
-  if (wellId === "hx") {
-    // Replace any existing X: drop the previous member from the query first.
-    let q = query;
-    const prevTime = timeDimensionOf(query);
-    if (prevTime && prev.x === prevTime.dimension) q = setTimeDimension(q, undefined);
-    else if (prev.x) q = dropDimension(q, prev.x);
-
-    if (kind === "time") {
-      const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
-      q = setTimeDimension(q, { dimension: member, granularity, dateRange: prevTime?.dateRange });
-    } else {
-      q = ensureDimension(q, member);
-    }
-    return { ...spec, query: q, chart: { ...chart, mapping: heatmapMapping(member, prev.y, prev.value) } };
-  }
-
-  if (wellId === "hy") {
-    let q = query;
-    if (prev.y && prev.y !== member) q = dropDimension(q, prev.y);
-    q = ensureDimension(q, member);
-    return { ...spec, query: q, chart: { ...chart, mapping: heatmapMapping(prev.x, member, prev.value) } };
-  }
-
-  if (wellId === "value") {
-    // Single-measure family: the value well replaces.
-    return {
-      ...spec,
-      query: { ...query, measures: [member] },
-      chart: { ...chart, mapping: heatmapMapping(prev.x, prev.y, member) },
-    };
-  }
-
-  return spec;
+  const prevList = before.query?.timeDimensions ?? [];
+  if (prevList.length === 0) return after;
+  const nextList = after.query?.timeDimensions ?? [];
+  const bound = new Set(nextList.map((t) => t.dimension));
+  const placed = new Set(Object.values(readChannelWells(after, wells)).flat());
+  const restore = prevList.filter((t) => !bound.has(t.dimension) && placed.has(t.dimension));
+  if (restore.length === 0) return after;
+  return { ...after, query: { ...(after.query ?? {}), timeDimensions: [...nextList, ...restore] } };
 }
 
-function removeHeatmap(spec: ChartSpec, wellId: string, member: string): ChartSpec {
-  const { query, chart } = spec;
-  const prev = heatmapMembersOf(spec);
-
-  if (wellId === "hx") {
-    let q = query;
-    const prevTime = timeDimensionOf(query);
-    if (prevTime && prevTime.dimension === member) q = setTimeDimension(q, undefined);
-    else q = dropDimension(q, member);
-    return { ...spec, query: q, chart: { ...chart, mapping: heatmapMapping(undefined, prev.y, prev.value) } };
-  }
-
-  if (wellId === "hy") {
-    return {
-      ...spec,
-      query: dropDimension(query, member),
-      chart: { ...chart, mapping: heatmapMapping(prev.x, undefined, prev.value) },
-    };
-  }
-
-  if (wellId === "value") {
-    return {
-      ...spec,
-      query: { ...query, measures: [] },
-      chart: { ...chart, mapping: heatmapMapping(prev.x, prev.y, undefined) },
-    };
-  }
-
-  return spec;
-}
-
-/* ── pie ───────────────────────────────────────────────────────────────────── */
-
-function placePie(spec: ChartSpec, wellId: string, member: string, kind: FieldKind): ChartSpec {
-  const { query, chart } = spec;
-  const meta = seriesMetaOf(chart);
-
-  if (wellId === "slices") {
-    let q = query;
-    const prevCategory = categoryOf(chart);
-    const prevTime = timeDimensionOf(query);
-    if (prevTime && prevCategory === prevTime.dimension) q = setTimeDimension(q, undefined);
-    else if (prevCategory) q = dropDimension(q, prevCategory);
-
-    if (kind === "time") {
-      const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
-      q = setTimeDimension(q, { dimension: member, granularity, dateRange: prevTime?.dateRange });
-    } else {
-      q = ensureDimension(q, member);
-    }
-    return {
-      ...spec,
-      query: q,
-      chart: { ...chart, mapping: measuresMapping(member, measuresOf(chart), meta) },
-    };
-  }
-
-  if (wellId === "size") {
-    const members = [member];
-    return {
-      ...spec,
-      query: { ...query, measures: members },
-      chart: { ...chart, mapping: measuresMapping(categoryOf(chart), members, meta) },
-    };
-  }
-
-  return spec;
-}
-
-function removePie(spec: ChartSpec, wellId: string, member: string): ChartSpec {
-  const { query, chart } = spec;
-  const meta = seriesMetaOf(chart);
-
-  if (wellId === "slices") {
-    let q = query;
-    const prevTime = timeDimensionOf(query);
-    if (prevTime && prevTime.dimension === member) q = setTimeDimension(q, undefined);
-    else q = dropDimension(q, member);
-    return { ...spec, query: q, chart: { ...chart, mapping: undefined } };
-  }
-
-  if (wellId === "size") {
-    return {
-      ...spec,
-      query: { ...query, measures: [] },
-      chart: { ...chart, mapping: measuresMapping(categoryOf(chart), [], meta) },
-    };
-  }
-
-  return spec;
-}
-
-/* ── scatter ───────────────────────────────────────────────────────────────── */
-
-const SCATTER_WELL_TO_KEY: Record<string, "x" | "y" | "size" | "groupBy"> = {
-  sx: "x",
-  sy: "y",
-  size: "size",
-  color: "groupBy",
-};
-
-function placeScatter(spec: ChartSpec, wellId: string, member: string): ChartSpec {
-  const key = SCATTER_WELL_TO_KEY[wellId];
-  if (!key) return spec;
-  const { query, chart } = spec;
-  const fo = { ...familyOptions(spec) };
-  const prev = fo[key] as string | undefined;
-  fo[key] = member;
-
-  let q = query;
-  // x/y/size are measures; color (groupBy) is a dimension.
-  if (key === "groupBy") {
-    if (prev && prev !== member) q = dropDimension(q, prev);
-    q = ensureDimension(q, member);
-  } else {
-    const measures = prev ? withoutMember(query.measures, prev) : query.measures;
-    q = { ...query, measures: withMember(measures, member) };
-  }
-  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
-}
-
-function removeScatter(spec: ChartSpec, wellId: string, member: string): ChartSpec {
-  const key = SCATTER_WELL_TO_KEY[wellId];
-  if (!key) return spec;
-  const { query, chart } = spec;
-  const fo = { ...familyOptions(spec) };
-  delete fo[key];
-
-  let q = query;
-  if (key === "groupBy") q = dropDimension(q, member);
-  else {
-    const measures = withoutMember(query.measures, member);
-    q = { ...query, measures: measures.length ? measures : [] };
-  }
-  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
-}
-
-/* ── kpi ───────────────────────────────────────────────────────────────────── */
-
-function placeKpi(spec: ChartSpec, member: string): ChartSpec {
-  const { query, chart } = spec;
-  const fo = { ...familyOptions(spec), measure: member };
-  return { ...spec, query: { ...query, measures: [member] }, chart: { ...chart, familyOptions: fo } };
-}
-
-function removeKpi(spec: ChartSpec, member: string): ChartSpec {
-  const { query, chart } = spec;
-  const fo = { ...familyOptions(spec) };
-  if (fo.measure === member) delete fo.measure;
-  return { ...spec, query: { ...query, measures: [] }, chart: { ...chart, familyOptions: fo } };
-}
-
-/* ── table ─────────────────────────────────────────────────────────────────── */
-
-function placeTable(spec: ChartSpec, member: string, kind: FieldKind): ChartSpec {
-  const { query, chart } = spec;
-  const cols = tableColumns(spec);
-  if (cols.some((c) => c.member === member)) return spec;
-
-  let q = query;
-  if (kind === "number") q = { ...query, measures: withMember(query.measures, member) };
-  else if (kind === "time") {
-    const prevTime = timeDimensionOf(query);
-    const granularity = prevTime?.granularity ?? adaptiveGranularity(prevTime?.dateRange);
-    // Tables can carry multiple time dims; append rather than replace.
-    const existing = query.timeDimensions ?? [];
-    if (!existing.some((t) => t.dimension === member)) {
-      q = { ...query, timeDimensions: [...existing, { dimension: member, granularity }] };
-    }
-  } else q = ensureDimension(query, member);
-
-  const fo = { ...familyOptions(spec), columns: [...cols, { member }] };
-  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
-}
-
-function removeTable(spec: ChartSpec, member: string): ChartSpec {
-  const { query, chart } = spec;
-  const cols = tableColumns(spec).filter((c) => c.member !== member);
-
-  let q = query;
-  const measures = withoutMember(query.measures, member);
-  if (measures.length !== (query.measures?.length ?? 0)) {
-    q = { ...q, measures: measures.length ? measures : undefined };
-  }
-  const dims = withoutMember(query.dimensions, member);
-  if (dims.length !== (query.dimensions?.length ?? 0)) {
-    q = { ...q, dimensions: dims.length ? dims : undefined };
-  }
-  const tds = (query.timeDimensions ?? []).filter((t) => t.dimension !== member);
-  if (tds.length !== (query.timeDimensions?.length ?? 0)) {
-    q = { ...q, timeDimensions: tds.length ? tds : undefined };
-  }
-
-  const fo = { ...familyOptions(spec), columns: cols };
-  return { ...spec, query: q, chart: { ...chart, familyOptions: fo } };
-}

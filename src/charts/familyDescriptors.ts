@@ -14,8 +14,10 @@ import type { z } from "zod";
 
 import type { BuiltinChartFamily, ChartFamily, ChartSpec } from "@/spec";
 // Type-only import — keeps this registry a runtime leaf w.r.t. the editor (so
-// `wells.ts` can read its well shapes from here without a module cycle).
-import type { WellDef, FieldKind } from "@/editor/chart/builder/wells";
+// `wells.ts` can read its well shapes from here without a module cycle). The well
+// SHAPE (with its channel/target binding) lives in the builder's channel model;
+// `wells.ts` re-exports both types for existing import sites.
+import type { WellDef, FieldKind } from "@/editor/chart/builder/channels";
 
 import type { ChartComponent } from "./types";
 import type { FamilyDefault } from "./defaults";
@@ -43,11 +45,15 @@ import { TableFamily } from "./table";
  * that DATA + dispatch so adding a family later is "write one descriptor (+ its
  * procedural field writers)" rather than editing every table.
  *
- * What is INTENTIONALLY NOT absorbed (Phase 1): the procedural per-family bodies —
- * `placeField`/`removeField` impls (`wells.ts`), `migrateToFamily`, the
- * `CustomizeSection` per-family control JSX, the chip-binding patch writers, and
- * `readWells`. Those READ descriptor flags but their bodies stay; the DATA/dispatch
- * is what centralizes here.
+ * Field placement is DATA here too: each well declares its `target` (where its member
+ * lives in the spec) + `channel` (which visual role it feeds), and the generic
+ * interpreter in `editor/chart/builder/channels.ts` reads/writes every builtin family
+ * from those two facts. The per-family `placeField`/`removeField`/`readWells`/
+ * `migrateToFamily` switches are GONE.
+ *
+ * What is still INTENTIONALLY NOT absorbed: the `CustomizeSection` per-family control
+ * JSX and the chip-binding patch writers. Those READ descriptor flags but their bodies
+ * stay; the DATA/dispatch is what centralizes here.
  */
 export interface ChartFamilyDescriptor {
   /** The family key (the discriminator). */
@@ -130,9 +136,11 @@ export interface ChartFamilyDescriptor {
    *
    * A HOST-registered family is self-contained: it supplies its own field-placement
    * logic and customize UI here, so the editor never needs a builtin `switch` arm for
-   * it. Builtin families leave these undefined and keep their procedural bodies in
-   * `wells.ts` / `CustomizeSection.tsx`; the editor dispatches to the descriptor hook
-   * when present, else falls back to the builtin switch. */
+   * it. Builtins leave these undefined — their wells carry a {@link WellDef.target}
+   * instead, and the generic channel interpreter services them. The editor dispatches
+   * to the descriptor hook when present, else to the interpreter. A host family may
+   * mix both: declare targets on the wells the interpreter can handle and a partial
+   * `readWells` for the rest (its output wins for the wells it returns). */
 
   /** The type-level "Options" panel for this family (rendered in the type picker). */
   Customize?: React.ComponentType<{ spec: ChartSpec; update: (next: ChartSpec) => void }>;
@@ -157,12 +165,42 @@ const SIDEBAR_WIDE = "cv-sidebar--wide";
 // The typed wells (top→bottom) — the editor's PURE shape, reading nothing from the
 // spec. These were previously the `getWells()` switch in `wells.ts`; the descriptor
 // is now their home and `getWells()` reads them back from here.
+//
+// Every BUILTIN well declares two extra bindings (docs/05 §2), which is what lets the
+// ONE generic interpreter in `builder/channels.ts` service them all — no per-family
+// place/remove/read switch:
+//
+//  - `target`  — WHERE the member lives in the spec (mapping category / mapped
+//                measures / mapping pivot / a `familyOptions` key / a key holding a
+//                `{member}` list).
+//  - `channel` — WHICH visual role it feeds (x / y / color / size / row / detail).
+//                Two families that expose the same channel mean the same thing by it,
+//                so switching type is a channel-preserving re-place (`unifyChannels`).
+//
+// HOST families declare neither: a well with no `target` is host-managed and the
+// editor falls back to the descriptor's own `readWells`/`placeField`/`removeField`.
 
 const X_AXIS_HINT = "a date or category";
 
 const CARTESIAN_WELLS: WellDef[] = [
-  { id: "y", label: "Values", hint: "the numbers to show", cardinality: "many", kinds: ["number"] },
-  { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
+  {
+    id: "y",
+    label: "Values",
+    hint: "the numbers to show",
+    cardinality: "many",
+    kinds: ["number"],
+    target: { kind: "measures" },
+    channel: "y",
+  },
+  {
+    id: "x",
+    label: "Category",
+    hint: X_AXIS_HINT,
+    cardinality: "one",
+    kinds: ["time", "category"],
+    target: { kind: "category" },
+    channel: "x",
+  },
   {
     id: "color",
     label: "Split by",
@@ -170,29 +208,116 @@ const CARTESIAN_WELLS: WellDef[] = [
     cardinality: "one",
     kinds: ["category"],
     optional: true,
+    // A split IS the mapping's pivot dimension (series = measure × value).
+    target: { kind: "pivot" },
+    channel: "color",
   },
 ];
 
 const HEATMAP_WELLS: WellDef[] = [
-  { id: "value", label: "Value", hint: "the number that colors each cell", cardinality: "one", kinds: ["number"] },
-  { id: "hy", label: "Rows", hint: "a category (one row each)", cardinality: "one", kinds: ["category"] },
-  { id: "hx", label: "Columns", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
+  {
+    id: "value",
+    label: "Value",
+    hint: "the number that colors each cell",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "measures" },
+    channel: "y",
+  },
+  {
+    id: "hy",
+    label: "Rows",
+    hint: "a category (one row each)",
+    cardinality: "one",
+    kinds: ["category"],
+    // Rows are stored exactly like a split (the mapping's pivot) but read as a
+    // POSITION channel by the mark — hence `row`, not `color`.
+    target: { kind: "pivot" },
+    channel: "row",
+  },
+  {
+    id: "hx",
+    label: "Columns",
+    hint: X_AXIS_HINT,
+    cardinality: "one",
+    kinds: ["time", "category"],
+    target: { kind: "category" },
+    channel: "x",
+  },
 ];
 
 const PIE_WELLS: WellDef[] = [
-  { id: "slices", label: "Slices", hint: "one slice per value", cardinality: "one", kinds: ["category", "time"] },
-  { id: "size", label: "Size", hint: "size of each slice", cardinality: "one", kinds: ["number"] },
+  {
+    id: "slices",
+    label: "Slices",
+    hint: "one slice per value",
+    cardinality: "one",
+    kinds: ["category", "time"],
+    target: { kind: "category" },
+    channel: "x",
+  },
+  {
+    id: "size",
+    label: "Size",
+    hint: "size of each slice",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "measures" },
+    channel: "y",
+  },
 ];
 
 const SCATTER_WELLS: WellDef[] = [
-  { id: "sx", label: "Horizontal axis", hint: "a number", cardinality: "one", kinds: ["number"] },
-  { id: "sy", label: "Vertical axis", hint: "a number", cardinality: "one", kinds: ["number"] },
-  { id: "size", label: "Bubble size", hint: "a number", cardinality: "one", kinds: ["number"], optional: true },
-  { id: "color", label: "Split by", hint: "color points by category", cardinality: "one", kinds: ["category"], optional: true },
+  {
+    id: "sx",
+    label: "Horizontal axis",
+    hint: "a number",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "option", key: "x" },
+    channel: "x",
+  },
+  {
+    id: "sy",
+    label: "Vertical axis",
+    hint: "a number",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "option", key: "y" },
+    channel: "y",
+  },
+  {
+    id: "size",
+    label: "Bubble size",
+    hint: "a number",
+    cardinality: "one",
+    kinds: ["number"],
+    optional: true,
+    target: { kind: "option", key: "size" },
+    channel: "size",
+  },
+  {
+    id: "color",
+    label: "Split by",
+    hint: "color points by category",
+    cardinality: "one",
+    kinds: ["category"],
+    optional: true,
+    target: { kind: "option", key: "groupBy" },
+    channel: "color",
+  },
 ];
 
 const KPI_WELLS: WellDef[] = [
-  { id: "value", label: "Value", hint: "the number to show", cardinality: "one", kinds: ["number"] },
+  {
+    id: "value",
+    label: "Value",
+    hint: "the number to show",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "option", key: "measure" },
+    channel: "y",
+  },
 ];
 
 const TABLE_WELLS: WellDef[] = [
@@ -202,6 +327,10 @@ const TABLE_WELLS: WellDef[] = [
     hint: "any field, in order",
     cardinality: "many",
     kinds: ["number", "category", "time"],
+    target: { kind: "optionList", key: "columns" },
+    // A table column is pure DETAIL — no position/paint role — so a table's fields
+    // only survive a type switch into another detail-bearing family.
+    channel: "detail",
   },
 ];
 

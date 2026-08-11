@@ -24,7 +24,6 @@
     "build:playground": "vite build",
     "preview:playground": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
     "shot": "bun playground/shot.mjs",
     "test": "vitest run"
   },

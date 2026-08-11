@@ -168,11 +168,15 @@ function metaOf(chart: ChartOptions): Record<string, SeriesMeta> {
  * mapping can be formed. (The old per-family writers silently DROPPED such
  * placements on bar/line/area; holding them is what makes exploration safe.)
  */
-function pendingPivot(spec: ChartSpec, wells: readonly WellDef[]): string | undefined {
+function pendingPivot(
+  spec: ChartSpec,
+  wells: readonly WellDef[],
+  claimedExtra?: readonly string[],
+): string | undefined {
   const chart = spec.chart;
   if (pivotOf(chart)) return undefined;
   const category = categoryOf(chart);
-  const claimed = new Set<string>();
+  const claimed = new Set<string>(claimedExtra ?? []);
   if (category) claimed.add(category);
   // Dimensions parked in option wells belong to those wells, not to the pivot.
   for (const w of wells) {
@@ -192,6 +196,14 @@ function pendingPivot(spec: ChartSpec, wells: readonly WellDef[]): string | unde
 export function readChannelWells(
   spec: ChartSpec,
   wells: readonly WellDef[],
+  /**
+   * Members that are being written RIGHT NOW and are therefore already spoken
+   * for. A writer binds its member to the query one step before the mapping
+   * records the role, so without this the in-flight member looks like an
+   * unclaimed dimension and {@link pendingPivot} would adopt it as a split —
+   * a category placed after a measure would pivot on itself.
+   */
+  claimed?: readonly string[],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   const chart = spec.chart;
@@ -217,7 +229,7 @@ export function readChannelWells(
         break;
       }
       case "pivot": {
-        const p = pivotOf(chart) ?? pendingPivot(spec, wells);
+        const p = pivotOf(chart) ?? pendingPivot(spec, wells, claimed);
         out[well.id] = p ? [p] : [];
         break;
       }
@@ -284,11 +296,21 @@ function spanDays(dateRange: TimeDimension["dateRange"]): number | undefined {
   return Math.abs(to - from) / 86_400_000;
 }
 
-/** Bind a member to the query in the way its kind requires. */
-function bindToQuery(query: CubeQuery, member: string, kind: FieldKind): CubeQuery {
+/**
+ * Bind a member to the query in the way its kind requires. `carry` is the time
+ * entry a swap is replacing: unbinding the previous X clears `timeDimensions`
+ * wholesale, so without carrying it forward an axis swap would silently discard
+ * the user's date range and granularity.
+ */
+function bindToQuery(
+  query: CubeQuery,
+  member: string,
+  kind: FieldKind,
+  carry?: TimeDimension,
+): CubeQuery {
   if (isMeasureKind(kind)) return { ...query, measures: withMember(query.measures, member) };
   if (kind === "time") {
-    const prev = timeDimensionOf(query);
+    const prev = timeDimensionOf(query) ?? carry;
     return setTimeDimension(query, {
       dimension: member,
       granularity: prev?.granularity ?? adaptiveGranularity(prev?.dateRange),
@@ -369,8 +391,8 @@ interface Roles {
   pivot?: string;
 }
 
-function readRoles(spec: ChartSpec, wells: readonly WellDef[]): Roles {
-  const current = readChannelWells(spec, wells);
+function readRoles(spec: ChartSpec, wells: readonly WellDef[], claimed?: readonly string[]): Roles {
+  const current = readChannelWells(spec, wells, claimed);
   const find = (kind: WellTarget["kind"]): WellDef | undefined =>
     wells.find((w) => w.target?.kind === kind);
   const categoryWell = find("category");
@@ -424,11 +446,13 @@ export function placeInChannelWell(
   switch (t.kind) {
     case "category": {
       // Replace any existing category: unbind the previous member first so a
-      // swapped X does not leave its dimension on the query.
+      // swapped X does not leave its dimension on the query. The outgoing time
+      // entry carries the date window onto the incoming one.
       const prev = current[0];
+      const carry = timeDimensionOf(query);
       if (prev && prev !== member) query = unbindFromQuery(spec, wells, prev, wellId);
-      query = bindToQuery(query, member, kind);
-      const roles = readRoles({ ...spec, query }, wells);
+      query = bindToQuery(query, member, kind, carry);
+      const roles = readRoles({ ...spec, query }, wells, [member]);
       return withMapping(spec, query, { ...roles, category: member });
     }
     case "measures": {
@@ -438,14 +462,14 @@ export function placeInChannelWell(
         query = unbindFromQuery(spec, wells, current[0], wellId);
       }
       query = bindToQuery(query, member, kind);
-      const roles = readRoles({ ...spec, query }, wells);
+      const roles = readRoles({ ...spec, query }, wells, [member]);
       return withMapping(spec, query, { ...roles, measures: next });
     }
     case "pivot": {
       const prev = current[0];
       if (prev && prev !== member) query = unbindFromQuery(spec, wells, prev, wellId);
       query = bindToQuery(query, member, kind);
-      const roles = readRoles({ ...spec, query }, wells);
+      const roles = readRoles({ ...spec, query }, wells, [member]);
       return withMapping(spec, query, { ...roles, pivot: member });
     }
     case "option": {
