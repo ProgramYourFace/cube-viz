@@ -73,11 +73,21 @@ export function filterVarByMember(widgets: readonly WidgetSpec[]): Map<string, s
 
 export interface DashboardDrillProps extends ChartInteractionHandlers {
   spec: DashboardSpec;
+  /**
+   * Opt in to brushing/clicking a chart to narrow the board. OFF by default and
+   * deliberately so: mounting a brush hands plot pointer events to the D3
+   * overlay, which trades that chart's hover inspection for drag-to-select.
+   * Reading a value off a tooltip is the more common act, so a board only makes
+   * that trade when it asks to. A host handler is honored regardless — supplying
+   * one is itself a request for the selection.
+   */
+  drill?: boolean;
   children: React.ReactNode;
 }
 
 export function DashboardDrill({
   spec,
+  drill = false,
   onRangeSelect,
   onPointSelect,
   children,
@@ -125,9 +135,10 @@ export function DashboardDrill({
   );
 
   // Only advertise a handler when it can actually do something: an unbound board
-  // with no host handler must not mount a brush that silently does nothing.
-  const rangeEnabled = Boolean(onRangeSelect || (setVar && rangeVars.size));
-  const pointEnabled = Boolean(onPointSelect || (setVar && filterVars.size));
+  // with no host handler must not mount a brush that silently does nothing, and
+  // local resolution only runs when the board opted in.
+  const rangeEnabled = Boolean(onRangeSelect || (drill && setVar && rangeVars.size));
+  const pointEnabled = Boolean(onPointSelect || (drill && setVar && filterVars.size));
 
   return (
     <ChartInteractionProvider

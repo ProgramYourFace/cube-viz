@@ -66,6 +66,13 @@ export interface DashboardProps extends ChartInteractionHandlers {
   /** Edit mode: enables drag/resize (handle = chrome header). Default `false`. */
   editable?: boolean;
   /**
+   * Opt in to brush/click drilling: a selection narrows the dashboard variables
+   * its widgets already read. Default `false` — see {@link DashboardDrillProps.drill}
+   * for why enabling it is a deliberate trade (the brush takes over hover
+   * inspection on temporal charts).
+   */
+  drill?: boolean;
+  /**
    * Per-component chart-families override. When set, this dashboard's subtree resolves
    * families from a registry built from `defaultChartFamilies` + these descriptors —
    * augmenting the provider's families just for this dashboard (the rest of the context
@@ -84,6 +91,7 @@ export function Dashboard({
   spec,
   editable = false,
   families,
+  drill = false,
   onRangeSelect,
   onPointSelect,
 }: DashboardProps): ReactElement {
@@ -117,7 +125,12 @@ export function Dashboard({
       {/* Inside the provider on purpose: DashboardDrill resolves a brush/click
           against THIS board's variable store before handing it to the host. */}
       <DashboardProvider spec={spec}>
-      <DashboardDrill spec={spec} onRangeSelect={onRangeSelect} onPointSelect={onPointSelect}>
+      <DashboardDrill
+        spec={spec}
+        drill={drill}
+        onRangeSelect={onRangeSelect}
+        onPointSelect={onPointSelect}
+      >
       <div ref={ref} className="cv-dashboard">
         {width <= 0 ? null : stacked ? (
           <div
