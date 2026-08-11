@@ -213,6 +213,7 @@ interface ChartOptions {
   axes?: AxesOptions;           // x/y axis envelope (label, hide, scale, domain)
   colors?: ColorAssignment;     // → chart tokens (§3.4)
   format?: FormatOptions;       // number/date formatting (§3.3)
+  transform?: ChartTransform;   // presentation-only reshaping of the series (§3.6)
 
   // ── per-family escape hatch ──
   familyOptions?: Record<string, unknown>;     // OWNED BY the chart-options agent;
@@ -341,6 +342,33 @@ At render the token resolves to `var(--chart-N)` (a bare `var()`, **not** the le
 
 - **`TextWidget.doc`** is **ProseMirror JSON** straight from `editor.getJSON()` (TipTap StarterKit schema, v3). It renders read-only via the *same* StarterKit + `editable:false`. The registered extension set is pinned to the schemaVersion so stored docs never hit unknown node types.
 - **`InputWidget.control`** is defined in §5 (it's a *write* surface for a variable, so it belongs to the binding model).
+
+### 3.6 `chart.transform` — presentation transforms (additive, still `SCHEMA_VERSION` 2)
+
+Cube owns *aggregation*; the view layer owns *presentation*. Without a seam for the second, "7-day rolling average", "running total" and "% of total" each force a **new Cube measure** for what is purely a display choice. `chart.transform` is that seam — one optional envelope key, defined in `src/spec/schema.ts` alongside the rest of `ChartOptions`:
+
+```ts
+type TransformKind = "rollingAvg" | "cumulative" | "percentOfTotal";
+
+interface ChartTransform {
+  kind: TransformKind;
+  window?: number;   // int 2…90; trailing window length in CATEGORIES.
+                     // Only meaningful for kind:"rollingAvg" (ignored by the other two);
+                     // defaults to DEFAULT_TRANSFORM_WINDOW = 7.
+}
+```
+
+`ChartTransformSchema` is `.strict()`, so an unknown key is a validation error rather than silently-carried data.
+
+**Why it is envelope-level, not per-family.** A transform reshapes the *generic* `{ categories, series[].data }` shape (spec §6), not any one family's option surface. Putting it in the envelope means every cartesian family gets it without a single `familyOptions` schema growing a knob, and it is applied once — in `ChartRenderer`, before the family component sees the data (`src/charts/transforms.ts`; behavior and null semantics in docs/02 §2.9).
+
+**Why it does NOT bump the schema version.** The addition is **purely additive and optional**:
+
+- `ChartOptionsSchema.transform` is `.optional()`, so every existing v2 spec validates unchanged — a spec that omits the key parses exactly as before, and nothing in the loader has to fill it in.
+- It reads nothing and rewrites nothing that already existed; a renderer or host that ignores `transform` renders the untransformed series, which is the pre-existing behavior.
+- No stored field changes shape, so `src/spec/migrate.ts` gains no migration step (§1 "Validation, versioning & migration": a version bump is reserved for changes that make an older spec *invalid* or *differently-meaning*, which is what v1 → v2's combo/dual-axis removal was).
+
+So `SCHEMA_VERSION` stays **2**. The compatibility that a version bump protects is **old spec → new build**, and that direction is total here. The reverse (a spec written *with* `transform`, loaded by a build predating the key) is not a schema-version question: `ChartOptionsSchema` is `.strict()`, so an older build rejects the unknown key the same way it rejects any typo — which is why the envelope only ever grows in a release that ships the reader for it.
 
 ---
 
@@ -676,10 +704,11 @@ A date-range Input writes the `dateRange` variable; both charts read it via `{va
 | Query | Cube `Query` passthrough + `{var}` token extension; verbatim `cube.member` names | Zero translation to `cube().load()`; future-proof |
 | Chart family | one `family` + `orientation`/`stackMode` props | Inverts Embeddable's per-variant component explosion |
 | Mapping | `SeriesMapping` (`mode:"measures"` \| `"pivot"`) | Library-agnostic data→visual seam |
+| Transform | optional `chart.transform` (`rollingAvg`/`cumulative`/`percentOfTotal`) | Presentation reshaping without modelling a new Cube measure (§3.6) |
 | Colors | `chart-1..chart-5` tokens → `var(--chart-N)` | Theme/dark-mode swap with no spec edits |
 | Layout | ONE canonical (widest) layout, `minW/minH` only | Reflow auto-derives all widths via RGL |
 | Variables | declare in dashboard; WRITE via Input, READ via `{var}`, `noFilter` on empty | Fail-safe reactive contract; can't widen RLS |
 | Adapter | `{ categories, series:[{key,label,data,colorToken,meta}], raw, empty }` | Single boundary; swapping the chart library touches only the renderer |
 | RLS | **not in the spec** — JWT `securityContext.{systemIds,roles}` | Authors can never widen tenant scope |
 
-This is the stable contract, at `SCHEMA_VERSION` 2. The chart-options layer fills `familyOptions` per family; the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks; the editor and preview server author and validate `Spec` objects. None of those layers can alter the shape above without a `schemaVersion` bump (v2 — the combo/dual-axis removal — is the precedent).
+This is the stable contract, at `SCHEMA_VERSION` 2. The chart-options layer fills `familyOptions` per family; the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks; the editor and preview server author and validate `Spec` objects. None of those layers can alter the shape above without a `schemaVersion` bump (v2 — the combo/dual-axis removal — is the precedent). **Optional additions are not alterations:** `chart.transform` (§3.6) joined the envelope after v2 shipped and left every stored v2 spec valid, so the version did not move.

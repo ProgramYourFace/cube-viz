@@ -1,272 +1,496 @@
-I now have a complete and authoritative picture of the spec model, the per-family `familyOptions` mappings, the editor state engine, the responsive shell, and every reusable primitive. I'm ready to write the design doc.
+# cube-viz Chart Builder v4 — Channel-Typed Wells
 
-Note: scatter/kpi/table carry their own member references inside `familyOptions`; bar/line/area/pie/heatmap use the generic `mapping` envelope. This is decisive for the well→spec mapping below. (The combo family this note originally covered was removed in spec v2, along with dual-axis; the heatmap family was added.)
+> **Status:** as-built (2026-08). **Scope:** the editor (`src/editor/**`) plus the `wells`
+> declarations it reads off `ChartFamilyDescriptor` (`src/charts/familyDescriptors.ts`).
+> **Invariant, unchanged since v2:** the `ChartSpec` schema (`src/spec/schema.ts`), the family
+> renderers (`src/charts/**`), `resolveOptions`, and `useChartEditorState` are untouched by the
+> builder. Every edit still emits a **full** `ChartSpec` through the unchanged
+> `update → validate(ChartSpecSchema) → debounce-emit` engine.
+
+**The lineage.** v2 replaced the 7-accordion config panel with *chart-type-first + typed wells*.
+v3 removed the panel entirely: the live preview **is** the editing surface (§1). v4 changes what
+a well **is**. A well used to be a family-specific slot whose behaviour lived in a per-family
+`switch`; it is now a declaration of two facts — **where** its field lives in the spec
+(`target`) and **which visual channel** it feeds (`channel`) — and ONE generic interpreter
+services every builtin family from those two facts.
+
+The payoff is not code size (though `builder/wells.ts` went from 751 lines of per-family dialects
+to 173 lines of dispatch). It is that the questions the editor keeps asking —
+*what is in this slot? may this field go here? which chart type suits these fields? what happens
+if I switch type?* — now have **one** answer each instead of five that disagreed at the edges.
 
 ---
 
-# cube-viz Chart Builder v2 — A Radically Simpler UI Over the Same ChartSpec
+## 1. The surface (unchanged from v3)
 
-**Status:** design, implementation-ready. **Scope:** the editor only (`src/editor/**`). **Invariant:** the `ChartSpec` schema (`src/spec/schema.ts`), the family renderers (`src/charts/**`), `resolveOptions`, and `useChartEditorState` are **unchanged**. This is a new front of house over the same JSON.
-
-The one structural idea: replace the 7 stacked accordion `Section`s (`Data source → Measures → Dimension → Time → Filters → Chart type → Format`) with **chart-type-first + a small set of typed wells you fill by dragging or clicking**, and **delete the formatting/axis/legend-position controls entirely** (they become automatic). Every well edit goes through the existing `update(nextSpec)`.
-
----
-
-## 1. Builder layout (top → bottom) and responsive behavior
+`ChartEditOverlay` (`src/editor/chart/onchart/ChartEditOverlay.tsx`) arranges field slots
+**around** the live `<CubeChart>` preview:
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│  ❶ TypePicker  [▮ Bar] [Line] [Area] [Pie] [Scatter] [# KPI] [Table]   │  ← top, conditions everything
-├───────────────────────────────┬──────────────────────────────────────┤
-│  ❷ WELLS (role slots, per type)│                                       │
-│   ┌─ The number ─────────────┐ │            ❹ LIVE CHART               │
-│   │ [Σ Distance ✎ ● ✕]       │ │     (on-chart editing: click legend   │
-│   │ + drop a number here     │ │      to hide a series, click title    │
-│   └──────────────────────────┘ │      to rename, click swatch to       │
-│   ┌─ Break it down by ───────┐ │      recolor, "+ click to add metric")│
-│   │ [▦ Day ▾gran ✕]          │ │                                       │
-│   └──────────────────────────┘ │                                       │
-│   ┌─ Split by color (opt) ───┐ │                                       │
-│   │ + drop something here    │ │                                       │
-│   └──────────────────────────┘ │                                       │
-│                                │                                       │
-│  ❸ FIELD PALETTE (searchable)  │                                       │
-│   Numbers ▸  Day ▸  Labels ▸   │                                       │
-│   [Σ Total distance]  [Σ Trips]│                                       │
-│   [▦ Day] [▦ Week] …           │                                       │
-│   [⌗ Device] [⌗ Driver] …      │                                       │
-│                                │                                       │
-│  ▸ Filters (collapsed)         │                                       │
-│  ▸ Customize (collapsed)       │  ← the SMALL per-family option set     │
-└───────────────────────────────┴──────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│ [toolbar]                                          [⋯ chrome]  │
+├──────────────┬─────────────────────────────────────────────────┤
+│  LEFT strip  │                                                 │
+│  (zones.left)│              LIVE CHART PREVIEW                 │
+│  ┌─────────┐ │        (centre: chart-type pill / the           │
+│  │ Values  │ │         empty-state type chooser)               │
+│  │ [Σ …+]  │ │                                                 │
+│  └─────────┘ │                                                 │
+├──────────────┴─────────────────────────────────────────────────┤
+│  BOTTOM strip (zones.bottom):  [Category ▾] [Split by +]       │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-Top-to-bottom order in the left config column:
-
-1. **TypePicker** — full-width segmented strip of chart families, **first**, because it conditions which wells and which Customize options exist (the user's authoritative constraint).
-2. **Wells** — the typed role slots for the selected family (§2). Empty wells show drop-zone microcopy.
-3. **Field palette** — searchable, grouped, humanized field list (§3). Drag source + click-to-add.
-4. **Filters** — one collapsed `Section` wrapping the **existing** `FilterBuilder` verbatim (no redesign needed; it already works).
-5. **Customize** — one collapsed `Section` with the **few** meaning-changing toggles for this family (§4).
-
-The right pane is the **live `<CubeChart>` preview** (unchanged wiring from `ChartEditor.tsx`), now also an edit surface (§3.4).
-
-### Responsive (container-driven, WebView-safe)
-
-Reuse `EditorShell mode="two-pane"` and `useContainerBreakpoint` (threshold 720px) exactly as today — nothing viewport-based.
-
-- **Wide (> 720px):** config column (`panelWidth`, default 360) left, live chart right. Palette sits **below the wells** in the config column (a vertical strip), so wells and palette are both visible for drag.
-- **Narrow (≤ 720px, the WebView/phone case):** `EditorShell` already stacks **preview on top, config below**. Two adjustments for touch:
-  - The **palette becomes a horizontal, chip-scrolling row** under the wells (`overflow-x-auto`), so it doesn't eat vertical space.
-  - **Click-to-add is the primary path** on narrow (drag from a scrolling row into a well is unreliable on touch). Tapping a palette chip opens the tiny "Add to → The number / Break it down by / Split by color" menu (only the legal wells for that field's kind are shown; if exactly one legal empty well, it fills it directly with no menu). Drag still works where the platform supports it but is never required — matching the existing `MemberMultiPicker` philosophy ("the reliable path inside a mobile WebView").
-
-A `useWells(spec)` read-model + `wellsToSpec` writer (pure, mirrors `helpers.ts`) is the seam, so the same components render in both layouts.
+- `descriptor.zones` decides which wells anchor **left** (the value axis) and which **bottom**
+  (category + splits). Zones adapt to state: a **horizontal** bar swaps its value and category
+  strips so editing matches the chart.
+- `descriptor.sidebarWidthClass` widens the left strip for KPI (`cv-sidebar--wide`), whose
+  strip carries value/comparison/sparkline config blocks rather than one slot.
+- A `WellGroup` renders one well: its placed field pills plus an add button opening
+  `FieldPickerPopover` (§6).
+- The centre holds `ChartTypePill` (configured chart) or `CenterTypePicker` (empty chart) —
+  both now render the **suggested-types tile grid with live previews** (§5).
+- The value well's per-field colour swatches use the **same** `resolveSeriesColors` resolver the
+  renderer uses, so the editor never disagrees with the chart.
+- **Auto-fill:** when a family declares `canonicalTimeWell` and that well is still empty, the
+  first field placement also places the cube's canonical time dimension (member meta
+  `canonicalTime: true`) there — so a line/area comes up as a proper time series from the first
+  drop. Builtins: `line`/`area` → `"x"`; `bar` deliberately unset (its default axis is
+  categorical). It is a plain placement — one tap removes it.
 
 ---
 
-## 2. Wells per family — names, cardinality, allowed kinds, and the ChartSpec mapping
+## 2. The channel model
 
-Field **kinds** come straight from `meta-helpers.ts`: `measure` (the "number"), non-time `dimension` (a "label"), time `dimension` (`type === "time"`, a "date"), `numberDimension` (a `type === "number"` dimension — a raw per-row number, placed into `query.dimensions`), and `geoPoint` (one synthetic picker option for an exact `meta.geoPoint` latitude/longitude pair). A `geoPoint` never enters the saved spec: the editor fans it out to the host family's internal lat/lng wells, which continue storing the two verbatim Cube member names.
+### 2.1 The three vocabularies
 
-Raw-table field visibility uses directed cube `meta.joinTargets`, not Cube's weak `connectedComponent`: only the selected source plus transitively reachable join targets appear. Missing join metadata fails closed to the selected source; curated views remain flat, self-contained datasets.
+```ts
+/** A field's primitive role — what Cube says it is. */
+type FieldKind = "number" | "category" | "time" | "numberDimension" | "geoPoint";
 
-Cube scoping rule (preserve today's behavior): the **first placed field sets the active cube** (`inferCube`); subsequent wells/palette filter to that cube. Dropping a field from another cube triggers the existing "switching the data source clears member-bound state" reset (`onCubeChange`).
+/** The visual role a well feeds. */
+type Channel = "x" | "y" | "color" | "size" | "row" | "detail";
 
-Legend: **kinds** — `#` number (measure), `🗓` date (time dim), `⌗` label (non-time dim). **Card.** = cardinality.
+/** Where a well's field(s) live in the spec. */
+type WellTarget =
+  | { kind: "category" }                 // mapping.category.member (+ the query dim/timeDim)
+  | { kind: "measures" }                 // the mapped measure list + query.measures
+  | { kind: "pivot" }                    // mapping.series.pivot — the splitting dimension
+  | { kind: "option"; key: string }      // familyOptions[key] = member
+  | { kind: "optionList"; key: string }; // familyOptions[key] = [{ member }, …]
+```
 
-### bar / line / area  (`familyUsesMapping` + `familyHasCartesianAxes`)
+**`FieldKind`** gates *drops*. `numberDimension` exists because Cube models coordinates and
+other per-row numbers (latitude, longitude, headings) as `type: number` **dimensions** — the
+`number` kind only surfaces measures, so a well wanting raw per-row numbers opts in with
+`kinds: ["number", "numberDimension"]`. Placement routes them differently (`number` →
+`query.measures`, `numberDimension` → `query.dimensions`). `geoPoint` is one synthetic picker
+option bundling a model-authored latitude/longitude pair; it never enters the saved spec — the
+editor fans it out to a host family's internal lat/lng wells.
 
-| Well (plain name) | Card. | Allowed kind | ChartSpec writes |
-|---|---|---|---|
-| **The number** | many | `#` number | `query.measures = [...]` **and** `chart.mapping.series = { mode:"measures", members, meta? }` |
-| **Break it down by** | one | `🗓` date **or** `⌗` label | if date → `query.timeDimensions = [{ dimension, granularity }]` and `chart.mapping.category = { member }`; if label → `query.dimensions = [member]` and `chart.mapping.category = { member }` |
-| **Split by color** *(optional)* | one | `⌗` label (≠ the break-down field) | **pivot mode:** moves the series to `mapping.series = { mode:"pivot", value: <first number>, pivot: <this label> }`, adds the label to `query.dimensions`. (When empty, series stays `mode:"measures"`.) |
+**`Channel`** is the load-bearing addition. Two families that expose the same channel **mean the
+same thing by it**, which is what makes type-switching lossless (§4), fit-ranking possible (§5),
+and the editor uniform: the category slot behaves identically in bar, line, area and heatmap
+because it *is* the same channel. Note `row` vs `color`: both are stored as a pivot dimension,
+but `row` is a second categorical **position** channel (the heatmap's rows) while `color` is a
+categorical **paint** channel (a bar/line split). They differ only in how the mark reads them.
 
-Rules enforced by the wells (Looker/Power BI constraint, surfaced as plain microcopy, not errors):
-- **Split by color** is enabled only when **The number** has exactly **one** field (pivot needs a single value). If a second number is added while a color split exists, the color split is auto-cleared and a one-line note appears: *"Pick one number to split by color, or remove the color split to compare several numbers."*
-- This is precisely the existing `buildSeries`/`buildMapping` machinery extended with the pivot branch; both already exist in `SeriesMappingSchema`.
+**`WellTarget`** is the storage address. This is where v2's "decisive principle" (mapping
+families vs `familyOptions` families) went: it is no longer a fork in the code, it is a field on
+the well.
 
-### pie  (`familyUsesMapping`, no cartesian axes)
+### 2.2 `WellDef`
 
-| Well | Card. | Kind | Writes |
-|---|---|---|---|
-| **Slices** | one | `⌗` label (or `🗓` date) | `query.dimensions=[member]` (or `timeDimensions`), `mapping.category={member}` |
-| **Size of each slice** | one | `#` number | `query.measures=[member]`, `mapping.series={mode:"measures",members:[member]}` |
+```ts
+interface WellDef {
+  id: string;
+  label: string;
+  hint?: string;
+  cardinality: "one" | "many";
+  kinds: FieldKind[];
+  optional?: boolean;   // renders a muted "(optional)" affordance
+  target?: WellTarget;  // ABSENT ⇒ host-managed (see §7)
+  channel?: Channel;    // absent ⇒ excluded from unification
+}
+```
 
-No color/series well (pie colors by slice automatically). No orientation, no axes.
+`isChannelWell(well)` is the predicate: a well carrying a `target` is serviced by the generic
+interpreter. A well with no `target` is **host-managed** — the descriptor's own
+`readWells`/`placeField`/`removeField` own it, exactly as before v4.
 
-### scatter  (mapping lives in `familyOptions`, not the envelope)
+### 2.3 The builtin well table — family → well → target / channel
 
-| Well | Card. | Kind | Writes |
-|---|---|---|---|
-| **X (a number)** | one | `#` | `familyOptions.x`; member added to `query.measures`/`dimensions` as appropriate |
-| **Y (a number)** | one | `#` | `familyOptions.y`; member added to query |
-| **Bubble size** *(opt)* | one | `#` | `familyOptions.size` |
-| **Split by color** *(opt)* | one | `⌗` | `familyOptions.groupBy`; added to `query.dimensions` |
+This mirrors `src/charts/familyDescriptors.ts` (which is the single source of truth). Wells are
+listed **top → bottom**, i.e. the order the greedy matcher (§5) walks them.
 
-Validates against `ScatterFamilyOptionsSchema` (x, y required). `chart.mapping` stays `undefined` (the renderer ignores it).
+| Family | Well `id` | Label | Card. | Accepted kinds | `target` | `channel` | Optional |
+|---|---|---|---|---|---|---|---|
+| **bar / line / area** *(one shared `CARTESIAN_WELLS` array)* | `y` | Values | many | `number` | `measures` | `y` | |
+| | `x` | Category | one | `time`, `category` | `category` | `x` | |
+| | `color` | Split by | one | `category` | `pivot` | `color` | ✓ |
+| **heatmap** | `value` | Value | one | `number` | `measures` | `y` | |
+| | `hy` | Rows | one | `category` | `pivot` | `row` | |
+| | `hx` | Columns | one | `time`, `category` | `category` | `x` | |
+| **pie** | `slices` | Slices | one | `category`, `time` | `category` | `x` | |
+| | `size` | Size | one | `number` | `measures` | `y` | |
+| **scatter** | `sx` | Horizontal axis | one | `number` | `option: "x"` | `x` | |
+| | `sy` | Vertical axis | one | `number` | `option: "y"` | `y` | |
+| | `size` | Bubble size | one | `number` | `option: "size"` | `size` | ✓ |
+| | `color` | Split by | one | `category` | `option: "groupBy"` | `color` | ✓ |
+| **kpi** | `value` | Value | one | `number` | `option: "measure"` | `y` | |
+| **table** | `columns` | Columns | many | `number`, `category`, `time` | `optionList: "columns"` | `detail` | |
 
-### kpi  (single number; mapping in `familyOptions`)
+Zones (`descriptor.zones`), for completeness:
 
-| Well | Card. | Kind | Writes |
-|---|---|---|---|
-| **The number** | one | `#` | `familyOptions.measure`; `query.measures=[member]` |
-| **Compare to previous period** *(opt — a toggle, not a field well)* | — | — | `familyOptions.comparison = { mode:"previousPeriod", showAsPercent:true }` |
-
-No X, no color. (Comparison is a Customize toggle, §4.)
-
-### table  (no positional slots)
-
-| Well | Card. | Kind | Writes |
-|---|---|---|---|
-| **Columns** | many | any (`#`/`🗓`/`⌗`) | each column → `query.measures`/`dimensions`/`timeDimensions` by its kind, **and** appends `familyOptions.columns[] = { member, label? }` (order preserved) |
-| **Group by** *(opt)* | one | `⌗` | a Customize-level pivot toggle; v2 ships **Columns only** and parks Group-by as a stub well (pivot table isn't in the renderer today — keep it out of the first cut). |
-
-### heatmap  (roles in the generic `mapping` envelope — added in spec v2)
-
-| Well | Card. | Kind | Writes |
-|---|---|---|---|
-| **Value** | one | `#` | `query.measures=[member]` + `mapping.series = { mode:"pivot", value: member, pivot: <rows> }` |
-| **Rows** | one | `⌗` | `query.dimensions += [member]` + `mapping.series.pivot = member` |
-| **Columns** | one | `🗓`/`⌗` | `query.dimensions`/`timeDimensions` by kind + `mapping.category = { member }` |
-
-All chips are uniform (no render-type selector on any family since combo was removed in spec v2).
-
-**Decisive principle:** for `mapping`-based families (bar/line/area/pie/heatmap) the wells are a thin restatement of today's `measuresOf`/`categoryOf`/`buildMapping`; for `familyOptions`-based families (scatter/kpi/table) the wells write the family's own member fields. Both paths emit a full `ChartSpec` and run through the **unchanged** `update → validate(ChartSpecSchema) → debounce-emit`.
-
----
-
-## 3. The field palette, the add interaction, and per-chip config
-
-### 3.1 Palette contents (humanized, grouped)
-
-Source: `listMembers(meta, "dimensionOrMeasure"|"time", cube)` (already humanized — each `MemberOption` carries `label = shortTitle ?? title ?? name`, an icon by `type`, and `description` for the tooltip). The palette **groups by kind**, in this order, with plain headers:
-
-- **Numbers** (`memberType==="measure"`) — icon `#`
-- **Dates** (`type==="time"`) — icon `🗓`
-- **Labels** (non-time dimensions) — icon `⌗`
-
-A search box (reuse the `MemberMultiPicker` search) filters by `label`/`name`. Before any field is placed, the palette shows **all cubes** grouped (`groupByCube`); once a cube is active it filters to that cube and shows a tiny "Change data source" affordance (the old `CubePicker`) at the palette header — this replaces the standalone **"Data source"** section.
-
-### 3.2 Add interaction (drag primary, click mandatory fallback)
-
-- **Drag:** each palette item is `draggable`. On `dragstart` it sets a lightweight payload `{ name, kind }`. Wells are drop targets that **highlight only when the dragged kind is legal** for that well (e.g. a Label won't highlight "The number"); illegal wells dim. Drop → `placeField(well, name)`. (Mirrors the HTML5 DnD already used in `MemberMultiPicker`.)
-- **Click (always available, primary on touch):** clicking a palette item:
-  - if exactly **one** legal empty well exists → fills it;
-  - else opens a 1-level menu **"Add to → "** listing only legal wells.
-  This is the keyboard/screen-reader path and the WebView path. Each placed field announces via an `aria-live` region: *"Total distance added to The number."*
-- **Click the chart to add (bonus):** the live preview accepts a click on empty plot area when **The number** is empty → opens the same compact "Add a number" menu sourced from palette Numbers. Implemented as an overlay affordance in the preview wrapper; no renderer change (the renderers stay pure).
-
-### 3.3 A placed field = a **Chip**
-
-A `Chip` is the in-well token: `[icon · label · (date→granularity ▾) · ✎ · ● · ✕]`. Minimal controls:
-
-- **Rename (✎):** inline text → writes `mapping.series.meta[member].label` (numbers) / column label (table). Reuses the label field already in `SeriesMetaEditor`.
-- **Recolor (●):** the existing `ColorTokenPicker` in a popover → `meta[member].colorToken`. Only on number/series chips.
-- **Remove (✕):** unbinds the field from the well and from the query (reuses the removal logic in `onMeasuresChange`/`onCategoryChange`).
-- **Granularity (▾):** only on a **date** chip in a break-down/x well — a compact `GranularityPicker` writing `timeDimensions[0].granularity`. **Adaptive default:** when first dropped, granularity is chosen from the bound date range if one exists (range ≤ ~2 days → `hour`, ≤ ~90 days → `day`, ≤ ~2 years → `month`, else `year`), instead of the flat `day` default. Falls back to `day` when no range is set.
-- **Reorder:** for many-cardinality wells (numbers, table columns) keep the up/down + drag reorder already in `MemberMultiPicker`.
-
-The heavyweight per-series `FormatOptionsEditor` is **removed from the chip** (formatting becomes automatic via the host formatter — §4). The chip keeps only label + color + (granularity/render). This is the bulk of the simplification.
-
-### 3.4 On-chart editing (replaces several panel controls)
-
-- **Legend click = series control:** toggle show/hide a series on the chart (removes the need for any "series visibility" UI).
-- **Title / axis-title click = inline rename.**
-- **Legend swatch click = recolor** (same `ColorTokenPicker` popover).
-
-These need small affordance hooks in the preview wrapper; the family components stay pure `(data, options, config, format) → element`.
-
----
-
-## 4. The small remaining option set per family (Customize) + what becomes automatic
-
-The **Customize** `Section` (collapsed by default) shows only meaning-changing toggles for the active family. Everything written below maps to existing envelope/`familyOptions` fields.
-
-| Family | Customize controls (the whole list) | Spec field |
+| Family | left | bottom |
 |---|---|---|
-| **bar** | **Horizontal** (toggle) · **Stacked** (None / Stacked / 100%) | `chart.orientation` · `chart.stackMode` |
-| **line** | **Curved** (smooth) · **Show points** · **Fill area** | `familyOptions.curve` (`monotone`↔`linear`) · `familyOptions.dots` · `familyOptions.showArea` |
-| **area** | **Stacked** (None / Stacked / 100%) · **Curved** | `chart.stackMode` · `familyOptions.curve` |
-| **pie** | **Donut** (toggle) | `familyOptions.innerRadiusPct` (0 ↔ ~55) |
-| **scatter** | **Bubble shape** (circle default) | `familyOptions.shape` (kept minimal; optional) |
-| **kpi** | **Compare to previous period** (toggle) · **Show as %** | `familyOptions.comparison` |
-| **table** | **Compact rows** (toggle) | `familyOptions.rowHeight` |
-| **heatmap** | **Show values** (toggle) | `familyOptions.showValues` |
+| bar / line / area | `y` | `x`, `color` |
+| heatmap | `value`, `hy` | `hx` |
+| pie | `size` | `slices` |
+| scatter | `sy` | `sx`, `size`, `color` |
+| kpi | `value` | — |
+| table | `columns` | — |
 
-**Orientation:** rendered **only for bar** (per the user's rule). Auto-default stays `vertical`; flips to `horizontal` is a manual toggle. **Removed entirely** from line/area/pie/heatmap/kpi/table.
+Three things to read out of this table:
 
-### Becomes automatic (no UI at all)
+1. **`x` and `y` are not "horizontal/vertical".** They are *position* channels in the family's
+   own idiom: pie's `slices` is the `x` channel (it is the category) and its `size` is `y` (it is
+   the measure). That is precisely what makes bar → pie preserve both.
+2. **The same `target` serves different channels.** Heatmap `hy` and cartesian `color` both write
+   `mapping.series.pivot`; they differ only in channel, so a bar's colour split becomes a
+   heatmap's *rows* rather than being dropped.
+3. **`table` is `detail` on purpose.** A table column carries no position or paint role, so a
+   table's fields only survive a type switch into another detail-bearing family — and the
+   ranking (§5) discounts detail-only families so a table never *suggests* itself over a chart.
 
-- **Legend show/hide & position** — auto: shown when >1 series, hidden for single-series; position stays the family default in `DEFAULTS`. The **position picker is deleted**; an optional "Show legend" lives only behind nothing-by-default (we drop it; legend auto-manages and the on-chart legend click handles hide). `chart.legend` is simply left to defaults. (Since the TanStack migration the rendered legend supports **top/bottom** placement only — `left`/`right` degrade to `bottom` — and pie renders its legend correctly.)
-- **Tooltip** — always on (family default); no toggle. (TanStack built-in tooltips are interactive — pinnable via click.)
-- **Axis labels / scale / domain** — auto from field names; `chart.axes` left to defaults. (Log scale + manual range are dropped from the UI; still expressible in raw JSON for power users.)
-- **Number / date / unit formatting** — auto via the host `ChartFormat` (`format.value`/`format.category`), driven by member `meta` (unit/quantity). `chart.format` defaults to `{ kind:"auto" }`; the per-series `FormatOptionsEditor` is removed.
-- **Granularity** — adaptive default (§3.3), still editable on the date chip.
-- **Pie `maxSlices`, bar `barRadius/maxBarSize`, dots style, etc.** — keep `DEFAULTS`; no UI.
+### 2.4 The interpreter
+
+`src/editor/chart/builder/channels.ts` answers, generically, every question the per-family
+switches used to answer in five dialects:
+
+| Question | Function |
+|---|---|
+| what is in this well? | `readChannelWells(spec, wells, claimed?)` |
+| may this field go here? | `wellAccepts(well, kind)` |
+| why not? (user-facing) | `placementBlockReason(well, kind, current)` |
+| put it here | `placeInChannelWell(spec, wells, wellId, member, kind)` |
+| take it out | `removeFromChannelWell(spec, wells, wellId, member)` |
+| keep my fields when I switch | `unifyChannels(spec, fromWells, toWells)` |
+| how well does this family fit? | `channelFitScore(wells, fields)` |
+
+`src/editor/chart/builder/wells.ts` is now pure dispatch — **descriptor hook (host families) →
+else the interpreter** — plus two time-axis guards (§3.4). Its public shape
+(`getWells`/`readWells`/`placeField`/`removeField`, the `WellDef`/`FieldKind` types,
+`adaptiveGranularity`) is unchanged, so every call site and every host family built against it
+keeps compiling.
 
 ---
 
-## 5. What to DELETE, and the migration (old `ChartConfigPanel` sections → new wells)
+## 3. Reading and writing, and the forgiving behaviours
 
-Everything below is **UI removal only** — the spec fields remain valid and back-compatible; old specs render unchanged, and any field we stop exposing simply keeps its stored/default value.
+### 3.1 The mapping envelope is assembled, not open-coded
 
-| Old `ChartConfigPanel` element | Fate | New home |
+`assembleMapping(category, measures, pivot, prevMeta)` is the single place the
+measures-mode ⇄ pivot-mode transition happens (each cartesian writer used to open-code it):
+
+- category + ≥1 measure + pivot ⇒ **pivot** mode (`series = measure × pivot value`)
+- category, any measures, no pivot ⇒ **measures** mode
+- no category ⇒ **no mapping** (the fields wait on the query)
+
+Per-measure meta (label / colour token / curve) is carried across mode flips for every measure
+still selected, so adding a split never wipes series colours.
+
+### 3.2 A split dropped *before* its measures is HELD, not discarded
+
+**Changed in v4.** The old per-family writers silently dropped a pivot placement on bar/line/area
+when there was nothing yet to split. `pendingPivot` instead reports the first `query.dimensions`
+entry that no other well has claimed, so the field is **visibly placed and bound to the query**;
+the moment a measure lands, `assembleMapping` promotes it to a real pivot. Exploring in any order
+is safe.
+
+The `claimed` argument to `readChannelWells` exists for the same reason in reverse: a writer binds
+its member to the query one step *before* the mapping records the role, so without it an in-flight
+member would look like an unclaimed dimension and `pendingPivot` would adopt it as a split — a
+category placed after a measure would pivot on itself.
+
+### 3.3 Removing a field two wells share no longer unbinds it from the query
+
+**Changed in v4.** `unbindFromQuery` first re-reads every *other* well; if any still holds the
+member, the query is returned untouched. The old removers each hand-rolled this and disagreed at
+the edges — a member sitting in two wells (a scatter with the same measure on both axes) could be
+yanked out from under one of them.
+
+Removal is otherwise per-target: losing the **category** collapses the mapping but leaves the
+measures on the query (re-dropping an X restores the chart); losing the **last measure** also
+drops the pivot and its dimension (there is nothing left to split).
+
+### 3.4 Time-dimension guards
+
+The interpreter edits a **single** time dimension (`query.timeDimensions[0]`) — right for the
+one-time-axis families, wrong for a table whose `columns` well may hold several date fields. Two
+guards in `wells.ts` reconcile the result with what the wells actually hold:
+
+- `keepPlacedTimeDimensions` restores every time dimension that is still placed in a well but fell
+  off the query.
+- `keepTimeWindow` carries the edited granularity + `dateRange` across a one-for-one time-axis
+  **swap** (replacing X unbinds the outgoing entry before binding the incoming one, which would
+  otherwise drop the user's window with it).
+
+Neither ever *prunes* a time dimension: a `dateRange`-only entry that no well claims is the
+chart's date **filter**.
+
+**Adaptive granularity** (unchanged from v3, now in `channels.ts` and re-exported from `wells.ts`
+for host families): a freshly-placed date picks its bucket from the bound `dateRange` span —
+≤2 days → `hour`, ≤90 → `day`, ≤730 → `month`, else `year` — falling back to `day`
+(`DEFAULT_GRANULARITY`) with no range.
+
+---
+
+## 4. Switching chart type = channel unification
+
+`migrateToFamily(spec, next, registry)` (`src/editor/chart/helpers.ts`) used to be a per-family
+`switch` that re-derived each destination's structure from the raw query. It is now:
+
+```
+read the SOURCE's channels  →  re-place them into the DESTINATION's wells that want those channels
+        x → x        y → y        color → color        size → size        row → row
+```
+
+`unifyChannels` (in `channels.ts`) collects `channel → members` in well order from the source,
+then walks the destination's wells and places what each one's channel offers (`one`-cardinality
+wells take the first; `many` take all). Two details make it behave:
+
+- **`coerceKind`** picks a kind the destination will accept without changing the query routing: a
+  plain dimension and a numeric dimension both live in `query.dimensions`, so a well wanting one
+  takes the other; a `time` field is accepted by a `category`-only well. If nothing coerces, the
+  field is skipped.
+- **The chart is cleared but the query is INTACT.** `mapping` and `familyOptions` are reset (the
+  destination re-derives them; family defaults supply the rest, e.g. the KPI's
+  `display: "number"`), while the rest of the display envelope — orientation, stack mode, axes,
+  legend, format — is carried across **unchanged**, so bar → pie → bar restores the user's
+  stacking rather than silently resetting it. The query (date range, granularity, filters, limit,
+  timezone) is the *user's* context, not the chart's, and is never touched.
+
+**Fields whose channel has no home in the destination are dropped from the wells but left on the
+query**, so flipping back restores them. That is why the round trip works:
+
+| Switch | Outcome |
+|---|---|
+| bar → line | x, y and the split all preserved |
+| bar → pie | category → slices, first measure → size; the split has no home |
+| bar → pie → bar | **restores the split** (it was still on the query) |
+| line → heatmap | x → columns, y → value; only Rows is left to ask for |
+| bar → kpi → bar | the measure survives both ways |
+| bar → scatter | the measures land on the value axes; a *categorical* x has no home on a scatter (both scatter axes take numbers only) |
+
+**Guard.** `isChannelManaged(descriptor)` requires every well to carry **both** a `target` and a
+`channel`. A family with even one host-managed well keeps fields the interpreter cannot see, so
+unifying would silently drop them; when either side fails the check, `migrateFromQuery` re-derives
+the destination from the query greedily — the old switch's behaviour, generalized (see §7).
+
+---
+
+## 5. Suggested types + live tile previews
+
+`src/editor/chart/builder/suggest.ts` turns the machine-readable family shape into the one thing a
+non-technical user actually needs from a type picker: *which of these tiles is right for the
+fields I already have?*
+
+### 5.1 The field shape
+
+`fieldShape(spec)` reads the **query**, not the chart — the query is the one place every family
+agrees (scatter/kpi/table park their members in `familyOptions`, so reading the mapping would
+under-count them). Ordered measures → dates → categories, which is also the order the greedy
+matcher consumes, so a cartesian X comes up chronological. A time dimension with **no
+granularity** is a date *filter*, not an axis, and is not a field.
+
+### 5.2 The ranking
+
+```
+score = structuralFit            // channelFitScore, normalized by the family's own max
+      − 0.35 × wastedFields      // fields this family genuinely cannot show
+      + timeAffinity             // how this family treats a date
+      − 0.4 if detail-only       // a table can always "fit"; it rarely suggests
+```
+
+- **Why normalize.** `channelFitScore` pays +3 per filled required well and +1 per optional one,
+  so a family with more wells would always out-score a simpler one that fits perfectly (a heatmap
+  would beat a KPI for a lone measure). Dividing by the family's own maximum asks *"how much of
+  THIS chart did your fields fill?"*, which is the question a suggestion answers.
+- **Waste is kind-aware.** A leftover **date** is never waste — it is the chart's date range. A
+  leftover field a `many` well would still absorb is not waste either. (`channelFitScore` only
+  ever matches one field per well, so the ranking refunds its 0.5-per-unplaced charge first and
+  then charges its own.)
+- **`timeAffinity`** is read off the descriptor, not a family key: a family naming a
+  `canonicalTimeWell` is built for dates (+0.3); else a cartesian X handles them fine (+0.1);
+  else an x-channel well that would still swallow the date (pie slices, heatmap columns) turns it
+  into a pile of labels (−0.3). A time-first family asked to plot pure categories takes −0.2.
+
+Nothing in the module hardcodes a family key, so a host family registered via
+`<CubeVizProvider families>` is ranked by exactly the same rules as `bar`.
+
+`rankFamilies` returns every non-query-less family best-first (ties broken by picker `order`, so
+the grid does not reshuffle), each with `fits` (every required well can be filled — the chart
+would actually draw) and a short `reason`. `suggestedFamilies(ranked, 3)` takes the best fitting
+ones, and is **empty when nothing is placed yet**: there is nothing to suggest *from*, and a
+confident-looking suggestion built on no evidence is worse than none.
+
+**Language rule (enforced by a test):** every string this module produces is user-facing, so it
+speaks in tasks and field names — *"Rows needs a category"*, *"2 measures over time"*, *"A grid of
+two categories"*, *"Every field, row by row"* — and never in grammar (*channel*, *encoding*,
+*pivot*).
+
+### 5.3 The tiles
+
+`CenterTypePicker` renders two grids — **"Suggested for your fields"** (with the reason line) and
+**"All types"** (registry order, so it never reshuffles under the cursor) — where every tile is a
+**miniature of this chart drawn as that type**:
+
+- `previewSpecFor(registry, spec, family)` re-binds the user's current fields into that family's
+  wells. This is deliberately **not** `migrateToFamily`: migration preserves *intent* by matching
+  channels (so a field with no home is intentionally dropped), whereas a preview wants the most
+  flattering arrangement this family could make of these fields — so it reuses the same greedy
+  matcher the ranking scores. A bar's colour split therefore shows up as the heatmap's rows, which
+  is exactly what the user gets after one drag. The **current** family previews the user's actual
+  arrangement.
+- The picker **loads the real query itself**, capped at **200 rows** and only while the popover is
+  open (Radix unmounts closed content). It has to: the editor's data is fetched *inside*
+  `<CubeChart>` and never lifted — `onState` surfaces raw rows, not the normalized shape. Dashboard
+  `{var}` bindings are resolved the same way `useNormalizedSeries` does, so a chart bound to a
+  date-range variable previews rather than failing.
+- `miniChrome` strips the tile down to shape: no legend, no tooltip, no axes, and `chrome: "none"`
+  **only** where the family declares that option (a stray key would sit unvalidated in another
+  family's options).
+- **Sample fallback.** Only families the current fields can actually fill preview with real data;
+  the rest fall back to a small canned series. A scatter drawing its own "No data" teaches nothing
+  about what a scatter looks like.
+- Each tile is memoized and error-boundaried to its family icon (the picker itself must never
+  break), and its hit target is a transparent overlay **over** the preview rather than its parent —
+  a chart contains its own focusable nodes, and nesting those inside a `<button>` is invalid and a
+  keyboard trap. One tile = one tab stop; the miniatures are out of the tab order.
+
+---
+
+## 6. Forgiving slots
+
+**Changed in v4.** Field slots used to *hide* fields of a type they could not take. Hunting for
+"Revenue" in the Category slot therefore found **nothing**, and the user had no way to learn why.
+
+- `FieldPickerPopover` now lists everything. Usable kinds come first (in the picker's canonical
+  order `geoPoint → number → numberDimension → category → time`), then the kinds this slot
+  rejects — **muted, `aria-disabled`, still focusable**, each carrying the same short reason the
+  slot itself would give (`placementBlockReason`: *"Category takes a date or category"*). A
+  fully-rejected group header is marked *"not for this slot"*.
+- The reason is rendered **inline**, not only in the `title`: a WebView has no hover, so a
+  tooltip-only hint is invisible on touch. (This replaced a flat *"Not available"*.)
+- The slot's own wrong-kind reason **wins** over the other blocks (cross-dataset, second measure
+  source, axis-unit mismatch), because it names the fix — *put this somewhere else* — where the
+  others describe the model.
+- Every list now mixes kinds, so the per-row data-type icon is always shown: it is the fastest way
+  to see *why* a row is greyed out.
+- `WellGroup` titles its add button with the same sentence (`takesHint`), so the button and the
+  greyed rows inside it never disagree; a well that takes everything (a table column) falls back to
+  its own `hint`. With nothing placed anywhere yet, the required value slot — the measure is what
+  every family needs first — shows a single *"Add a measure to start"* line.
+- `placementBlockReason` deliberately returns `undefined` for a full `one`-cardinality well:
+  those **replace** rather than refuse. It is kept as a hook for callers that want to warn
+  ("replaces Distance") instead of disabling.
+
+---
+
+## 7. Host families
+
+A host-registered family stays self-contained, and now has a choice:
+
+- **Declare `target` + `channel` on its wells** ⇒ the generic interpreter gives it read/place/
+  remove and lossless type-switching for free; no hooks needed.
+- **Leave `target` off** ⇒ the well is host-managed and the descriptor's
+  `readWells`/`placeField`/`removeField` own it, exactly as before v4.
+- **Mix both** ⇒ declare targets on the wells the interpreter can service and a *partial*
+  `readWells` for the rest; the host's output wins for the wells it returns
+  (`readWells` merges `{ ...generic, ...host }`).
+
+`WellDef`, `FieldKind`, `WellTarget` and `Channel` are all exported from the chart-editor barrel
+for exactly this.
+
+**The fallback path.** When either side of a type switch is not fully interpreter-managed,
+`migrateFromQuery(spec, to)` re-derives the destination from the query: measures and dimensions are
+handed to the destination's channel wells greedily, in well order, by what each well accepts —
+which reproduces the old per-family recipes (cartesian: all measures + the first dimension; pie:
+one measure + one slice dimension; scatter: the first measures + a group-by; kpi: the first
+measure; table: every member as a column). A well that takes **both** kinds (a table's columns)
+reads dimensions-first, which is the column order the old recipe produced. If the destination is
+itself host-managed, the mapping envelope is carried across when it declares `supportsMapping`,
+and otherwise its own hooks re-derive as the user rebinds.
+
+---
+
+## 8. Customize — the small remaining per-family option set
+
+The type picker's **Options** panel (`CustomizeSection`) still holds only the meaning-changing
+knobs. As built today:
+
+| Family | Controls | Spec field |
 |---|---|---|
-| **§1 Data source** `Section` + standalone `CubePicker` | **Delete the section** | "Change data source" affordance in the **palette header**; cube auto-set by first placed field (`inferCube`) |
-| **§2 Measures** `MemberMultiPicker` + `SeriesMetaEditor` stack | **Replace** | **"The number(s)"** well + `Chip`s (label/color kept, per-series **Format removed**) |
-| **§3 Dimension** "Category dimension" `MemberPicker` (the confusing label) | **Replace + rename** | **"Break it down by"** / **"Slices"** / **"X"** well per family |
-| **§4 Time** member + granularity + date-range rows | **Split** | time member folds into the **"Break it down by"** well (a date chip); **granularity → chip ▾**; **date range → Filters / a host date-range variable** (no longer a free-text row in the builder) |
-| **§5 Filters** `FilterBuilder` | **Keep**, move into collapsed **Filters** `Section` | unchanged component |
-| **§6 Chart type — Family `SegmentedControl`** | **Promote to top** | **TypePicker** (§1) |
-| **§6 — Orientation `SegmentedControl`** | **Delete for all but bar** | bar-only toggle in **Customize** |
-| **§6 — Stacking `SegmentedControl`** | **Keep** (bar/area) | **Customize** |
-| **§6 — "Show legend" + Legend position** | **Delete both** | automatic; on-chart legend click for hide |
-| **§6 — "Show tooltip"** | **Delete** | automatic (always on) |
-| **§6 — X/Y axis label, Y-axis scale** | **Delete** | automatic |
-| **§7 Format** `FormatOptionsEditor` | **Delete** | automatic via host formatter |
-| `BindToggle`/`BoundField` (granularity/date-range var binding) | **Keep, relocate** | granularity chip ▾ gets a small "bind {var}" affordance (dashboard context only); date-range binding moves to Filters/variables |
+| **bar** | Horizontal · Stacked (None / Stacked / 100%) | `chart.orientation` · `chart.stackMode` |
+| **line** | *(none — curve and points are per-measure on the field pill)* | — |
+| **area** | Stacked (None / Stacked / 100%), with a hint explaining the shape-aware default while `stackMode` is unset | `chart.stackMode` |
+| **pie** | Donut · Slice labels (None / % / Value / Name) · Max slices | `familyOptions.innerRadiusPct` · `showLabels` · `maxSlices` |
+| **scatter** | *(none)* | — |
+| **kpi** | *(none — configured by the Value / Comparison / Sparkline blocks in the config strip)* | — |
+| **table** | Compact rows · Sortable columns · Sticky header · Row numbers | `familyOptions.rowHeight` · `sortable` · `stickyHeader` · `showRowNumbers` |
+| **heatmap** | Show values | `familyOptions.showValues` |
+| **bar / line / area** | **Compare** (None / Rolling average / Running total / % of total), plus a **Window** input revealed only for the rolling average | **`chart.transform`** (docs/01 §3.6, docs/02 §2.9) |
 
-No schema migration, no `migrate.ts` change, no data migration: v2 emits the same `ChartSpec` shape v1 did. A spec authored in v1 with, say, a manual legend position or per-series format still **renders** identically; v2 just doesn't surface those controls (they round-trip untouched because the panel only writes the fields it owns).
+The `transform` row is the one addition: it is an **envelope** option, not a family one, offered
+wherever `familySupportsTransform(descriptor)` holds (`supportsMapping && supportsCartesianAxes &&
+!queryless`). `hasCustomizeOptions(family, families)` therefore returns true for a family that
+supports the transform even when the descriptor flag is `false` — that is `line`, which is
+otherwise edited entirely in context but still needs somewhere for the Compare select to live.
 
----
-
-## 6. Component plan — new React components and how they emit ChartSpec
-
-All new components live in `src/editor/chart/builder/` and emit changes **only** through the existing `update(next: ChartSpec)` from `useChartEditorState` (unchanged). `ChartEditor.tsx` swaps `<ChartConfigPanel>` for `<ChartBuilderPanel>`; `useChartEditorState` and the preview wiring are untouched.
-
-**Pure seam (no React) — `builder/wells.ts`:** the single place that knows the well↔spec mapping.
-- `type WellId` per family; `getWells(family): WellDef[]` (name, cardinality, allowed kinds).
-- `readWells(spec): Record<WellId, string[]>` — derives chip contents from the spec (extends `measuresOf`/`categoryOf`/`timeDimensionOf` + reads `familyOptions` for scatter/kpi/table, the `mapping` envelope for heatmap).
-- `placeField(spec, well, member, meta): ChartSpec` and `removeField(spec, well, member): ChartSpec` — the writers (wrap/extend `buildMapping`/`buildSeries`, plus the pivot + `familyOptions` branches). Pure, unit-testable, returns a full spec for `update`.
-
-**Components:**
-
-| Component | Responsibility | Emits via |
-|---|---|---|
-| `ChartBuilderPanel` | Orchestrates TypePicker + Wells + Palette + Filters + Customize; holds `spec`/`update` | calls `update(placeField/removeField/...)` |
-| `TypePicker` | Top family strip (reuse `SegmentedControl` + `FAMILY_LABELS`); on change → `update({...spec, chart:{...chart, family, familyOptions: undefined}})` (today's `onFamilyChange`) | `update` |
-| `FieldPalette` | `listMembers`-driven, grouped (Numbers/Dates/Labels), searchable; drag source + click-to-add menu; hosts "Change data source" | drag payload / `onAdd(member, kind)` |
-| `Well` | One typed slot: label, drop-target (kind-gated highlight), empty-state microcopy, renders `Chip`s; legality + cardinality enforcement | `onPlace`/`onRemove` → `wells.ts` |
-| `Chip` | Placed field token: label, rename (✎), color (● → `ColorTokenPicker`), remove (✕), conditional **granularity ▾** (`GranularityPicker`); reorder for many-wells | patch callbacks |
-| `CustomizeSection` | Per-family small toggle set (§4), inside one collapsed `Section` | `setEnvelope`/`familyOptions` patch (today's helpers) |
-| `useWells(spec)` | Thin hook wrapping `readWells` + memoized `MemberOption` lookups (`findMember`) for chip labels/icons | — |
-| `useFieldDrag()` | Shared drag state (dragged `{name,kind}`, legal-well predicate) for Palette↔Well; touch-safe (drag optional) | — |
-| *(preview hooks)* | small overlay in the existing preview wrapper for legend-click-hide, title-rename, swatch-recolor, click-to-add-metric | `update` |
-
-**Reused as-is:** `EditorShell`, `useContainerBreakpoint`, `Section`, `SegmentedControl`, `SwitchRow`, `FieldRow`, `MemberPicker`/`MemberMultiPicker` internals (search, DnD reorder, `memberTypeIcon`), `GranularityPicker`, `ColorTokenPicker`, `FilterBuilder`, `CubePicker`, and all of `meta-helpers.ts`. **Removed from the panel:** `FormatOptionsEditor` (chip + envelope), the legend-position/axis/tooltip blocks. `SeriesMetaEditor` is **superseded** by `Chip` (its label+color rows move into `Chip`; its format row is dropped).
-
-**Net:** one new pure module (`wells.ts`) + ~6 small components, all funnelling through the existing validated `update`. No change to `schema.ts`, `defaults.ts`, `resolveOptions`, the renderers, or `useChartEditorState` — so the "spec/query model stays the same under the hood" guarantee holds.
+Everything v2 made automatic stays automatic: legend show/position, tooltip, axis labels/scale/
+domain, and number/date/unit formatting (host `ChartFormat`, member-meta driven).
 
 ---
 
-### Key files referenced
-- Spec contract: `/Users/csilvas/Documents/GitHub/cube-viz/src/spec/schema.ts`
-- Family option schemas + defaults: `/Users/csilvas/Documents/GitHub/cube-viz/src/charts/defaults.ts`
-- Editor state engine (keep): `/Users/csilvas/Documents/GitHub/cube-viz/src/editor/chart/useChartEditorState.ts`
-- Current panel (replace): `/Users/csilvas/Documents/GitHub/cube-viz/src/editor/chart/ChartConfigPanel.tsx`
-- Mapping helpers (extend in `wells.ts`): `/Users/csilvas/Documents/GitHub/cube-viz/src/editor/chart/helpers.ts`
-- Meta → member options (reuse): `/Users/csilvas/Documents/GitHub/cube-viz/src/editor/primitives/meta-helpers.ts`
-- Responsive shell (reuse): `/Users/csilvas/Documents/GitHub/cube-viz/src/editor/primitives/EditorShell.tsx`
-- Reusable primitives: `ColorTokenPicker.tsx`, `GranularityPicker.tsx`, `MemberMultiPicker.tsx`, `SegmentedControl.tsx`, `Section.tsx`, `SwitchRow.tsx` (all under `/Users/csilvas/Documents/GitHub/cube-viz/src/editor/primitives/`)
-- Editor host (swap panel only): `/Users/csilvas/Documents/GitHub/cube-viz/src/editor/ChartEditor.tsx`
+## 9. Open questions / known gaps
+
+The three current gaps are stated once, in **docs/02 §7**, because they are renderer-layer facts:
+
+1. **A bucketed date column renders as em-dashes in the `table` family** (docs/02 §7.1). Relevant
+   here because the `columns` well is where such a column is placed: the editor stores the bare
+   member (`trips.start_time`) while Cube's `tablePivot()` keys it `trips.start_time.day`.
+   **Pre-existing** — the v3 `placeTable` writer stored the same shape — and the fix belongs in
+   `TableFamily`'s column resolver, not in the well model.
+2. **TanStack Charts is pre-1.0**, so the brush and scale APIs the interaction seam uses may churn
+   (docs/02 §7.2). No editor surface depends on them.
+3. **Enabling a range brush costs hover inspection on that chart** (docs/02 §7.3).
+
+Builder-specific, still open:
+
+4. **`geoPoint` has no builtin consumer.** The kind, the synthetic picker option and the lat/lng
+   fan-out exist for host geo families only; no builtin well accepts it, so it is exercised solely
+   through the host `map` example.
+5. **The pivot is discovered, not stored, while it is pending.** `pendingPivot` (§3.2) infers a
+   held split from "the first unclaimed `query.dimensions` entry". That is unambiguous for the
+   builtin families (they have at most one pivot well), but a future family with two pivot-targeted
+   wells would need the held field recorded explicitly rather than derived.
+
+---
+
+### Key files
+
+| Concern | File |
+|---|---|
+| The channel model + the generic interpreter | `src/editor/chart/builder/channels.ts` |
+| Well declarations (`target` + `channel`) per family | `src/charts/familyDescriptors.ts` |
+| Dispatch (host hook → interpreter) + time-axis guards | `src/editor/chart/builder/wells.ts` |
+| Type switching (`migrateToFamily` → `unifyChannels`) | `src/editor/chart/helpers.ts` |
+| Fit ranking + preview specs | `src/editor/chart/builder/suggest.ts` |
+| The on-chart surface | `src/editor/chart/onchart/ChartEditOverlay.tsx` |
+| Slots + the forgiving field picker | `src/editor/chart/onchart/WellGroup.tsx`, `FieldPickerPopover.tsx` |
+| Type picker + live tile previews | `src/editor/chart/onchart/CenterTypePicker.tsx` |
+| Per-family Options (incl. the transform select) | `src/editor/chart/builder/CustomizeSection.tsx` |
+| Value-axis unit consistency | `src/editor/chart/builder/axis.ts` |
+| Controlled-spec engine (unchanged) | `src/editor/chart/useChartEditorState.ts` |
+| Tests | `src/editor/chart/builder/channels.test.ts`, `suggest.test.ts` |

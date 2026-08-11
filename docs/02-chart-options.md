@@ -3,6 +3,8 @@ I'll produce the chart-options surface design directly. This is a writing task g
 # cube-viz Chart-Options Surface — One Configurable Component per Chart Family
 
 > **Status:** Stable contract, updated for spec v2 (2026-08). This fills `ChartOptions.familyOptions` from the spec-schema design (§3) and defines the per-family option catalog. It is the chart-options agent's deliverable: the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks (Recharts was replaced in 2026-08); specs never carry a single renderer prop. Anything below the line `ChartOptions` → `NormalizedChartData` boundary is implementation; anything above is contract. **v2 changes:** the `combo` family and all dual-axis support were removed; a `heatmap` family was added; the renderer seam is now `src/charts/tanstack.tsx` (§3).
+>
+> **Since v2 shipped (additive, no version bump):** `chart.transform` — presentation transforms applied once in `ChartRenderer` (§2.9); **temporal category axes** on line/area (§2.2); and the **semantic interaction seam** — brush-to-drill and click-to-cross-filter reported in Cube terms, never pixels (§3.1).
 
 ---
 
@@ -39,7 +41,7 @@ cube-viz ships **eight** families. The table below shows which Embeddable `*Pro`
 
 ## 2. Per-family option catalog
 
-All families share the envelope from spec-schema §3 (`mapping`, `orientation`, `stackMode`, `legend`, `tooltip`, `axes`, `colors`, `format`). Below, **`familyOptions`** is the *family-specific* extension validated by a family-specific zod schema. Each option lists its **renderer primitive** — since the 2026-08 migration these are `@tanstack/charts` mark options (the doc's original Recharts annotations were rewritten to match).
+All families share the envelope from spec-schema §3 (`mapping`, `orientation`, `stackMode`, `legend`, `tooltip`, `axes`, `colors`, `format`, `transform`). Below, **`familyOptions`** is the *family-specific* extension validated by a family-specific zod schema. Each option lists its **renderer primitive** — since the 2026-08 migration these are `@tanstack/charts` mark options (the doc's original Recharts annotations were rewritten to match).
 
 ### 2.0 Cross-family states (every family implements these identically)
 
@@ -118,8 +120,34 @@ interface LineFamilyOptions {
 | `chrome:"none"` (sparkline) | axes/grid/guides/legend/tooltip off, `margin: 4`, compact aspect via `cv-chart--sparkline` |
 | `connectNulls` | `skipNull` row filtering (true) — otherwise null rows break the line |
 | single data point | forced visible point so a one-bucket series degrades gracefully instead of rendering nothing |
+| category member is a **time dimension** | the x axis becomes a real `scaleUtc` instead of the evenly-spaced point scale — see **Temporal axes** below |
 
 Line ignores `orientation`/`stackMode` (validated: a warning if set, no effect — lines don't stack in cube-viz; stacked-line use `area`). **Dual-axis (`SeriesMeta.axis:"right"` + a second y axis) was removed in spec v2** along with the combo family; a series' `meta.axis` is stripped by the v1→v2 migration and ignored.
+
+#### Temporal axes (line + area)
+
+`annotationToAxis(data, options)` in `src/charts/tanstack.tsx` decides, per render, whether this chart's category axis is *honestly* temporal. **Both** halves of the rule must hold — an annotation alone is not enough, and date-looking strings alone are not either:
+
+1. `mapping.category.member` resolves to a `timeDimensions` entry of the **result annotation**. Cube keys a bucketed time dimension as `<member>.<granularity>`, so an exact key match *or* a `<member>.` prefix match counts, and the trailing segment yields the granularity (`GranularitySchema.safeParse`).
+2. **Every** category parses as a date: an ISO-shaped string (`looksLikeIsoDate`), or a bare number *only* when a granularity says it is an epoch bucket — a plain numeric dimension must never be silently read as epoch millis.
+
+It also returns `null` when fewer than **two distinct** buckets survive (one bucket has no elapsed spacing to be honest about, and a degenerate utc domain would pin it to the plot edge), and the line family skips the check entirely for a sparkline (`chrome:"none"` — a shape, not an axis).
+
+When it matches, the family switches three things and nothing else:
+
+| | non-temporal (unchanged) | temporal |
+|---|---|---|
+| x scale | `pointScale()` | d3 **`scaleUtc`** (`categoryScale(temporal)`) |
+| x channel on every mark | `"cat"` (the raw category) | `"t"` — a UTC-anchored `Date` per row (`categoryChannel(temporal)`) |
+| tick / tooltip / crosshair label | `format.category(v)` | `categoryLabeler(temporal, format)` |
+
+**What this buys:** buckets sit at their true elapsed distance, so a missing day draws as a **gap** instead of collapsing into the next bucket, and irregular buckets stop reading as regular ones.
+
+**Zone-less buckets are anchored as UTC.** Cube emits bucket strings with no offset (`"2026-07-15"`, `"2026-07-15T00:00:00.000"`). Reading those as local time and then plotting/ticking in UTC would shift labels across a day boundary, so `toUtcDate` parses the zone-less shape *as* UTC (offset-bearing strings and epoch millis still go through the vetted `toDate`).
+
+**Tick labels round-trip to the originating bucket.** `categoryLabeler` builds a `Date.getTime() → original category` map: a tick that lands exactly on a bucket formats the **original** category value, so labels are byte-identical to the pre-temporal ones in any viewer timezone — only the *spacing* changed. A `scaleUtc` tick that falls *between* buckets formats its UTC wall clock instead. `referenceLineMarks` receives `temporal.dates` so a category rule is reprojected onto the same x value the marks plot against, and `valueLabelMarks` takes the same `t`/`cat` channel.
+
+**Bars and heatmaps keep band scales** — a bar needs a bandwidth to be drawn in, and both heatmap axes are categorical by construction.
 
 ---
 
@@ -146,6 +174,8 @@ interface AreaFamilyOptions {
 | `percent` | `stack({ offset: "normalize" })`; y ticks forced `percent` |
 
 When the spec sets no `stackMode`, the area family defaults it **shape-awarely**: a color-split pivot stacks (parts of a whole); multiple independent measures overlap instead of summing into a misleading band. `orientation` is ignored (areas are time-series-vertical only).
+
+Area gets the same **temporal category axis** as line (see §2.2): a time-dimension category renders on `scaleUtc`, every `areaY`/`lineY` mark reads the `t` channel, and ticks/tooltip/crosshair go through `categoryLabeler`. Both the stacked (one mark over long rows) and the overlap (one mark per series) paths pass `temporal` to `buildSeriesRows`, so the companion previous-period line lands on the same axis as the primaries.
 
 ---
 
@@ -276,6 +306,48 @@ Both axes are band scales; the value encodes as a single-hue sequential ramp on 
 
 ---
 
+### 2.9 Presentation transforms (`chart.transform`) — cross-family, *not* `familyOptions`
+
+The one option in this section that is **not** family-specific. `chart.transform` (spec §3.6) reshapes the already-aggregated, already-normalized series before the family sees it, so "7-day rolling average" / "running total" / "% of total" are a display choice rather than three new Cube measures. It lives in `src/charts/transforms.ts`; the whole module is **pure** and operates on `{ categories, series[].data }`, never on raw rows — which is why no family file changed to gain it.
+
+```ts
+chart.transform = { kind: "rollingAvg", window: 7 }   // window: int 2…90, default 7
+chart.transform = { kind: "cumulative" }              // window ignored
+chart.transform = { kind: "percentOfTotal" }          // window ignored
+```
+
+**Where it applies.** `ChartRenderer` calls `familySupportsTransform(descriptor)`, which is `supportsMapping && supportsCartesianAxes && !queryless` — i.e. **bar / line / area**, plus any host family declaring both flags. Deliberately conservative, because a transform reshapes values *along the category axis* and only means something where categories are an ordered, shared axis:
+
+| Excluded | Why |
+|---|---|
+| `kpi` | one aggregate; there is no category series to roll or sum |
+| `table` | shows the raw rows — silently rewriting cells would misrepresent the data |
+| `pie` | no category ordering (rolling/cumulative are meaningless) and it already shows shares |
+| `scatter` | no `mapping`/category axis at all (x/y live in `familyOptions`) |
+| `heatmap` | mapping-driven but **not** cartesian (both axes band, value is a color) — a rolling mean across columns would read as real data |
+| host `map` / `ai` | declare neither flag (and `ai` is query-less) |
+
+**Null semantics** (explicit, and the reason each kind reads honestly):
+
+| Kind | Rule |
+|---|---|
+| `rollingAvg` | trailing mean over `window` categories, per series. Leading positions with fewer than `window` samples average **what exists** rather than emitting null — a leading gap in the line reads as broken data, not as "warming up". Nulls are skipped in **both** the sum and the count, so a gap doesn't drag the mean toward zero; a window containing only nulls stays `null`. |
+| `cumulative` | running sum per series. Nulls accumulate as 0 (the total must not reset or jump), but the **output stays null** where the input was null — a genuine gap stays visible instead of being papered over with a flat carried-forward total. |
+| `percentOfTotal` | each value as its share (0..1) of the **category total across series** — the same geometry `stackMode: "percent"` expands to, made explicit as data. A zero or non-finite category total yields `null` for that whole category (no divide-by-zero spikes); a null input stays null and contributes nothing to the total. |
+
+**`percentOfTotal` also changes how values are formatted.** A share is no longer in the measure's unit, so:
+
+- `transformedChartFormat(format, transform, locale)` wraps the bound `ChartFormat` and formats **every** value surface (axis ticks, tooltip, value labels) as `Intl` `style:"percent"` with 0 fraction digits — mirroring `percentTick`, so a `percentOfTotal` chart reads identically to a `percent`-stacked one. `null`/`undefined`/`""` return `""` **before** numeric coercion, because `Number(null)` is `0` and a gap must not render as a real "0%". Category formatting is untouched.
+- The per-series `meta` is rewritten by `percentSeriesMeta`: `unit`, `quantity` and `convert` are **dropped** (a "42%" suffixed with "km" is a lie, and unit conversion must not re-run) and `format` becomes `{ kind: "percent", decimals: 0 }`. `meta.measure` is **kept** deliberately — it still drives the axis title and tooltip label ("Revenue"), which stay correct.
+
+  These two travel together but do different work: `ChartFormat` is built from the annotation + `options.format` and does not read series meta, so the meta rewrite alone would not change a single rendered tick. It exists to keep the normalized data **self-describing** for any other consumer (image export, a host family, debug).
+
+**Identity discipline.** Series identity is preserved exactly — `key`, `label`, `colorToken` and `meta` carry through untouched (except the unit fields above), so the derived `ChartConfig` is the same either way. With no transform, empty data, or no categories, `applyTransform` returns the **same object**, so the caller's `useMemo` identity stays stable and a non-transformed chart pays nothing.
+
+**Editor surface.** One "Compare" select in the type picker's Options panel (`CustomizeSection`), with the window input revealed only for `rollingAvg`. `hasCustomizeOptions` returns true for a family that supports the transform even when it has no family knobs of its own — that is `line`, which is otherwise edited entirely in context.
+
+---
+
 ## 3. The renderer seam — adapter → TanStack marks, with specs never seeing renderer props
 
 The family component is a pure function `(NormalizedChartData, ChartOptions) → ReactElement`: it translates the normalized adapter output into a TanStack `defineChart` definition (marks + scales + color + tooltip) and hands it to the shared `CvChart` shell. The seam lives in **`src/charts/tanstack.tsx`** — the only file that knows how cube-viz's `NormalizedChartData` maps onto the TanStack grammar (the same role `_shared.ts` played for the Recharts stack this seam replaced).
@@ -286,6 +358,8 @@ The family component is a pure function `(NormalizedChartData, ChartOptions) →
 /** One (category, series) observation in mark-ready long form. Lives ONLY in src/charts/tanstack.tsx. */
 interface SeriesRow {
   cat: string | number;   // category value (x for vertical, y for horizontal charts)
+  t?: Date;               // TEMPORAL axis only: `cat` parsed to a UTC-anchored Date (§2.2).
+                          // Absent on every non-temporal chart, which keeps reading `cat`.
   value: number | null;   // the measured value (null gaps preserved by the marks)
   key: string;            // series key (Cube member or pivot value) — identity, not display
   label: string;          // series display label — the z/color channel value
@@ -302,11 +376,14 @@ interface SeriesRow {
 - `seriesColor(data)` — the categorical color mapping: explicit `domain` (labels) + `range` (`var(--chart-N)` token vars) in series order, so a filtered series never repaints the survivors; optionally attaches `colorLegend({ placement })`.
 - `legendPlacement` / `legendDisplay` — TanStack legends are **top/bottom only**; `left`/`right` degrade to `bottom` (as before).
 - `bandScale` / `pointScale` / `valueScale` — category and value scales; `valueScale` honors the spec's `scale` (`"linear" | "log"`) and `domain` (`[min|"auto", max|"auto"]`).
+- `annotationToAxis` / `categoryScale` / `categoryChannel` / `categoryLabeler` — the temporal category axis (§2.2): detect it from the annotation + the categories, then pick `scaleUtc` vs `pointScale`, the `t` vs `cat` channel, and the bucket-round-tripping tick formatter. Returns `null` for every non-temporal chart, so bars/heatmaps and non-date categories are untouched.
+- `useTemporalBrush` — the controlled `brushX` range selector (below), mounted only on a temporal axis and only when a host supplied an `onRangeSelect` somewhere up the tree. Returns a **memoized** `ChartControl[]` (or `undefined`) that a family drops into `defineChart({ controls })` and into that definition's deps.
+- `resolvePointSelection` — clicked `ChartPoint` → the Cube member + raw value it stands for (below).
 - `chartCurve` — cube-viz curve name → TanStack curve contract (via `d3-shape`).
 - `resolvedAxisLabels` — spec override wins, else the mapped member's `shortTitle`. (Dual-axis support was removed with the combo family; a series' `meta.axis` is ignored.)
 - `cubeTooltip` — the built-in interactive tooltip wired for cube data: structured content (title = formatted category, one swatched row per focused series), member-aware value formatting, `percentShare` for the percent stackMode. Tooltips are pinnable via click (a TanStack built-in behavior).
 - `referenceLineMarks` / `valueLabelMarks` — `ruleX`/`ruleY` + `text` marks for reference lines and direct value labels.
-- `CvChart` — the family-facing shell: measures its container (`ResizeObserver`), mounts the TanStack React `<Chart>` with the shared **spring-motion renderer** (entrance animation disable-able for live tiles/editor churn), and scopes gradient/clip IDs per instance so several charts share one document.
+- `CvChart` — the family-facing shell: measures its container (`ResizeObserver`), mounts the TanStack React `<Chart>` with the shared **spring-motion renderer** (entrance animation disable-able for live tiles/editor churn), and scopes gradient/clip IDs per instance so several charts share one document. It is **also** the single place click-to-select is wired (below), so every family gets it without knowing about it.
 
 **The seam, stated:**
 
@@ -314,7 +391,40 @@ interface SeriesRow {
 - **Adapter side** turns the Cube `ResultSet` into `{ categories, series:[{key,label,data,colorToken,meta}] }` — already aligned, already labeled, already formatted-hint-bearing.
 - **Family component** is the *only* place that knows `barY`/`lineY`/`areaY`/`cell`, `group()`/`stack({offset})`, band/point scales, `colorLegend`, etc. exist — and `tanstack.tsx` is the only place that knows the `SeriesRow` shape.
 
-So to swap the render library, you reimplement the family components (plus `tanstack.tsx`) against the *same* `(NormalizedChartData, ChartOptions)` signature — the spec, the `familyOptions` schemas, the adapter, the variable model, and every stored JSON file are untouched. This guarantee was exercised in 2026-08 when Recharts was replaced by `@tanstack/charts` with zero spec changes (the simultaneous v2 spec bump came from the combo/dual-axis *feature* removal, not the renderer swap). Interaction gains from the new stack: pinnable tooltips, keyboard focus, spring motion — and brush/zoom becomes feasible future work.
+So to swap the render library, you reimplement the family components (plus `tanstack.tsx`) against the *same* `(NormalizedChartData, ChartOptions)` signature — the spec, the `familyOptions` schemas, the adapter, the variable model, and every stored JSON file are untouched. This guarantee was exercised in 2026-08 when Recharts was replaced by `@tanstack/charts` with zero spec changes (the simultaneous v2 spec bump came from the combo/dual-axis *feature* removal, not the renderer swap). Interaction gains from the new stack: pinnable tooltips, keyboard focus, spring motion — and range brushing, which was future work on the Recharts stack, now ships as the semantic seam in §3.1.
+
+### 3.1 Semantic interaction — the renderer reports Cube terms, never pixels
+
+cube-viz never hands a host pixels, scene coordinates, or renderer points. A chart reports **what the reader pointed at, in Cube terms**, and the host (or the dashboard, see docs/01 §5) decides what that means. The contract lives in `src/provider/interactions.tsx` and is exported from the root:
+
+```ts
+interface RangeSelection { widgetId?: string; member: string; granularity?: Granularity; from: string; to: string; }
+interface PointSelection { widgetId?: string; member: string; value: string | number; label: string; }
+
+interface ChartInteractionHandlers {
+  onRangeSelect?: (selection: RangeSelection | null) => void;  // brush committed / cleared
+  onPointSelect?: (selection: PointSelection | null) => void;  // mark clicked / blank click
+}
+```
+
+Handlers are **optional end to end**. With none supplied, `rangeEnabled`/`pointEnabled` stay false: no brush is mounted and no `onSelect` is attached, so an existing embed renders and behaves exactly as before. They can be supplied at three nesting levels — `<CubeVizProvider interactions>` → `<Dashboard>` / `<ChartView>` → `<CubeChart>` — and nesting is **innermost-wins per channel**, so a chart that overrides only `onPointSelect` still inherits the dashboard's `onRangeSelect`.
+
+**`CubeChart` publishes the semantic target.** It is the only layer holding both the resolved `mapping` and the bound formatter, so it puts `{ categoryMember, pivotMember, formatCategory }` into the context instead of each family re-deriving them; the shell and the brush read it from there. Nothing is threaded through `ChartRenderer` as props.
+
+**Range brushing** (`useTemporalBrush`, temporal axes only). A controlled `brushX` over the bucket set; only a **commit** is application state (previews follow the pointer locally). A committed drag emits the *semantic* ISO bounds — the bucket strings Cube itself emitted — plus the bare member (no `.granularity` suffix) and the granularity. A blank click commits a zero-width range, which is read as "cleared" and reported as `null`. Because `brushX`'s range is non-nullable, "nothing selected" is a **collapsed** range parked on the first bucket, painted with nothing at all — deliberately not the full extent, because a selection spanning the plot would swallow every new drag as a move-selection gesture.
+
+> **Documented trade-off:** enabling the brush hands plot pointer events to the D3 overlay, so **hover-tooltip inspection gives way to drag-to-select** on that chart. Keyboard focus and the handles' slider role still work. This is why the brush is opt-in per chart rather than always-on.
+
+**Click select** (`CvChart` `onSelect` → `resolvePointSelection`), in order:
+
+1. **Colour split wins over category.** When the series *are* a pivot (`mapping.series.mode === "pivot"`) and the clicked datum belongs to a z/colour group, the click identifies a **series**, so the split dimension and that series' raw pivot value are reported — the more specific signal, and the one a host cross-filters on. (A stacked bar segment, a heatmap cell, or one line of a colour-split chart all land here.)
+2. Otherwise the **category** dimension with the row's raw value, labelled through the chart's own bound formatter.
+3. A datum that keeps only a display label (pie slices) reports that label as both value and label against the category member.
+
+A click on the **blank surface** is an explicit clear (`null`). A click on a datum the chart cannot name semantically (a KPI gauge arc, an ungrouped bubble) is **ignored** rather than reported as a clear — it was not a deselect. A family whose datum has its own shape supplies `resolveSelection` to name the member itself; `scatter` does exactly that, reporting its `groupBy` value (and nothing at all when ungrouped). Sparklines never attach the handler.
+
+**Identity discipline** runs through the whole seam: handlers are held in latest-refs and reached through two stable emitters, so a host passing a fresh inline arrow every render never changes the context value and therefore never rebuilds a memoized chart definition.
+
 
 ---
 
@@ -449,3 +559,30 @@ This gives the same DRY, unit-aware, duration-savvy behavior `withUnits` deliver
 | `heatmap` | *(new in v2)* | `mapping` (category=columns, pivot=rows, value=measure), `colorToken`, `showValues` | `cell` (+ optional `text`) | yes |
 
 **The contract:** eight families; cross-family knobs in the shared envelope; family-specific knobs in `familyOptions` (one zod schema per family); every family is a pure `(NormalizedChartData, ChartOptions) → ReactElement` with the render library confined inside (`src/charts/tanstack.tsx` + the family files); total defaults deep-merged (arrays replaced) then validated; formatting driven by Cube member `meta` with overrides, implemented as one resolver using vetted unit/date libraries — mirroring `withUnits`' data-model intent while discarding its HOC. Specs never contain a renderer prop, so the rendering library can be replaced by reimplementing eight components against this unchanged signature — proven by the 2026-08 Recharts → `@tanstack/charts` swap.
+---
+
+## 7. Open questions / known gaps
+
+Real, currently-unresolved items. Each is either verified in the code today or a bounded risk we have accepted — none are speculative.
+
+### 7.1 A bucketed date column renders as em-dashes in the `table` family
+
+**Verified, and pre-existing** (it predates the channel well model — the old per-family `placeTable` writer stored the same shape).
+
+`TableFamily` resolves each column with `row[col.member]` (`resolveColumns` → `renderCell` in `src/charts/table.tsx`), where `col.member` is the member string the editor stored. For a **time dimension with a granularity**, the editor stores the *bare* member (`trips.start_time`) — the picker's member name, bound into `query.timeDimensions[0].dimension` — while Cube's `tablePivot()` keys that column `trips.start_time.day`. The lookup misses, `renderCell` receives `undefined`, and its no-data branch prints `—` for every row.
+
+The `heatmap` family already solves exactly this with `rowKeyFor(rows, member)`: if `member` is not a key of the first row, fall back to the first key with a `<member>.` prefix. The fix is to apply the same resolution in the table's column resolver (and to the sort comparator, which indexes rows by the same key). Not done here because it touches the table family's rendering, which this change set does not own.
+
+Note the well model does *not* have the same ambiguity: `annotationToAxis` (§2.2) matches a bare member against a `<member>.<granularity>` annotation key on purpose, so temporal axes are unaffected.
+
+### 7.2 TanStack Charts is pre-1.0 — the brush and scale APIs may churn
+
+cube-viz pins `@tanstack/charts` `^0.9.0`. The interaction seam (§3.1) reaches into the newest and least-settled parts of that surface: `interaction/brush` (`brushX`, `BrushRange`, `BrushXChange`), `interaction/signal` (`controlledSignal`), and the `defineChart({ controls })` slot; the temporal axis (§2.2) additionally hands a raw d3 `scaleUtc` to the `x.scale` contract. A minor release of a 0.x package may rename or reshape any of them.
+
+The exposure is deliberately bounded: **all of it is confined to `src/charts/tanstack.tsx`**, the same file the Recharts → TanStack swap already proved is the only renderer-aware seam. Nothing above it — the spec, the `RangeSelection`/`PointSelection` contract, `familyOptions`, the adapter, stored JSON — names a TanStack type. An upstream break is a rewrite of one file, not a spec migration.
+
+### 7.3 A chart with the brush enabled loses hover inspection
+
+Not a bug — a **trade-off with no current workaround**, restated here because it is the one behavioral cost of the interaction seam. Mounting `brushX` gives the D3 overlay pointer events across the plot, so on that chart hover-tooltip inspection gives way to drag-to-select. Keyboard focus and the handles' slider role continue to work.
+
+This is why range selection is opt-in per chart (no `onRangeSelect` anywhere up the tree ⇒ no brush is mounted, and `DashboardDrill` additionally refuses to advertise a handler on a board with no `dateRange` variable binding to write to). A chart that must keep hover inspection simply does not receive a range handler. Whether the two can coexist — a modifier-gated drag, or an inspection affordance that survives the overlay — is upstream-dependent (see §7.2).
