@@ -192,11 +192,16 @@ export const SeriesMetaSchema = z
   .object({
     label: z.string().optional(),
     colorToken: ChartColorTokenSchema.optional(),
+    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
     stackId: z.string().optional(),
     /** Per-series line shape (line/area) — overrides the family default. */
     curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
     /** Per-series point markers (line/area) — overrides the family default. */
     dots: z.boolean().optional(),
+    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+     *  and never series meta — docs/02-chart-options.md §7.6. */
     format: FormatOptionsSchema.optional(),
   })
   .strict();
@@ -237,6 +242,8 @@ export type SeriesMapping = z.infer<typeof SeriesMappingSchema>;
 export const LegendOptionsSchema = z
   .object({
     show: z.boolean().optional(),
+    /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+     *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
     position: z.enum(["top", "right", "bottom", "left"]).optional(),
   })
   .strict();
@@ -258,8 +265,12 @@ export const AxisOptionsSchema = z
     /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
     labelHide: z.boolean().optional(),
     hide: z.boolean().optional(),
+    /** Value-axis only: a category axis is band/point/utc and has no log form. */
     scale: z.enum(["linear", "log"]).optional(),
+    /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+     *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
     domain: z.tuple([AxisBoundSchema, AxisBoundSchema]).optional(),
+    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
     tickFormat: FormatOptionsSchema.optional(),
   })
   .strict();

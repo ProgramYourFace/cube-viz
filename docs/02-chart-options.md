@@ -4,6 +4,8 @@ I'll produce the chart-options surface design directly. This is a writing task g
 
 > **Status:** Stable contract, updated for spec v2 (2026-08). This fills `ChartOptions.familyOptions` from the spec-schema design (§3) and defines the per-family option catalog. It is the chart-options agent's deliverable: the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks (Recharts was replaced in 2026-08); specs never carry a single renderer prop. Anything below the line `ChartOptions` → `NormalizedChartData` boundary is implementation; anything above is contract. **v2 changes:** the `combo` family and all dual-axis support were removed; a `heatmap` family was added; the renderer seam is now `src/charts/tanstack.tsx` (§3).
 >
+> **Audited 2026-08:** every schema option was checked against the code that reads it — see **§6.1 (option support matrix)**; the options the Recharts → TanStack rewrite had silently dropped are restored, and the ones the grammar genuinely cannot express are listed in §7.4–§7.10 (and commented at the point they are dropped).
+>
 > **Since v2 shipped (additive, no version bump):** `chart.transform` — presentation transforms applied once in `ChartRenderer` (§2.9); **temporal category axes** on line/area (§2.2); and the **semantic interaction seam** — brush-to-drill and click-to-cross-filter reported in Cube terms, never pixels (§3.1).
 
 ---
@@ -68,7 +70,8 @@ interface BarFamilyOptions {
   barCategoryGap?: number | string; // → band-scale `padding` (gap between category clusters)
   barGap?: number | string;       // → `group({ padding })` (gap between bars in a grouped cluster)
   maxBarSize?: number;            // → bar mark `maxThickness`
-  showValueLabels?: boolean;      // → a `text` mark per non-null row (valueLabelMarks)
+  showValueLabels?: boolean;      // → a `text` mark per non-null row (valueLabelMarks);
+                                  //   stacked → the segment top, percent → the share
   referenceLines?: ReferenceLineOpt[]; // → `ruleX`/`ruleY` marks + optional `text` labels
   comparePrevious?: boolean;      // previous-period companion series (muted; §2.x shared)
 }
@@ -91,6 +94,7 @@ interface ReferenceLineOpt {
 | `stackMode:"grouped"` | same as `none` for bars (explicit alias) |
 | `stackMode:"stacked"` | implicit stack: repeated categories stack automatically once `z` is set |
 | `stackMode:"percent"` | `layout: stack({ offset: "normalize" })`; value ticks forced to `percent` |
+| …with ≥2 distinct `meta.stackId` | one stack per id, side by side: rows carry explicit `[y1,y2]` intervals and `group()` offsets the stacks (§7.9) |
 | single vs multi series | ONE mark renders all series from long `SeriesRow`s (§3); `z`/`color` = series label |
 | legend on/off | shared envelope `legend` → `colorLegend({ placement })` on the chart color scale, or omitted |
 | tooltip | `tooltip` → the shared `cubeTooltip` (structured title + swatched rows, member-aware formatting) |
@@ -105,7 +109,8 @@ interface ReferenceLineOpt {
 interface LineFamilyOptions {
   curve?: "linear" | "monotone" | "step" | "natural"; // → d3Curve(...) on the lineY mark
   strokeWidth?: number;           // → lineY `strokeWidth`
-  dots?: boolean | "active";      // → lineY `points` (true = always; "active" = focus only)
+  dots?: boolean | "active";      // → lineY `points` (true) + crosshair `marker`
+                                  //   ("active" = hover marker only; false = neither)
   connectNulls?: boolean;         // null rows skipped (true) vs preserved as gaps (false)
   chrome?: "full" | "none";       // "none" = sparkline: hide axes/grid/legend/tooltip
   referenceLines?: ReferenceLineOpt[];
@@ -116,7 +121,7 @@ interface LineFamilyOptions {
 
 | Spec input | Translation |
 |---|---|
-| multi-series | one `lineY` mark per `NormalizedSeries` (rows built per series via `buildSeriesRows`) |
+| multi-series | one `lineY` mark per `NormalizedSeries` (rows built per series via `buildSeriesRows`) — which is what lets a per-series `meta.curve` / `meta.dots` win over the family default |
 | `chrome:"none"` (sparkline) | axes/grid/guides/legend/tooltip off, `margin: 4`, compact aspect via `cv-chart--sparkline` |
 | `connectNulls` | `skipNull` row filtering (true) — otherwise null rows break the line |
 | single data point | forced visible point so a one-bucket series degrades gracefully instead of rendering nothing |
@@ -159,7 +164,7 @@ interface AreaFamilyOptions {
   fillOpacity?: number;           // → area fill opacity (default 0.4; gradient fill)
   strokeWidth?: number;
   connectNulls?: boolean;
-  dots?: boolean;
+  dots?: boolean;                 // → a separate `dot` mark (areaY has no `points`)
   referenceLines?: ReferenceLineOpt[];
   comparePrevious?: boolean;
 }
@@ -170,8 +175,15 @@ interface AreaFamilyOptions {
 | `stackMode` | Translation |
 |---|---|
 | `none` | overlapping `areaY` marks (each own baseline, stacking opted out), `fillOpacity` lets them show through |
-| `stacked` | implicit stack (repeated categories stack once `z` is set) |
+| `stacked` | implicit stack (repeated categories stack once `z` is set) — **one mark per distinct `meta.stackId`**, overlaid (§7.9) |
 | `percent` | `stack({ offset: "normalize" })`; y ticks forced `percent` |
+| `grouped` | there is no side-by-side area geometry: it reads as `none` (overlap) |
+
+Point markers come from `dots` (or a per-series `meta.dots`, which the field pill's
+"Show points" switch writes) as their own `dot` mark, since `areaY` has no `points`
+option — which is also what lets a stacked dot sit on its segment's top rather than at
+its raw value. A per-series `meta.curve` applies in overlap mode (each series owns a
+mark) but not inside a stack (§7.10).
 
 When the spec sets no `stackMode`, the area family defaults it **shape-awarely**: a color-split pivot stacks (parts of a whole); multiple independent measures overlap instead of summing into a misleading band. `orientation` is ignored (areas are time-series-vertical only).
 
@@ -214,7 +226,7 @@ interface ScatterFamilyOptions {
   size?: Member;                  // bubble radius measure → per-point radius
   sizeRange?: [number, number];   // area-px² range mapped through a sqrt radius scale
   groupBy?: Member;               // color points per distinct value (e.g. per device_id)
-  shape?: "circle" | "square" | "triangle" | "diamond"; // → point symbol
+  shape?: "circle" | "square" | "triangle" | "diamond"; // ACCEPTED, NOT RENDERED (§7.7)
   referenceLines?: ReferenceLineOpt[];
 }
 ```
@@ -237,7 +249,7 @@ interface KpiFamilyOptions {
   };
   sparkline?: { member: Member; timeDimension: Member }; // tiny trend → reuse line chrome:"none"
   gauge?: { min?: number; max: number; thresholds?: { at: number; colorToken: ChartColorToken }[] };
-  icon?: string;                  // optional lucide icon name (chrome)
+  icon?: string;                  // ACCEPTED, NEVER RENDERED (§7.8)
 }
 ```
 
@@ -268,7 +280,7 @@ interface TableFamilyOptions {
 interface TableColumnOpt {
   member: Member;
   label?: string;
-  format?: FormatOptions;         // per-column number/date/unit formatting
+  format?: FormatOptions;         // per-column formatting (ChartFormat.derive)
   align?: "left" | "right" | "center";
   width?: number;
   hidden?: boolean;
@@ -374,15 +386,19 @@ interface SeriesRow {
 **The shared helpers** (all in `tanstack.tsx`, consumed by every family):
 
 - `seriesColor(data)` — the categorical color mapping: explicit `domain` (labels) + `range` (`var(--chart-N)` token vars) in series order, so a filtered series never repaints the survivors; optionally attaches `colorLegend({ placement })`.
-- `legendPlacement` / `legendDisplay` — TanStack legends are **top/bottom only**; `left`/`right` degrade to `bottom` (as before).
+- `legendPlacement` / `legendDisplay` — TanStack legends are **top/bottom only**; `left`/`right` degrade to `bottom` (as before — §7.4).
+- `cubeTooltip` options `indicator` / `showTotal` / `expand` — the swatch-shape modifier, the summed total row, and the multi-stack row expansion (§6.1).
 - `bandScale` / `pointScale` / `valueScale` — category and value scales; `valueScale` honors the spec's `scale` (`"linear" | "log"`) and `domain` (`[min|"auto", max|"auto"]`).
 - `annotationToAxis` / `categoryScale` / `categoryChannel` / `categoryLabeler` — the temporal category axis (§2.2): detect it from the annotation + the categories, then pick `scaleUtc` vs `pointScale`, the `t` vs `cat` channel, and the bucket-round-tripping tick formatter. Returns `null` for every non-temporal chart, so bars/heatmaps and non-date categories are untouched.
 - `useTemporalBrush` — the controlled `brushX` range selector (below), mounted only on a temporal axis and only when a host supplied an `onRangeSelect` somewhere up the tree. Returns a **memoized** `ChartControl[]` (or `undefined`) that a family drops into `defineChart({ controls })` and into that definition's deps.
 - `resolvePointSelection` — clicked `ChartPoint` → the Cube member + raw value it stands for (below).
-- `chartCurve` — cube-viz curve name → TanStack curve contract (via `d3-shape`).
+- `chartCurve` / `seriesCurve` / `seriesDots` — cube-viz curve name → TanStack curve contract (via `d3-shape`), and the per-series resolution of `meta.curve` / `meta.dots` over the family default (unit-tested in `src/charts/options-honored.test.ts`).
+- `stackIdOf` / `stackGroups` / `buildStackedRows` — the per-series `meta.stackId` model: group series into stacks, and (for a multi-stack bar) pre-compute each segment's `[y1,y2]` interval and its within-stack share.
+- `axisFormat` — the per-axis `tickFormat` re-bind (`ChartFormat.derive`), so an axis' ticks can carry their own FormatOptions without touching the chart-level formatter.
+- `decorativeMark` — strips a mark's interaction points (labels/annotations paint, but never join focus, the tooltip or click-select).
 - `resolvedAxisLabels` — spec override wins, else the mapped member's `shortTitle`. (Dual-axis support was removed with the combo family; a series' `meta.axis` is ignored.)
 - `cubeTooltip` — the built-in interactive tooltip wired for cube data: structured content (title = formatted category, one swatched row per focused series), member-aware value formatting, `percentShare` for the percent stackMode. Tooltips are pinnable via click (a TanStack built-in behavior).
-- `referenceLineMarks` / `valueLabelMarks` — `ruleX`/`ruleY` + `text` marks for reference lines and direct value labels.
+- `referenceLineMarks` / `valueLabelMarks` / `valueAnchor` — `ruleX`/`ruleY` + `text` marks for reference lines and direct value labels. A label needs BOTH coordinates, so a value-axis label is anchored at the first category and a category-axis label at `valueAnchor(data)` (the top of the plotted data); value labels ride the segment top on a stacked chart and print the share in percent mode.
 - `CvChart` — the family-facing shell: measures its container (`ResizeObserver`), mounts the TanStack React `<Chart>` with the shared **spring-motion renderer** (entrance animation disable-able for live tiles/editor churn), and scopes gradient/clip IDs per instance so several charts share one document. It is **also** the single place click-to-select is wired (below), so every family gets it without knowing about it.
 
 **The seam, stated:**
@@ -536,7 +552,7 @@ function makeFormatter(spec: FormatOptions | undefined, ann: ResultAnnotation) {
 ```
 
 - **Defaults from the data model.** `format.kind:"auto"` (the default) derives: `quantity:'time'` → `duration`; `convert:false` ratio members → `percent`; everything else → `number` with the member's unit suffix. The aa-app values are stored in metric base units (km, L, km/h, ms) and carry `meta.unit`, so this "just works" with zero per-chart config — exactly Embeddable's decoupling.
-- **Overrides win.** A spec's `format` (`decimals`/`abbreviate`/`prefix`/`suffix`/`unitSystem`/`dateFormat`) overrides the derived default, per-chart or per-series (`SeriesMeta.format`) or per-column (`TableColumnOpt.format`).
+- **Overrides win.** A spec's `format` (`decimals`/`abbreviate`/`prefix`/`suffix`/`unitSystem`/`dateFormat`) overrides the derived default per-chart, per-axis (`axes.{x,y}.tickFormat`) or per-column (`TableColumnOpt.format`) — the last two via `ChartFormat.derive(overrides)`, which re-binds the same annotation-aware formatter with the merged FormatOptions. Per-SERIES (`SeriesMeta.format`) is resolved onto the normalized series but not read by any surface (§7.6).
 - **Dates.** Time-dimension category buckets format by `format.dateFormat` (a `date-fns`/`Intl.DateTimeFormat` pattern), defaulted by the resolved granularity (`day`→`MMM d`, `month`→`MMM yyyy`, etc.). Date math goes through a vetted date lib, never hand-rolled — again per project memory.
 - **Casting.** Because Cube returns measures as **strings** unless `castNumerics:true`, the adapter always loads with `castNumerics:true`; the formatter therefore always receives real `number`s and never re-parses.
 - **Never re-derive titles.** Labels come from `annotation().shortTitle` (then `SeriesMeta.label` override) — the formatter handles *values*, the adapter handles *labels*.
@@ -559,21 +575,93 @@ This gives the same DRY, unit-aware, duration-savvy behavior `withUnits` deliver
 | `heatmap` | *(new in v2)* | `mapping` (category=columns, pivot=rows, value=measure), `colorToken`, `showValues` | `cell` (+ optional `text`) | yes |
 
 **The contract:** eight families; cross-family knobs in the shared envelope; family-specific knobs in `familyOptions` (one zod schema per family); every family is a pure `(NormalizedChartData, ChartOptions) → ReactElement` with the render library confined inside (`src/charts/tanstack.tsx` + the family files); total defaults deep-merged (arrays replaced) then validated; formatting driven by Cube member `meta` with overrides, implemented as one resolver using vetted unit/date libraries — mirroring `withUnits`' data-model intent while discarding its HOC. Specs never contain a renderer prop, so the rendering library can be replaced by reimplementing eight components against this unchanged signature — proven by the 2026-08 Recharts → `@tanstack/charts` swap.
+
+---
+
+## 6.1 Option support matrix (audited 2026-08, post-migration)
+
+Every option a spec can carry, checked against the code that reads it. The renderer
+rewrite dropped a number of options **silently** — accepted by the zod schema, never
+read by a mark — and this matrix is the standing answer to "does this knob do
+anything?". Verdicts: **honored** · **partial** (says exactly how) · **unsupported**
+(accepted, deliberately not rendered — always with a code comment at the point it is
+dropped).
+
+### Envelope (`ChartOptions`)
+
+| Option | Verdict | Notes |
+|---|---|---|
+| `mapping.category` / `mapping.series` | honored | bar/line/area/pie/heatmap; scatter/kpi/table carry their own mapping in `familyOptions` |
+| `orientation` | honored (bar) · unsupported elsewhere | only `bar` has a transposable geometry (`barY`/`barX`); line/area are time-series-vertical, pie/scatter/heatmap/kpi/table have no orientation. The editor only offers it for bar |
+| `stackMode` | honored (bar: none/grouped/stacked/percent · area: none/stacked/percent) | `grouped` on an area = overlap (areas have no side-by-side geometry); line ignores it (stacked lines are the `area` family) |
+| `legend.show` | honored | bar/line/area/pie/scatter. kpi/table/heatmap have no legend (`hasLegend: false` on the descriptor) |
+| `legend.position` | partial | `top`/`bottom` honored; `left`/`right` **degrade to bottom** — see §7.4 |
+| `tooltip.show` | honored | every charting family |
+| `tooltip.indicator` | honored | `dot`/`line`/`dashed` swatch shape, restored as a CSS modifier (`cv-chart-tooltip--*`) since the TanStack tooltip has no shape option. Was DEAD from the migration until the 2026-08 audit |
+| `tooltip.showTotal` | honored (grouped tooltips) | appends a summed, swatch-less "Total" row to bar/line/area tooltips with ≥2 series (companions excluded). Pie/scatter tooltips describe a single datum, so there is nothing to total |
+| `axes.{x,y}.label` | honored | override → the mapped member's `shortTitle` (`resolvedAxisLabels`) |
+| `axes.{x,y}.labelHide` | honored | hides the title, keeps the ticks |
+| `axes.{x,y}.hide` | honored | hides the whole axis. For a HORIZONTAL bar the flags follow the VISUAL axis (`axes.y.hide` hides the category axis) while `label` follows the SEMANTIC one — the pre-migration convention, kept for spec compatibility |
+| `axes.{x,y}.scale` (`log`) | honored on the VALUE axis | a category axis is band/point/utc — there is no log form of it |
+| `axes.{x,y}.domain` | partial | both-ends-numeric honored; a half-`"auto"` domain (`[0,"auto"]`) is **ignored** — see §7.5 |
+| `axes.{x,y}.tickFormat` | honored | re-binds the formatter for that axis' ticks only (`axisFormat` → `ChartFormat.derive`). Was DEAD in BOTH stacks until the 2026-08 audit |
+| `colors.ramp` | honored | series (bar/line/area), pie slices, scatter groups |
+| `colors.byKey` | partial | applies to normalized SERIES keys; pie slices and scatter groups are not series, so it does not reach them — see §7.6 |
+| `format` | honored | the chart-level `FormatOptions`, bound into `ChartFormat` |
+| `transform` | honored | bar/line/area (§2.9) |
+| `mapping.series.meta.label` | honored (measures mode) · partial (pivot) | in a pivot, per-measure meta renames the MEASURE half of a multi-measure label; a single-measure pivot's series are named by their pivot value — see §7.6 |
+| `mapping.series.meta.colorToken` | honored (measures mode) · unsupported (pivot) | see §7.6 |
+| `mapping.series.meta.stackId` | honored (bar, area) | bar: one side-by-side stack per distinct id; area: one overlaid stack per id. Was DEAD from the migration until the 2026-08 audit |
+| `mapping.series.meta.curve` | honored where a series owns its mark (line, area overlap, companions) | a STACKED area draws a whole stack from one mark, so its curve is the family's — see §7.10 |
+| `mapping.series.meta.dots` | honored (line, area) | area point markers are a separate `dot` mark (`areaY` has no `points`); on a stacked area they sit on the segment top |
+| `mapping.series.meta.format` | unsupported | populated into `NormalizedSeries.meta.format` but no surface reads it — see §7.6 |
+
+### Per-family (`familyOptions`)
+
+| Family | Option | Verdict |
+|---|---|---|
+| bar | `barRadius`, `maxBarSize`, `barCategoryGap`, `referenceLines`, `comparePrevious` | honored |
+| bar | `barGap` | honored in grouped + multi-stack layouts (there is no inter-bar gap inside a single stack) |
+| bar | `showValueLabels` | honored, including stacked (labels ride the segment top) and percent (labels print the share) — the percent case was dropped by the migration |
+| line | `curve`, `strokeWidth`, `connectNulls`, `chrome`, `referenceLines`, `showValueLabels`, `comparePrevious` | honored |
+| line | `dots` | honored: `true` = static points + hover marker, `"active"` (the default) = hover marker only, `false` = neither. The hover marker is `crosshair({ marker })` — the migration dropped it, so `"active"` drew nothing |
+| area | `curve`, `fillOpacity`, `strokeWidth`, `connectNulls`, `referenceLines`, `comparePrevious` | honored |
+| area | `dots` | honored (was a documented no-op after the migration) |
+| pie | `innerRadiusPct`, `outerRadiusPct`, `padAngle`, `cornerRadius`, `showLabels`, `maxSlices` | honored |
+| pie | `centerLabel` | honored **on a donut only** (`innerRadiusPct > 0`) — on a full pie it would sit on top of the slices; same as pre-migration |
+| scatter | `x`, `y`, `size`, `sizeRange`, `groupBy`, `referenceLines` | honored |
+| scatter | `shape` | unsupported — see §7.7 |
+| kpi | `display`, `measure`, `comparison.*`, `sparkline.*`, `goodDirection`, `gauge.*` | honored |
+| kpi | `icon` | unsupported — see §7.8 |
+| table | `columns[].{member,label,align,width,hidden}`, `pageSize`, `sortable`, `stickyHeader`, `rowHeight`, `showRowNumbers`, `conditionalFormat` | honored |
+| table | `columns[].format` | honored (per-column re-bind via `ChartFormat.derive`) — dead in both stacks until the 2026-08 audit |
+| heatmap | `colorToken`, `showValues` | honored |
+
+**Decoration never joins the focus model.** Value labels, reference-line labels and
+in-cell heatmap values are `text` marks, and a text mark emits one interaction point
+per label — which put a duplicate row (or a `"target 15": —` row) in every tooltip
+that had them. They are wrapped in `decorativeMark`, which keeps what they paint and
+drops their points, so tooltips, keyboard navigation and click-to-select see data
+marks only.
+
 ---
 
 ## 7. Open questions / known gaps
 
 Real, currently-unresolved items. Each is either verified in the code today or a bounded risk we have accepted — none are speculative.
 
-### 7.1 A bucketed date column renders as em-dashes in the `table` family
+### 7.1 A bucketed date column renders as em-dashes in the `table` family — **RESOLVED**
 
-**Verified, and pre-existing** (it predates the channel well model — the old per-family `placeTable` writer stored the same shape).
+Kept for the record (docs/05 §6 links here). `TableFamily` used to resolve each column
+with `row[col.member]`, but for a **time dimension with a granularity** the editor
+stores the *bare* member (`trips.start_time`) while Cube's `tablePivot()` keys that
+column `trips.start_time.day` — the lookup missed and every row printed `—`.
 
-`TableFamily` resolves each column with `row[col.member]` (`resolveColumns` → `renderCell` in `src/charts/table.tsx`), where `col.member` is the member string the editor stored. For a **time dimension with a granularity**, the editor stores the *bare* member (`trips.start_time`) — the picker's member name, bound into `query.timeDimensions[0].dimension` — while Cube's `tablePivot()` keys that column `trips.start_time.day`. The lookup misses, `renderCell` receives `undefined`, and its no-data branch prints `—` for every row.
-
-The `heatmap` family already solves exactly this with `rowKeyFor(rows, member)`: if `member` is not a key of the first row, fall back to the first key with a `<member>.` prefix. The fix is to apply the same resolution in the table's column resolver (and to the sort comparator, which indexes rows by the same key). Not done here because it touches the table family's rendering, which this change set does not own.
-
-Note the well model does *not* have the same ambiguity: `annotationToAxis` (§2.2) matches a bare member against a `<member>.<granularity>` annotation key on purpose, so temporal axes are unaffected.
+Fixed: the table's column resolver and its sort comparator now go through
+`rowKeyFor(rows, member)` (the same helper the heatmap always used — exact key match,
+else the first key with a `<member>.` prefix). The well model never had the ambiguity:
+`annotationToAxis` (§2.2) matches a bare member against a `<member>.<granularity>`
+annotation key on purpose.
 
 ### 7.2 TanStack Charts is pre-1.0 — the brush and scale APIs may churn
 
@@ -586,3 +674,92 @@ The exposure is deliberately bounded: **all of it is confined to `src/charts/tan
 Not a bug — a **trade-off with no current workaround**, restated here because it is the one behavioral cost of the interaction seam. Mounting `brushX` gives the D3 overlay pointer events across the plot, so on that chart hover-tooltip inspection gives way to drag-to-select. Keyboard focus and the handles' slider role continue to work.
 
 This is why range selection is opt-in per chart (no `onRangeSelect` anywhere up the tree ⇒ no brush is mounted, and `DashboardDrill` additionally refuses to advertise a handler on a board with no `dateRange` variable binding to write to). A chart that must keep hover inspection simply does not receive a range handler. Whether the two can coexist — a modifier-gated drag, or an inspection affordance that survives the overlay — is upstream-dependent (see §7.2).
+
+### 7.4 `legend.position: "left" | "right"` renders at the bottom
+
+`ChartLegendPlacement` is exactly `'top' | 'bottom'` — the grammar has no side
+legend, so `legendPlacement()` degrades `left`/`right` to `bottom`. The Recharts stack
+degraded the same way for a different reason (its horizontal legend component reserved
+the full width and collapsed a pie to radius 0), so no stored spec changes behavior.
+`pie`'s DEFAULT is `position: "right"`, i.e. the most common spec value in the wild is
+the degraded one. A real side legend means rendering our own legend component beside
+the chart box (the chart would have to give up the width), which is a layout change,
+not an option fix.
+
+### 7.5 A half-`"auto"` axis domain is ignored
+
+`axes.{x,y}.domain` is typed `[number | "auto", number | "auto"]`, and `valueScale()`
+honors it only when BOTH ends are numbers. TanStack resolves a scale one of two ways:
+a configured instance keeps its domain verbatim (no inference at all), or a factory
+gets a domain inferred from the materialized channel values — which the helper never
+sees. There is no "pin one end" seam, and re-deriving the free end inside the family
+would mean re-implementing the mark's own stacking / normalize offsets to stay honest
+about the maximum. Recharts accepted `["auto", n]` natively, so this is a genuine
+migration regression, deliberately not papered over. Workaround: give both ends.
+
+### 7.6 Color + per-series meta that does not reach every surface
+
+Four related "accepted, not applied" cases, all with the same root cause — the option
+is keyed by a normalized SERIES, and the target isn't one:
+
+- **`colors.byKey` on pie / scatter.** A pie's marks are slices (one per CATEGORY) and
+  a scatter's are points grouped by `groupBy` value; neither is a `NormalizedSeries`,
+  so there is no key for `byKey` to match. `colors.ramp` *does* apply to both (it is
+  positional), and did not before the 2026-08 audit.
+- **`mapping.series.meta.colorToken` in PIVOT mode.** The meta record is keyed by
+  MEASURE, but a pivot's series are (measure × pivot value): one token would paint
+  every pivot value of that measure identically, i.e. destroy the split it exists to
+  show. Per-series colour in a pivot is the ramp's job (`colors.ramp`).
+- **`mapping.series.meta.label` in a SINGLE-measure pivot.** Same reason: the series
+  are named by their pivot values. In a MULTI-measure pivot the label renames the
+  measure half ("Revenue · Truck 1"), which is what it means, and that now works.
+- **`mapping.series.meta.format`.** The adapter resolves it onto
+  `NormalizedSeries.meta.format`, but every value surface formats through
+  `ChartFormat`, which is bound from the annotation + `options.format` and never reads
+  series meta — so a per-series format override has never taken effect, in either
+  stack. Per-AXIS (`axes.*.tickFormat`) and per-COLUMN (`columns[].format`) overrides
+  do, via `ChartFormat.derive`; wiring the per-series one means threading a formatter
+  per series through every tooltip/label call site.
+
+### 7.7 `scatter.shape` always draws a circle
+
+The TanStack `dot` mark draws one symbol and exposes no shape/symbol option
+(`DotOptions` has `r`/`rScale`/fill/stroke and nothing else), so
+`square | triangle | diamond` render as circles. Recharts honored the option, making
+this a migration regression with no in-grammar fix — a shaped scatter would need a
+custom mark (a `path` per point). The option stays in the schema for spec
+compatibility and is commented at the drop site in `src/charts/scatter.tsx`.
+
+### 7.8 `kpi.icon` is never rendered
+
+It has never been rendered — not in the Recharts stack either. Drawing it means
+mapping an arbitrary lucide icon NAME to a component, and the only general way to do
+that is importing lucide's whole icon map into the bundle. If a host wants a KPI icon,
+the honest surface is a host family or a widget-chrome slot, not a string in
+`familyOptions`. **Candidate for removal from the schema** (a migration decision:
+stored specs may carry it).
+
+### 7.9 Multi-`stackId` charts: what the grammar can and cannot say
+
+`meta.stackId` is honored again (§6.1), with two documented consequences:
+
+- **Bar.** Several stacks in one band need the mark's group channel to be the STACK,
+  so the rows carry pre-computed `[y1, y2]` intervals (`buildStackedRows`) and
+  `group()` offsets the stacks. TanStack's grouped focus then keeps one point per
+  GROUP, which would show one series per stack in the tooltip — the bar family passes
+  `expand` to `cubeTooltip` to restore every series of the focused category. In
+  `percent` mode each stack normalizes against ITS OWN total (a stack is the whole),
+  and the tooltip prints those per-stack shares.
+- **Area.** Separate stacks are separate `areaY` marks overlaying each other from the
+  shared baseline (what Recharts drew); the translucent fill is what keeps them
+  readable. Nothing in the grammar offsets them sideways — areas have no band.
+
+### 7.10 A stacked area's curve is per STACK, not per series
+
+`stackMode: "stacked" | "percent"` draws one `areaY` mark per stack, and a mark has a
+single `curve`. So a per-series `meta.curve` applies wherever a series owns its mark
+(line, overlap-mode area, previous-period companions) and is ignored inside a stack,
+where the family curve wins. Splitting one mark per series inside a stack would mean
+computing the stack offsets by hand and giving up the mark's own stacking — the same
+trade the multi-`stackId` bar makes, but for a shape choice rather than a layout that
+is otherwise impossible to express.

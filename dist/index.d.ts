@@ -121,8 +121,12 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
         labelHide: z.ZodOptional<z.ZodBoolean>;
         hide: z.ZodOptional<z.ZodBoolean>;
+        /** Value-axis only: a category axis is band/point/utc and has no log form. */
         scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+        /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+         *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
         domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+        /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
         tickFormat: z.ZodOptional<z.ZodObject<{
             kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
             decimals: z.ZodOptional<z.ZodNumber>;
@@ -190,8 +194,12 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
         labelHide: z.ZodOptional<z.ZodBoolean>;
         hide: z.ZodOptional<z.ZodBoolean>;
+        /** Value-axis only: a category axis is band/point/utc and has no log form. */
         scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+        /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+         *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
         domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+        /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
         tickFormat: z.ZodOptional<z.ZodObject<{
             kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
             decimals: z.ZodOptional<z.ZodNumber>;
@@ -344,8 +352,12 @@ export declare const AxisOptionsSchema: z.ZodObject<{
     /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
     labelHide: z.ZodOptional<z.ZodBoolean>;
     hide: z.ZodOptional<z.ZodBoolean>;
+    /** Value-axis only: a category axis is band/point/utc and has no log form. */
     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+    /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+     *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
     domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
     tickFormat: z.ZodOptional<z.ZodObject<{
         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
         decimals: z.ZodOptional<z.ZodNumber>;
@@ -1536,6 +1548,17 @@ export declare interface ChartFormat {
      * granularity from the chart options/query when discoverable.
      */
     category: (value: string | number | null | undefined) => string;
+    /**
+     * A COPY of this formatter whose {@link FormatOptions} are `overrides` merged over
+     * the chart's own — the seam for the option surfaces that carry their own
+     * FormatOptions: `axes.{x,y}.tickFormat` (per-axis ticks) and
+     * `TableColumnOpt.format` (per-column cells). `undefined`/`{}` returns the same
+     * instance, so the common path allocates nothing.
+     *
+     * OPTIONAL on the interface so a host (or a test) can still hand in a hand-rolled
+     * two-method ChartFormat; call sites fall back to the undecorated formatter.
+     */
+    derive?: (overrides: FormatOptions | undefined) => ChartFormat;
 }
 
 /** The optional handler pair a host supplies at any level. */
@@ -1618,11 +1641,16 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                 label: z.ZodOptional<z.ZodString>;
                 colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                 *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                 stackId: z.ZodOptional<z.ZodString>;
                 /** Per-series line shape (line/area) — overrides the family default. */
                 curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                 /** Per-series point markers (line/area) — overrides the family default. */
                 dots: z.ZodOptional<z.ZodBoolean>;
+                /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                 *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                 *  and never series meta — docs/02-chart-options.md §7.6. */
                 format: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -1740,11 +1768,16 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                 label: z.ZodOptional<z.ZodString>;
                 colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                 *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                 stackId: z.ZodOptional<z.ZodString>;
                 /** Per-series line shape (line/area) — overrides the family default. */
                 curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                 /** Per-series point markers (line/area) — overrides the family default. */
                 dots: z.ZodOptional<z.ZodBoolean>;
+                /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                 *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                 *  and never series meta — docs/02-chart-options.md §7.6. */
                 format: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -1951,6 +1984,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
     legend: z.ZodOptional<z.ZodObject<{
         show: z.ZodOptional<z.ZodBoolean>;
+        /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+         *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
         position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
     }, "strict", z.ZodTypeAny, {
         show?: boolean | undefined;
@@ -1978,8 +2013,12 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
             labelHide: z.ZodOptional<z.ZodBoolean>;
             hide: z.ZodOptional<z.ZodBoolean>;
+            /** Value-axis only: a category axis is band/point/utc and has no log form. */
             scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+            /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+             *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
             domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+            /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
             tickFormat: z.ZodOptional<z.ZodObject<{
                 kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                 decimals: z.ZodOptional<z.ZodNumber>;
@@ -2047,8 +2086,12 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
             labelHide: z.ZodOptional<z.ZodBoolean>;
             hide: z.ZodOptional<z.ZodBoolean>;
+            /** Value-axis only: a category axis is band/point/utc and has no log form. */
             scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+            /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+             *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
             domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+            /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
             tickFormat: z.ZodOptional<z.ZodObject<{
                 kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                 decimals: z.ZodOptional<z.ZodNumber>;
@@ -2625,11 +2668,16 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
+                    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                     *  and never series meta — docs/02-chart-options.md §7.6. */
                     format: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -2747,11 +2795,16 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
+                    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                     *  and never series meta — docs/02-chart-options.md §7.6. */
                     format: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -2958,6 +3011,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
         stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
         legend: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
+            /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+             *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
             position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
         }, "strict", z.ZodTypeAny, {
             show?: boolean | undefined;
@@ -2985,8 +3040,12 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                 labelHide: z.ZodOptional<z.ZodBoolean>;
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                 *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                 domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -3054,8 +3113,12 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                 labelHide: z.ZodOptional<z.ZodBoolean>;
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                 *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                 domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -3966,11 +4029,16 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
+                    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                     *  and never series meta — docs/02-chart-options.md §7.6. */
                     format: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -4088,11 +4156,16 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
+                    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                     *  and never series meta — docs/02-chart-options.md §7.6. */
                     format: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -4299,6 +4372,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
         legend: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
+            /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+             *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
             position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
         }, "strict", z.ZodTypeAny, {
             show?: boolean | undefined;
@@ -4326,8 +4401,12 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                 labelHide: z.ZodOptional<z.ZodBoolean>;
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                 *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                 domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -4395,8 +4474,12 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                 labelHide: z.ZodOptional<z.ZodBoolean>;
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                 *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                 domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -5850,11 +5933,16 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
                         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                        /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                         *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
                         /** Per-series line shape (line/area) — overrides the family default. */
                         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
+                        /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                         *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                         *  and never series meta — docs/02-chart-options.md §7.6. */
                         format: z.ZodOptional<z.ZodObject<{
                             kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                             decimals: z.ZodOptional<z.ZodNumber>;
@@ -5972,11 +6060,16 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
                         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                        /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                         *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
                         /** Per-series line shape (line/area) — overrides the family default. */
                         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
+                        /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                         *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                         *  and never series meta — docs/02-chart-options.md §7.6. */
                         format: z.ZodOptional<z.ZodObject<{
                             kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                             decimals: z.ZodOptional<z.ZodNumber>;
@@ -6183,6 +6276,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
             legend: z.ZodOptional<z.ZodObject<{
                 show: z.ZodOptional<z.ZodBoolean>;
+                /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+                 *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
                 position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
             }, "strict", z.ZodTypeAny, {
                 show?: boolean | undefined;
@@ -6210,8 +6305,12 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                     labelHide: z.ZodOptional<z.ZodBoolean>;
                     hide: z.ZodOptional<z.ZodBoolean>;
+                    /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                    /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                     *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                     domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                     tickFormat: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -6279,8 +6378,12 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                     labelHide: z.ZodOptional<z.ZodBoolean>;
                     hide: z.ZodOptional<z.ZodBoolean>;
+                    /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                    /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                     *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                     domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                     tickFormat: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -8711,6 +8814,11 @@ export declare const kpiChartFamily: ChartFamilyDescriptor;
  * (docs/02-chart-options.md §2.6). `display:"number"` is a styled card (NOT a
  * chart) with an optional comparison delta chip; `display:"gauge"` is a TanStack
  * polar radialArc composition. `sparkline` is a chrome-less inline areaY chart.
+ *
+ * `familyOptions.icon` IS DROPPED: it has never been rendered (not in the Recharts
+ * stack either). Painting an arbitrary lucide icon NAME means bundling lucide's whole
+ * icon map; a host that wants one should use widget chrome or its own family
+ * (docs/02-chart-options.md §7.8 — a removal candidate).
  */
 export declare function KpiFamily(props: ChartComponentProps): React_2.ReactElement;
 
@@ -8928,6 +9036,8 @@ export declare type LegendOptions = z.infer<typeof LegendOptionsSchema>;
 
 export declare const LegendOptionsSchema: z.ZodObject<{
     show: z.ZodOptional<z.ZodBoolean>;
+    /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+     *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
     position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
 }, "strict", z.ZodTypeAny, {
     show?: boolean | undefined;
@@ -9561,11 +9671,16 @@ export declare const SeriesMappingSchema: z.ZodObject<{
         meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+            /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+             *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
             stackId: z.ZodOptional<z.ZodString>;
             /** Per-series line shape (line/area) — overrides the family default. */
             curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
             /** Per-series point markers (line/area) — overrides the family default. */
             dots: z.ZodOptional<z.ZodBoolean>;
+            /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+             *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+             *  and never series meta — docs/02-chart-options.md §7.6. */
             format: z.ZodOptional<z.ZodObject<{
                 kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                 decimals: z.ZodOptional<z.ZodNumber>;
@@ -9683,11 +9798,16 @@ export declare const SeriesMappingSchema: z.ZodObject<{
         meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+            /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+             *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
             stackId: z.ZodOptional<z.ZodString>;
             /** Per-series line shape (line/area) — overrides the family default. */
             curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
             /** Per-series point markers (line/area) — overrides the family default. */
             dots: z.ZodOptional<z.ZodBoolean>;
+            /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+             *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+             *  and never series meta — docs/02-chart-options.md §7.6. */
             format: z.ZodOptional<z.ZodObject<{
                 kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                 decimals: z.ZodOptional<z.ZodNumber>;
@@ -9896,11 +10016,16 @@ export declare type SeriesMeta = z.infer<typeof SeriesMetaSchema>;
 export declare const SeriesMetaSchema: z.ZodObject<{
     label: z.ZodOptional<z.ZodString>;
     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
     stackId: z.ZodOptional<z.ZodString>;
     /** Per-series line shape (line/area) — overrides the family default. */
     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
     /** Per-series point markers (line/area) — overrides the family default. */
     dots: z.ZodOptional<z.ZodBoolean>;
+    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+     *  and never series meta — docs/02-chart-options.md §7.6. */
     format: z.ZodOptional<z.ZodObject<{
         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
         decimals: z.ZodOptional<z.ZodNumber>;
@@ -10117,11 +10242,16 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
+                    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                     *  and never series meta — docs/02-chart-options.md §7.6. */
                     format: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -10239,11 +10369,16 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
+                    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                     *  and never series meta — docs/02-chart-options.md §7.6. */
                     format: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -10450,6 +10585,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
         legend: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
+            /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+             *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
             position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
         }, "strict", z.ZodTypeAny, {
             show?: boolean | undefined;
@@ -10477,8 +10614,12 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                 labelHide: z.ZodOptional<z.ZodBoolean>;
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                 *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                 domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -10546,8 +10687,12 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                 labelHide: z.ZodOptional<z.ZodBoolean>;
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                 *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                 domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -11429,11 +11574,16 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
                         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                        /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                         *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
                         /** Per-series line shape (line/area) — overrides the family default. */
                         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
+                        /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                         *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                         *  and never series meta — docs/02-chart-options.md §7.6. */
                         format: z.ZodOptional<z.ZodObject<{
                             kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                             decimals: z.ZodOptional<z.ZodNumber>;
@@ -11551,11 +11701,16 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
                         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                        /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                         *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
                         /** Per-series line shape (line/area) — overrides the family default. */
                         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
+                        /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                         *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                         *  and never series meta — docs/02-chart-options.md §7.6. */
                         format: z.ZodOptional<z.ZodObject<{
                             kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                             decimals: z.ZodOptional<z.ZodNumber>;
@@ -11762,6 +11917,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
             legend: z.ZodOptional<z.ZodObject<{
                 show: z.ZodOptional<z.ZodBoolean>;
+                /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+                 *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
                 position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
             }, "strict", z.ZodTypeAny, {
                 show?: boolean | undefined;
@@ -11789,8 +11946,12 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                     labelHide: z.ZodOptional<z.ZodBoolean>;
                     hide: z.ZodOptional<z.ZodBoolean>;
+                    /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                    /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                     *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                     domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                     tickFormat: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -11858,8 +12019,12 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                     labelHide: z.ZodOptional<z.ZodBoolean>;
                     hide: z.ZodOptional<z.ZodBoolean>;
+                    /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                    /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                     *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                     domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                     tickFormat: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -14339,11 +14504,16 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
+                    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                     *  and never series meta — docs/02-chart-options.md §7.6. */
                     format: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -14461,11 +14631,16 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
+                    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
+                     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
+                     *  and never series meta — docs/02-chart-options.md §7.6. */
                     format: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -14672,6 +14847,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
         legend: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
+            /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
+             *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
             position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
         }, "strict", z.ZodTypeAny, {
             show?: boolean | undefined;
@@ -14699,8 +14876,12 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                 labelHide: z.ZodOptional<z.ZodBoolean>;
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                 *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                 domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -14768,8 +14949,12 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
                 labelHide: z.ZodOptional<z.ZodBoolean>;
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
+                /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
+                 *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
                 domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;

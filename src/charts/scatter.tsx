@@ -109,6 +109,9 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
     } else {
       dotOptions.fill = `var(--${ramp[0]})`;
     }
+    // `fo.shape` IS DROPPED HERE: the `dot` mark draws one symbol and exposes no
+    // shape option, so square/triangle/diamond render as circles. Recharts honored
+    // it — a real fix needs a custom path mark (docs/02-chart-options.md §7.7).
     if (fo.size) {
       // Null sizes map to the raw 0 → the minimum radius, so a row without a
       // size still plots (Recharts rendered those at the range minimum too).

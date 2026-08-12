@@ -195,6 +195,11 @@ function resolveSeriesMeta(
   if (fmtName?.startsWith("percent") && out.unit === undefined) out.unit = "%";
 
   // Format: per-series override, then chart-level default.
+  // NOTE — the per-series override lands on `meta.format` but NOTHING READS IT: every
+  // value surface formats through the chart-bound `ChartFormat` (annotation +
+  // `chart.format`, plus per-axis/per-column `derive` overrides), which never consults
+  // series meta. Kept so the normalized data stays self-describing; see
+  // docs/02-chart-options.md §7.6.
   let format = specMeta?.format ?? chartFormat;
   if (
     (fmtName?.startsWith("currency") || fmtName?.startsWith("accounting")) &&
