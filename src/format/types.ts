@@ -82,4 +82,15 @@ export interface ChartFormat {
    * granularity from the chart options/query when discoverable.
    */
   category: (value: string | number | null | undefined) => string;
+  /**
+   * A COPY of this formatter whose {@link FormatOptions} are `overrides` merged over
+   * the chart's own — the seam for the option surfaces that carry their own
+   * FormatOptions: `axes.{x,y}.tickFormat` (per-axis ticks) and
+   * `TableColumnOpt.format` (per-column cells). `undefined`/`{}` returns the same
+   * instance, so the common path allocates nothing.
+   *
+   * OPTIONAL on the interface so a host (or a test) can still hand in a hand-rolled
+   * two-method ChartFormat; call sites fall back to the undecorated formatter.
+   */
+  derive?: (overrides: FormatOptions | undefined) => ChartFormat;
 }

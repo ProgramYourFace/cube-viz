@@ -3,7 +3,7 @@ import { cell, defineChart, text, type ChartMark } from "@tanstack/charts";
 
 import type { ChartComponentProps } from "./types";
 import type { HeatmapFamilyOptions } from "./defaults";
-import { bandScale, cubeTooltip, CvChart, rowKeyFor, type SeriesRow } from "./tanstack";
+import { axisFormat, bandScale, cubeTooltip, CvChart, rowKeyFor, type SeriesRow } from "./tanstack";
 
 /**
  * `heatmap` — a two-dimension × one-measure matrix drawn with the TanStack `cell`
@@ -161,12 +161,24 @@ export function HeatmapChartFamily({
           ? false
           : {
               label: xLabel,
-              ticks: { format: (v: string | number) => format.category(v) },
+              // The column axis is the CATEGORY axis, so `axes.x.tickFormat` applies
+              // to its bucket labels. (`axes.*.scale`/`domain` do not: both heatmap
+              // axes are band scales and the value is a color, not a position.)
+              ticks: {
+                format: (v: string | number) => axisFormat(format, options.axes?.x).category(v),
+              },
             },
       },
       y: {
         scale: () => bandScale(0.05),
-        axis: options.axes?.y?.hide ? false : { label: yLabel },
+        axis: options.axes?.y?.hide
+          ? false
+          : {
+              label: yLabel,
+              ticks: {
+                format: (v: string | number) => axisFormat(format, options.axes?.y).category(v),
+              },
+            },
       },
       color: {
         scale: rampColorScale(min, max, fo.colorToken ?? "chart-1"),
@@ -174,7 +186,7 @@ export function HeatmapChartFamily({
       tooltip:
         options.tooltip?.show === false
           ? undefined
-          : cubeTooltip({ format }),
+          : cubeTooltip({ format, indicator: options.tooltip?.indicator }),
     });
   }, [cells, options, format, fo, ann, xMember, yMember]);
 

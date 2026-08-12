@@ -5,6 +5,7 @@ import type {
   ChartMark,
   ChartPoint,
   ChartTooltipContent,
+  ChartTooltipRow,
   ChartValue,
   DomChartDefinition,
 } from "@tanstack/charts";
@@ -21,7 +22,14 @@ import { controlledSignal } from "@tanstack/charts/interaction/signal";
 import { scaleLog, scaleUtc } from "d3-scale";
 import { curveMonotoneX, curveNatural, curveStepAfter } from "d3-shape";
 
-import type { ChartOptions, AxisOptions, Granularity, LegendOptions } from "@/spec";
+import type {
+  ChartOptions,
+  AxisOptions,
+  FormatOptions,
+  Granularity,
+  LegendOptions,
+  TooltipOptions,
+} from "@/spec";
 import { GranularitySchema } from "@/spec";
 import type { NormalizedChartData, NormalizedSeries } from "@/adapter/types";
 import type { ChartFormat } from "@/format";
@@ -101,6 +109,111 @@ export function buildSeriesRows(
   return rows;
 }
 
+/* ------------------------------------------------------- per-series stackIds */
+
+/**
+ * A series' stack membership (`SeriesMeta.stackId`), defaulting to the single
+ * shared stack `""`. Series with the same id stack together; different ids are
+ * SEPARATE stacks drawn side by side (bar) or overlaid (area) — the Recharts
+ * `stackId` contract, which the TanStack rewrite initially dropped.
+ */
+export function stackIdOf(series: NormalizedSeries): string {
+  return series.meta?.stackId ?? "";
+}
+
+/**
+ * Group series into their stacks, in FIRST-APPEARANCE order (so the visual order of
+ * the stacks follows the spec's series order). One entry ⇒ the ordinary
+ * single-stack chart, which every family keeps rendering through its original path.
+ */
+export function stackGroups(
+  series: readonly NormalizedSeries[],
+): { stackId: string; series: NormalizedSeries[] }[] {
+  const byId = new Map<string, NormalizedSeries[]>();
+  for (const s of series) {
+    const id = stackIdOf(s);
+    const bucket = byId.get(id);
+    if (bucket) bucket.push(s);
+    else byId.set(id, [s]);
+  }
+  return [...byId].map(([stackId, group]) => ({ stackId, series: group }));
+}
+
+/** A long row carrying its PRE-COMPUTED stack interval (multi-stack bars). */
+export interface StackedRow extends SeriesRow {
+  /** Which stack this row belongs to (the bar mark's group channel). */
+  stack: string;
+  /** Interval start (the running total below this segment). */
+  y1: number;
+  /** Interval end (`y1 + value`, or the normalized share bound). */
+  y2: number;
+  /** This segment's share of its OWN stack's category total (percent mode). */
+  share: number | null;
+}
+
+/**
+ * Stack each series inside its OWN `stackId`, returning long rows with explicit
+ * `[y1, y2]` intervals — the seam that lets one bar mark draw SEVERAL stacks side
+ * by side: explicit endpoints opt the mark out of implicit stacking, and `z` is then
+ * free to carry the stack id, so `group()` offsets the stacks within the band while
+ * these bounds do the stacking within each one.
+ *
+ * Positives accumulate upward and negatives downward from the zero baseline (d3's
+ * "diverging" convention), so a mixed-sign stack stays readable. `normalize` divides
+ * each interval by its stack's total magnitude for that category (percent mode).
+ */
+export function buildStackedRows(
+  data: NormalizedChartData,
+  series: readonly NormalizedSeries[],
+  opts?: { normalize?: boolean; temporal?: TemporalAxis | null },
+): StackedRow[] {
+  const rows: StackedRow[] = [];
+  data.categories.forEach((cat, i) => {
+    const t = opts?.temporal?.dates[i];
+    // Per-stack magnitude for this category — the normalize denominator.
+    const magnitude = new Map<string, number>();
+    for (const s of series) {
+      const v = s.data[i];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        const id = stackIdOf(s);
+        magnitude.set(id, (magnitude.get(id) ?? 0) + Math.abs(v));
+      }
+    }
+    const up = new Map<string, number>();
+    const down = new Map<string, number>();
+    for (const s of series) {
+      const value = s.data[i] ?? null;
+      const id = stackIdOf(s);
+      const total = magnitude.get(id) ?? 0;
+      const share = value === null || total === 0 ? null : Math.abs(value) / total;
+      let y1 = 0;
+      let y2 = 0;
+      if (value !== null) {
+        const offsets = value < 0 ? down : up;
+        y1 = offsets.get(id) ?? 0;
+        y2 = y1 + value;
+        offsets.set(id, y2);
+      }
+      const scale = opts?.normalize && total > 0 ? 1 / total : 1;
+      rows.push({
+        cat: typeof cat === "number" ? cat : String(cat),
+        ...(t ? { t } : {}),
+        value,
+        key: s.key,
+        label: s.label,
+        member: s.meta?.measure ?? s.key,
+        companion: s.meta?.companion ?? false,
+        i,
+        stack: id,
+        y1: y1 * scale,
+        y2: y2 * scale,
+        share,
+      });
+    }
+  });
+  return rows;
+}
+
 /**
  * The key a Cube `tablePivot()` row actually uses for `member`.
  *
@@ -147,7 +260,14 @@ export function seriesColor(
   return color;
 }
 
-/** TanStack legends are top/bottom; left/right degrade to bottom (as before). */
+/**
+ * TanStack legends are top/bottom; left/right degrade to bottom (as before).
+ *
+ * UNSUPPORTED BY THE GRAMMAR, not an oversight: `ChartLegendPlacement` is exactly
+ * `'top' | 'bottom'`, so `legend.position: "left" | "right"` cannot be expressed —
+ * it is accepted by the schema and rendered at the bottom (the Recharts stack
+ * degraded the same way, for a different reason). See docs/02-chart-options.md §7.4.
+ */
 export function legendPlacement(position?: LegendOptions["position"]): "top" | "bottom" {
   return position === "top" ? "top" : "bottom";
 }
@@ -491,6 +611,15 @@ export function resolvePointSelection(
  * Value scale honoring the spec's `scale` ("linear" | "log") and `domain`
  * ([min|"auto", max|"auto"]). A fully explicit domain returns a configured
  * instance; any "auto" side falls back to inference (+`nice`).
+ *
+ * PARTIALLY HONORED, deliberately: a HALF-explicit domain (`[0, "auto"]`) is
+ * dropped and the axis infers BOTH ends. TanStack resolves a scale either from a
+ * configured instance (domain fixed, no inference at all) or from a factory
+ * (domain inferred from the materialized channel values, which this helper never
+ * sees) — there is no "pin one end" seam, and re-deriving the free end here from
+ * series data would have to re-implement stacking/normalize offsets to stay
+ * honest. Recharts accepted `["auto", n]` natively; documented in
+ * docs/02-chart-options.md §7.5.
  */
 export function valueScale(axis?: AxisOptions): {
   scale: (() => ReturnType<typeof scaleLinear>) | ReturnType<typeof scaleLinear>;
@@ -518,6 +647,33 @@ export function valueScale(axis?: AxisOptions): {
 /* ------------------------------------------------------------------ curves */
 
 export type CurveName = "linear" | "monotone" | "step" | "natural";
+
+/**
+ * The curve a SERIES draws with: its own `meta.curve` (what the field pill's line-shape
+ * picker writes) wins over the family default. Resolved as a NAME so the choice is
+ * unit-testable without touching the renderer; pass the result to {@link chartCurve}.
+ *
+ * Only families that give each series its OWN mark can honor this — a single stacked
+ * mark draws every series with one curve (see the area family).
+ */
+export function seriesCurve(
+  series: Pick<NormalizedSeries, "meta">,
+  familyCurve?: CurveName,
+): CurveName | undefined {
+  return (series.meta?.curve as CurveName | undefined) ?? familyCurve;
+}
+
+/**
+ * Whether a SERIES draws point markers: its own `meta.dots` (the field pill's "Show
+ * points" switch) wins over the family `dots`. `"active"` (line's default) means
+ * hover-only, so it is NOT a static point.
+ */
+export function seriesDots(
+  series: Pick<NormalizedSeries, "meta">,
+  familyDots?: boolean | "active",
+): boolean {
+  return (series.meta?.dots ?? familyDots) === true;
+}
 
 /** cube-viz curve name → TanStack curve contract (undefined = straight segments). */
 export function chartCurve(curve?: CurveName): ReturnType<typeof d3Curve> | undefined {
@@ -569,6 +725,20 @@ export function resolvedAxisLabels(
   };
 }
 
+/**
+ * The formatter an axis' TICKS should use: the chart's bound {@link ChartFormat},
+ * re-bound with that axis' `tickFormat` FormatOptions merged over the chart-level
+ * `format` (decimals/abbreviate/prefix/suffix/currency/dateFormat/kind).
+ *
+ * Falls back to the undecorated formatter when the host handed in a hand-rolled
+ * ChartFormat without `derive` (the method is optional on the interface).
+ */
+export function axisFormat(format: ChartFormat, axis?: AxisOptions): ChartFormat {
+  const overrides: FormatOptions | undefined = axis?.tickFormat;
+  if (!overrides || !format.derive) return format;
+  return format.derive(overrides);
+}
+
 /** The Cube measure that drives a series' value-axis unit. */
 export function seriesMember(series: NormalizedSeries | undefined): string | undefined {
   return series?.meta?.measure ?? series?.key;
@@ -607,7 +777,33 @@ export interface CubeTooltipOpts {
   value?: (point: ChartPoint<SeriesRow, ChartValue, ChartValue>) => string;
   /** percent stackMode: show each series' share of its category total. */
   percentShare?: boolean;
+  /**
+   * Replace the focused points with the full row set for that category.
+   *
+   * Needed where the mark's z/group channel is NOT the series: a multi-stack bar
+   * groups by STACK, and TanStack's grouped focus keeps one point per group, so the
+   * tooltip would list one series per stack instead of every series. The family
+   * hands back all rows sharing the focused row's category index; `colorOf` paints
+   * their swatches (the focus points' own colors are gone with them).
+   */
+  expand?: (focused: SeriesRow) => readonly SeriesRow[];
+  /** Swatch color for an expanded row (required with {@link CubeTooltipOpts.expand}). */
+  colorOf?: (row: SeriesRow) => string | undefined;
+  /** `tooltip.indicator` — the swatch SHAPE (a css modifier; see charts.css). */
+  indicator?: TooltipOptions["indicator"];
+  /** `tooltip.showTotal` — append a summed "Total" row under a grouped tooltip. */
+  showTotal?: boolean;
   locale?: string;
+}
+
+/**
+ * The tooltip surface class + its `tooltip.indicator` modifier. The swatch shape
+ * (dot / line / dashed) is pure presentation, so it is a CSS modifier rather than a
+ * renderer option — the TanStack tooltip paints one swatch element per row and has
+ * no shape knob (charts.css restyles it per modifier).
+ */
+export function tooltipClassName(indicator?: TooltipOptions["indicator"]): string {
+  return indicator ? `cv-chart-tooltip cv-chart-tooltip--${indicator}` : "cv-chart-tooltip";
 }
 
 /**
@@ -623,7 +819,7 @@ export function cubeTooltip(opts: CubeTooltipOpts) {
   };
   return {
     use: tooltip,
-    className: "cv-chart-tooltip",
+    className: tooltipClassName(opts.indicator),
     // Focus points only come from the interactive data marks, whose rows are
     // SeriesRows — decorative rules/labels emit no interaction points — so the
     // unknown-datum cast is safe by construction.
@@ -633,23 +829,69 @@ export function cubeTooltip(opts: CubeTooltipOpts) {
       const points = untypedPoints as readonly ChartPoint<SeriesRow, ChartValue, ChartValue>[];
       const first = points[0];
       const title = first ? catFmt(first.xValue ?? first.datum.cat) : undefined;
+      // One entry per tooltip row: the focused points, or the family's expansion of
+      // them (a stack-grouped mark focuses one point per stack, not per series).
+      const entries: { datum: SeriesRow; color?: string }[] =
+        opts.expand && first
+          ? opts.expand(first.datum).map((datum) => ({ datum, color: opts.colorOf?.(datum) }))
+          : points.map((p) => ({ datum: p.datum, color: p.color }));
+      // The category total: the percent-share denominator AND the `showTotal` row.
+      // Companion (previous-period) rows are excluded — they are a reference overlay,
+      // not part of this period's total.
       let total = 0;
-      if (opts.percentShare) {
-        for (const p of points) {
-          const n = p.datum.value;
-          if (typeof n === "number" && Number.isFinite(n)) total += n;
+      let totalled = 0;
+      if (opts.percentShare || opts.showTotal) {
+        for (const e of entries) {
+          const n = e.datum.value;
+          if (e.datum.companion || typeof n !== "number" || !Number.isFinite(n)) continue;
+          total += n;
+          totalled += 1;
         }
       }
+      const rows: ChartTooltipRow[] = entries.map((e, k) => ({
+        label: e.datum.label,
+        value:
+          opts.percentShare && total > 0 && typeof e.datum.value === "number"
+            ? percentTick(e.datum.value / total, opts.locale)
+            : valueOf(points[k] ?? ({ datum: e.datum } as ChartPoint<SeriesRow, ChartValue, ChartValue>)),
+        color: e.color,
+      }));
+      // A single-series tooltip's "total" would just repeat the one row (no swatch:
+      // the total belongs to no series).
+      if (opts.showTotal && totalled > 1) {
+        rows.push({
+          label: "Total",
+          value: opts.percentShare
+            ? percentTick(1, opts.locale)
+            : opts.format.value(total, first?.datum.member, "tooltip"),
+        });
+      }
+      return { title, rows };
+    },
+  };
+}
+
+/* ------------------------------------------------------- decorative marks */
+
+/**
+ * Strip a mark's INTERACTION POINTS while keeping everything it paints.
+ *
+ * `text` marks emit one focus point per label, so a chart's own annotations
+ * (value labels, reference-line labels, in-cell heatmap values) would join the
+ * focused group: the tooltip grew a duplicate row per labelled series (and a
+ * `"target 15": —` row for a reference line), keyboard navigation stopped on
+ * them, and a click could report one as a selection. They are DECORATION — they
+ * restate data the reader already has — so they leave the focus model alone.
+ */
+export function decorativeMark<M extends ChartMark>(mark: M): M {
+  return {
+    ...mark,
+    initialize: (context) => {
+      const initialized = mark.initialize(context);
+      const render = initialized.render;
       return {
-        title,
-        rows: points.map((p) => ({
-          label: p.datum.label,
-          value:
-            opts.percentShare && total > 0 && typeof p.datum.value === "number"
-              ? percentTick(p.datum.value / total, opts.locale)
-              : valueOf(p),
-          color: p.color,
-        })),
+        ...initialized,
+        render: (ctx) => ({ ...render(ctx), points: [] }),
       };
     },
   };
@@ -668,63 +910,94 @@ export interface ReferenceLineOpt {
  * Reference-line marks: `ruleY` for value-axis lines, `ruleX` reprojected to
  * the rendered category at that INDEX for the (band/point) category axis —
  * same convention as before. `swap` transposes for horizontal charts.
- * Labels render for value-axis rules (anchored at the category edge, like the
- * Recharts default position); category-rule labels are dropped — the rule
- * itself still shows.
+ *
+ * LABELS (as Recharts drew them, on BOTH axes) need a full (x, y) position: the
+ * `text` mark drops any datum whose x or y is not a chart value, so a label given
+ * only its rule's own coordinate never rendered at all. The missing half comes from
+ * the anchors: a value-axis label sits at the FIRST category (the plot's leading
+ * edge, matching the old Recharts default position), and a category-axis label sits
+ * at `valueAnchor` — the top of the plotted data, supplied by the family because
+ * only it knows the value extent. Without an anchor the rule still draws; only its
+ * label is skipped.
  */
 export function referenceLineMarks(
   refs: readonly ReferenceLineOpt[] | undefined,
   // Dates appear here on a TEMPORAL axis: a category rule must be reprojected to
   // the same x value the marks plot against, not to the raw bucket string.
   categories: readonly (string | number | Date)[],
-  opts?: { swap?: boolean },
+  opts?: { swap?: boolean; valueAnchor?: number },
 ): ChartMark[] {
   if (!refs?.length) return [];
   const marks: ChartMark[] = [];
+  const catAnchor = categories[0];
   refs.forEach((r, k) => {
     const stroke = `var(--${r.colorToken ?? "muted-foreground"})`;
-    const style = { stroke, strokeWidth: 1.25, strokeDasharray: "4 4" } as const;
+    const style = {
+      stroke,
+      strokeWidth: 1.25,
+      strokeDasharray: "4 4",
+    } as const;
     const onCategory = r.axis === "x";
     const catValue = onCategory ? categories[r.value] : undefined;
     if (onCategory && (catValue === undefined || catValue === null)) return;
     // The rule is vertical (a fixed x) when the reference is on the category
     // axis in vertical layout, or on the value axis in horizontal layout.
     const verticalRule = opts?.swap ? !onCategory : onCategory;
-    if (verticalRule) {
-      const v = (opts?.swap ? r.value : catValue) as ChartValue;
-      marks.push(ruleX([v], { id: `cv-ref-${k}`, ...style }));
-      if (r.label && !onCategory) {
-        marks.push(
-          text([{ v, label: r.label }], {
+    const v = (
+      verticalRule ? (opts?.swap ? r.value : catValue) : opts?.swap ? catValue : r.value
+    ) as ChartValue;
+    marks.push(
+      verticalRule
+        ? ruleX([v], { id: `cv-ref-${k}`, ...style })
+        : ruleY([v], { id: `cv-ref-${k}`, ...style }),
+    );
+    if (!r.label) return;
+    // The label's OTHER coordinate: the category anchor for a value rule, the
+    // value anchor (top of the data) for a category rule.
+    const other: ChartValue | undefined = onCategory ? opts?.valueAnchor : catAnchor;
+    if (other === undefined || other === null) return;
+    const horizontalLayout = opts?.swap === true;
+    marks.push(
+      decorativeMark(
+        text(
+          [
+            {
+              x: verticalRule ? v : other,
+              y: verticalRule ? other : v,
+              label: r.label,
+            },
+          ],
+          {
             id: `cv-ref-label-${k}`,
-            x: "v",
+            x: "x",
+            y: "y",
             text: "label",
             fill: stroke,
             fontSize: 10,
-            dy: 8,
+            // Sit just clear of the rule: above a horizontal rule, just right of a
+            // vertical one (mirroring the old Recharts label offsets).
+            dy: verticalRule ? (horizontalLayout ? -6 : 8) : -6,
+            dx: verticalRule ? 4 : 0,
             anchor: "start",
-          }),
-        );
-      }
-    } else {
-      const v = (opts?.swap ? catValue : r.value) as ChartValue;
-      marks.push(ruleY([v], { id: `cv-ref-${k}`, ...style }));
-      if (r.label && !onCategory) {
-        marks.push(
-          text([{ v, label: r.label }], {
-            id: `cv-ref-label-${k}`,
-            y: "v",
-            text: "label",
-            fill: stroke,
-            fontSize: 10,
-            dy: -6,
-            anchor: "start",
-          }),
-        );
-      }
-    }
+          },
+        ),
+      ),
+    );
   });
   return marks;
+}
+
+/**
+ * The largest plotted value across `series` — the anchor a category-axis reference
+ * label is drawn at (see {@link referenceLineMarks}). Returns `undefined` when
+ * nothing is plottable, which skips those labels instead of placing them at 0.
+ */
+export function valueAnchor(data: NormalizedChartData): number | undefined {
+  let max = Number.NEGATIVE_INFINITY;
+  for (const s of data.series) {
+    for (const v of s.data) if (typeof v === "number" && v > max) max = v;
+  }
+  return Number.isFinite(max) ? max : undefined;
 }
 
 /* ------------------------------------------------------------ value labels */
@@ -732,27 +1005,51 @@ export function referenceLineMarks(
 /**
  * Direct value labels above each point/bar (`showValueLabels`). Skips nulls and
  * companion series; formatting is member-aware via the row itself.
+ *
+ * A STACKED caller passes {@link StackedRow}s: the label then sits on the segment's
+ * own top (`y2`) instead of its raw value — a text mark carries no stack layout, so
+ * raw positions would land wherever the un-stacked value happens to fall, and in
+ * percent mode (a 0..1 axis) off the top of the plot entirely. `share` additionally
+ * prints each segment's share of its stack, as the Recharts `percentShareFormatter`
+ * did, because a raw number would contradict the normalized bar it labels.
  */
 export function valueLabelMarks(
   rows: readonly SeriesRow[],
   format: ChartFormat,
-  opts?: { swap?: boolean; temporal?: TemporalAxis | null },
+  opts?: {
+    swap?: boolean;
+    temporal?: TemporalAxis | null;
+    /** Label the value's SHARE of its stack (percent stackMode). */
+    share?: boolean;
+    /** Rows are stacked: position each label at its segment top. */
+    stacked?: boolean;
+    locale?: string;
+  },
 ): ChartMark[] {
   const labeled = rows.filter((r) => r.value !== null && !r.companion);
   if (!labeled.length) return [];
   // The label must sit on the same channel the data marks use (`t` when temporal).
   const catField = categoryChannel(opts?.temporal ?? null);
+  const positionOf = (r: SeriesRow): number | null =>
+    opts?.stacked ? ((r as StackedRow).y2 ?? r.value) : r.value;
+  const labelOf = (r: SeriesRow): string => {
+    if (!opts?.share) return format.value(r.value, r.member, "label");
+    const share = (r as StackedRow).share;
+    return typeof share === "number" ? percentTick(share, opts.locale) : "";
+  };
   return [
-    text(labeled, {
-      id: "cv-value-labels",
-      x: opts?.swap ? "value" : catField,
-      y: opts?.swap ? catField : "value",
-      text: (r: SeriesRow) => format.value(r.value, r.member, "label"),
-      fill: "currentColor",
-      fontSize: 10,
-      dy: opts?.swap ? 0 : -8,
-      dx: opts?.swap ? 12 : 0,
-    }),
+    decorativeMark(
+      text(labeled, {
+        id: "cv-value-labels",
+        x: opts?.swap ? positionOf : catField,
+        y: opts?.swap ? catField : positionOf,
+        text: labelOf,
+        fill: "currentColor",
+        fontSize: 10,
+        dy: opts?.swap ? 0 : -8,
+        dx: opts?.swap ? 12 : 0,
+      }),
+    ),
   ];
 }
 

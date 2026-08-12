@@ -6,6 +6,7 @@ import type { ChartComponentProps } from "./types";
 import type { LineFamilyOptions } from "./defaults";
 import {
   annotationToAxis,
+  axisFormat,
   buildSeriesRows,
   categoryChannel,
   categoryLabeler,
@@ -19,8 +20,11 @@ import {
   resolvedAxisLabels,
   seriesColor,
   seriesColorVar,
+  seriesCurve,
+  seriesDots,
   seriesLabel,
   useTemporalBrush,
+  valueAnchor,
   valueLabelMarks,
   valueScale,
   type CurveName,
@@ -51,6 +55,13 @@ export function LineChartFamily({
     [data, options, sparkline],
   );
   const catLabel = React.useMemo(() => categoryLabeler(temporal, format), [temporal, format]);
+  // Axis TICKS may carry their own FormatOptions (`axes.x.tickFormat`); the tooltip /
+  // crosshair / brush keep the chart-level category format.
+  const xAxis = options.axes?.x;
+  const catTick = React.useMemo(
+    () => (xAxis?.tickFormat ? categoryLabeler(temporal, axisFormat(format, xAxis)) : catLabel),
+    [temporal, format, xAxis, catLabel],
+  );
   const controls = useTemporalBrush(temporal, {
     label: catLabel,
     ariaLabel: "Time range",
@@ -59,7 +70,7 @@ export function LineChartFamily({
   const definition = React.useMemo(() => {
     const xField = categoryChannel(temporal);
     const connectNulls = fo.connectNulls ?? false;
-    const curve = chartCurve((fo.curve ?? "monotone") as CurveName);
+    const curveName = (fo.curve ?? "monotone") as CurveName;
     const axl = resolvedAxisLabels(data, options);
     const y = valueScale(options.axes?.y);
     // A single data point has no line segment; force a visible dot so the
@@ -78,26 +89,30 @@ export function LineChartFamily({
         // Per-series shape wins over the family default: the shape picker on a
         // field pill writes `meta.curve`, and reading only `fo.curve` here made
         // that control do nothing.
-        curve: s.meta?.curve ? chartCurve(s.meta.curve as CurveName) : curve,
+        curve: chartCurve(seriesCurve(s, curveName)),
         strokeWidth: fo.strokeWidth ?? 2,
         strokeDasharray: s.meta?.companion ? "5 4" : undefined,
         strokeOpacity: s.meta?.companion ? 0.55 : undefined,
         stroke: seriesColorVar(s),
-        points:
-          !sparkline && !s.meta?.companion && ((s.meta?.dots ?? fo.dots) === true || singlePoint),
+        points: !sparkline && !s.meta?.companion && (seriesDots(s, fo.dots) || singlePoint),
       });
     });
 
     if (!sparkline) {
       marks.push(
-        ...referenceLineMarks(fo.referenceLines, temporal?.dates ?? data.categories),
+        ...referenceLineMarks(fo.referenceLines, temporal?.dates ?? data.categories, {
+          valueAnchor: valueAnchor(data),
+        }),
         ...valueLabelMarks(
           fo.showValueLabels ? buildSeriesRows(data, { skipNull: true, temporal }) : [],
           format,
           { temporal },
         ),
       );
-      marks.push(crosshair({ x: {}, y: false }));
+      // `dots` also decides the HOVER point (Recharts' `activeDot`): the crosshair's
+      // marker is the TanStack equivalent, and without it `dots:"active"` — the
+      // family DEFAULT — drew nothing at all. `false` opts out of both.
+      marks.push(crosshair({ x: {}, y: false, marker: fo.dots !== false }));
     }
 
     return defineChart({
@@ -108,7 +123,7 @@ export function LineChartFamily({
           ? false
           : {
               label: axl.x,
-              ticks: { format: catLabel },
+              ticks: { format: catTick },
             },
       },
       y: {
@@ -120,8 +135,13 @@ export function LineChartFamily({
           : {
               label: axl.y,
               ticks: {
+                // `axes.y.tickFormat` re-binds the formatter for the value ticks only.
                 format: (v: number) =>
-                  format.value(v, data.series[0]?.meta?.measure ?? data.series[0]?.key, "axis"),
+                  axisFormat(format, options.axes?.y).value(
+                    v,
+                    data.series[0]?.meta?.measure ?? data.series[0]?.key,
+                    "axis",
+                  ),
               },
             },
       },
@@ -135,12 +155,17 @@ export function LineChartFamily({
       tooltip:
         sparkline || options.tooltip?.show === false
           ? undefined
-          : cubeTooltip({ format, category: catLabel }),
+          : cubeTooltip({
+              format,
+              category: catLabel,
+              indicator: options.tooltip?.indicator,
+              showTotal: options.tooltip?.showTotal,
+            }),
       margin: sparkline ? 4 : undefined,
       keyboard: !sparkline,
       controls,
     });
-  }, [data, options, format, fo, sparkline, temporal, catLabel, controls]);
+  }, [data, options, format, fo, sparkline, temporal, catLabel, catTick, controls]);
 
   const label = data.series.map(seriesLabel).join(", ") || "Line chart";
   return (

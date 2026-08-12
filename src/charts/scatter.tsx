@@ -20,7 +20,14 @@ import { DEFAULT_COLOR_RAMP } from "@/adapter";
 import type { PointSelection } from "@/provider/interactions";
 import type { ChartComponentProps } from "./types";
 import type { ScatterFamilyOptions } from "./defaults";
-import { CvChart, legendDisplay, legendPlacement, valueScale } from "./tanstack";
+import {
+  axisFormat,
+  CvChart,
+  legendDisplay,
+  legendPlacement,
+  tooltipClassName,
+  valueScale,
+} from "./tanstack";
 
 /**
  * `scatter` — covers scatter + bubble (docs/02-chart-options.md §2.5). Its
@@ -92,11 +99,15 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
       y: "y",
       key: "i",
     };
+    // The envelope's `colors.ramp` orders the group palette (a scatter's "series" are
+    // its groupBy values). `colors.byKey` is keyed by SERIES key — scatter has no
+    // normalized series — so it does not apply (docs/02-chart-options.md §7.6).
+    const ramp = options.colors?.ramp?.length ? options.colors.ramp : DEFAULT_COLOR_RAMP;
     if (grouped) {
       dotOptions.z = "group";
       dotOptions.color = "group";
     } else {
-      dotOptions.fill = `var(--${DEFAULT_COLOR_RAMP[0]})`;
+      dotOptions.fill = `var(--${ramp[0]})`;
     }
     if (fo.size) {
       // Null sizes map to the raw 0 → the minimum radius, so a row without a
@@ -154,9 +165,7 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
     if (grouped) {
       color = {
         domain: groupValues,
-        range: groupValues.map(
-          (_, i) => `var(--${DEFAULT_COLOR_RAMP[i % DEFAULT_COLOR_RAMP.length]})`,
-        ),
+        range: groupValues.map((_, i) => `var(--${ramp[i % ramp.length]})`),
       };
       if (legendDisplay(options)) {
         color.legend = colorLegend({ placement: legendPlacement(options.legend?.position) });
@@ -181,7 +190,11 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
           ? false
           : {
               label: xTitle,
-              ticks: { format: (v: number) => format.value(v, xMember, "axis") },
+              // Both scatter axes are quantitative, so each honors its own
+              // `tickFormat` FormatOptions override.
+              ticks: {
+                format: (v: number) => axisFormat(format, options.axes?.x).value(v, xMember, "axis"),
+              },
             },
       },
       y: {
@@ -192,7 +205,9 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
           ? false
           : {
               label: yTitle,
-              ticks: { format: (v: number) => format.value(v, yMember, "axis") },
+              ticks: {
+                format: (v: number) => axisFormat(format, options.axes?.y).value(v, yMember, "axis"),
+              },
             },
       },
       color,
@@ -204,7 +219,7 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
           ? undefined
           : {
               use: tooltip,
-              className: "cv-chart-tooltip",
+              className: tooltipClassName(options.tooltip?.indicator),
               // Structured content like cubeTooltip, but written inline: the
               // focused rows here are raw ScatterRows, not SeriesRows — title is
               // the group value (omitted when ungrouped), one row per member.

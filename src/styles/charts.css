@@ -107,6 +107,38 @@
   flex: none;
 }
 
+/* `tooltip.indicator` — the swatch SHAPE (dot | line | dashed), restored from the
+ * shadcn tooltip the Recharts stack used. The TanStack tooltip has no shape knob:
+ * it paints each row's swatch with an INLINE cssText (size + radius) and sets the
+ * series color as the background — so the modifier has to be a stylesheet rule with
+ * `!important` to beat that inline style, and the "dashed" variant masks the
+ * background (the color is not available to a border). The swatch grid column is
+ * 0.55rem wide, so every variant stays inside it. */
+.cv-chart-tooltip--dot .ts-chart-tooltip__swatch {
+  border-radius: 50% !important;
+}
+
+.cv-chart-tooltip--line .ts-chart-tooltip__swatch,
+.cv-chart-tooltip--dashed .ts-chart-tooltip__swatch {
+  width: 0.55rem !important;
+  height: 0.1875rem !important;
+  border-radius: 1px !important;
+  box-shadow: none !important;
+}
+
+.cv-chart-tooltip--dashed .ts-chart-tooltip__swatch {
+  -webkit-mask-image: repeating-linear-gradient(
+    90deg,
+    #000 0 0.1875rem,
+    transparent 0.1875rem 0.3125rem
+  );
+  mask-image: repeating-linear-gradient(
+    90deg,
+    #000 0 0.1875rem,
+    transparent 0.1875rem 0.3125rem
+  );
+}
+
 /* ───────────────────────────── KPI family ─────────────────────────────────
  * Semantic classes for the kpi family's HTML shell (number card, delta chip,
  * sparkline footer, gauge). Good/bad accents use fixed emerald/amber values

@@ -444,12 +444,19 @@ function normalizePivot(
     const pivotValue = sn.yValues?.[0];
     const measure = sn.yValues && sn.yValues.length >= 2 ? sn.yValues[sn.yValues.length - 1] : value;
     const measureMeta = findMember(annotation, measure);
-    const measureLabel = measureMeta?.shortTitle ?? measureMeta?.title ?? measure;
+    // Per-MEASURE spec meta (label/format overrides for the split measure).
+    const measureSpecMeta = series.meta?.[measure];
+    // A per-measure `meta.label` renames THE MEASURE, so it applies to the measure
+    // half of a multi-measure label ("Revenue · Truck 1"). It cannot rename a
+    // single-measure pivot's series — those are named by their pivot VALUE, and one
+    // measure-level label would collapse every series to the same name. (Same reason
+    // a per-measure `meta.colorToken` is not applied here: it would paint every pivot
+    // value of that measure identically — see docs/02-chart-options.md §7.6.)
+    const measureLabel =
+      measureSpecMeta?.label ?? measureMeta?.shortTitle ?? measureMeta?.title ?? measure;
     const base = pivotValue ?? sn.shortTitle ?? sn.title ?? sn.key;
     const label = multiMeasure ? `${measureLabel} · ${base}` : base;
     const data = chartRows.map((row) => coerceNumber(row[sn.key]));
-    // Per-MEASURE spec meta (label/color/format overrides for the split measure).
-    const measureSpecMeta = series.meta?.[measure];
     return {
       key: sn.key,
       label,

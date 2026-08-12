@@ -1,12 +1,14 @@
 import * as React from "react";
-import { areaY, defineChart, lineY, stack, type ChartMark } from "@tanstack/charts";
+import { areaY, defineChart, dot, lineY, stack, type ChartMark } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
 
 import type { ChartComponentProps } from "./types";
 import type { AreaFamilyOptions } from "./defaults";
 import {
   annotationToAxis,
+  axisFormat,
   buildSeriesRows,
+  buildStackedRows,
   categoryChannel,
   categoryLabeler,
   categoryScale,
@@ -20,12 +22,17 @@ import {
   resolvedAxisLabels,
   seriesColor,
   seriesColorVar,
+  seriesCurve,
+  seriesDots,
   seriesLabel,
   seriesMember,
+  stackGroups,
   useTemporalBrush,
+  valueAnchor,
   valueScale,
   type CurveName,
   type SeriesRow,
+  type StackedRow,
 } from "./tanstack";
 
 /**
@@ -59,12 +66,20 @@ export function AreaChartFamily({
   // honest gaps) — see annotationToAxis. Everything else keeps the point scale.
   const temporal = React.useMemo(() => annotationToAxis(data, options), [data, options]);
   const catLabel = React.useMemo(() => categoryLabeler(temporal, format), [temporal, format]);
+  // Axis TICKS may carry their own FormatOptions (`axes.x.tickFormat`); the tooltip /
+  // crosshair / brush keep the chart-level category format.
+  const xAxis = options.axes?.x;
+  const catTick = React.useMemo(
+    () => (xAxis?.tickFormat ? categoryLabeler(temporal, axisFormat(format, xAxis)) : catLabel),
+    [temporal, format, xAxis, catLabel],
+  );
   const controls = useTemporalBrush(temporal, { label: catLabel, ariaLabel: "Time range" });
 
   const definition = React.useMemo(() => {
     const xField = categoryChannel(temporal);
     const connectNulls = fo.connectNulls ?? false;
-    const curve = chartCurve((fo.curve ?? "monotone") as CurveName);
+    const curveName = (fo.curve ?? "monotone") as CurveName;
+    const curve = chartCurve(curveName);
     const fillOpacity = fo.fillOpacity ?? 0.4;
     const strokeWidth = fo.strokeWidth ?? 2;
     const axl = resolvedAxisLabels(data, options);
@@ -101,28 +116,34 @@ export function AreaChartFamily({
       : undefined;
 
     if (stacked) {
-      // One mark over long rows: repeated x positions stack implicitly by `z`.
-      const rows = buildSeriesRows(data, { series: primaries, skipNull: connectNulls, temporal });
-      marks.push(
-        areaY(rows, {
-          id: "cv-area-stack",
-          x: xField,
-          y: "value",
-          z: "label",
-          color: "label",
-          // "i" alone collides across series inside a single multi-series mark.
-          key: (r: SeriesRow) => `${r.key}:${r.i}`,
-          // STACKED draws every series from a single mark, so the shape is a
-          // property of the whole stack — a per-series `meta.curve` cannot apply
-          // here (it does in overlap mode, where each series has its own mark).
-          curve,
-          fillOpacity,
-          // Boundary stroke; evaluated from each z-group's first row → per-series color.
-          stroke: (r: SeriesRow) => colorByKey.get(r.key) ?? "currentColor",
-          strokeWidth,
-          layout: percent ? stack({ offset: "normalize" }) : undefined,
-        }),
-      );
+      // Per-series `meta.stackId`: one areaY mark PER STACK, each stacking its own
+      // series implicitly. Separate stacks overlay each other from the shared zero
+      // baseline (the Recharts behavior — distinct stackIds were independent bands),
+      // which the translucent fill keeps readable. A single stack is the common case
+      // and renders exactly as before.
+      for (const { stackId, series: group } of stackGroups(primaries)) {
+        const rows = buildSeriesRows(data, { series: group, skipNull: connectNulls, temporal });
+        marks.push(
+          areaY(rows, {
+            id: stackId ? `cv-area-stack-${stackId}` : "cv-area-stack",
+            x: xField,
+            y: "value",
+            z: "label",
+            color: "label",
+            // "i" alone collides across series inside a single multi-series mark.
+            key: (r: SeriesRow) => `${r.key}:${r.i}`,
+            // STACKED draws a whole stack from a single mark, so the shape is a
+            // property of that stack — a per-series `meta.curve` cannot apply
+            // here (it does in overlap mode, where each series has its own mark).
+            curve,
+            fillOpacity,
+            // Boundary stroke; evaluated from each z-group's first row → per-series color.
+            stroke: (r: SeriesRow) => colorByKey.get(r.key) ?? "currentColor",
+            strokeWidth,
+            layout: percent ? stack({ offset: "normalize" }) : undefined,
+          }),
+        );
+      }
     } else {
       // Overlap mode: explicit y1 baseline opts each series out of implicit stacking,
       // so every fill runs from zero (one mark per series, like the line family).
@@ -139,7 +160,7 @@ export function AreaChartFamily({
             key: "i",
             // Per-series shape (the field pill's picker writes `meta.curve`) wins
             // over the family default wherever the series has its own mark.
-            curve: s.meta?.curve ? chartCurve(s.meta.curve as CurveName) : curve,
+            curve: chartCurve(seriesCurve(s, curveName)),
             fill: `url(#${gradientId(s.key)})`,
             // The gradient stops already carry the intended ramp, but areaY
             // defaults `fillOpacity` to 0.2 and MULTIPLIES it in — which divided
@@ -166,7 +187,7 @@ export function AreaChartFamily({
           z: "label",
           color: "label",
           key: "i",
-          curve: s.meta?.curve ? chartCurve(s.meta.curve as CurveName) : curve,
+          curve: chartCurve(seriesCurve(s, curveName)),
           strokeWidth,
           strokeDasharray: "5 4",
           strokeOpacity: 0.55,
@@ -175,8 +196,41 @@ export function AreaChartFamily({
       );
     }
 
-    marks.push(...referenceLineMarks(fo.referenceLines, temporal?.dates ?? data.categories));
-    marks.push(crosshair({ x: {}, y: false }));
+    // Point markers (`dots`, or a per-series `meta.dots` from the field pill). areaY
+    // has no `points` option, so they are their own `dot` mark — which is also what
+    // lets a STACKED dot sit on its segment's top (`y2`) instead of its raw value.
+    const dotted = new Set(
+      primaries.filter((s) => seriesDots(s, fo.dots)).map((s) => s.key),
+    );
+    if (dotted.size > 0) {
+      const dotRows = stacked
+        ? buildStackedRows(data, primaries, { normalize: percent, temporal }).filter(
+            (r) => dotted.has(r.key) && r.value !== null,
+          )
+        : buildSeriesRows(data, {
+            series: primaries.filter((s) => dotted.has(s.key)),
+            skipNull: true,
+            temporal,
+          });
+      marks.push(
+        dot(dotRows, {
+          id: "cv-area-dots",
+          x: xField,
+          y: (r: SeriesRow) => (stacked ? ((r as StackedRow).y2 ?? null) : r.value),
+          z: "label",
+          color: "label",
+          key: (r: SeriesRow) => `${r.key}:${r.i}`,
+          r: 3,
+        }),
+      );
+    }
+
+    marks.push(
+      ...referenceLineMarks(fo.referenceLines, temporal?.dates ?? data.categories, {
+        valueAnchor: valueAnchor(data),
+      }),
+    );
+    marks.push(crosshair({ x: {}, y: false, marker: true }));
 
     return defineChart({
       marks,
@@ -187,7 +241,7 @@ export function AreaChartFamily({
           ? false
           : {
               label: axl.x,
-              ticks: { format: catLabel },
+              ticks: { format: catTick },
             },
       },
       y: {
@@ -199,8 +253,12 @@ export function AreaChartFamily({
           : {
               label: axl.y,
               ticks: {
+                // `axes.y.tickFormat` re-binds the formatter for the value ticks only
+                // (percent geometry stays a local 0..1 tick, as before).
                 format: (v: number) =>
-                  percent ? percentTick(v) : format.value(v, valueMember, "axis"),
+                  percent
+                    ? percentTick(v)
+                    : axisFormat(format, options.axes?.y).value(v, valueMember, "axis"),
               },
             },
       },
@@ -213,11 +271,17 @@ export function AreaChartFamily({
       tooltip:
         options.tooltip?.show === false
           ? undefined
-          : cubeTooltip({ format, percentShare: percent, category: catLabel }),
+          : cubeTooltip({
+              format,
+              percentShare: percent,
+              category: catLabel,
+              indicator: options.tooltip?.indicator,
+              showTotal: options.tooltip?.showTotal,
+            }),
       keyboard: true,
       controls,
     });
-  }, [data, options, format, fo, stacked, percent, temporal, catLabel, controls]);
+  }, [data, options, format, fo, stacked, percent, temporal, catLabel, catTick, controls]);
 
   const label = data.series.map(seriesLabel).join(", ") || "Area chart";
   return <CvChart definition={definition} ariaLabel={label} className="cv-chart--fill" />;

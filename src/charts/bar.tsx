@@ -4,8 +4,10 @@ import { barX, barY, defineChart, group, lineY, lineX, stack, type ChartMark } f
 import type { ChartComponentProps } from "./types";
 import type { BarFamilyOptions } from "./defaults";
 import {
+  axisFormat,
   bandScale,
   buildSeriesRows,
+  buildStackedRows,
   cubeTooltip,
   CvChart,
   legendDisplay,
@@ -19,9 +21,12 @@ import {
   seriesColorVar,
   seriesLabel,
   seriesMember,
+  stackGroups,
+  valueAnchor,
   valueLabelMarks,
   valueScale,
   type SeriesRow,
+  type StackedRow,
 } from "./tanstack";
 
 /**
@@ -69,7 +74,14 @@ export function BarChartFamily({
     const mains = companions.length ? data.series.filter((s) => !s.meta?.companion) : data.series;
     const barSeries = stacked ? mains : data.series;
 
-    const rows = buildSeriesRows(data, { series: barSeries });
+    // Per-series `meta.stackId`: series sharing an id stack together, DIFFERENT ids
+    // are separate stacks drawn side by side (the Recharts contract). One stack ⇒
+    // the ordinary implicit-stacking path below, untouched.
+    const stacks = stacked ? stackGroups(barSeries) : [];
+    const multiStack = stacks.length > 1;
+    const rows = multiStack
+      ? buildStackedRows(data, barSeries, { normalize: percent })
+      : buildSeriesRows(data, { series: barSeries });
     const tokenByLabel = new Map(data.series.map((s) => [seriesLabel(s), seriesColorVar(s)]));
     const axl = resolvedAxisLabels(data, options);
     // Visual-axis semantics (as before): for a horizontal bar the category sits
@@ -78,15 +90,21 @@ export function BarChartFamily({
     const valAxis = horizontal ? options.axes?.x : options.axes?.y;
     const val = valueScale(valAxis);
     const catPadding = gapFraction(fo.barCategoryGap, 0.2);
+    // Per-axis `tickFormat` overrides re-bind the formatter for THAT axis' ticks only
+    // (the visual axes swap with `orientation`, so the category axis reads the
+    // category-side options and the value axis the value-side ones).
+    const catAxisOpts = horizontal ? options.axes?.y : options.axes?.x;
+    const catTickFormat = axisFormat(format, catAxisOpts);
+    const valTickFormat = axisFormat(format, valAxis);
     // percent stackMode is chart geometry (0..1), not a host unit rule → local tick.
     const valueMember = pivotValueMember(options) ?? seriesMember(data.series[0]);
     const valueTick = (v: number): string =>
-      percent ? percentTick(v) : format.value(v, valueMember, "axis");
+      percent ? percentTick(v) : valTickFormat.value(v, valueMember, "axis");
     const categoryAxis = catAxisHidden
       ? (false as const)
       : {
           label: axl.x,
-          ticks: { format: (v: string | number) => format.category(v) },
+          ticks: { format: (v: string | number) => catTickFormat.category(v) },
         };
     const valueAxis = valAxis?.hide
       ? (false as const)
@@ -94,16 +112,25 @@ export function BarChartFamily({
 
     // stackMode → layout: percent = normalized stack; stacked = implicit stack
     // (repeated categories stack automatically once z is set); none/grouped =
-    // explicit side-by-side geometry.
-    const layout = percent
-      ? stack({ offset: "normalize" })
-      : stacked
-        ? undefined
-        : group(fo.barGap === undefined ? {} : { padding: gapFraction(fo.barGap, 0.1) });
+    // explicit side-by-side geometry. MULTI-STACK is the fourth case: the rows
+    // carry their own [y1,y2] intervals (which opts the mark out of implicit
+    // stacking, normalize included), so the layout groups the STACKS side by side.
+    const groupLayout = group(
+      fo.barGap === undefined ? {} : { padding: gapFraction(fo.barGap, 0.1) },
+    );
+    const layout = multiStack
+      ? groupLayout
+      : percent
+        ? stack({ offset: "normalize" })
+        : stacked
+          ? undefined
+          : groupLayout;
 
     const barOptions = {
       id: "cv-bars",
-      z: "label",
+      // One stack per `meta.stackId` ⇒ the group channel is the STACK (each stack
+      // gets its own slot in the band); paint still keys on the series label.
+      z: (r: SeriesRow) => (multiStack ? (r as StackedRow).stack : r.label),
       color: "label",
       // `i` repeats across series — composite key keeps scene identity stable.
       key: (r: SeriesRow) => `${r.label} ${r.i}`,
@@ -120,9 +147,13 @@ export function BarChartFamily({
     } as const;
 
     const marks: ChartMark[] = [
-      horizontal
-        ? barX(rows, { ...barOptions, x: "value", y: "cat" })
-        : barY(rows, { ...barOptions, x: "cat", y: "value" }),
+      multiStack
+        ? horizontal
+          ? barX(rows as StackedRow[], { ...barOptions, x1: "y1", x2: "y2", y: "cat" })
+          : barY(rows as StackedRow[], { ...barOptions, x: "cat", y1: "y1", y2: "y2" })
+        : horizontal
+          ? barX(rows, { ...barOptions, x: "value", y: "cat" })
+          : barY(rows, { ...barOptions, x: "cat", y: "value" }),
     ];
 
     // Stacked previous-period overlay: dashed step line of companion totals.
@@ -158,9 +189,29 @@ export function BarChartFamily({
       }
     }
 
-    marks.push(...referenceLineMarks(fo.referenceLines, data.categories, { swap: horizontal }));
-    if (fo.showValueLabels && !percent) {
-      marks.push(...valueLabelMarks(rows, format, { swap: horizontal }));
+    marks.push(
+      ...referenceLineMarks(fo.referenceLines, data.categories, {
+        swap: horizontal,
+        valueAnchor: valueAnchor(data),
+      }),
+    );
+    if (fo.showValueLabels) {
+      // A stacked bar's segment sits at its CUMULATIVE top, and in percent mode on a
+      // 0..1 axis — so stacked labels ride pre-computed stack rows (and print the
+      // share, which is what the normalized geometry actually shows). Grouped/none
+      // keeps labelling the raw value at the bar's own height.
+      const labelRows = stacked
+        ? multiStack
+          ? (rows as StackedRow[])
+          : buildStackedRows(data, barSeries, { normalize: percent })
+        : rows;
+      marks.push(
+        ...valueLabelMarks(labelRows, format, {
+          swap: horizontal,
+          share: percent,
+          stacked,
+        }),
+      );
     }
 
     return defineChart({
@@ -181,7 +232,21 @@ export function BarChartFamily({
       tooltip:
         options.tooltip?.show === false
           ? undefined
-          : cubeTooltip({ format, percentShare: percent }),
+          : cubeTooltip({
+              format,
+              // Multi-stack percent shares are per STACK, not per category, so the
+              // row carries its own share and the generic denominator is bypassed.
+              percentShare: percent && !multiStack,
+              value:
+                percent && multiStack
+                  ? (p) => {
+                      const share = (p.datum as StackedRow).share;
+                      return typeof share === "number" ? percentTick(share) : "";
+                    }
+                  : undefined,
+              indicator: options.tooltip?.indicator,
+              showTotal: options.tooltip?.showTotal,
+            }),
       keyboard: true,
     });
   }, [data, options, format, fo]);

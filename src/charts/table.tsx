@@ -197,13 +197,16 @@ function resolveColumns(
       const isMeasure = ann ? member in ann.measures : false;
       const label = c.label ?? meta?.shortTitle ?? meta?.title ?? member;
       const align: TableColumnOpt["align"] = c.align ?? (isMeasure ? "right" : "left");
+      // Per-column `format` (decimals/prefix/suffix/currency/dateFormat/kind) re-binds
+      // the formatter for THIS column only, merged over the chart-level `format`.
+      const columnFormat = c.format && format.derive ? format.derive(c.format) : format;
       return {
         member,
         key,
         label,
         align,
         width: c.width,
-        render: (value: unknown) => renderCell(value, isMeasure, member, format),
+        render: (value: unknown) => renderCell(value, isMeasure, member, columnFormat),
       };
     });
 }

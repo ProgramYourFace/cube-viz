@@ -21,6 +21,7 @@ import {
   legendPlacement,
   percentTick,
   seriesMember,
+  tooltipClassName,
 } from "./tanstack";
 
 /** One slice in mark-ready form: the category label doubles as the stable key
@@ -66,6 +67,11 @@ export function PieChartFamily({ data, options, format }: ChartComponentProps): 
 
   // 1) categories × first series → raw slices; 2) top-N + "Other" rollup;
   // 3) palette tokens by post-rollup index (legend and fill always agree).
+  // A pie's "series" are its SLICES (one per category), so the envelope's
+  // `colors.ramp` is what applies here — cycled by post-rollup slice index.
+  // (`colors.byKey` is keyed by SERIES key and has no slice to bind to, so it does
+  // not apply to pie; see docs/02-chart-options.md §7.6.)
+  const ramp = options.colors?.ramp?.length ? options.colors.ramp : DEFAULT_COLOR_RAMP;
   const slices: SliceRow[] = React.useMemo(() => {
     const raw = data.categories.map((cat, i) => ({
       label: format.category(cat),
@@ -73,9 +79,9 @@ export function PieChartFamily({ data, options, format }: ChartComponentProps): 
     }));
     return rollupSlices(raw, fo.maxSlices).map((s, i) => ({
       ...s,
-      token: DEFAULT_COLOR_RAMP[i % DEFAULT_COLOR_RAMP.length],
+      token: ramp[i % ramp.length],
     }));
-  }, [data, format, measure, fo.maxSlices]);
+  }, [data, format, measure, fo.maxSlices, ramp]);
 
   const total = slices.reduce((sum, s) => sum + s.value, 0);
   // Negative values break pie geometry (the pie transform rejects them) and
@@ -139,6 +145,8 @@ export function PieChartFamily({ data, options, format }: ChartComponentProps): 
       );
     }
 
+    // The center label lives in the DONUT HOLE: on a full pie it would land on top of
+    // the slices, so it is donut-only (`innerRadiusPct > 0`) — as it was pre-migration.
     if (isDonut && fo.centerLabel) {
       const big =
         fo.centerLabel.value === undefined || fo.centerLabel.value === "total"
@@ -214,7 +222,7 @@ export function PieChartFamily({ data, options, format }: ChartComponentProps): 
           ? undefined
           : {
               use: tooltip,
-              className: "cv-chart-tooltip",
+              className: tooltipClassName(options.tooltip?.indicator),
               content: (
                 untypedPoints: readonly ChartPoint<unknown, ChartValue, ChartValue>[],
               ): ChartTooltipContent => {
