@@ -418,11 +418,31 @@ search row, that hides every row that cannot be added **for any reason** (`src/e
 - The data-source control beside it (all related tables vs a saved Cube view) renders **only when it
   has more than one option** — with no views published, or a chart already anchored to one, the menu
   could change nothing, so it is not drawn at all.
-- The choice persists under `localStorage["cube-viz:field-picker:only-compatible"]`, read through a
+- The glyph is lucide **`ListChecks`**, not `ListFilter`: the top bar's query-filter button already
+  owns the funnel-ish decreasing lines, and one glyph doing double duty made this control read as
+  *"filter the data"*. A checked list says what it actually does — *of the entries in this list,
+  the ones that fit here* — and its left-hand ticks stay unmistakable beside the top bar at 16px in
+  both themes (`screenshots/field-picker-compatible-only{,-dark}.png`).
+- The choice is **one shared, observable value for the whole editor** (`onlyCompatibleStore` in
+  `picker-filter.ts`), consumed with `useSyncExternalStore`. It is *not* per-popover state seeded
+  from storage: the editor mounts one picker per well up front, so a local copy taken at mount time
+  never learns that the user flipped the switch in a different slot — the bug that left the Values
+  slot listing every date and dimension under *"Values takes a measure"* while its own toggle read
+  `aria-pressed="false"`. The store also adopts a change made in another tab (`storage` event) and
+  keeps working where `localStorage` cannot be written at all (it just does not survive a reload).
+- It persists under `localStorage["cube-viz:field-picker:only-compatible"]`, read through a
   guard that tolerates no storage at all (SSR) and a `localStorage` access that *throws* (hardened
   WebView / blocked cookies). **Default OFF** — the option was the request, not a behavior change.
+- A member Cube models as a `type: "number"` **dimension** (a coordinate, a heading) is reported by
+  `listMembers` under *both* `numberDimension` and the plain `dimension` bucket, so `groupsFor`
+  de-duplicates per table and keeps the FIRST hit — and since `kindOrder` leads with the kinds the
+  slot accepts, the surviving row is the placeable one.
 - Tests: `src/editor/chart/onchart/picker-filter.test.ts` (the hidden set incl. the
-  distance-vs-litres case, and the persistence guard).
+  distance-vs-litres case, the persistence guard, and the shared store). The end-to-end invariant —
+  *with the toggle on, no slot in any table renders a row it would refuse* — is asserted in the DOM
+  by `verifyCompatibilityInvariant` in `scripts/shots.mjs`, over every add-slot of
+  `/editor.html?seed=empty`, once per slot the switch was flipped in. A screenshot cannot see it:
+  the leak was in the slots the camera was not pointed at.
 
 ---
 

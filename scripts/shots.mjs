@@ -16,6 +16,11 @@
  * FAILS LOUDLY (non-zero exit) on a console error, a page error, a missing target
  * selector, or a shot that never painted — a silent blank PNG is worse than none.
  *
+ * It also runs one check that is NOT a picture: `verifyCompatibilityInvariant` asserts
+ * that with the field picker's "Only compatible fields" switch on, no slot — in any
+ * table — renders a row it would refuse. A screenshot of one slot cannot see that,
+ * because the bug it guards leaked in the slots the camera was not pointed at.
+ *
  * What it does NOT prove is that each of the type picker's tiles drew the chart type it
  * is a picture OF: a shot only shows that something painted, and the picker's tiles all
  * look plausible individually. `scripts/verify-type-picker.mjs` asserts that structurally
@@ -255,6 +260,146 @@ async function openFieldPickerFiltered(page) {
   await assertNamedControls(page, "field-picker-compatible-only");
 }
 
+/**
+ * THE INVARIANT: with "Only compatible fields" on, the picker must not render a row it
+ * would refuse — in any slot, in any table, in any picker that offers the toggle.
+ *
+ * This is asserted structurally rather than photographed, because the bug it guards
+ * looked fine in a screenshot of the slot where the switch was flipped: the preference
+ * used to be per-popover state seeded from storage at MOUNT, and the editor mounts one
+ * picker per well up front, so turning the switch on in "Split by" left the Values
+ * slot's picker listing every date and dimension it has under "Values takes a measure".
+ * A row is a leak when it shows a reason or reports `aria-disabled` — the two things a
+ * refused row is made of.
+ */
+async function assertNoBlockedRows(page, where) {
+  const leaked = await page.$$eval(`.cv-picker ${PICKER_ROWS}`, (nodes) =>
+    nodes
+      .filter(
+        (el) =>
+          el.getAttribute("aria-disabled") === "true" ||
+          (el.querySelector(".cv-picker-row-reason")?.textContent ?? "").trim().length > 0,
+      )
+      .map((el) => {
+        const label = (el.querySelector(".cv-ec-truncate, .cv-picker-row-label")?.textContent ?? "").trim();
+        const reason = (el.querySelector(".cv-picker-row-reason")?.textContent ?? "").trim();
+        return `${label || "(unlabelled)"} — ${reason || "aria-disabled"}`;
+      }),
+  );
+  if (leaked.length > 0) {
+    failures.push(
+      `${where}: "Only compatible fields" is ON yet ${leaked.length} unusable row(s) are ` +
+        `rendered — ${leaked.slice(0, 6).join("; ")}${leaked.length > 6 ? "; …" : ""}`,
+    );
+  }
+  // The rows are only trustworthy if this picker really is the one that is filtering:
+  // a stale local copy of the preference showed `aria-pressed="false"` right next to
+  // the rows it should have hidden.
+  const pressed = await page.locator(".cv-picker-compat").first().getAttribute("aria-pressed");
+  if (pressed !== "true") {
+    failures.push(`${where}: the shared "Only compatible fields" choice did not reach this picker (aria-pressed=${pressed})`);
+  }
+}
+
+/** Expand every collapsed table section so related tables' rows are on screen too. */
+async function expandAllTables(page) {
+  const count = await page.locator(".cv-picker-table").count();
+  for (let i = 0; i < count; i += 1) {
+    const collapsed = await page.evaluate((index) => {
+      const header = document.querySelectorAll(".cv-picker-table")[index];
+      if (!header) return false;
+      let el = header.nextElementSibling;
+      let rows = 0;
+      while (el && !el.classList.contains("cv-picker-table")) {
+        rows += el.querySelectorAll(".cv-picker-row, .cv-picker-row--disabled").length;
+        el = el.nextElementSibling;
+      }
+      return rows === 0;
+    }, i);
+    if (collapsed) await page.locator(".cv-picker-table").nth(i).click();
+  }
+}
+
+/**
+ * Drive the invariant over EVERY add-slot the editor offers (`?seed=empty` leaves them
+ * all empty, so Values / Category / Split by are all reachable), turning the switch on
+ * in one slot and then checking the others — the cross-slot case is the whole point.
+ * Each slot gets a turn at being the one where the switch was flipped.
+ */
+async function verifyCompatibilityInvariant(browser, baseUrl) {
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    locale: "en-US",
+    timezoneId: "UTC",
+    colorScheme: "light",
+    reducedMotion: "reduce",
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push(`console: ${m.text()}`);
+  });
+  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+
+  const open = async (label) => {
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
+    const trigger = page.getByRole("button", { name: new RegExp(`^${label}$`, "i") }).first();
+    await trigger.waitFor({ state: "visible", timeout: 15_000 });
+    await trigger.click();
+    await page.locator(".cv-picker").waitFor({ state: "visible", timeout: 15_000 });
+    await expandAllTables(page);
+  };
+
+  try {
+    await page.goto(`${baseUrl}/editor.html?seed=empty`, { waitUntil: "load", timeout: 60_000 });
+    await page.waitForSelector('[data-slot="chart-edit-overlay"]', { state: "visible", timeout: 30_000 });
+    await page.waitForTimeout(1000);
+
+    const slots = await page.$$eval(".cv-well-add", (nodes) => nodes.map((n) => n.textContent.trim()));
+    if (slots.length < 2) {
+      failures.push(`compat-invariant: expected several add-slots to check, found ${JSON.stringify(slots)}`);
+      return;
+    }
+
+    for (const flippedIn of slots) {
+      // Turn the switch ON here…
+      await open(flippedIn);
+      if ((await page.locator('.cv-picker-compat[aria-pressed="true"]').count()) === 0) {
+        await page.locator(".cv-picker-compat").click();
+        await page.locator('.cv-picker-compat[aria-pressed="true"]').waitFor({ timeout: 15_000 });
+        await expandAllTables(page);
+      }
+      await assertNoBlockedRows(page, `compat-invariant: slot "${flippedIn}" (switched on here)`);
+
+      // …and every OTHER slot must already be hiding the same rows.
+      for (const slot of slots.filter((s) => s !== flippedIn)) {
+        await open(slot);
+        await assertNoBlockedRows(page, `compat-invariant: slot "${slot}" (after switching on in "${flippedIn}")`);
+      }
+
+      // Reset for the next round so each slot gets to be the one that was flipped.
+      await open(flippedIn);
+      await page.locator(".cv-picker-compat").click();
+      await page.locator('.cv-picker-compat[aria-pressed="false"]').waitFor({ timeout: 15_000 });
+    }
+
+    if (errors.length > 0) {
+      failures.push(
+        `compat-invariant: ${errors.length} page error(s)\n    ${errors.slice(0, 5).join("\n    ")}`,
+      );
+    }
+    console.log(
+      `[check] compat-invariant     ${slots.length} slot(s) × ${slots.length} switch position(s) — ` +
+        `no unusable row rendered with "Only compatible fields" on`,
+    );
+  } catch (err) {
+    failures.push(`compat-invariant: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    await context.close();
+  }
+}
+
 async function openTypePicker(page) {
   // Its accessible name is the CURRENT family's label ("Line") — the `title` is only a
   // tooltip — so scope by role+name and cross-check the title so a label change is loud.
@@ -358,6 +503,20 @@ try {
     prepare: openFieldPickerFiltered,
     describe: 'field picker, "Only compatible fields" on (hidden count shown)',
   });
+  await shot(browser, baseUrl, {
+    // The toggle is icon-only and its pressed state is a tinted `--primary` fill, so
+    // the DARK theme is where "does this glyph still read at 16px?" is actually
+    // answered — the light shot alone cannot show it.
+    name: "field-picker-compatible-only-dark",
+    path: "/editor.html?seed=measures&theme=dark",
+    waitFor: '[data-slot="chart-edit-overlay"] svg',
+    forbid: EDITOR_FORBID,
+    prepare: openFieldPickerFiltered,
+    describe: 'field picker, "Only compatible fields" on, dark theme',
+  });
+
+  // Not a shot — the assertion a shot cannot make (see assertNoBlockedRows).
+  await verifyCompatibilityInvariant(browser, baseUrl);
 } finally {
   await browser?.close();
   await close();

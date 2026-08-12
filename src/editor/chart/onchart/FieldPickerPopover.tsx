@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Calendar, Check, ChevronDown, ChevronRight, Database, Hash, Layers, ListFilter, MapPin, Search, Table2, Type } from "lucide-react";
+import { Calendar, Check, ChevronDown, ChevronRight, Database, Hash, Layers, ListChecks, MapPin, Search, Table2, Type } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
@@ -20,8 +20,7 @@ import type { JoinScope } from "./join-scope";
 import {
   candidateReason,
   isAvailable,
-  readOnlyCompatible,
-  writeOnlyCompatible,
+  onlyCompatibleStore,
   type FieldCandidate,
 } from "./picker-filter";
 
@@ -95,7 +94,9 @@ interface PickGroup {
  * row (`aria-pressed` + a filled pressed state, since a WebView has no hover to lean
  * on). Because hiding costs discoverability, it still states how many rows it took
  * away — a numeric badge on the icon plus the tooltip — and an emptied list offers to
- * show them back. The choice persists (localStorage, guarded) and defaults to OFF.
+ * show them back. The choice is ONE shared, observable value for every picker on the
+ * page ({@link onlyCompatibleStore}) — not a per-popover copy — persists (localStorage,
+ * guarded) and defaults to OFF.
  */
 export function FieldPickerPopover({
   well,
@@ -111,13 +112,17 @@ export function FieldPickerPopover({
   const { meta, isLoading } = useCubeMeta();
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
-  // "Only compatible fields" — read ONCE (lazily) from storage so the choice survives
-  // popover opens and reloads; every write goes back through the guarded setter.
-  const [onlyCompatible, setOnlyCompatibleState] = React.useState<boolean>(readOnlyCompatible);
-  const setOnlyCompatible = React.useCallback((on: boolean): void => {
-    setOnlyCompatibleState(on);
-    writeOnlyCompatible(on);
-  }, []);
+  // "Only compatible fields" — the SHARED choice (see `onlyCompatibleStore`). Read
+  // through the store rather than a local `useState` seeded from storage: the editor
+  // mounts one of these per well up front, so a local copy taken at mount time never
+  // learns that the user flipped the switch in a different slot, and that slot's list
+  // goes on rendering rows it promised to hide.
+  const onlyCompatible = React.useSyncExternalStore(
+    onlyCompatibleStore.subscribe,
+    onlyCompatibleStore.get,
+    onlyCompatibleStore.getServer,
+  );
+  const setOnlyCompatible = onlyCompatibleStore.set;
   const searchId = React.useId();
   // Which source we're browsing: the raw table graph, or a specific view.
   const [browse, setBrowse] = React.useState<string>(scope.viewLocked ?? "tables");
@@ -164,6 +169,14 @@ export function FieldPickerPopover({
   const groupsFor = (cubeName: string): PickGroup[] => {
     const order: string[] = [];
     const byKey = new Map<string, PickGroup>();
+    // Cube models a per-row number (a coordinate, a heading) as a `type: "number"`
+    // DIMENSION, and `listMembers` reports it under BOTH `numberDimension` and the
+    // plain `dimension` bucket — so without this the same member is listed twice in
+    // one table, under two different kinds and (since the buckets differ) often two
+    // different headings, with React warning about the duplicated row key. Keeping the
+    // FIRST hit is what makes it right rather than merely unique: `kindOrder` leads
+    // with the kinds this slot ACCEPTS, so the surviving row is the placeable one.
+    const seen = new Set<string>();
     for (const k of kindOrder) {
       const gm = GROUP_META[k];
       // The slot-level reason ("Slices takes a date or category") — undefined for the
@@ -179,7 +192,9 @@ export function FieldPickerPopover({
       }
       for (const o of members) {
         if (placedSet.has(o.name)) continue;
+        if (seen.has(o.name)) continue;
         if (q && !(o.label.toLowerCase().includes(q) || o.name.toLowerCase().includes(q))) continue;
+        seen.add(o.name);
         const group = memberGroup(o);
         // Fallback buckets key by LABEL (not kind) so kinds sharing a label merge.
         const key = group ? `g:${group.toLowerCase()}` : `k:${gm.label}`;
@@ -287,7 +302,14 @@ export function FieldPickerPopover({
           {/* The compatibility toggle. A plain button (no Radix Switch in this package)
               so it is keyboard- and WebView-native; `aria-pressed` + the filled state
               carry the meaning, and the badge is the discoverability receipt for
-              everything it removed — the tooltip repeats it for the sighted-hover case. */}
+              everything it removed — the tooltip repeats it for the sighted-hover case.
+
+              The glyph is `ListChecks`, NOT `ListFilter`: the top bar's query-filter
+              button already owns the funnel-ish decreasing lines, and one glyph doing
+              double duty is why this control read as "filter the data" instead of
+              "only the fields that fit here". A checked list says exactly that — it is
+              about the LIST in front of you and which of its entries qualify — and its
+              left-hand ticks keep it unmistakable beside the top bar at 16px. */}
           <button
             type="button"
             aria-pressed={onlyCompatible}
@@ -296,7 +318,7 @@ export function FieldPickerPopover({
             onClick={() => setOnlyCompatible(!onlyCompatible)}
             className={cn("cv-picker-compat", onlyCompatible && "cv-picker-compat--on")}
           >
-            <ListFilter className="cv-ec-icon" />
+            <ListChecks className="cv-ec-icon" />
             {onlyCompatible && hiddenCount > 0 ? (
               <span className="cv-picker-compat-count">{hiddenCount}</span>
             ) : null}

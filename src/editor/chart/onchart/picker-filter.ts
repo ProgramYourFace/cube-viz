@@ -90,6 +90,18 @@ export function partitionByAvailability<T extends { reason?: string }>(
 /** Namespaced so the host page's storage stays legible; see {@link readOnlyCompatible}. */
 export const ONLY_COMPATIBLE_KEY = "cube-viz:field-picker:only-compatible";
 
+/** Every field picker mounted right now renders from this ONE value. */
+export interface OnlyCompatibleStore {
+  /** The current choice (React `useSyncExternalStore`'s `getSnapshot`). */
+  get: () => boolean;
+  /** The server's answer: nothing is hidden until the client knows the preference. */
+  getServer: () => boolean;
+  /** Set it for EVERY picker and persist it. */
+  set: (on: boolean) => void;
+  /** Re-render on change — including a change made in another tab. */
+  subscribe: (onChange: () => void) => () => void;
+}
+
 /**
  * `localStorage`, or undefined when it cannot be used. Every access is guarded:
  * server rendering has no `localStorage` at all, and a WebView (or Safari private
@@ -127,3 +139,83 @@ export function writeOnlyCompatible(on: boolean): void {
     /* quota exceeded / storage disabled — the preference is a nicety, never a failure */
   }
 }
+
+/* ───────────────────────── the SHARED switch (one per app) ───────────────────────── */
+
+/**
+ * "Only compatible fields" is ONE choice about how the user wants to be shown fields,
+ * not a per-popover setting — so it lives in ONE observable place and every picker
+ * renders from it.
+ *
+ * It used to be `useState(readOnlyCompatible)` inside {@link FieldPickerPopover}, which
+ * looks equivalent (the value is persisted, so a fresh mount picks it up) and is not:
+ * the editor mounts EVERY well's picker up front, so all of them read storage before
+ * the user has touched anything. Flipping the switch in one popover then wrote the
+ * preference and re-rendered only THAT instance; every sibling kept its stale `false`
+ * and went on listing rows it should have hidden — the Values slot happily offering
+ * dates and dimensions under "Values takes a measure" while the user believed the
+ * switch was on. A shared store makes the invariant structural: there is no second
+ * copy of the answer to drift.
+ *
+ * The snapshot is read from storage ONCE at module load and thereafter kept in memory,
+ * so the switch still works where `localStorage` cannot be written at all (a hardened
+ * WebView, private mode, blocked cookies) — it just does not survive a reload there.
+ */
+let snapshot = readOnlyCompatible();
+const listeners = new Set<() => void>();
+/** Detach for the `storage` (other-tab) listener; attached only while anyone listens. */
+let detachStorage: (() => void) | undefined;
+
+function emit(): void {
+  // Copy: a listener may unsubscribe (unmount) while we are notifying.
+  for (const listener of [...listeners]) listener();
+}
+
+/** Adopt a value written elsewhere (another tab) — ignored when it changes nothing. */
+function adopt(next: boolean): void {
+  if (next === snapshot) return;
+  snapshot = next;
+  emit();
+}
+
+function attachStorageListener(): void {
+  if (detachStorage) return;
+  // Not every host has a DOM event target (SSR, a worker) — feature-detect, do not
+  // assume `window`.
+  const target: Partial<EventTarget> = globalThis;
+  if (typeof target.addEventListener !== "function") return;
+  const onStorage = (event: Event): void => {
+    const { key } = event as StorageEvent;
+    // `key === null` is a whole-storage clear() — re-read either way.
+    if (key !== null && key !== ONLY_COMPATIBLE_KEY) return;
+    adopt(readOnlyCompatible());
+  };
+  target.addEventListener("storage", onStorage);
+  detachStorage = () => target.removeEventListener?.("storage", onStorage);
+}
+
+/**
+ * The one "Only compatible fields" choice. Import this — never a local `useState` seeded
+ * from {@link readOnlyCompatible} — so every open picker agrees on what it is hiding.
+ */
+export const onlyCompatibleStore: OnlyCompatibleStore = {
+  get: () => snapshot,
+  // Server-rendered markup shows everything; the client adopts the stored choice on
+  // hydration. (Rendering the hidden list on the server would mismatch anyway.)
+  getServer: () => false,
+  set: (on) => {
+    writeOnlyCompatible(on);
+    adopt(on);
+  },
+  subscribe: (onChange) => {
+    listeners.add(onChange);
+    attachStorageListener();
+    return () => {
+      listeners.delete(onChange);
+      if (listeners.size === 0) {
+        detachStorage?.();
+        detachStorage = undefined;
+      }
+    };
+  },
+};

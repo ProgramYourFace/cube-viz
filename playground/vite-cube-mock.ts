@@ -32,6 +32,27 @@ import type { Connect, Plugin } from "vite";
  * `trips.start_time.day` in exactly that format — the same pair real Cube returns —
  * so the buckets line up and values actually land on the chart.
  *
+ * ── WHY THE MODEL IS THIS BIG ──
+ *
+ * A one-cube model cannot exercise the editor's cross-table code at all, and every
+ * bug that only shows up on a real deployment hides in exactly that gap. So the model
+ * below deliberately mirrors the shape of a real Cube project:
+ *
+ *  - FOUR fact/dimension cubes joined through `meta.joinTargets`, so the field picker
+ *    renders its "Related tables" sections (`section.tag === "related"`, collapsed by
+ *    default) rather than a single flat list;
+ *  - SEVERAL time dimensions per cube, exactly one of them `meta.canonicalTime`, so
+ *    the "default" date badge and the auto-filled time well are both exercised;
+ *  - semantic `meta.group`s (Fuel / Safety / Location / Health) that deliberately MIX
+ *    measures, plain dimensions, numeric dimensions and dates inside ONE group — the
+ *    picker's group-fallback logic branches on precisely that;
+ *  - `meta.unit` / `meta.quantity` on the measures (km, L, km/h, h, %) so the value
+ *    axis' unit rule has something to accept and something to refuse;
+ *  - model-authored `meta.geoPoint` / `meta.geoRole` coordinate pairs, which is how a
+ *    real model publishes numeric dimensions that are ALSO a synthetic geo member;
+ *  - a curated VIEW (`type: "view"`) with prefixed members, so the source control and
+ *    the view-locked join scope have a second option to offer.
+ *
  * DETERMINISM: no `Math.random`, no `Date.now`. Every measure value is a pure
  * function of (measure, dimension values, bucket index), and relative date ranges
  * resolve against a FIXED {@link TODAY}. Two runs produce byte-identical rows, which
@@ -50,6 +71,12 @@ interface MockMeasure {
   title: string;
   shortTitle: string;
   meta?: Record<string, unknown>;
+  /** The plausible magnitude a synthesized value is scaled to (see measureValue). */
+  scale?: number;
+  /** A rate (speed, %, score): stays in a band around `scale` instead of ramping from 0. */
+  rate?: boolean;
+  /** Whole numbers only (counts, event tallies). */
+  integer?: boolean;
 }
 interface MockDimension {
   name: string;
@@ -59,98 +86,452 @@ interface MockDimension {
   values?: string[];
   meta?: Record<string, unknown>;
 }
+interface MockCube {
+  name: string;
+  title: string;
+  description: string;
+  type: "cube" | "view";
+  /** Cube's weak join component; every table here belongs to the one fleet graph. */
+  connectedComponent: number;
+  /** Direct outbound join edges — what `join-scope.ts` walks (it fails closed). */
+  joinTargets?: string[];
+  measures: MockMeasure[];
+  dimensions: MockDimension[];
+}
 
-const MEASURES: MockMeasure[] = [
-  { name: "trips.count", title: "Trips Count", shortTitle: "Trips" },
-  {
-    name: "trips.total_distance",
-    title: "Trips Total Distance",
-    shortTitle: "Distance",
-    meta: { unit: "km", quantity: "distance", group: "Trip metrics" },
-  },
-  {
-    name: "trips.fuel",
-    title: "Trips Fuel Used",
-    shortTitle: "Fuel",
-    meta: { unit: "L", quantity: "volume", group: "Fuel" },
-  },
-  {
-    name: "trips.avg_speed",
-    title: "Trips Average Speed",
-    shortTitle: "Avg speed",
-    meta: { unit: "km/h", quantity: "speed", group: "Trip metrics" },
-  },
-];
+/**
+ * `trips` — the fact table every chart in the playground is anchored to. Its measures
+ * and dimensions keep the names, titles and value ranges they had when this mock served
+ * one cube, so the seeded specs and every screenshot of them are unchanged.
+ */
+const TRIPS: MockCube = {
+  name: "trips",
+  title: "Trips",
+  description: "Fleet trip facts (offline mock)",
+  type: "cube",
+  connectedComponent: 1,
+  joinTargets: ["devices", "drivers", "geofences"],
+  measures: [
+    { name: "trips.count", title: "Trips Count", shortTitle: "Trips", scale: 24, integer: true },
+    {
+      name: "trips.total_distance",
+      title: "Trips Total Distance",
+      shortTitle: "Distance",
+      meta: { unit: "km", quantity: "distance", group: "Trip metrics" },
+      scale: 310,
+    },
+    {
+      name: "trips.fuel",
+      title: "Trips Fuel Used",
+      shortTitle: "Fuel",
+      meta: { unit: "L", quantity: "volume", group: "Fuel" },
+      scale: 46,
+    },
+    {
+      name: "trips.avg_speed",
+      title: "Trips Average Speed",
+      shortTitle: "Avg speed",
+      meta: { unit: "km/h", quantity: "speed", group: "Trip metrics" },
+      scale: 52,
+      rate: true,
+    },
+    {
+      name: "trips.idle_fuel",
+      title: "Trips Idle Fuel",
+      shortTitle: "Idle fuel",
+      // A SECOND volume measure: the value axis' unit rule needs both a field it
+      // accepts alongside Fuel and fields it must refuse.
+      meta: { unit: "L", quantity: "volume", group: "Fuel" },
+      scale: 8,
+    },
+    {
+      name: "trips.harsh_braking",
+      title: "Trips Harsh Braking Events",
+      shortTitle: "Harsh braking",
+      meta: { group: "Safety" },
+      scale: 6,
+      integer: true,
+    },
+  ],
+  dimensions: [
+    {
+      name: "trips.vehicle",
+      title: "Trips Vehicle",
+      shortTitle: "Vehicle",
+      type: "string",
+      values: ["Truck 1", "Truck 2", "Van A", "Van B", "Pickup"],
+    },
+    {
+      name: "trips.region",
+      title: "Trips Region",
+      shortTitle: "Region",
+      type: "string",
+      values: ["North", "South", "West"],
+      meta: { group: "Location" },
+    },
+    {
+      name: "trips.fuel_grade",
+      title: "Trips Fuel Grade",
+      shortTitle: "Fuel grade",
+      type: "string",
+      values: ["Diesel", "Petrol", "Electric"],
+      // Same semantic group as the `trips.fuel` MEASURE — a mixed-kind group.
+      meta: { group: "Fuel" },
+    },
+    {
+      name: "trips.risk_band",
+      title: "Trips Risk Band",
+      shortTitle: "Risk band",
+      type: "string",
+      values: ["Low", "Medium", "High"],
+      meta: { group: "Safety" },
+    },
+    {
+      name: "trips.start_lat",
+      title: "Trips Start Latitude",
+      shortTitle: "Start latitude",
+      type: "number",
+      values: ["51.5", "52.2", "53.4"],
+      meta: { group: "Location", geoPoint: "Start point", geoRole: "latitude" },
+    },
+    {
+      name: "trips.start_lng",
+      title: "Trips Start Longitude",
+      shortTitle: "Start longitude",
+      type: "number",
+      values: ["-0.12", "0.14", "-2.98"],
+      meta: { group: "Location", geoPoint: "Start point", geoRole: "longitude" },
+    },
+    {
+      name: "trips.start_time",
+      title: "Trips Start Time",
+      shortTitle: "Start time",
+      type: "time",
+      // The cube's primary event time — auto-filled into empty time wells by the editor.
+      meta: { canonicalTime: true },
+    },
+    {
+      name: "trips.end_time",
+      title: "Trips End Time",
+      shortTitle: "End time",
+      type: "time",
+    },
+    {
+      name: "trips.recorded_at",
+      title: "Trips Recorded At",
+      shortTitle: "Recorded at",
+      type: "time",
+      // A DATE inside a semantic group: "Safety" now mixes measure + dimension + date.
+      meta: { group: "Safety" },
+    },
+  ],
+};
 
-const DIMENSIONS: MockDimension[] = [
-  {
-    name: "trips.vehicle",
-    title: "Trips Vehicle",
-    shortTitle: "Vehicle",
-    type: "string",
-    values: ["Truck 1", "Truck 2", "Van A", "Van B", "Pickup"],
-  },
-  {
-    name: "trips.region",
-    title: "Trips Region",
-    shortTitle: "Region",
-    type: "string",
-    values: ["North", "South", "West"],
-  },
-  {
-    name: "trips.start_time",
-    title: "Trips Start Time",
-    shortTitle: "Start time",
-    type: "time",
-    // The cube's primary event time — auto-filled into empty time wells by the editor.
-    meta: { canonicalTime: true },
-  },
-];
+const DEVICES: MockCube = {
+  name: "devices",
+  title: "Devices",
+  description: "Telematics units installed in the fleet",
+  type: "cube",
+  connectedComponent: 1,
+  joinTargets: ["trips"],
+  measures: [
+    { name: "devices.count", title: "Devices Count", shortTitle: "Devices", scale: 12, integer: true },
+    {
+      name: "devices.avg_battery",
+      title: "Devices Average Battery",
+      shortTitle: "Avg battery",
+      meta: { unit: "%", quantity: "ratio", group: "Health" },
+      scale: 78,
+      rate: true,
+    },
+    {
+      name: "devices.uptime",
+      title: "Devices Uptime",
+      shortTitle: "Uptime",
+      meta: { unit: "h", quantity: "duration", group: "Health" },
+      scale: 640,
+    },
+  ],
+  dimensions: [
+    {
+      name: "devices.name",
+      title: "Devices Name",
+      shortTitle: "Device",
+      type: "string",
+      values: ["TU-1001", "TU-1002", "TU-1003"],
+    },
+    {
+      name: "devices.model",
+      title: "Devices Model",
+      shortTitle: "Model",
+      type: "string",
+      values: ["LMU-3030", "LMU-4200"],
+    },
+    {
+      name: "devices.firmware",
+      title: "Devices Firmware",
+      shortTitle: "Firmware",
+      type: "string",
+      values: ["2.4.1", "2.5.0"],
+      meta: { group: "Health" },
+    },
+    {
+      name: "devices.installed_at",
+      title: "Devices Installed At",
+      shortTitle: "Installed at",
+      type: "time",
+      meta: { canonicalTime: true },
+    },
+    {
+      name: "devices.last_seen_at",
+      title: "Devices Last Seen At",
+      shortTitle: "Last seen",
+      type: "time",
+      meta: { group: "Health" },
+    },
+  ],
+};
+
+const DRIVERS: MockCube = {
+  name: "drivers",
+  title: "Drivers",
+  description: "Driver roster and safety scoring",
+  type: "cube",
+  connectedComponent: 1,
+  joinTargets: ["trips"],
+  measures: [
+    { name: "drivers.count", title: "Drivers Count", shortTitle: "Drivers", scale: 18, integer: true },
+    {
+      name: "drivers.safety_score",
+      title: "Drivers Safety Score",
+      shortTitle: "Safety score",
+      meta: { group: "Safety" },
+      scale: 84,
+      rate: true,
+    },
+    {
+      name: "drivers.avg_shift",
+      title: "Drivers Average Shift",
+      shortTitle: "Avg shift",
+      meta: { unit: "h", quantity: "duration", group: "Shifts" },
+      scale: 7.5,
+      rate: true,
+    },
+  ],
+  dimensions: [
+    {
+      name: "drivers.name",
+      title: "Drivers Name",
+      shortTitle: "Driver",
+      type: "string",
+      values: ["A. Novak", "B. Silva", "C. Weber"],
+    },
+    {
+      name: "drivers.license_class",
+      title: "Drivers License Class",
+      shortTitle: "License class",
+      type: "string",
+      values: ["B", "C", "C+E"],
+    },
+    {
+      name: "drivers.status",
+      title: "Drivers Status",
+      shortTitle: "Status",
+      type: "string",
+      values: ["Active", "On leave"],
+      meta: { group: "Safety" },
+    },
+    {
+      name: "drivers.hired_at",
+      title: "Drivers Hired At",
+      shortTitle: "Hired at",
+      type: "time",
+      meta: { canonicalTime: true },
+    },
+    {
+      name: "drivers.shift_start",
+      title: "Drivers Shift Start",
+      shortTitle: "Shift start",
+      type: "time",
+      meta: { group: "Shifts" },
+    },
+  ],
+};
+
+const GEOFENCES: MockCube = {
+  name: "geofences",
+  title: "Geofences",
+  description: "Named areas trips are matched against",
+  type: "cube",
+  connectedComponent: 1,
+  joinTargets: ["trips"],
+  measures: [
+    { name: "geofences.count", title: "Geofences Count", shortTitle: "Geofences", scale: 9, integer: true },
+    {
+      name: "geofences.area",
+      title: "Geofences Area",
+      shortTitle: "Area",
+      meta: { unit: "km²", quantity: "area", group: "Location" },
+      scale: 34,
+    },
+  ],
+  dimensions: [
+    {
+      name: "geofences.name",
+      title: "Geofences Name",
+      shortTitle: "Geofence",
+      type: "string",
+      values: ["Depot", "Port", "City centre"],
+    },
+    {
+      name: "geofences.category",
+      title: "Geofences Category",
+      shortTitle: "Category",
+      type: "string",
+      values: ["Depot", "Customer", "Restricted"],
+      meta: { group: "Location" },
+    },
+    {
+      name: "geofences.center_lat",
+      title: "Geofences Center Latitude",
+      shortTitle: "Center latitude",
+      type: "number",
+      values: ["51.4", "52.0"],
+      meta: { group: "Location", geoPoint: "Centre", geoRole: "latitude" },
+    },
+    {
+      name: "geofences.center_lng",
+      title: "Geofences Center Longitude",
+      shortTitle: "Center longitude",
+      type: "number",
+      values: ["-0.2", "0.4"],
+      meta: { group: "Location", geoPoint: "Centre", geoRole: "longitude" },
+    },
+    {
+      name: "geofences.created_at",
+      title: "Geofences Created At",
+      shortTitle: "Created at",
+      type: "time",
+      meta: { canonicalTime: true },
+    },
+  ],
+};
+
+/**
+ * A curated VIEW. Its members already carry the joined-cube prefix in `name` exactly
+ * as Cube emits them for `prefix: true`, which is what the "read identifiers verbatim"
+ * rule in `meta-helpers.ts` exists for.
+ */
+const TRIP_PERFORMANCE: MockCube = {
+  name: "trip_performance",
+  title: "Trip performance",
+  description: "Curated trips × devices × drivers dataset",
+  type: "view",
+  connectedComponent: 1,
+  measures: [
+    {
+      name: "trip_performance.total_distance",
+      title: "Trip Performance Total Distance",
+      shortTitle: "Distance",
+      meta: { unit: "km", quantity: "distance", group: "Trip metrics" },
+      scale: 310,
+    },
+    {
+      name: "trip_performance.fuel",
+      title: "Trip Performance Fuel Used",
+      shortTitle: "Fuel",
+      meta: { unit: "L", quantity: "volume", group: "Fuel" },
+      scale: 46,
+    },
+    {
+      name: "trip_performance.trips_count",
+      title: "Trip Performance Trips Count",
+      shortTitle: "Trips",
+      scale: 24,
+      integer: true,
+    },
+  ],
+  dimensions: [
+    {
+      name: "trip_performance.region",
+      title: "Trip Performance Region",
+      shortTitle: "Region",
+      type: "string",
+      values: ["North", "South", "West"],
+      meta: { group: "Location" },
+    },
+    {
+      name: "trip_performance.devices_name",
+      title: "Trip Performance Device",
+      shortTitle: "Device",
+      type: "string",
+      values: ["TU-1001", "TU-1002", "TU-1003"],
+    },
+    {
+      name: "trip_performance.drivers_name",
+      title: "Trip Performance Driver",
+      shortTitle: "Driver",
+      type: "string",
+      values: ["A. Novak", "B. Silva", "C. Weber"],
+    },
+    {
+      name: "trip_performance.start_time",
+      title: "Trip Performance Start Time",
+      shortTitle: "Start time",
+      type: "time",
+      meta: { canonicalTime: true },
+    },
+  ],
+};
+
+const CUBES: MockCube[] = [TRIPS, DEVICES, DRIVERS, GEOFENCES, TRIP_PERFORMANCE];
+
+const MEASURES: MockMeasure[] = CUBES.flatMap((c) => c.measures);
+const DIMENSIONS: MockDimension[] = CUBES.flatMap((c) => c.dimensions);
 
 const MEASURE_BY_NAME = new Map(MEASURES.map((m) => [m.name, m]));
 const DIMENSION_BY_NAME = new Map(DIMENSIONS.map((d) => [d.name, d]));
 
-/** The `/meta` payload: one cube, shaped as Cube's `MetaResponse`. */
+/** The `/meta` payload, shaped as Cube's `MetaResponse`. */
 function metaResponse(): unknown {
   return {
-    cubes: [
-      {
-        name: "trips",
-        title: "Trips",
-        description: "Fleet trip facts (offline mock)",
-        type: "cube",
+    cubes: CUBES.map((c) => ({
+      name: c.name,
+      title: c.title,
+      description: c.description,
+      type: c.type,
+      public: true,
+      connectedComponent: c.connectedComponent,
+      ...(c.joinTargets ? { meta: { joinTargets: c.joinTargets } } : {}),
+      measures: c.measures.map((m) => ({
+        name: m.name,
+        title: m.title,
+        shortTitle: m.shortTitle,
+        type: "number",
+        aggType: m.name.endsWith(".count") ? "count" : "number",
+        cumulative: false,
+        cumulativeTotal: false,
+        drillMembers: [],
+        drillMembersGrouped: { measures: [], dimensions: [] },
+        isVisible: true,
         public: true,
-        connectedComponent: 1,
-        measures: MEASURES.map((m) => ({
-          name: m.name,
-          title: m.title,
-          shortTitle: m.shortTitle,
-          type: "number",
-          aggType: m.name.endsWith(".count") ? "count" : "number",
-          cumulative: false,
-          cumulativeTotal: false,
-          drillMembers: [],
-          drillMembersGrouped: { measures: [], dimensions: [] },
-          isVisible: true,
-          public: true,
-          ...(m.meta ? { meta: m.meta } : {}),
-        })),
-        dimensions: DIMENSIONS.map((d) => ({
-          name: d.name,
-          title: d.title,
-          shortTitle: d.shortTitle,
-          type: d.type,
-          suggestFilterValues: true,
-          isVisible: true,
-          public: true,
-          ...(d.meta ? { meta: d.meta } : {}),
-        })),
-        segments: [],
-        folders: [],
-        nestedFolders: [],
-        hierarchies: [],
-      },
-    ],
+        ...(m.meta ? { meta: m.meta } : {}),
+      })),
+      dimensions: c.dimensions.map((d) => ({
+        name: d.name,
+        title: d.title,
+        shortTitle: d.shortTitle,
+        type: d.type,
+        suggestFilterValues: true,
+        isVisible: true,
+        public: true,
+        ...(d.meta ? { meta: d.meta } : {}),
+      })),
+      segments: [],
+      folders: [],
+      nestedFolders: [],
+      hierarchies: [],
+    })),
   };
 }
 
@@ -174,7 +555,8 @@ function unit(seed: string): number {
 /**
  * The value of `measure` for one (dimension-combination, bucket-index) cell. A smooth
  * seasonal wave (so lines/areas have shape) plus a stable per-cell wobble (so the
- * series aren't identical), scaled into the measure's plausible range.
+ * series aren't identical), scaled into the measure's plausible range (the declared
+ * `scale`; a `rate` measure stays in a band around it rather than ramping from zero).
  */
 function measureValue(measure: string, key: string, index: number): number {
   const phase = unit(`${measure}|${key}|phase`) * Math.PI * 2;
@@ -182,19 +564,12 @@ function measureValue(measure: string, key: string, index: number): number {
   const wobble = unit(`${measure}|${key}|${index}`) * 0.3 - 0.15;
   const shape = 1 + wave + wobble; // ~[0, 2]
 
-  switch (measure) {
-    case "trips.count":
-      return Math.max(1, Math.round(24 * shape));
-    case "trips.total_distance":
-      return Math.round(310 * shape * 10) / 10;
-    case "trips.fuel":
-      return Math.round(46 * shape * 10) / 10;
-    case "trips.avg_speed":
-      // Speed is a rate: keep it in a believable band rather than scaling from zero.
-      return Math.round((52 + 14 * (shape - 1)) * 10) / 10;
-    default:
-      return Math.round(100 * shape * 10) / 10;
-  }
+  const spec = MEASURE_BY_NAME.get(measure);
+  const scale = spec?.scale ?? 100;
+  if (spec?.integer) return Math.max(1, Math.round(scale * shape));
+  // A rate is a level, not a total: keep it in a believable band around its scale.
+  const raw = spec?.rate ? scale + scale * 0.27 * (shape - 1) : scale * shape;
+  return Math.round(raw * 10) / 10;
 }
 
 /* ──────────────────────────── time bucket series ─────────────────────────── */

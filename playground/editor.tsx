@@ -99,7 +99,31 @@ const SEED_MEASURES: ChartSpec = {
   },
 } as ChartSpec;
 
-const SEEDS: Record<string, ChartSpec> = { default: SEED_SPEC, measures: SEED_MEASURES };
+/**
+ * A THIRD seed, `?seed=empty`: a line chart with nothing placed. Every well is empty,
+ * so the editor offers an add-slot for ALL of them (Values, Category, Split by) at
+ * once — which is what lets `scripts/shots.mjs` assert the field picker's
+ * "Only compatible fields" invariant across several slots in one page, including the
+ * slot whose refusal is `"Values takes a measure"`.
+ */
+const SEED_EMPTY: ChartSpec = {
+  schemaVersion: SCHEMA_VERSION,
+  kind: "chart",
+  id: "chart_fleet_empty",
+  name: "New chart",
+  query: {},
+  chart: {
+    family: "line",
+    legend: { show: true, position: "bottom" },
+    tooltip: { show: true, indicator: "line" },
+  },
+} as ChartSpec;
+
+const SEEDS: Record<string, ChartSpec> = {
+  default: SEED_SPEC,
+  measures: SEED_MEASURES,
+  empty: SEED_EMPTY,
+};
 
 function App(): React.ReactElement {
   // Stable identity: CubeVizProvider rebuilds the Cube client whenever `cube` changes.

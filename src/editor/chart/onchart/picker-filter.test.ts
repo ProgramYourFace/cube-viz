@@ -7,6 +7,7 @@ import {
   candidateReason,
   isAvailable,
   ONLY_COMPATIBLE_KEY,
+  onlyCompatibleStore,
   partitionByAvailability,
   readOnlyCompatible,
   writeOnlyCompatible,
@@ -274,6 +275,96 @@ describe("the persisted 'only compatible' choice", () => {
       expect(() => writeOnlyCompatible(true)).not.toThrow();
       expect(() => writeOnlyCompatible(false)).not.toThrow();
     });
+  });
+});
+
+/* ── the SHARED switch: one choice, every open picker ────────────────────────── */
+
+/**
+ * The regression this exists for: the switch used to be `useState` inside each
+ * `FieldPickerPopover`, seeded from storage at MOUNT. The editor mounts one picker per
+ * well up front, so flipping the switch in one slot re-rendered only that slot — every
+ * other picker kept its stale `false` and went on listing rows it had promised to hide
+ * ("Values takes a measure" on the Values slot, with its own toggle reading OFF).
+ *
+ * A subscriber standing in for a second mounted picker is therefore the whole test: it
+ * must see the same value, and it must be TOLD when the value changes.
+ */
+describe("the shared 'only compatible' store", () => {
+  /** Two mounted pickers, each re-reading the store when notified. */
+  function mountedPickers(n: number): { seen: () => boolean[]; stop: () => void } {
+    const values = Array.from({ length: n }, () => onlyCompatibleStore.get());
+    const stops = values.map((_, i) =>
+      onlyCompatibleStore.subscribe(() => {
+        values[i] = onlyCompatibleStore.get();
+      }),
+    );
+    return { seen: () => [...values], stop: () => stops.forEach((s) => s()) };
+  }
+
+  afterEach(() => {
+    onlyCompatibleStore.set(false);
+  });
+
+  it("hands every picker the SAME answer", () => {
+    const pickers = mountedPickers(3);
+    expect(pickers.seen()).toEqual([false, false, false]);
+
+    onlyCompatibleStore.set(true);
+    expect(onlyCompatibleStore.get()).toBe(true);
+    // The slot the user flipped it in is not the only one that heard about it.
+    expect(pickers.seen()).toEqual([true, true, true]);
+
+    onlyCompatibleStore.set(false);
+    expect(pickers.seen()).toEqual([false, false, false]);
+    pickers.stop();
+  });
+
+  it("notifies once per real change (an idempotent set is silent)", () => {
+    let notified = 0;
+    const stop = onlyCompatibleStore.subscribe(() => {
+      notified += 1;
+    });
+    onlyCompatibleStore.set(true);
+    onlyCompatibleStore.set(true);
+    expect(notified).toBe(1);
+    stop();
+  });
+
+  it("stops notifying an unmounted picker", () => {
+    let notified = 0;
+    const stop = onlyCompatibleStore.subscribe(() => {
+      notified += 1;
+    });
+    stop();
+    onlyCompatibleStore.set(true);
+    expect(notified).toBe(0);
+  });
+
+  it("keeps working when storage cannot persist (hardened WebView)", () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("access denied", "SecurityError");
+      },
+    });
+    try {
+      const pickers = mountedPickers(2);
+      onlyCompatibleStore.set(true);
+      // It cannot survive a reload here, but it must still be ONE live choice.
+      expect(onlyCompatibleStore.get()).toBe(true);
+      expect(pickers.seen()).toEqual([true, true]);
+      pickers.stop();
+    } finally {
+      if (original) Object.defineProperty(globalThis, "localStorage", original);
+      else delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
+  });
+
+  it("renders nothing hidden on the server (the client adopts the choice)", () => {
+    onlyCompatibleStore.set(true);
+    expect(onlyCompatibleStore.getServer()).toBe(false);
   });
 });
 
