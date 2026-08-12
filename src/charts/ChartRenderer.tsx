@@ -7,11 +7,26 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ChartFamily } from "@/spec";
 import type { ChartFormat } from "@/format";
 import { defaultFormatter, makeChartFormat } from "@/format";
+import type { NormalizedChartData } from "@/adapter/types";
 import type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
 import { resolveOptions, builtinFamilyRegistry, type FamilyRegistry } from "./familyRegistry";
-import { configFromSeries } from "./_shared";
 import { builtinFamilyDescriptors } from "./familyDescriptors";
 import { applyTransform, familySupportsTransform, transformedChartFormat } from "./transforms";
+
+/**
+ * Build a {@link ChartConfig} from normalized series (key → label + color).
+ *
+ * `ChartConfig` is part of {@link ChartComponentProps}, so it survives for HOST
+ * families that want a ready-made label/color table; the builtin families read their
+ * paint from the chart-level color scale instead (see charts/tanstack.tsx).
+ */
+function configFromSeries(data: NormalizedChartData): ChartConfig {
+  const cfg: ChartConfig = {};
+  for (const s of data.series) {
+    cfg[s.key] = { label: s.label, color: `var(--${s.colorToken ?? "chart-1"})` };
+  }
+  return cfg;
+}
 
 /**
  * The pure family dispatcher (docs/02-chart-options.md §2.0, §3). It:

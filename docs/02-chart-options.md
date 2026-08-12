@@ -2,9 +2,9 @@ I'll produce the chart-options surface design directly. This is a writing task g
 
 # cube-viz Chart-Options Surface — One Configurable Component per Chart Family
 
-> **Status:** Stable contract, updated for spec v2 (2026-08). This fills `ChartOptions.familyOptions` from the spec-schema design (§3) and defines the per-family option catalog. It is the chart-options agent's deliverable: the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks (Recharts was replaced in 2026-08); specs never carry a single renderer prop. Anything below the line `ChartOptions` → `NormalizedChartData` boundary is implementation; anything above is contract. **v2 changes:** the `combo` family and all dual-axis support were removed; a `heatmap` family was added; the renderer seam is now `src/charts/tanstack.tsx` (§3).
+> **Status:** Stable contract, updated for spec v3 (2026-08). This fills `ChartOptions.familyOptions` from the spec-schema design (§3) and defines the per-family option catalog. It is the chart-options agent's deliverable: the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks (Recharts was replaced in 2026-08); specs never carry a single renderer prop. Anything below the line `ChartOptions` → `NormalizedChartData` boundary is implementation; anything above is contract. **v2 changes:** the `combo` family and all dual-axis support were removed; a `heatmap` family was added; the renderer seam is now `src/charts/tanstack.tsx` (§3).
 >
-> **Audited 2026-08:** every schema option was checked against the code that reads it — see **§6.1 (option support matrix)**; the options the Recharts → TanStack rewrite had silently dropped are restored, and the ones the grammar genuinely cannot express are listed in §7.4–§7.10 (and commented at the point they are dropped).
+> **Audited 2026-08:** every schema option was checked against the code that reads it — see **§6.1 (option support matrix)**. The options the Recharts → TanStack rewrite had silently dropped are restored; the ones the grammar genuinely cannot express are listed in §7.4–§7.10 and commented at the point they are dropped. **v3 removed the five that could never be honored** (per-series `meta.format`, side legend positions, the `"auto"` domain bound, `scatter.shape`, `kpi.icon`) behind a pixel-preserving migration — an option that parses and does nothing is a promise the schema cannot keep.
 >
 > **Since v2 shipped (additive, no version bump):** `chart.transform` — presentation transforms applied once in `ChartRenderer` (§2.9); **temporal category axes** on line/area (§2.2); and the **semantic interaction seam** — brush-to-drill and click-to-cross-filter reported in Cube terms, never pixels (§3.1).
 
@@ -595,7 +595,7 @@ dropped).
 | `orientation` | honored (bar) · unsupported elsewhere | only `bar` has a transposable geometry (`barY`/`barX`); line/area are time-series-vertical, pie/scatter/heatmap/kpi/table have no orientation. The editor only offers it for bar |
 | `stackMode` | honored (bar: none/grouped/stacked/percent · area: none/stacked/percent) | `grouped` on an area = overlap (areas have no side-by-side geometry); line ignores it (stacked lines are the `area` family) |
 | `legend.show` | honored | bar/line/area/pie/scatter. kpi/table/heatmap have no legend (`hasLegend: false` on the descriptor) |
-| `legend.position` | partial | `top`/`bottom` honored; `left`/`right` **degrade to bottom** — see §7.4 |
+| `legend.position` | honored | `top`/`bottom` — the only two the enum accepts. `left`/`right` were **removed in v3** (they always drew at the bottom); the migration rewrites them to `bottom` — see §7.4 |
 | `tooltip.show` | honored | every charting family |
 | `tooltip.indicator` | honored | `dot`/`line`/`dashed` swatch shape, restored as a CSS modifier (`cv-chart-tooltip--*`) since the TanStack tooltip has no shape option. Was DEAD from the migration until the 2026-08 audit |
 | `tooltip.showTotal` | honored (grouped tooltips) | appends a summed, swatch-less "Total" row to bar/line/area tooltips with ≥2 series (companions excluded). Pie/scatter tooltips describe a single datum, so there is nothing to total |
@@ -603,7 +603,7 @@ dropped).
 | `axes.{x,y}.labelHide` | honored | hides the title, keeps the ticks |
 | `axes.{x,y}.hide` | honored | hides the whole axis. For a HORIZONTAL bar the flags follow the VISUAL axis (`axes.y.hide` hides the category axis) while `label` follows the SEMANTIC one — the pre-migration convention, kept for spec compatibility |
 | `axes.{x,y}.scale` (`log`) | honored on the VALUE axis | a category axis is band/point/utc — there is no log form of it |
-| `axes.{x,y}.domain` | partial | both-ends-numeric honored; a half-`"auto"` domain (`[0,"auto"]`) is **ignored** — see §7.5 |
+| `axes.{x,y}.domain` | honored | a fixed `[min, max]`, both ends numeric. The `"auto"` bound was **removed in v3** (a half-`"auto"` domain was ignored whole); omit the key for auto — see §7.5 |
 | `axes.{x,y}.tickFormat` | honored | re-binds the formatter for that axis' ticks only (`axisFormat` → `ChartFormat.derive`). Was DEAD in BOTH stacks until the 2026-08 audit |
 | `colors.ramp` | honored | series (bar/line/area), pie slices, scatter groups |
 | `colors.byKey` | partial | applies to normalized SERIES keys; pie slices and scatter groups are not series, so it does not reach them — see §7.6 |
@@ -614,7 +614,10 @@ dropped).
 | `mapping.series.meta.stackId` | honored (bar, area) | bar: one side-by-side stack per distinct id; area: one overlaid stack per id. Was DEAD from the migration until the 2026-08 audit |
 | `mapping.series.meta.curve` | honored where a series owns its mark (line, area overlap, companions) | a STACKED area draws a whole stack from one mark, so its curve is the family's — see §7.10 |
 | `mapping.series.meta.dots` | honored (line, area) | area point markers are a separate `dot` mark (`areaY` has no `points`); on a stacked area they sit on the segment top |
-| `mapping.series.meta.format` | unsupported | populated into `NormalizedSeries.meta.format` but no surface reads it — see §7.6 |
+
+> **Removed in v3:** `mapping.series.meta.format` (no surface read it — formatting is
+> chart-level with per-axis/per-column overrides), the `left`/`right` legend positions,
+> and the `"auto"` axis-domain bound. See §7.4–§7.6 and `src/spec/migrate.ts`.
 
 ### Per-family (`familyOptions`)
 
@@ -630,12 +633,13 @@ dropped).
 | pie | `innerRadiusPct`, `outerRadiusPct`, `padAngle`, `cornerRadius`, `showLabels`, `maxSlices` | honored |
 | pie | `centerLabel` | honored **on a donut only** (`innerRadiusPct > 0`) — on a full pie it would sit on top of the slices; same as pre-migration |
 | scatter | `x`, `y`, `size`, `sizeRange`, `groupBy`, `referenceLines` | honored |
-| scatter | `shape` | unsupported — see §7.7 |
 | kpi | `display`, `measure`, `comparison.*`, `sparkline.*`, `goodDirection`, `gauge.*` | honored |
-| kpi | `icon` | unsupported — see §7.8 |
 | table | `columns[].{member,label,align,width,hidden}`, `pageSize`, `sortable`, `stickyHeader`, `rowHeight`, `showRowNumbers`, `conditionalFormat` | honored |
 | table | `columns[].format` | honored (per-column re-bind via `ChartFormat.derive`) — dead in both stacks until the 2026-08 audit |
 | heatmap | `colorToken`, `showValues` | honored |
+
+> **Removed in v3:** `scatter.shape` (§7.7) and `kpi.icon` (§7.8) — neither ever
+> reached the canvas in any renderer this library has shipped.
 
 **Decoration never joins the focus model.** Value labels, reference-line labels and
 in-cell heatmap values are `text` marks, and a text mark emits one interaction point
@@ -675,27 +679,33 @@ Not a bug — a **trade-off with no current workaround**, restated here because 
 
 This is why range selection is opt-in per chart (no `onRangeSelect` anywhere up the tree ⇒ no brush is mounted, and `DashboardDrill` additionally refuses to advertise a handler on a board with no `dateRange` variable binding to write to). A chart that must keep hover inspection simply does not receive a range handler. Whether the two can coexist — a modifier-gated drag, or an inspection affordance that survives the overlay — is upstream-dependent (see §7.2).
 
-### 7.4 `legend.position: "left" | "right"` renders at the bottom
+### 7.4 Side legends — **REMOVED in v3**
 
-`ChartLegendPlacement` is exactly `'top' | 'bottom'` — the grammar has no side
-legend, so `legendPlacement()` degrades `left`/`right` to `bottom`. The Recharts stack
-degraded the same way for a different reason (its horizontal legend component reserved
-the full width and collapsed a pie to radius 0), so no stored spec changes behavior.
-`pie`'s DEFAULT is `position: "right"`, i.e. the most common spec value in the wild is
-the degraded one. A real side legend means rendering our own legend component beside
-the chart box (the chart would have to give up the width), which is a layout change,
-not an option fix.
+`ChartLegendPlacement` is exactly `'top' | 'bottom'`: the grammar has no side legend,
+so `left`/`right` were accepted by the schema and drawn at the bottom. The Recharts
+stack degraded the same way for a different reason (its horizontal legend reserved the
+full width and collapsed a pie to radius 0), so nothing rendered differently in either
+era — including `pie`'s own default of `position: "right"`, which means the commonest
+stored value was the degraded one. It is now `"bottom"`, and the enum is `top|bottom`.
 
-### 7.5 A half-`"auto"` axis domain is ignored
+This is a **product** answer as much as a technical one: a side legend takes width from
+the plot, and a dashboard tile has less width than anything else. If a chart ever needs
+one, it is a layout change (our own legend component beside the chart box), not an
+option — so the option should not sit in the schema promising it.
 
-`axes.{x,y}.domain` is typed `[number | "auto", number | "auto"]`, and `valueScale()`
-honors it only when BOTH ends are numbers. TanStack resolves a scale one of two ways:
-a configured instance keeps its domain verbatim (no inference at all), or a factory
-gets a domain inferred from the materialized channel values — which the helper never
-sees. There is no "pin one end" seam, and re-deriving the free end inside the family
-would mean re-implementing the mark's own stacking / normalize offsets to stay honest
-about the maximum. Recharts accepted `["auto", n]` natively, so this is a genuine
-migration regression, deliberately not papered over. Workaround: give both ends.
+### 7.5 The `"auto"` axis-domain bound — **REMOVED in v3**
+
+`axes.{x,y}.domain` was typed `[number | "auto", number | "auto"]` and honored only
+when BOTH ends were numbers — a half-`"auto"` domain did nothing at all. TanStack
+resolves a scale one of two ways: a configured instance keeps its domain verbatim (no
+inference), or a factory gets a domain inferred from the materialized channel values,
+which the helper never sees. There is no "pin one end" seam, and re-deriving the free
+end inside the family would mean re-implementing the mark's own stacking / normalize
+offsets to stay honest about the maximum. Recharts accepted `["auto", n]` natively, so
+losing it is a real regression — but a type that quietly ignores half its inhabitants
+is worse than one that cannot express them. The type is now `[number, number]`; omit
+the key for auto, and the migration drops any half-`"auto"` domain (which was already
+rendering as auto).
 
 ### 7.6 Color + per-series meta that does not reach every surface
 
@@ -713,31 +723,35 @@ is keyed by a normalized SERIES, and the target isn't one:
 - **`mapping.series.meta.label` in a SINGLE-measure pivot.** Same reason: the series
   are named by their pivot values. In a MULTI-measure pivot the label renames the
   measure half ("Revenue · Truck 1"), which is what it means, and that now works.
-- **`mapping.series.meta.format`.** The adapter resolves it onto
+- **`mapping.series.meta.format` — REMOVED in v3.** The adapter resolved it onto
   `NormalizedSeries.meta.format`, but every value surface formats through
-  `ChartFormat`, which is bound from the annotation + `options.format` and never reads
-  series meta — so a per-series format override has never taken effect, in either
-  stack. Per-AXIS (`axes.*.tickFormat`) and per-COLUMN (`columns[].format`) overrides
-  do, via `ChartFormat.derive`; wiring the per-series one means threading a formatter
-  per series through every tooltip/label call site.
+  `ChartFormat`, bound from the annotation + `options.format`, which never reads series
+  meta — so a per-series format override never took effect, in either stack. It is also
+  the one item on this list that should NOT be wired up: series sharing a value axis
+  share its unit, so two formats against one set of ticks is a bug the option would
+  make expressible. Per-AXIS (`axes.*.tickFormat`) and per-COLUMN (`columns[].format`)
+  overrides are the honest seams, and both work via `ChartFormat.derive`.
 
-### 7.7 `scatter.shape` always draws a circle
+### 7.7 `scatter.shape` — **REMOVED in v3**
 
 The TanStack `dot` mark draws one symbol and exposes no shape/symbol option
 (`DotOptions` has `r`/`rScale`/fill/stroke and nothing else), so
-`square | triangle | diamond` render as circles. Recharts honored the option, making
-this a migration regression with no in-grammar fix — a shaped scatter would need a
-custom mark (a `path` per point). The option stays in the schema for spec
-compatibility and is commented at the drop site in `src/charts/scatter.tsx`.
+`square | triangle | diamond` all rendered as circles. Recharts honored the option, so
+this is a genuine capability regression — but the schema should not offer four values
+that produce one picture. Scatter groups are told apart by COLOR (`groupBy` → the color
+scale) and by size when `size` is bound.
 
-### 7.8 `kpi.icon` is never rendered
+If it comes back it needs a custom mark (a `path` per point) — and it should come back
+only with a reason: point shape is a weak encoding, and it is the standard fallback for
+print or colorblind-safe output, neither of which this library targets today.
 
-It has never been rendered — not in the Recharts stack either. Drawing it means
-mapping an arbitrary lucide icon NAME to a component, and the only general way to do
-that is importing lucide's whole icon map into the bundle. If a host wants a KPI icon,
-the honest surface is a host family or a widget-chrome slot, not a string in
-`familyOptions`. **Candidate for removal from the schema** (a migration decision:
-stored specs may carry it).
+### 7.8 `kpi.icon` — **REMOVED in v3**
+
+It was never rendered — not in the Recharts stack either. Drawing it means mapping an
+arbitrary lucide icon NAME to a component, and the only general way to do that is
+importing lucide's whole icon map into every consumer's bundle. If a host wants a KPI
+icon, the honest surface is a host family or a widget-chrome slot, not a string in
+`familyOptions`.
 
 ### 7.9 Multi-`stackId` charts: what the grammar can and cannot say
 

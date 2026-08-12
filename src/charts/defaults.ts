@@ -104,7 +104,6 @@ export const ScatterFamilyOptionsSchema = z
     size: MemberSchema.optional(),
     sizeRange: z.tuple([z.number(), z.number()]).optional(),
     groupBy: MemberSchema.optional(),
-    shape: z.enum(["circle", "square", "triangle", "diamond"]).optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
   })
   .strict();
@@ -149,7 +148,6 @@ export const KpiFamilyOptionsSchema = z
       })
       .strict()
       .optional(),
-    icon: z.string().optional(),
   })
   .strict();
 export type KpiFamilyOptions = z.infer<typeof KpiFamilyOptionsSchema>;
@@ -285,7 +283,8 @@ export const BUILTIN_DEFAULTS = {
   },
   pie: {
     envelope: {
-      legend: { show: true, position: "right" },
+      // Was `"right"`, which the renderer has always drawn at the bottom.
+      legend: { show: true, position: "bottom" },
       tooltip: { show: true, indicator: "dot" },
       format: { kind: "auto" },
     },
@@ -304,7 +303,6 @@ export const BUILTIN_DEFAULTS = {
     },
     // x/y are required from the spec, so they are absent from the default skeleton.
     familyOptions: {
-      shape: "circle",
       sizeRange: [40, 400],
     } as Record<string, unknown>,
   },

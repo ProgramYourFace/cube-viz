@@ -167,7 +167,7 @@ function percentSeriesMeta(meta: SeriesValueMeta | undefined): SeriesValueMeta {
  * (axis ticks, tooltip, value labels, KPI) format as a percent regardless of the
  * member's unit. Category formatting is untouched.
  *
- * Mirrors `_shared.percentTick` (Intl `style:"percent"`, 0 fraction digits) so a
+ * Mirrors `tanstack.percentTick` (Intl `style:"percent"`, 0 fraction digits) so a
  * `percentOfTotal` chart reads identically to a `percent`-stacked one.
  */
 export function transformedChartFormat(

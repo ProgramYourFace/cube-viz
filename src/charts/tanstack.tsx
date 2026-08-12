@@ -43,8 +43,8 @@ import {
 /**
  * Shared TanStack Charts seam for the built-in families (NOT a family; not
  * exported from the public barrel). This file is the only place that knows how
- * cube-viz's NormalizedChartData maps onto the TanStack grammar — the same
- * role _shared.ts played for Recharts (docs/02-chart-options.md §3).
+ * cube-viz's NormalizedChartData maps onto the TanStack grammar — the same role
+ * the (now deleted) `_shared.ts` played for Recharts (docs/02-chart-options.md §3).
  *
  * Data shape: families feed marks with LONG rows ({@link SeriesRow}), one row
  * per (category, series) pair, `z`/`color` keyed by the series LABEL so the
@@ -261,12 +261,9 @@ export function seriesColor(
 }
 
 /**
- * TanStack legends are top/bottom; left/right degrade to bottom (as before).
- *
- * UNSUPPORTED BY THE GRAMMAR, not an oversight: `ChartLegendPlacement` is exactly
- * `'top' | 'bottom'`, so `legend.position: "left" | "right"` cannot be expressed —
- * it is accepted by the schema and rendered at the bottom (the Recharts stack
- * degraded the same way, for a different reason). See docs/02-chart-options.md §7.4.
+ * `legend.position` → `ChartLegendPlacement`. Both vocabularies are exactly
+ * `'top' | 'bottom'` (the schema dropped `left`/`right` in v3, since the renderer
+ * has never had a side legend), so this only supplies the default.
  */
 export function legendPlacement(position?: LegendOptions["position"]): "top" | "bottom" {
   return position === "top" ? "top" : "bottom";

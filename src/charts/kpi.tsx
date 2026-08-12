@@ -27,10 +27,10 @@ function trendClass(kind: DirKind): string {
  * chart) with an optional comparison delta chip; `display:"gauge"` is a TanStack
  * polar radialArc composition. `sparkline` is a chrome-less inline areaY chart.
  *
- * `familyOptions.icon` IS DROPPED: it has never been rendered (not in the Recharts
- * stack either). Painting an arbitrary lucide icon NAME means bundling lucide's whole
- * icon map; a host that wants one should use widget chrome or its own family
- * (docs/02-chart-options.md §7.8 — a removal candidate).
+ * There is no `icon` option: painting an arbitrary lucide icon NAME would mean
+ * bundling lucide's entire icon map into every consumer. A host that wants one puts
+ * it in its own widget chrome. (Removed from the schema in v3 — it had never been
+ * rendered by any version of this library; docs/02-chart-options.md §7.8.)
  */
 export function KpiFamily(props: ChartComponentProps): React.ReactElement {
   const { data, options, format } = props;

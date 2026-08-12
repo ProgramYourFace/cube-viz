@@ -8,7 +8,7 @@ import { z } from "zod";
  * See docs/01-spec-schema.md for the full rationale.
  */
 
-export const SCHEMA_VERSION = 2 as const;
+export const SCHEMA_VERSION = 3 as const;
 
 /* ────────────────────────── variable reference token ────────────────────── */
 
@@ -199,10 +199,10 @@ export const SeriesMetaSchema = z
     curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
     /** Per-series point markers (line/area) — overrides the family default. */
     dots: z.boolean().optional(),
-    /** ACCEPTED BUT NOT RENDERED: every value surface formats through the chart-bound
-     *  `ChartFormat`, which reads `chart.format` (plus per-axis / per-column overrides)
-     *  and never series meta — docs/02-chart-options.md §7.6. */
-    format: FormatOptionsSchema.optional(),
+    // NOTE — there is deliberately no per-series `format`. Numbers on ONE value axis
+    // share a unit, so a per-series format would print two different units against the
+    // same ticks; formatting is chart-level (`chart.format`) with per-axis /
+    // per-column overrides. Removed in v3 (it parsed but nothing ever read it).
   })
   .strict();
 export type SeriesMeta = z.infer<typeof SeriesMetaSchema>;
@@ -242,9 +242,10 @@ export type SeriesMapping = z.infer<typeof SeriesMappingSchema>;
 export const LegendOptionsSchema = z
   .object({
     show: z.boolean().optional(),
-    /** `left`/`right` DEGRADE to `bottom` — the renderer's legend is top/bottom only
-     *  (docs/02-chart-options.md §7.4). Kept in the enum for spec compatibility. */
-    position: z.enum(["top", "right", "bottom", "left"]).optional(),
+    /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+     *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+     *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+    position: z.enum(["top", "bottom"]).optional(),
   })
   .strict();
 export type LegendOptions = z.infer<typeof LegendOptionsSchema>;
@@ -258,7 +259,6 @@ export const TooltipOptionsSchema = z
   .strict();
 export type TooltipOptions = z.infer<typeof TooltipOptionsSchema>;
 
-const AxisBoundSchema = z.union([z.number(), z.literal("auto")]);
 export const AxisOptionsSchema = z
   .object({
     label: z.string().optional(),
@@ -267,9 +267,10 @@ export const AxisOptionsSchema = z
     hide: z.boolean().optional(),
     /** Value-axis only: a category axis is band/point/utc and has no log form. */
     scale: z.enum(["linear", "log"]).optional(),
-    /** Both ends must be NUMBERS to take effect; a half-`"auto"` domain is ignored
-     *  and the axis infers both ends (docs/02-chart-options.md §7.5). */
-    domain: z.tuple([AxisBoundSchema, AxisBoundSchema]).optional(),
+    /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+     *  either takes a configured domain verbatim or infers both ends from the data, so
+     *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+    domain: z.tuple([z.number(), z.number()]).optional(),
     /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
     tickFormat: FormatOptionsSchema.optional(),
   })
@@ -338,7 +339,7 @@ export const ChartOptionsSchema = z
     /**
      * Presentation-only reshaping of the normalized series (rolling average /
      * running total / share of category total). Purely additive + optional, so it
-     * does NOT bump {@link SCHEMA_VERSION} — every existing v2 spec stays valid.
+     * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
      */
     transform: ChartTransformSchema.optional(),
     /** Per-family escape hatch, validated by a family-specific schema after default-merge. */

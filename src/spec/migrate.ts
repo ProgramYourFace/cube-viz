@@ -122,8 +122,97 @@ function migrateV1(raw: Record<string, unknown>): Record<string, unknown> {
   return next;
 }
 
+/* ──────────────────── v2 → v3 (options that never rendered) ─────────────────── */
+
+/**
+ * Strip `mapping.series.meta[*].format`. A per-series format printed nothing: every
+ * value surface formats through the chart-bound `ChartFormat`, which reads
+ * `chart.format` plus the per-axis/per-column overrides and never series meta.
+ */
+function stripSeriesMetaFormat(chart: Record<string, unknown>): void {
+  if (!isRecord(chart.mapping)) return;
+  const series = chart.mapping.series;
+  if (!isRecord(series) || !isRecord(series.meta)) return;
+  const meta: Record<string, unknown> = {};
+  for (const [member, entry] of Object.entries(series.meta)) {
+    if (!isRecord(entry)) continue;
+    const cleaned = without(entry, "format");
+    if (cleaned) meta[member] = cleaned;
+  }
+  if (Object.keys(meta).length > 0) series.meta = meta;
+  else delete series.meta;
+}
+
+/**
+ * `legend.position` lost `left`/`right`. Both already RENDERED as bottom, so
+ * rewriting them to `"bottom"` preserves exactly what the user was seeing.
+ */
+function migrateLegendPosition(chart: Record<string, unknown>): void {
+  if (!isRecord(chart.legend)) return;
+  const pos = chart.legend.position;
+  if (pos === "left" || pos === "right") chart.legend.position = "bottom";
+}
+
+/**
+ * `axes.{x,y}.domain` lost its `"auto"` bound. A half-`"auto"` domain was ignored
+ * whole — the axis inferred BOTH ends — so dropping it keeps the rendered result and
+ * makes the spec say what actually happens. `["auto","auto"]` was already just auto.
+ */
+function stripAutoAxisDomains(chart: Record<string, unknown>): void {
+  if (!isRecord(chart.axes)) return;
+  for (const key of ["x", "y"]) {
+    const axis = chart.axes[key];
+    if (!isRecord(axis) || !Array.isArray(axis.domain)) continue;
+    if (axis.domain.every((b) => typeof b === "number")) continue;
+    const cleaned = without(axis, "domain");
+    if (cleaned) chart.axes[key] = cleaned;
+    else delete chart.axes[key];
+  }
+  if (Object.keys(chart.axes).length === 0) delete chart.axes;
+}
+
+/**
+ * Drop family options that never reached the canvas: `scatter.shape` (the dot mark
+ * draws one symbol — every value already rendered as a circle) and `kpi.icon` (never
+ * painted in any renderer this library has shipped).
+ */
+function stripDeadFamilyOptions(chart: Record<string, unknown>): void {
+  if (!isRecord(chart.familyOptions)) return;
+  const dead = chart.family === "scatter" ? "shape" : chart.family === "kpi" ? "icon" : undefined;
+  if (dead === undefined) return;
+  const cleaned = without(chart.familyOptions, dead);
+  chart.familyOptions = cleaned ?? {};
+}
+
+function migrateChartOptionsV2(chart: unknown): void {
+  if (!isRecord(chart)) return;
+  stripSeriesMetaFormat(chart);
+  migrateLegendPosition(chart);
+  stripAutoAxisDomains(chart);
+  stripDeadFamilyOptions(chart);
+}
+
+/**
+ * v2 → v3: removal of five options that parsed but never rendered — per-series
+ * `meta.format`, `legend.position: left|right`, half-`"auto"` `axes.*.domain`,
+ * `scatter.shape` and `kpi.icon`. Every rewrite below preserves the PIXELS the spec
+ * was already producing; see docs/02-chart-options.md §7.
+ */
+function migrateV2(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = structuredClone(raw);
+  if (next.kind === "chart") {
+    migrateChartOptionsV2(next.chart);
+  } else if (next.kind === "dashboard" && Array.isArray(next.widgets)) {
+    for (const w of next.widgets) {
+      if (isRecord(w) && w.type === "chart") migrateChartOptionsV2(w.chart);
+    }
+  }
+  return next;
+}
+
 const migrations: Record<number, Migration> = {
   1: migrateV1,
+  2: migrateV2,
 };
 
 /**

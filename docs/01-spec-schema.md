@@ -2,7 +2,9 @@ This is a design/writing task with no code dependencies, and the grounded resear
 
 # cube-viz Spec Schema & Variable Binding Model
 
-> **Status:** Stable contract, **`SCHEMA_VERSION` 2** (2026-08). This is the library-agnostic source of truth that every other cube-viz layer (renderer, editor, adapter, preview server) builds on. Library-specific concerns (the chart renderer — `@tanstack/charts` since 2026-08, formerly Recharts — react-grid-layout, TipTap) never leak into the spec.
+> **Status:** Stable contract, **`SCHEMA_VERSION` 3** (2026-08). This is the library-agnostic source of truth that every other cube-viz layer (renderer, editor, adapter, preview server) builds on. Library-specific concerns (the chart renderer — `@tanstack/charts` since 2026-08, formerly Recharts — react-grid-layout, TipTap) never leak into the spec.
+>
+> **v2 → v3 (breaking):** five options that the schema accepted but no renderer ever drew were removed, after the 2026-08 option audit (chart-options §6.1): per-series `mapping.series.meta.format`; the `left`/`right` values of `legend.position`; the `"auto"` bound of `axes.{x,y}.domain` (now `[number, number]`); `scatter.shape`; and `kpi.icon`. Every one of them **parsed and then did nothing**, so the v2 → v3 migration is pixel-preserving: side legends become `"bottom"` (where they already drew), half-`"auto"` domains are dropped (the axis was already inferring both ends), and the three dead keys are deleted. A schema that promises what the renderer cannot do is worse than one that is honest about its surface — see chart-options §7.4–§7.8 for the per-option reasoning.
 >
 > **v1 → v2 (breaking):** the `combo` family and all dual-axis support were removed, and `heatmap` was added. Gone from the shape: `axes.y2`, per-series `SeriesMeta.axis: "left"|"right"`, and the combo-only reference-line `side`. `loadSpec` (`src/spec/migrate.ts`) migrates v1 specs forward automatically: a combo widget becomes `bar` when any of its series rendered bars, else `line` (per-series `colorToken`s are preserved via `mapping.series.meta` where representable; the rest of the combo `familyOptions` collapses to `{}`), and all axis metadata (`y2`, `meta.axis`, reference-line `side`) is stripped.
 
@@ -25,7 +27,8 @@ These constrain every decision below:
 cube-viz has exactly **three persistable top-level kinds**, discriminated by a `kind` literal. `WidgetSpec` is itself a nested discriminated union of three widget types.
 
 ```ts
-type SpecVersion = 2; // integer, bumped only on breaking shape changes (2 = combo/dual-axis removal + heatmap)
+type SpecVersion = 3; // integer, bumped only on breaking shape changes
+                      // (2 = combo/dual-axis removal + heatmap; 3 = never-rendered options removed)
 
 interface SpecMeta {
   schemaVersion: SpecVersion;   // REQUIRED on every persisted top-level spec
@@ -104,7 +107,13 @@ interface InputWidget extends WidgetBase {
 
   Migrations run *before* zod parsing so old shapes are repaired, then proven valid against the current schema. A spec with `schemaVersion > CURRENT_VERSION` is rejected (the host is older than the file). This keeps stored specs immutable on disk until re-saved, but always loadable.
 
-  The one registered migration today is **v1 → v2** (`src/spec/migrate.ts`): combo widgets are rewritten to `bar`/`line` (bar when any combo series rendered bars; per-series `colorToken`s carried onto measures-mode `mapping.series.meta` where representable; the rest of the combo `familyOptions` dropped so the new family's defaults win), and the dual-axis remnants — `axes.y2`, `mapping.series.meta[member].axis`, reference-line `side` — are stripped wherever a chart-options object lives.
+  Two migrations are registered (`src/spec/migrate.ts`), and `loadSpec` walks them in
+  order — a v1 spec runs through **both**, which is what `migrate.test.ts` pins:
+
+  - **v1 → v2**: combo widgets are rewritten to `bar`/`line` (bar when any combo series rendered bars; per-series `colorToken`s carried onto measures-mode `mapping.series.meta` where representable; the rest of the combo `familyOptions` dropped so the new family's defaults win), and the dual-axis remnants — `axes.y2`, `mapping.series.meta[member].axis`, reference-line `side` — are stripped wherever a chart-options object lives.
+  - **v2 → v3**: the five never-rendered options are removed — `mapping.series.meta[member].format` and `familyOptions.{shape (scatter), icon (kpi)}` are deleted, `legend.position: left|right` becomes `"bottom"`, and a half-`"auto"` `axes.{x,y}.domain` is dropped (an emptied `axes` object goes with it). Nothing here changes what a chart draws — each rewrite states what the renderer was already doing.
+
+  Note what makes a removal safe: the schemas are `.strict()`, so an option that is deleted without a migration turns every stored spec still carrying it into a **parse error** — a saved dashboard becomes an error screen. The migration is not politeness, it is the thing that keeps old boards loading.
 
 ---
 
@@ -265,8 +274,9 @@ interface SeriesMeta {
   stackId?: string;             // same id ⇒ stacked together (only when stackMode demands)
   curve?: "linear" | "monotone" | "step" | "natural"; // per-series line shape (line/area)
   dots?: boolean;               // per-series point markers (line/area)
-  format?: FormatOptions;       // per-series override of number formatting
   // (v1 had `axis?: "left" | "right"` for dual-axis; removed in v2 — the migration strips it)
+  // (v2 had `format?: FormatOptions`; removed in v3 — nothing read it, and series on one
+  //  value axis share that axis' unit. Format per AXIS or per COLUMN instead.)
 }
 ```
 
@@ -343,7 +353,7 @@ At render the token resolves to `var(--chart-N)` (a bare `var()`, **not** the le
 - **`TextWidget.doc`** is **ProseMirror JSON** straight from `editor.getJSON()` (TipTap StarterKit schema, v3). It renders read-only via the *same* StarterKit + `editable:false`. The registered extension set is pinned to the schemaVersion so stored docs never hit unknown node types.
 - **`InputWidget.control`** is defined in §5 (it's a *write* surface for a variable, so it belongs to the binding model).
 
-### 3.6 `chart.transform` — presentation transforms (additive, still `SCHEMA_VERSION` 2)
+### 3.6 `chart.transform` — presentation transforms (additive; shipped without a version bump)
 
 Cube owns *aggregation*; the view layer owns *presentation*. Without a seam for the second, "7-day rolling average", "running total" and "% of total" each force a **new Cube measure** for what is purely a display choice. `chart.transform` is that seam — one optional envelope key, defined in `src/spec/schema.ts` alongside the rest of `ChartOptions`:
 
@@ -368,7 +378,7 @@ interface ChartTransform {
 - It reads nothing and rewrites nothing that already existed; a renderer or host that ignores `transform` renders the untransformed series, which is the pre-existing behavior.
 - No stored field changes shape, so `src/spec/migrate.ts` gains no migration step (§1 "Validation, versioning & migration": a version bump is reserved for changes that make an older spec *invalid* or *differently-meaning*, which is what v1 → v2's combo/dual-axis removal was).
 
-So `SCHEMA_VERSION` stays **2**. The compatibility that a version bump protects is **old spec → new build**, and that direction is total here. The reverse (a spec written *with* `transform`, loaded by a build predating the key) is not a schema-version question: `ChartOptionsSchema` is `.strict()`, so an older build rejects the unknown key the same way it rejects any typo — which is why the envelope only ever grows in a release that ships the reader for it.
+So `chart.transform` did **not** move `SCHEMA_VERSION` (it landed on v2 and every v2 spec stayed valid; the version reached 3 later, for the option *removals*). The compatibility that a version bump protects is **old spec → new build**, and that direction is total here. The reverse (a spec written *with* `transform`, loaded by a build predating the key) is not a schema-version question: `ChartOptionsSchema` is `.strict()`, so an older build rejects the unknown key the same way it rejects any typo — which is why the envelope only ever grows in a release that ships the reader for it.
 
 ---
 
@@ -556,7 +566,7 @@ Two measures plotted side-by-side per day, vertical grouped bars, real member na
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "kind": "chart",
   "id": "chart_trips_by_day",
   "name": "Distance vs Idle by Day",
@@ -603,7 +613,7 @@ A date-range Input writes the `dateRange` variable; both charts read it via `{va
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "kind": "dashboard",
   "id": "dash_fleet_utilization",
   "name": "Fleet Utilization",
@@ -711,4 +721,4 @@ A date-range Input writes the `dateRange` variable; both charts read it via `{va
 | Adapter | `{ categories, series:[{key,label,data,colorToken,meta}], raw, empty }` | Single boundary; swapping the chart library touches only the renderer |
 | RLS | **not in the spec** — JWT `securityContext.{systemIds,roles}` | Authors can never widen tenant scope |
 
-This is the stable contract, at `SCHEMA_VERSION` 2. The chart-options layer fills `familyOptions` per family; the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks; the editor and preview server author and validate `Spec` objects. None of those layers can alter the shape above without a `schemaVersion` bump (v2 — the combo/dual-axis removal — is the precedent). **Optional additions are not alterations:** `chart.transform` (§3.6) joined the envelope after v2 shipped and left every stored v2 spec valid, so the version did not move.
+This is the stable contract, at `SCHEMA_VERSION` 3. The chart-options layer fills `familyOptions` per family; the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks; the editor and preview server author and validate `Spec` objects. None of those layers can alter the shape above without a `schemaVersion` bump — v2 (the combo/dual-axis removal) and v3 (the never-rendered options) are the precedents, and both are *removals*. **Optional additions are not alterations:** `chart.transform` (§3.6) joined the envelope after v2 shipped and left every stored v2 spec valid, so the version did not move for it.
