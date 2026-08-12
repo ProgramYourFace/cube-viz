@@ -63,10 +63,50 @@ const SEED_SPEC: ChartSpec = {
   },
 } as ChartSpec;
 
+/**
+ * A SECOND seed, selected with `?seed=measures`: two independent measures over time and
+ * NO breakdown dimension. This is the field shape whose previews take the other branch
+ * of every mapping-driven family — measure-mode series instead of a pivot — which for
+ * `area` means OVERLAP mode (one gradient-filled mark per measure) instead of the
+ * stacked single mark. The type picker's tiles are the only place several such charts
+ * share one document, so this is the shape a per-tile rendering bug shows up in
+ * (see `scripts/verify-type-picker.mjs`).
+ */
+const SEED_MEASURES: ChartSpec = {
+  ...SEED_SPEC,
+  id: "chart_fleet_measures",
+  name: "Distance and fuel over time",
+  query: {
+    measures: ["trips.total_distance", "trips.fuel"],
+    timeDimensions: [
+      {
+        dimension: "trips.start_time",
+        granularity: "day",
+        dateRange: ["2026-07-15", "2026-08-11"],
+      },
+    ],
+    order: [["trips.start_time", "asc"]],
+    limit: 5000,
+  },
+  chart: {
+    family: "line",
+    mapping: {
+      category: { member: "trips.start_time" },
+      series: { mode: "measures", members: ["trips.total_distance", "trips.fuel"] },
+    },
+    legend: { show: true, position: "bottom" },
+    tooltip: { show: true, indicator: "line" },
+  },
+} as ChartSpec;
+
+const SEEDS: Record<string, ChartSpec> = { default: SEED_SPEC, measures: SEED_MEASURES };
+
 function App(): React.ReactElement {
   // Stable identity: CubeVizProvider rebuilds the Cube client whenever `cube` changes.
   const cube = React.useMemo(() => ({ endpoint: "/cubejs-api/v1", token: "mock" }), []);
-  const [spec, setSpec] = React.useState<ChartSpec>(SEED_SPEC);
+  const [spec, setSpec] = React.useState<ChartSpec>(
+    () => SEEDS[new URLSearchParams(location.search).get("seed") ?? "default"] ?? SEED_SPEC,
+  );
 
   return (
     <CubeVizProvider cube={cube} locale={{ locale: "en-US", timezone: "UTC" }}>

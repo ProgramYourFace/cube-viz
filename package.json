@@ -26,6 +26,7 @@
     "typecheck": "tsc --noEmit",
     "shot": "bun playground/shot.mjs",
     "shots": "node scripts/shots.mjs",
+    "verify:type-picker": "node scripts/verify-type-picker.mjs",
     "test": "vitest run"
   },
   "peerDependencies": {

@@ -212,4 +212,53 @@ describe("previewSpecFor", () => {
     expect(() => previewSpecFor(R, spec, "heatmap")).not.toThrow();
     expect(readWells(previewSpecFor(R, spec, "heatmap"), R).hy).toEqual([]);
   });
+
+  /**
+   * A tile is a PICTURE OF ONE CHART TYPE, so the spec behind it must stay that type
+   * whatever the fields are — a tile that quietly previews another family is the same
+   * class of bug as one that draws the wrong marks (which is checked end-to-end, in a
+   * browser, by `scripts/verify-type-picker.mjs`).
+   */
+  it("keeps the requested family for every field shape", () => {
+    const shapes = [
+      specOf({ measures: [AMOUNT] }),
+      specOf({ measures: [AMOUNT, COUNT], timeDimensions: time(CREATED) }),
+      specOf({ measures: [AMOUNT], dimensions: [STATUS, CITY] }),
+      specOf({}),
+    ];
+    for (const spec of shapes) {
+      for (const descriptor of R.list()) {
+        if (descriptor.queryless) continue;
+        const preview = previewSpecFor(R, spec, descriptor.family);
+        expect(preview.chart.family).toBe(descriptor.family);
+      }
+    }
+  });
+
+  /**
+   * The area family renders two DIFFERENT ways and the tile hits both, so pin which
+   * field shape lands where: independent measures overlap (one gradient-filled mark per
+   * measure), a colour split stacks (one flat-filled mark). The overlap arrangement is
+   * the one whose fill regressed to invisible, which is why it is asserted here as well
+   * as in the DOM check.
+   */
+  it("previews independent measures as an OVERLAP area and a colour split as a stacked one", () => {
+    const measures = previewSpecFor(
+      R,
+      specOf({ measures: [AMOUNT, COUNT], timeDimensions: time(CREATED) }),
+      "area",
+    ).chart;
+    expect(measures.mapping?.series?.mode).toBe("measures");
+    // No explicit stackMode ⇒ the renderer's shape-aware default applies, which for
+    // measure-mode series is "none" (overlapping fills).
+    expect(measures.stackMode).toBeUndefined();
+
+    const split = previewSpecFor(
+      R,
+      specOf({ measures: [AMOUNT], timeDimensions: time(CREATED), dimensions: [STATUS] }),
+      "area",
+    ).chart;
+    expect(split.mapping?.series?.mode).toBe("pivot");
+    expect(split.stackMode).toBeUndefined();
+  });
 });

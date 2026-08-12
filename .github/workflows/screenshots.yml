@@ -54,6 +54,11 @@ jobs:
       - name: Build library
         run: bun run build
 
+      # A tile that silently draws the wrong family is the failure mode a
+      # screenshot hides, so assert per-tile geometry before capturing.
+      - name: Verify every type-picker tile draws its own chart type
+        run: bun run verify:type-picker
+
       - name: Capture screenshots
         run: bun run shots
 

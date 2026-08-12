@@ -136,6 +136,11 @@ export function AreaChartFamily({
             key: "i",
             curve,
             fill: `url(#${gradientId(s.key)})`,
+            // The gradient stops already carry the intended ramp, but areaY
+            // defaults `fillOpacity` to 0.2 and MULTIPLIES it in — which divided
+            // the ramp by five and left only the stroke visible, i.e. an area
+            // that read as a line. Opt out explicitly.
+            fillOpacity: 1,
             stroke: seriesColorVar(s),
             strokeWidth,
           }),

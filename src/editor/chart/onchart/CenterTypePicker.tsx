@@ -213,7 +213,13 @@ function FamilyTile({
   const Icon = fit.descriptor.icon;
   const label = fit.descriptor.label;
   return (
-    <div className={cn("cv-type-tile", "cv-type-tile--card", active && "cv-type-tile--active")}>
+    <div
+      className={cn("cv-type-tile", "cv-type-tile--card", active && "cv-type-tile--active")}
+      // Which family this tile is a picture OF. The label is a human string that can be
+      // renamed or localized; `scripts/verify-type-picker.mjs` needs the machine key to
+      // check that every tile drew ITS OWN family's marks (see that script's header).
+      data-family={fit.family}
+    >
       <div className="cv-type-tile-figure">
         {preview ? (
           <MiniChart

@@ -15,6 +15,12 @@
  *
  * FAILS LOUDLY (non-zero exit) on a console error, a page error, a missing target
  * selector, or a shot that never painted — a silent blank PNG is worse than none.
+ *
+ * What it does NOT prove is that each of the type picker's tiles drew the chart type it
+ * is a picture OF: a shot only shows that something painted, and the picker's tiles all
+ * look plausible individually. `scripts/verify-type-picker.mjs` asserts that structurally
+ * (form + paint strength, per tile, over time, across field shapes) and is the check to
+ * run — alongside this one — after touching the picker or a chart family's marks.
  */
 import { mkdir, rm, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
