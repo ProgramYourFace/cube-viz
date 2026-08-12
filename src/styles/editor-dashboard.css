@@ -1,0 +1,1397 @@
+/*
+ * Dashboard-editor + editor-primitives styles. Plain CSS — cube-viz no longer
+ * ships Tailwind utilities. Class prefix: `cv-` (semantic, hand-authored).
+ * Covers src/editor/{ChartEditor,DashboardEditor}.tsx, src/editor/dashboard/**
+ * and src/editor/primitives/** (the chart-editor internals under
+ * src/editor/chart/** live in their own sheet).
+ *
+ * Conventions (mirrors charts.css):
+ *  - spacing = Tailwind scale × 0.25rem; text-xs = .75rem/1rem, text-sm = .875rem/1.25rem
+ *  - radii: rounded-sm = calc(var(--radius) - 4px), rounded-md = calc(var(--radius) - 2px),
+ *    rounded-lg = var(--radius), rounded-xl = calc(var(--radius) + 4px), plain rounded = .25rem
+ *  - colors resolve through theme tokens (var(--background), …); `/NN` opacity
+ *    suffixes become color-mix(in oklab, var(--x) NN%, transparent)
+ *  - focus rings (ring-1 ring-ring) = box-shadow: 0 0 0 1px var(--ring)
+ *  - the old `cv:sm:` variants were viewport-based → @media (min-width: 640px)
+ *
+ * Shared `.cv-ed-*` helpers live at the BOTTOM of this file; the ones that
+ * override a ui-component base rule (Button/Input/Badge/Popover sizes+colors)
+ * double their own class so they win regardless of stylesheet import order.
+ */
+
+/* ───────────────────────────── ChartEditor ──────────────────────────────── */
+
+.cv-chart-editor {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--foreground);
+}
+
+.cv-chart-editor--fill {
+  height: 100%;
+}
+
+.cv-chart-editor--bounded {
+  min-height: 28rem;
+}
+
+/* Dashed "add fields" empty state shown before the preview is renderable. */
+.cv-chart-editor-empty {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+}
+
+.cv-chart-editor-empty-hint {
+  max-width: 16rem;
+}
+
+/* Invalid-spec alert body: the zod issue list. */
+.cv-chart-editor-issues {
+  list-style-type: disc;
+  padding-left: 1rem;
+}
+
+.cv-chart-editor-issue-path {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.cv-chart-editor-preview {
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+/* ─────────────────────────── DashboardEditor ────────────────────────────── */
+
+.cv-dashboard-editor {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cv-dashboard-editor-toolbar {
+  flex-shrink: 0;
+}
+
+.cv-dashboard-editor-validation {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--destructive);
+}
+
+/* Scrolling canvas region (widgets below the fold stay reachable). */
+.cv-dashboard-editor-scroll {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}
+
+/* Full-screen widget/variables editor overlay. */
+.cv-dashboard-editor-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+}
+
+.cv-dashboard-editor-fullscreen-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.625rem 1rem;
+}
+
+.cv-dashboard-editor-fullscreen-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cv-dashboard-editor-fullscreen-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+.cv-dashboard-editor-fullscreen-body {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  padding: 1rem;
+}
+
+/* Centered scroll column for the variables / non-chart widget editors. */
+.cv-dashboard-editor-fullscreen-column {
+  margin-inline: auto;
+  height: 100%;
+  max-width: 48rem;
+  overflow-y: auto;
+}
+
+/* ───────────────────────────── EditorToolbar ────────────────────────────── */
+
+.cv-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  padding: 0.5rem;
+}
+
+/* Dashboard-name input (overrides the Input base height). */
+.cv-editor-toolbar-name.cv-editor-toolbar-name {
+  height: 2rem;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 0%;
+}
+
+@media (min-width: 640px) {
+  .cv-editor-toolbar-name.cv-editor-toolbar-name {
+    width: auto;
+  }
+}
+
+/* Add-widget button cluster. */
+.cv-editor-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Right-aligned edit-session actions (Undo / Redo / Discard / Save). */
+.cv-editor-toolbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cv-editor-toolbar-discard.cv-editor-toolbar-discard {
+  color: var(--muted-foreground);
+}
+
+.cv-editor-toolbar-discard.cv-editor-toolbar-discard:hover {
+  color: var(--destructive);
+}
+
+/* "Saved ✓" confirmation: stays vivid even though Save disables right after
+   (the old Tailwind emerald-600). */
+.cv-editor-toolbar-save--saved.cv-editor-toolbar-save--saved,
+.cv-editor-toolbar-save--saved.cv-editor-toolbar-save--saved:hover {
+  background: #059669;
+  color: #ffffff;
+}
+
+.cv-editor-toolbar-save--saved.cv-editor-toolbar-save--saved:disabled {
+  opacity: 1;
+}
+
+/* ───────────────────────────── EditorCanvas ─────────────────────────────── */
+
+.cv-editor-canvas {
+  width: 100%;
+}
+
+/* react-grid-layout chrome: keep RGL's own resize handles above the widget's
+   full-body drag layer (z-10) — was `[&_.react-resizable-handle]:z-20`. */
+.cv-editor-canvas .react-resizable-handle {
+  z-index: 20;
+}
+
+/* Per-widget shell: click-to-select target + selection ring carrier. */
+.cv-editor-widget {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  cursor: move;
+  border-radius: calc(var(--radius) + 4px);
+  transition: box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-editor-widget:focus-visible {
+  outline: none;
+}
+
+/* Only the SELECTED widget gets a ring (ring-2 ring-primary, offset 2 on the
+   page background); keyboard focus on an unselected widget shows a faint one. */
+.cv-editor-widget--selected {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--primary);
+}
+
+.cv-editor-widget:not(.cv-editor-widget--selected):focus-visible {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--border);
+}
+
+/* Drag-anywhere layer: whole-widget drag handle, above the chart (z-10) but
+   below the resize handles + action buttons (z-20). */
+.cv-editor-widget-drag-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  cursor: move;
+  border-radius: calc(var(--radius) + 4px);
+}
+
+/* Edit / duplicate / delete cluster — top-right, always clickable (z-20). */
+.cv-editor-widget-actions {
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cv-editor-widget-action {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in oklab, var(--card) 90%, transparent);
+  color: var(--muted-foreground);
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.cv-editor-widget-action:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.cv-editor-widget-action svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cv-editor-widget-action--danger:hover {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+
+/* ──────────────────────────── WidgetEditPanel ───────────────────────────── */
+
+.cv-widget-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cv-widget-panel--fill {
+  height: 100%;
+}
+
+/* Chart-editor host inside the full-screen panel. */
+.cv-widget-panel-chart-fill {
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+/* ─────────────────────────── InputWidgetEditor ──────────────────────────── */
+
+.cv-input-widget-editor {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Date-range preset multiselect (popover checklist). */
+.cv-preset-select-trigger.cv-preset-select-trigger {
+  width: 100%;
+  justify-content: space-between;
+  font-weight: 400;
+}
+
+.cv-preset-select-caret {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.cv-preset-select-popover.cv-preset-select-popover {
+  width: 16rem;
+  padding: 0.25rem;
+}
+
+.cv-preset-select-list {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.cv-preset-select-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: transparent;
+  text-align: left;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+}
+
+.cv-preset-select-item:hover {
+  background: var(--accent);
+}
+
+/* Checkbox square inside a preset row. */
+.cv-preset-select-check {
+  display: flex;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--input);
+  border-radius: 0.25rem;
+}
+
+.cv-preset-select-check--checked {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Granularity toggle chips. */
+.cv-granularity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.cv-granularity-chip {
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-transform: capitalize;
+  color: var(--muted-foreground);
+  transition-property: color, background-color, border-color;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-granularity-chip:hover {
+  color: var(--foreground);
+}
+
+.cv-granularity-chip--on {
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  color: var(--foreground);
+}
+
+/* Select-kind options list (label/value input pairs). */
+.cv-select-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.cv-select-option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* ─────────────────────────── TextWidgetEditor ───────────────────────────── */
+
+.cv-text-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cv-text-editor-loading {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+}
+
+/* The contenteditable surface (applied via TipTap editorProps alongside
+   RICH_TEXT_CLASS so typing matches the runtime render exactly). */
+.cv-text-editor-content {
+  min-height: 8rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding: 0.5rem 0.75rem;
+}
+
+.cv-text-editor-content:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+/* Formatting toolbar. */
+.cv-text-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--card);
+  padding: 0.25rem;
+}
+
+.cv-text-toolbar-button {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  transition-property: color, background-color, border-color;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-text-toolbar-button:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.cv-text-toolbar-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-text-toolbar-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cv-text-toolbar-button--active {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.cv-text-toolbar-divider {
+  margin-inline: 0.25rem;
+  height: 1.25rem;
+  width: 1px;
+  background: var(--border);
+}
+
+/* ───────────────────────────── VariablesPanel ───────────────────────────── */
+
+.cv-variables-empty {
+  border: 1px dashed var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 1rem;
+  text-align: center;
+}
+
+.cv-variables-empty-title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+.cv-variables-empty-hint {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}
+
+.cv-variables-empty-add {
+  margin-top: 0.75rem;
+}
+
+.cv-variables-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* One declared variable (collapsible card). */
+.cv-variable-row {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in oklab, var(--card) 40%, transparent);
+}
+
+.cv-variable-row-header {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+}
+
+.cv-variable-row-toggle {
+  display: flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.cv-variable-row-toggle:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.cv-variable-row-toggle svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cv-variable-row-name.cv-variable-row-name {
+  height: 1.75rem;
+  min-width: 0;
+  flex: 1 1 0%;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* Type badge — hidden on narrow containers (was `hidden sm:inline`). */
+.cv-variable-row-type {
+  display: none;
+  flex-shrink: 0;
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.125rem 0.375rem;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+@media (min-width: 640px) {
+  .cv-variable-row-type {
+    display: inline;
+  }
+}
+
+.cv-variable-row-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.cv-variable-row-error {
+  padding: 0 0.5rem 0.375rem;
+  font-size: 11px;
+  color: var(--destructive);
+}
+
+.cv-variable-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  padding: 0.625rem;
+}
+
+/* ────────────────────── EditorShell (primitives) ────────────────────────── */
+
+.cv-editor-shell {
+  display: flex;
+  width: 100%;
+}
+
+.cv-editor-shell--stacked {
+  flex-direction: column;
+}
+
+.cv-editor-shell--split {
+  align-items: stretch;
+}
+
+.cv-editor-shell--fill {
+  height: 100%;
+}
+
+/* Full-width band in a stacked layout (canvas or panel). */
+.cv-editor-shell-pane {
+  width: 100%;
+}
+
+.cv-editor-shell-pane--fixed {
+  flex-shrink: 0;
+}
+
+.cv-editor-shell-pane--scroll {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-y: auto;
+}
+
+/* Separator between stacked preview + config (was `my-3`). */
+.cv-editor-shell-gap {
+  margin-block: 0.75rem;
+}
+
+/* Wide two-pane: fixed-width config column + flexible preview. */
+.cv-editor-shell-config {
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding-right: 0.75rem;
+}
+
+.cv-editor-shell-preview {
+  min-width: 0;
+  flex: 1 1 0%;
+  padding-left: 0.75rem;
+}
+
+/* Narrow canvas-panel: toggle row + inline drop-in panel card. */
+.cv-editor-shell-toggle-row {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.cv-editor-shell-panel-card {
+  margin-bottom: 0.75rem;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.cv-editor-shell-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+}
+
+.cv-editor-shell-panel-title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+.cv-editor-shell-panel-body {
+  padding: 0.75rem;
+}
+
+/* Wide canvas-panel: docked side panel + reflowing canvas. */
+.cv-editor-shell-dock {
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.cv-editor-shell-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.75rem 0.5rem;
+}
+
+.cv-editor-shell-dock-title {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+.cv-editor-shell-dock-icon {
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
+}
+
+.cv-editor-shell-dock-body--right {
+  padding-left: 0.75rem;
+}
+
+.cv-editor-shell-dock-body--left {
+  padding-right: 0.75rem;
+}
+
+.cv-editor-shell-canvas-main {
+  min-width: 0;
+  flex: 1 1 0%;
+}
+
+.cv-editor-shell-canvas-main--pad-right {
+  padding-right: 0.75rem;
+}
+
+.cv-editor-shell-canvas-main--pad-left {
+  padding-left: 0.75rem;
+}
+
+/* ─────────────────────── FieldRow (primitives) ──────────────────────────── */
+
+.cv-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-block: 0.375rem;
+}
+
+.cv-field-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cv-field-row-label {
+  color: var(--muted-foreground);
+}
+
+.cv-field-row-action {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.cv-field-row-error {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--destructive);
+}
+
+.cv-field-row-hint {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}
+
+/* ─────────────────────── Section (primitives) ───────────────────────────── */
+
+.cv-section {
+  border-bottom: 1px solid var(--border);
+  padding-block: 0.5rem;
+}
+
+.cv-section:last-child {
+  border-bottom: 0;
+}
+
+.cv-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* Shared header layout: the collapsible <button> or the static <div>. */
+.cv-section-toggle,
+.cv-section-heading {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0%;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.cv-section-toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: calc(var(--radius) - 4px);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.cv-section-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-section-chevron {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-section-chevron--open {
+  transform: rotate(90deg);
+}
+
+.cv-section-title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+.cv-section-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}
+
+.cv-section-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cv-section-body {
+  padding-top: 0.5rem;
+}
+
+/* ─────────────────── Switch / SwitchRow (primitives) ────────────────────── */
+
+/* Track: state read from the data-state attribute the component already sets. */
+.cv-switch {
+  display: inline-flex;
+  height: 1.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  cursor: pointer;
+  align-items: center;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  padding: 0;
+  background: var(--input);
+  transition-property: color, background-color, border-color;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-switch[data-state="checked"] {
+  background: var(--primary);
+}
+
+.cv-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cv-switch-thumb {
+  pointer-events: none;
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1);
+  transform: translateX(0);
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-switch[data-state="checked"] .cv-switch-thumb {
+  transform: translateX(1rem);
+}
+
+.cv-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block: 0.375rem;
+}
+
+.cv-switch-row-label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.125rem;
+  cursor: pointer;
+}
+
+.cv-switch-row-label--disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.cv-switch-row-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.cv-switch-row-hint {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}
+
+/* ─────────────────── SegmentedControl (primitives) ──────────────────────── */
+
+.cv-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-radius: var(--radius);
+  background: var(--muted);
+  padding: 0.25rem;
+  color: var(--muted-foreground);
+}
+
+/* Default size baked in; `--sm` narrows padding + type. */
+.cv-segmented-option {
+  display: inline-flex;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0 0.625rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: inherit;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-segmented-option--sm {
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.cv-segmented-option--full {
+  flex: 1 1 0%;
+}
+
+.cv-segmented-option:hover {
+  color: var(--foreground);
+}
+
+.cv-segmented-option:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-segmented-option:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.cv-segmented-option--selected {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+/* ─────────────────── ColorTokenPicker (primitives) ──────────────────────── */
+
+.cv-color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Shared swatch base (the "Auto" chip and the token dots). */
+.cv-color-swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--input);
+  border-radius: 9999px;
+  background: transparent;
+  transition: box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-color-swatch:hover {
+  border-color: var(--ring);
+}
+
+.cv-color-swatch:disabled {
+  opacity: 0.5;
+}
+
+.cv-color-swatch--auto {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Token dots carry the live theme color inline; faint hairline border. */
+.cv-color-swatch--token {
+  border-color: rgb(0 0 0 / 0.1);
+}
+
+.cv-color-swatch--selected {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 40%, transparent);
+}
+
+.cv-color-swatch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+/* ─────────────── CubePicker / MemberPicker (primitives) ─────────────────── */
+
+/* Icon + truncated label row inside Select values/items (both pickers). */
+.cv-member-option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Member type glyph (calendar/hash/pin/type). */
+.cv-member-type-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.cv-cube-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+/* view/cube tag on a CubePicker row (overrides Badge base padding/size). */
+.cv-cube-badge.cv-cube-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0 0.375rem;
+  font-size: 10px;
+}
+
+/* ─────────────────── MemberMultiPicker (primitives) ─────────────────────── */
+
+.cv-member-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Selected, ordered member list. */
+.cv-member-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-member-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding: 0.375rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.cv-member-picker-item--dragging {
+  opacity: 0.6;
+}
+
+.cv-member-picker-grip {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  cursor: grab;
+  color: var(--muted-foreground);
+}
+
+.cv-member-picker-name {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-member-picker-item-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+/* "+ Add member" trigger (left-aligned full-width outline Button). */
+.cv-member-picker-add.cv-member-picker-add {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.cv-member-picker-popover.cv-member-picker-popover {
+  width: 18rem;
+  padding: 0;
+}
+
+.cv-member-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+}
+
+.cv-member-picker-search-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.cv-member-picker-search-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.cv-member-picker-search-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.cv-member-picker-options {
+  max-height: 16rem;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.cv-member-picker-empty {
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+}
+
+/* Checklist row in the add popover. */
+.cv-member-picker-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: transparent;
+  text-align: left;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.cv-member-picker-option:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.cv-member-picker-option:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.cv-member-picker-option--checked {
+  background: color-mix(in oklab, var(--accent) 50%, transparent);
+}
+
+.cv-member-picker-check {
+  display: flex;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.cv-member-picker-check--checked {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.cv-member-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding: 0.375rem 0.75rem;
+}
+
+/* Selection-count Badge (overrides Badge base padding/size). */
+.cv-member-picker-count.cv-member-picker-count {
+  padding: 0 0.375rem;
+  font-size: 10px;
+}
+
+/* Compact "Clear" Button in the popover footer. */
+.cv-member-picker-clear.cv-member-picker-clear {
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* ──────────────────────────── shared helpers ────────────────────────────
+ * Cross-component utilities. The doubled selectors are deliberate: they must
+ * beat single-class base rules on Button/Input regardless of import order. */
+
+.cv-ed-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cv-ed-icon-sm {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.cv-ed-icon-xs {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.cv-ed-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-ed-grow {
+  flex: 1 1 0%;
+}
+
+/* Standalone helper text (e.g. "No options yet."). */
+.cv-ed-hint {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}
+
+/* Tighter FieldRow (`py-1` override) — declared after .cv-field-row, wins. */
+.cv-ed-row-tight {
+  padding-block: 0.25rem;
+}
+
+/* Icon-Button size overrides (size-6 / size-7 / size-8). */
+.cv-ed-btn-6.cv-ed-btn-6 {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.cv-ed-btn-7.cv-ed-btn-7 {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.cv-ed-btn-8.cv-ed-btn-8 {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+}
+
+/* Compact clear-style Button (h-6 px-1.5 text-xs muted). */
+.cv-ed-clear-btn.cv-ed-clear-btn {
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* Muted Button text at rest (ghost icon buttons); Button's own hover color
+   still wins on hover, matching the old utility behavior. */
+.cv-ed-clear-btn.cv-ed-clear-btn:not(:hover),
+.cv-ed-muted.cv-ed-muted:not(:hover) {
+  color: var(--muted-foreground);
+}
+
+/* Destructive Button text, held through hover. */
+.cv-ed-danger.cv-ed-danger,
+.cv-ed-danger.cv-ed-danger:hover {
+  color: var(--destructive);
+}
+
+/* Turns destructive on hover (delete affordances). */
+.cv-ed-hover-danger.cv-ed-hover-danger:hover {
+  color: var(--destructive);
+}

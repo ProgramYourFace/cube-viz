@@ -55,16 +55,11 @@ export interface InputWidgetViewProps {
 
 /* ───────────────────────────── shared field styling ─────────────────────── */
 
-const fieldClass = cn(
-  "cv:flex cv:h-9 cv:w-full cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-3 cv:py-1 cv:text-sm cv:text-foreground",
-  "cv:shadow-sm cv:transition-colors cv:placeholder:text-muted-foreground",
-  "cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring",
-  // Native <option> popups are OS-drawn; set readable colors so dark mode isn't black-on-black.
-  "cv:[&>option]:bg-popover cv:[&>option]:text-popover-foreground",
-  "cv:disabled:cursor-not-allowed cv:disabled:opacity-50",
-);
+// Shared field shell (native <input>/<select> AND SelectTrigger) — placeholder,
+// focus ring, <option> colors, and disabled state live in styles/render.css.
+const fieldClass = "cv-field";
 
-const labelClass = "cv:mb-1 cv:block cv:text-xs cv:font-medium cv:text-muted-foreground";
+const labelClass = "cv-field-label";
 
 /** ISO date pattern used to parse/serialize absolute date-range bounds. */
 const ISO_DATE = "yyyy-MM-dd";
@@ -124,22 +119,22 @@ function DateRangeControl({
         <Button
           variant="outline"
           className={cn(
-            "cv:w-full cv:justify-start cv:text-left cv:font-normal",
-            triggerLabel === "Pick a date range" && "cv:text-muted-foreground",
+            "cv-daterange-trigger",
+            triggerLabel === "Pick a date range" && "cv-daterange-trigger--placeholder",
           )}
         >
-          <CalendarIcon className="cv:mr-2 cv:size-4" />
+          <CalendarIcon />
           {triggerLabel}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="cv:flex cv:w-auto cv:gap-2 cv:p-2" align="start">
-        <div className="cv:flex cv:max-h-80 cv:flex-col cv:gap-1 cv:overflow-y-auto cv:border-r cv:pr-2">
+      <PopoverContent className="cv-daterange-popover" align="start">
+        <div className="cv-daterange-presets">
           {presets.map((p) => (
             <Button
               key={p}
               variant="ghost"
               size="sm"
-              className="cv:justify-start cv:whitespace-nowrap cv:font-normal"
+              className="cv-daterange-preset"
               onClick={() => {
                 onChange(p);
                 setOpen(false);
@@ -262,7 +257,7 @@ function SelectControl({ value, onChange, control }: InputControlProps): ReactEl
     return (
       <select
         multiple
-        className={cn(fieldClass, "cv:h-auto cv:min-h-[6rem]")}
+        className={cn(fieldClass, "cv-field--multi")}
         value={[...selected]}
         onChange={(e) => {
           const picked = Array.from(e.target.selectedOptions, (o) => o.value);
@@ -379,14 +374,14 @@ function NumberControl({ value, onChange, control }: InputControlProps): ReactEl
 function ToggleControl({ value, onChange, decl }: InputControlProps): ReactElement {
   const checked = value === true;
   return (
-    <label className="cv:inline-flex cv:cursor-pointer cv:items-center cv:gap-2">
+    <label className="cv-toggle">
       <input
         type="checkbox"
-        className="cv:size-4 cv:rounded cv:border-input cv:text-primary cv:accent-primary cv:focus-visible:ring-1 cv:focus-visible:ring-ring"
+        className="cv-toggle-check"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      <span className="cv:text-sm cv:text-foreground">{decl.label ?? decl.name}</span>
+      <span className="cv-toggle-label">{decl.label ?? decl.name}</span>
     </label>
   );
 }
@@ -421,7 +416,7 @@ export function InputWidgetView({ control, title }: InputWidgetViewProps): React
 
   if (!decl) {
     return (
-      <div className="cv:text-sm cv:text-muted-foreground">
+      <div className="cv-widget-note">
         Unknown variable “{control.variable}”
       </div>
     );

@@ -85,10 +85,10 @@ export function MemberMultiPicker({
   }, [members, search]);
 
   return (
-    <div data-slot="member-multi-picker" className={cn("cv:flex cv:flex-col cv:gap-2", className)}>
+    <div data-slot="member-multi-picker" className={cn("cv-member-picker", className)}>
       {/* Selected, ordered list */}
       {value.length > 0 ? (
-        <ul className="cv:flex cv:flex-col cv:gap-1">
+        <ul className="cv-member-picker-list">
           {value.map((name, i) => {
             const opt = byName.get(name);
             return (
@@ -105,48 +105,48 @@ export function MemberMultiPicker({
                 }}
                 onDragEnd={() => setDragIndex(null)}
                 className={cn(
-                  "cv:flex cv:items-center cv:gap-2 cv:rounded-md cv:border cv:border-border cv:bg-background cv:px-2 cv:py-1.5 cv:text-sm",
-                  dragIndex === i && "cv:opacity-60",
+                  "cv-member-picker-item",
+                  dragIndex === i && "cv-member-picker-item--dragging",
                 )}
               >
                 <GripVertical
-                  className="cv:size-4 cv:shrink-0 cv:cursor-grab cv:text-muted-foreground"
+                  className="cv-member-picker-grip"
                   aria-hidden
                 />
                 {opt ? memberTypeIcon(opt.type) : null}
-                <span className="cv:min-w-0 cv:flex-1 cv:truncate" title={name}>
+                <span className="cv-member-picker-name" title={name}>
                   {opt?.label ?? name}
                 </span>
-                <div className="cv:flex cv:shrink-0 cv:items-center cv:gap-0.5">
+                <div className="cv-member-picker-item-actions">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="cv:size-6"
+                    className="cv-ed-btn-6"
                     disabled={disabled || i === 0}
                     onClick={() => move(i, i - 1)}
                     aria-label={`Move ${opt?.label ?? name} up`}
                   >
-                    <ArrowUp className="cv:size-3.5" />
+                    <ArrowUp className="cv-ed-icon-sm" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="cv:size-6"
+                    className="cv-ed-btn-6"
                     disabled={disabled || i === value.length - 1}
                     onClick={() => move(i, i + 1)}
                     aria-label={`Move ${opt?.label ?? name} down`}
                   >
-                    <ArrowDown className="cv:size-3.5" />
+                    <ArrowDown className="cv-ed-icon-sm" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="cv:size-6 cv:text-muted-foreground cv:hover:text-destructive"
+                    className={cn("cv-ed-btn-6", "cv-ed-muted", "cv-ed-hover-danger")}
                     disabled={disabled}
                     onClick={() => remove(name)}
                     aria-label={`Remove ${opt?.label ?? name}`}
                   >
-                    <X className="cv:size-3.5" />
+                    <X className="cv-ed-icon-sm" />
                   </Button>
                 </div>
               </li>
@@ -161,26 +161,26 @@ export function MemberMultiPicker({
           <Button
             variant="outline"
             size="sm"
-            className="cv:w-full cv:justify-start"
+            className="cv-member-picker-add"
             disabled={disabled || isLoading || atMax}
           >
-            <Plus className="cv:size-4" />
+            <Plus className="cv-ed-icon" />
             {isLoading ? "Loading…" : atMax ? `Max ${max} reached` : addLabel}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="cv:w-72 cv:p-0">
-          <div className="cv:flex cv:items-center cv:gap-2 cv:border-b cv:border-border cv:px-3 cv:py-2">
-            <Search className="cv:size-4 cv:shrink-0 cv:text-muted-foreground" />
+        <PopoverContent align="start" className="cv-member-picker-popover">
+          <div className="cv-member-picker-search">
+            <Search className="cv-member-picker-search-icon" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search members…"
-              className="cv:w-full cv:bg-transparent cv:text-sm cv:text-foreground cv:outline-none cv:placeholder:text-muted-foreground"
+              className="cv-member-picker-search-input"
             />
           </div>
-          <div className="cv:max-h-64 cv:overflow-y-auto cv:p-1">
+          <div className="cv-member-picker-options">
             {filtered.length === 0 ? (
-              <p className="cv:px-2 cv:py-6 cv:text-center cv:text-sm cv:text-muted-foreground">
+              <p className="cv-member-picker-empty">
                 No members found
               </p>
             ) : (
@@ -194,20 +194,20 @@ export function MemberMultiPicker({
                     disabled={disabledItem}
                     onClick={() => toggle(m.name)}
                     className={cn(
-                      "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:outline-none cv:hover:bg-accent cv:hover:text-accent-foreground cv:disabled:pointer-events-none cv:disabled:opacity-50",
-                      checked && "cv:bg-accent/50",
+                      "cv-member-picker-option",
+                      checked && "cv-member-picker-option--checked",
                     )}
                   >
                     <span
                       className={cn(
-                        "cv:flex cv:size-4 cv:shrink-0 cv:items-center cv:justify-center cv:rounded-sm cv:border",
-                        checked ? "cv:border-primary cv:bg-primary cv:text-primary-foreground" : "cv:border-input",
+                        "cv-member-picker-check",
+                        checked && "cv-member-picker-check--checked",
                       )}
                     >
                       {checked ? <Check /> : null}
                     </span>
                     {memberTypeIcon(m.type)}
-                    <span className="cv:min-w-0 cv:flex-1 cv:truncate" title={m.name}>
+                    <span className="cv-member-picker-name" title={m.name}>
                       {m.label}
                     </span>
                   </button>
@@ -216,15 +216,15 @@ export function MemberMultiPicker({
             )}
           </div>
           {value.length > 0 ? (
-            <div className="cv:flex cv:items-center cv:justify-between cv:border-t cv:border-border cv:px-3 cv:py-1.5">
-              <Badge variant="secondary" className="cv:px-1.5 cv:py-0 cv:text-[10px]">
+            <div className="cv-member-picker-footer">
+              <Badge variant="secondary" className="cv-member-picker-count">
                 {value.length}
                 {max ? ` / ${max}` : ""} selected
               </Badge>
               <Button
                 variant="ghost"
                 size="sm"
-                className="cv:h-6 cv:px-2 cv:text-xs"
+                className="cv-member-picker-clear"
                 onClick={() => onChange([])}
               >
                 Clear
@@ -247,7 +247,7 @@ function Check(): React.ReactElement {
       strokeWidth={3}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="cv:size-3"
+      className="cv-ed-icon-xs"
       aria-hidden
     >
       <path d="M20 6 9 17l-5-5" />

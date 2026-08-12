@@ -4,7 +4,7 @@ import type { ChartColorToken, FormatOptions } from "@/spec";
 import type { ValueFormatter } from "@/format";
 import type { UnitDef } from "@/units";
 import type { CubeClient } from "@/adapter";
-import type { FamilyRegistry } from "@/charts";
+import type { ChartMarkTheme, FamilyRegistry } from "@/charts";
 import type { ComponentRegistry } from "./registry";
 
 /**
@@ -81,6 +81,11 @@ export interface ResolvedTheme {
   chartRamp: ChartColorToken[];
   /** Forced color mode; "system" defers to the host's existing dark selector. */
   mode: "light" | "dark" | "system";
+  /**
+   * Resolved mark geometry, host overrides already merged over the defaults. Charts
+   * receive this whole — see charts/theme.ts for why it lives here and not in a spec.
+   */
+  marks: ChartMarkTheme;
 }
 
 /** The full context value provided by {@link CubeVizProvider}. */

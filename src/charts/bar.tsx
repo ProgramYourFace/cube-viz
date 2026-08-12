@@ -1,258 +1,257 @@
-import type * as React from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
+import * as React from "react";
+import { barX, barY, defineChart, group, lineY, lineX, stack, type ChartMark } from "@tanstack/charts";
 
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-
-import type { FormatRole } from "@/format";
 import type { ChartComponentProps } from "./types";
 import type { BarFamilyOptions } from "./defaults";
-
-/**
- * The shape LabelList accepts for `formatter`. Recharts types it as a single-arg
- * `(value) => RenderableText`, but at RUNTIME it also passes the label entry (with the
- * `payload` row) as the 2nd arg — which the percent-share label reads. We type the seam
- * as the single-arg form (what the prop declares) and the impls cast to it.
- */
-type LabelListFormatter = (value: string | number | boolean | null | undefined) => string;
 import {
-  axisDomain,
-  axisScale,
-  buildRows,
-  cornerRadius,
-  isStacked,
-  legendAlign,
+  axisFormat,
+  bandScale,
+  buildSeriesRows,
+  buildStackedRows,
+  cubeTooltip,
+  CvChart,
   legendDisplay,
-  legendLayout,
-  legendVerticalAlign,
-  memberByKey,
-  percentShareFormatter,
+  legendPlacement,
   percentTick,
+  pivotValueMember,
+  referenceLineMarks,
   resolvedAxisLabels,
+  chartCurve,
+  seriesColor,
   seriesColorVar,
+  seriesLabel,
   seriesMember,
-  tooltipValueFormatter,
-} from "./_shared";
+  stackGroups,
+  valueAnchor,
+  valueLabelMarks,
+  valueScale,
+  type SeriesRow,
+  type StackedRow,
+} from "./tanstack";
 
 /**
  * `bar` — absorbs all six Embeddable Bar Pros via `orientation` × `stackMode`
- * (docs/02-chart-options.md §2.1). orientation→layout, stackMode→stackId/
- * stackOffset are translated HERE; the spec never carries a Recharts prop.
+ * (docs/02-chart-options.md §2.1). orientation → barY/barX, stackMode → mark
+ * layout (group()/implicit stack/stack({offset:"normalize"})) are translated
+ * HERE; the spec never carries a renderer prop. One mark renders ALL series
+ * from long rows — grouping/stacking is per-mark geometry, and per-series
+ * paint comes from the chart-level color domain/range (seriesColor).
+ * Dual-axis (`meta.axis === "right"`) was removed with the combo family.
  */
 export function BarChartFamily({
   data,
   options,
-  config,
   format,
-  editing,
+  theme,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as BarFamilyOptions;
-  const horizontal = options.orientation === "horizontal";
-  const stacked = isStacked(options.stackMode);
-  const percent = options.stackMode === "percent";
 
-  const rows = buildRows(data);
-  // percent stackMode is chart geometry (0..1), not a host unit rule → local tick.
-  const valueFmt = (v: number | string | null | undefined, member?: string, role: FormatRole = "value") =>
-    percent ? percentTick(v) : format.value(v, member, role);
+  const definition = React.useMemo(() => {
+    const horizontal = options.orientation === "horizontal";
+    const percent = options.stackMode === "percent";
+    const stacked = options.stackMode === "stacked" || percent;
 
-  // The value-label formatter for a series. In percent mode the LabelList still receives the
-  // ORIGINAL datum (stackOffset="expand" only normalizes geometry), so percentTick(raw) would
-  // print e.g. "123,400%". Drive the label from the SHARE (raw / row total) via the shared
-  // percentShareFormatter, which reads the entry's payload row — matching the tooltip + axis.
-  // Recharts passes `(value, entry)` at runtime; LabelList's typed `formatter` only declares
-  // the value arg, so the result is cast to that single-arg shape.
-  const labelFormatter = (s: (typeof data.series)[number]): LabelListFormatter => {
-    if (percent) {
-      const share = percentShareFormatter();
-      return ((v: unknown, entry: { payload?: Record<string, unknown> }) =>
-        share(typeof v === "boolean" ? Number(v) : (v as number | string | null | undefined), entry)) as LabelListFormatter;
+    // comparePrevious companions: in GROUPED mode they render as ordinary extra
+    // bars with a translucent per-datum fill (the old `fillOpacity: 0.4`). In
+    // STACKED mode they must NOT join the stack (that would inflate totals —
+    // Recharts kept them in a separate `__prev` stack); instead the previous
+    // period renders as a dashed step line of companion totals over the stack.
+    const companions = data.series.filter((s) => s.meta?.companion);
+    const mains = companions.length ? data.series.filter((s) => !s.meta?.companion) : data.series;
+    const barSeries = stacked ? mains : data.series;
+
+    // Per-series `meta.stackId`: series sharing an id stack together, DIFFERENT ids
+    // are separate stacks drawn side by side (the Recharts contract). One stack ⇒
+    // the ordinary implicit-stacking path below, untouched.
+    const stacks = stacked ? stackGroups(barSeries) : [];
+    const multiStack = stacks.length > 1;
+    const rows = multiStack
+      ? buildStackedRows(data, barSeries, { normalize: percent })
+      : buildSeriesRows(data, { series: barSeries });
+    const tokenByLabel = new Map(data.series.map((s) => [seriesLabel(s), seriesColorVar(s)]));
+    // Category index → every row in it (the multi-stack tooltip's expansion).
+    const rowsByCategory = new Map<number, SeriesRow[]>();
+    if (multiStack) {
+      for (const r of rows) {
+        const bucket = rowsByCategory.get(r.i);
+        if (bucket) bucket.push(r);
+        else rowsByCategory.set(r.i, [r]);
+      }
     }
-    return ((v: string | number | boolean | null | undefined) =>
-      valueFmt(typeof v === "boolean" ? Number(v) : v, seriesMember(s), "label")) as LabelListFormatter;
-  };
-  const catFmt = (v: string | number) => format.category(v);
-  // The value-axis unit comes from each series' SOURCE measure (a pivot series' own key
-  // is a pivot value with no unit); `meta.measure` points at the real measure.
-  const keyToMember = memberByKey(data);
-  const valueMember = seriesMember(data.series[0]);
+    const axl = resolvedAxisLabels(data, options);
+    // Visual-axis semantics (as before): for a horizontal bar the category sits
+    // on Y and the value on X, so hide flags + scale options swap with it.
+    const catAxisHidden = horizontal ? options.axes?.y?.hide : options.axes?.x?.hide;
+    const valAxis = horizontal ? options.axes?.x : options.axes?.y;
+    const val = valueScale(valAxis);
+    const catPadding = theme.barCategoryGap;
+    // Per-axis `tickFormat` overrides re-bind the formatter for THAT axis' ticks only
+    // (the visual axes swap with `orientation`, so the category axis reads the
+    // category-side options and the value axis the value-side ones).
+    const catAxisOpts = horizontal ? options.axes?.y : options.axes?.x;
+    const catTickFormat = axisFormat(format, catAxisOpts);
+    const valTickFormat = axisFormat(format, valAxis);
+    // percent stackMode is chart geometry (0..1), not a host unit rule → local tick.
+    const valueMember = pivotValueMember(options) ?? seriesMember(data.series[0]);
+    const valueTick = (v: number): string =>
+      percent ? percentTick(v) : valTickFormat.value(v, valueMember, "axis");
+    const categoryAxis = catAxisHidden
+      ? (false as const)
+      : {
+          label: axl.x,
+          ticks: { format: (v: string | number) => catTickFormat.category(v) },
+        };
+    const valueAxis = valAxis?.hide
+      ? (false as const)
+      : { label: axl.y, ticks: { format: valueTick } };
 
-  const catAxisHidden = horizontal ? options.axes?.y?.hide : options.axes?.x?.hide;
-  const valAxis = horizontal ? options.axes?.x : options.axes?.y;
-  // Dual value axis (VERTICAL bars only): a measure with meta.axis:"right" mounts a 2nd
-  // Y, so two measures (each its own unit) stay readable side by side.
-  const hasRight = !horizontal && data.series.some((s) => s.meta?.axis === "right");
-  const leftMember = seriesMember(data.series.find((s) => s.meta?.axis !== "right")) ?? valueMember;
-  const rightMember = seriesMember(data.series.find((s) => s.meta?.axis === "right"));
-  // Axis labels (override → auto). Category=axl.x, value(left)=axl.left, value(right)=axl.right;
-  // for a horizontal bar the category sits on Y and the value on X, so they swap below.
-  const axl = resolvedAxisLabels(data, options);
-  const catLabel = axl.x ? { value: axl.x, position: "insideBottom" as const, offset: -2 } : undefined;
-  const catLabelV = axl.x ? { value: axl.x, angle: -90, position: "insideLeft" as const, style: { textAnchor: "middle" as const } } : undefined;
-  const valLabelH = axl.left ? { value: axl.left, position: "insideBottom" as const, offset: -2 } : undefined;
-  const valLabelL = axl.left ? { value: axl.left, angle: -90, position: "insideLeft" as const, style: { textAnchor: "middle" as const } } : undefined;
-  const valLabelR = axl.right ? { value: axl.right, angle: 90, position: "insideRight" as const, style: { textAnchor: "middle" as const } } : undefined;
+    // stackMode → layout: percent = normalized stack; stacked = implicit stack
+    // (repeated categories stack automatically once z is set); none/grouped =
+    // explicit side-by-side geometry. MULTI-STACK is the fourth case: the rows
+    // carry their own [y1,y2] intervals (which opts the mark out of implicit
+    // stacking, normalize included), so the layout groups the STACKS side by side.
+    const groupLayout = group({ padding: theme.barGap });
+    const layout = multiStack
+      ? groupLayout
+      : percent
+        ? stack({ offset: "normalize" })
+        : stacked
+          ? undefined
+          : groupLayout;
 
-  return (
-    <ChartContainer config={config} className="cv:h-full cv:w-full cv:min-h-[200px]">
-      <BarChart
-        accessibilityLayer
-        data={rows}
-        layout={horizontal ? "vertical" : "horizontal"}
-        stackOffset={percent ? "expand" : undefined}
-        barGap={fo.barGap}
-        barCategoryGap={fo.barCategoryGap}
-      >
-        <CartesianGrid vertical={horizontal} horizontal={!horizontal} />
-        {horizontal ? (
-          <>
-            <YAxis
-              type="category"
-              dataKey="__cat"
-              hide={catAxisHidden}
-              tickFormatter={catFmt}
-              label={catLabelV}
-            />
-            <XAxis
-              type="number"
-              hide={valAxis?.hide}
-              scale={axisScale(valAxis)}
-              domain={axisDomain(valAxis)}
-              tickFormatter={(v: number) => valueFmt(v, valueMember, "axis")}
-              label={valLabelH}
-            />
-          </>
-        ) : (
-          <>
-            <XAxis
-              type="category"
-              dataKey="__cat"
-              hide={catAxisHidden}
-              tickFormatter={catFmt}
-              label={catLabel}
-            />
-            <YAxis
-              yAxisId="left"
-              type="number"
-              hide={valAxis?.hide}
-              scale={axisScale(valAxis)}
-              domain={axisDomain(valAxis)}
-              tickFormatter={(v: number) => valueFmt(v, leftMember, "axis")}
-              label={valLabelL}
-            />
-            {hasRight && (
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                type="number"
-                hide={options.axes?.y2?.hide}
-                scale={axisScale(options.axes?.y2)}
-                domain={axisDomain(options.axes?.y2)}
-                tickFormatter={(v: number) => valueFmt(v, rightMember, "axis")}
-                label={valLabelR}
-              />
-            )}
-          </>
-        )}
-        {options.tooltip?.show !== false && (
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(label) => format.category(label as string | number)}
-                indicator={options.tooltip?.indicator ?? "dot"}
-                valueFormatter={
-                  percent
-                    ? percentShareFormatter()
-                    : tooltipValueFormatter(format, undefined, keyToMember)
-                }
-              />
-            }
-          />
-        )}
-        {legendDisplay(options, editing).show && (
-          <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
-            verticalAlign={legendVerticalAlign(options.legend?.position)}
-            layout={legendLayout(options.legend?.position)}
-            align={legendAlign(options.legend?.position)}
-          />
-        )}
-        {data.series.map((s) => (
-          <Bar
-            key={s.key}
-            yAxisId={horizontal ? undefined : s.meta?.axis === "right" && hasRight ? "right" : "left"}
-            dataKey={s.key}
-            name={s.label}
-            stackId={
-              stacked ? (s.meta?.companion ? "__prev" : (s.meta?.stackId ?? "stack")) : undefined
-            }
-            fill={seriesColorVar(s)}
-            fillOpacity={s.meta?.companion ? 0.4 : undefined}
-            radius={cornerRadius(fo.barRadius, horizontal)}
-            maxBarSize={fo.maxBarSize}
-          >
-            {fo.showValueLabels && (
-              <LabelList
-                dataKey={s.key}
-                position={horizontal ? "right" : "top"}
-                className="cv:fill-foreground cv:text-[10px]"
-                formatter={labelFormatter(s)}
-              />
-            )}
-          </Bar>
-        ))}
-        {fo.referenceLines?.map((r, k) => {
-          // `r.axis` is data-semantic: "y" == the VALUE axis, "x" == the CATEGORY axis
-          // (the convention shared with line/area, which are always vertical). For a
-          // horizontal bar the value sits on X and the category on Y, so the VISUAL axis
-          // flips. `onValueAxis` is true when this line targets the value (number) axis.
-          const onValueAxis = (r.axis === "y") !== horizontal;
-          const yAxisId = horizontal ? undefined : "left";
-          if (onValueAxis) {
-            // Value axis is a numeric scale → place at r.value directly.
-            const coord = horizontal ? { x: r.value } : { y: r.value };
-            return (
-              <ReferenceLine
-                key={k}
-                yAxisId={yAxisId}
-                {...coord}
-                label={r.label}
-                stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-                strokeDasharray="4 4"
-              />
-            );
-          }
-          // Category axis is a band scale keyed by string buckets — a numeric value never
-          // matches. Reproject the numeric value as an INDEX into the rendered categories;
-          // skip when out of range so nothing is mis-placed.
-          const catVal = rows[r.value]?.__cat;
-          if (catVal === undefined || catVal === null) return null;
-          const coord = horizontal ? { y: catVal } : { x: catVal };
-          return (
-            <ReferenceLine
-              key={k}
-              yAxisId={yAxisId}
-              {...coord}
-              label={r.label}
-              stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-              strokeDasharray="4 4"
-            />
-          );
-        })}
-      </BarChart>
-    </ChartContainer>
-  );
+    const barOptions = {
+      id: "cv-bars",
+      // One stack per `meta.stackId` ⇒ the group channel is the STACK (each stack
+      // gets its own slot in the band); paint still keys on the series label.
+      z: (r: SeriesRow) => (multiStack ? (r as StackedRow).stack : r.label),
+      color: "label",
+      // `i` repeats across series — composite key keeps scene identity stable.
+      key: (r: SeriesRow) => `${r.label} ${r.i}`,
+      layout,
+      radius: theme.barRadius,
+      maxThickness: theme.maxBarSize,
+      // Per-datum paint: companions get the old 40%-opacity look via color-mix;
+      // everything else uses its palette token (matching the color scale, so
+      // the legend swatches stay in sync).
+      fill: (r: SeriesRow) => {
+        const token = tokenByLabel.get(r.label) ?? "var(--chart-1)";
+        return r.companion ? `color-mix(in oklab, ${token} 40%, transparent)` : token;
+      },
+    } as const;
+
+    const marks: ChartMark[] = [
+      multiStack
+        ? horizontal
+          ? barX(rows as StackedRow[], { ...barOptions, x1: "y1", x2: "y2", y: "cat" })
+          : barY(rows as StackedRow[], { ...barOptions, x: "cat", y1: "y1", y2: "y2" })
+        : horizontal
+          ? barX(rows, { ...barOptions, x: "value", y: "cat" })
+          : barY(rows, { ...barOptions, x: "cat", y: "value" }),
+    ];
+
+    // Stacked previous-period overlay: dashed step line of companion totals.
+    // Skipped in percent mode (a share axis has no meaningful prev total).
+    if (stacked && !percent && companions.length) {
+      const prevRows: SeriesRow[] = data.categories.map((cat, i) => ({
+        cat: typeof cat === "number" ? cat : String(cat),
+        value: companions.reduce<number | null>((sum, s) => {
+          const v = s.data[i];
+          if (typeof v !== "number") return sum;
+          return (sum ?? 0) + v;
+        }, null),
+        key: "__prev_total",
+        label: "Previous period",
+        member: companions[0]?.meta?.measure ?? companions[0]?.key,
+        companion: true,
+        i,
+      }));
+      if (prevRows.some((r) => r.value !== null)) {
+        const prevStyle = {
+          id: "cv-bars-prev",
+          key: (r: SeriesRow) => `prev ${r.i}`,
+          curve: chartCurve("step"),
+          stroke: "var(--muted-foreground)",
+          strokeWidth: 1.5,
+          strokeDasharray: "5 4",
+        } as const;
+        marks.push(
+          horizontal
+            ? lineX(prevRows, { ...prevStyle, x: "value", y: "cat" })
+            : lineY(prevRows, { ...prevStyle, x: "cat", y: "value" }),
+        );
+      }
+    }
+
+    marks.push(
+      ...referenceLineMarks(fo.referenceLines, data.categories, {
+        swap: horizontal,
+        valueAnchor: valueAnchor(data),
+      }),
+    );
+    if (fo.showValueLabels) {
+      // A stacked bar's segment sits at its CUMULATIVE top, and in percent mode on a
+      // 0..1 axis — so stacked labels ride pre-computed stack rows (and print the
+      // share, which is what the normalized geometry actually shows). Grouped/none
+      // keeps labelling the raw value at the bar's own height.
+      const labelRows = stacked
+        ? multiStack
+          ? (rows as StackedRow[])
+          : buildStackedRows(data, barSeries, { normalize: percent })
+        : rows;
+      marks.push(
+        ...valueLabelMarks(labelRows, format, {
+          swap: horizontal,
+          share: percent,
+          stacked,
+        }),
+      );
+    }
+
+    return defineChart({
+      marks,
+      x: horizontal
+        ? { scale: val.scale, nice: val.nice, grid: true, axis: valueAxis }
+        : { scale: () => bandScale(catPadding), axis: categoryAxis },
+      y: horizontal
+        ? { scale: () => bandScale(catPadding), axis: categoryAxis }
+        : { scale: val.scale, nice: val.nice, grid: true, axis: valueAxis },
+      color: seriesColor(stacked ? { ...data, series: barSeries } : data, {
+        legend: legendDisplay(options) && barSeries.length > 1,
+        legendPlacement: legendPlacement(options.legend?.position),
+      }),
+      // Bars are discrete: keep the finite default maxFocusDistance so empty
+      // space clears focus instead of snapping to a far-away bar.
+      focus: horizontal ? "group-y" : "group-x",
+      tooltip:
+        options.tooltip?.show === false
+          ? undefined
+          : cubeTooltip({
+              format,
+              // Multi-stack percent shares are per STACK, not per category, so the
+              // row carries its own share and the generic denominator is bypassed.
+              percentShare: percent && !multiStack,
+              value:
+                percent && multiStack
+                  ? (r) => {
+                      const share = (r as StackedRow).share;
+                      return typeof share === "number" ? percentTick(share) : "";
+                    }
+                  : undefined,
+              // A multi-stack mark groups by STACK, so grouped focus yields one point
+              // per stack; expand back to every series of the focused category.
+              expand: multiStack
+                ? (focused) => rowsByCategory.get(focused.i) ?? [focused]
+                : undefined,
+              colorOf: multiStack
+                ? (r) => tokenByLabel.get(r.label) ?? "var(--chart-1)"
+                : undefined,
+              indicator: options.tooltip?.indicator,
+              showTotal: options.tooltip?.showTotal,
+            }),
+      keyboard: true,
+    });
+  }, [data, options, format, fo, theme]);
+
+  const label = data.series.map(seriesLabel).join(", ") || "Bar chart";
+  return <CvChart definition={definition} ariaLabel={label} className="cv-chart--fill" />;
 }

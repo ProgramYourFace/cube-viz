@@ -13,11 +13,13 @@ import type { ChartSpec, DashboardSpec, GridConfig, LayoutItem } from "@/spec";
 import type { ChartFamilyDescriptor } from "@/charts";
 import { DashboardProvider } from "@/hooks";
 import { FamilyRegistryOverride } from "@/provider";
+import type { ChartInteractionHandlers } from "@/provider/interactions";
 
 import { useContainerWidth } from "./useContainerWidth";
 import { RenderWidget } from "./RenderWidget";
 import { CubeChartSpec } from "./CubeChart";
 import { WidgetChrome, DRAG_HANDLE_CLASS } from "./WidgetChrome";
+import { DashboardDrill } from "./drill";
 
 /**
  * The dashboard render surface (docs/01-spec-schema.md §4,
@@ -58,11 +60,18 @@ function toRglLayout(items: LayoutItem[]): RglLayoutItem[] {
   });
 }
 
-export interface DashboardProps {
+export interface DashboardProps extends ChartInteractionHandlers {
   /** The dashboard spec (variables + widgets + canonical layout + grid). */
   spec: DashboardSpec;
   /** Edit mode: enables drag/resize (handle = chrome header). Default `false`. */
   editable?: boolean;
+  /**
+   * Opt in to brush/click drilling: a selection narrows the dashboard variables
+   * its widgets already read. Default `false` — see {@link DashboardDrillProps.drill}
+   * for why enabling it is a deliberate trade (the brush takes over hover
+   * inspection on temporal charts).
+   */
+  drill?: boolean;
   /**
    * Per-component chart-families override. When set, this dashboard's subtree resolves
    * families from a registry built from `defaultChartFamilies` + these descriptors —
@@ -72,7 +81,20 @@ export interface DashboardProps {
   families?: ChartFamilyDescriptor[];
 }
 
-export function Dashboard({ spec, editable = false, families }: DashboardProps): ReactElement {
+/**
+ * `onRangeSelect` / `onPointSelect` are DASHBOARD-WIDE: one handler pair serves
+ * every widget, and each emitted selection carries the source `widgetId`. A single
+ * widget can still override either channel by rendering its own `CubeChart`. Omit
+ * both and nothing interactive is mounted (no brush, no click handler).
+ */
+export function Dashboard({
+  spec,
+  editable = false,
+  families,
+  drill = false,
+  onRangeSelect,
+  onPointSelect,
+}: DashboardProps): ReactElement {
   const [ref, width] = useContainerWidth<HTMLDivElement>();
 
   const grid: GridConfig = spec.grid ?? {};
@@ -100,8 +122,16 @@ export function Dashboard({ spec, editable = false, families }: DashboardProps):
 
   return (
     <FamilyRegistryOverride families={families}>
+      {/* Inside the provider on purpose: DashboardDrill resolves a brush/click
+          against THIS board's variable store before handing it to the host. */}
       <DashboardProvider spec={spec}>
-      <div ref={ref} className="cv:w-full">
+      <DashboardDrill
+        spec={spec}
+        drill={drill}
+        onRangeSelect={onRangeSelect}
+        onPointSelect={onPointSelect}
+      >
+      <div ref={ref} className="cv-dashboard">
         {width <= 0 ? null : stacked ? (
           <div
             style={{
@@ -139,7 +169,7 @@ export function Dashboard({ spec, editable = false, families }: DashboardProps):
               const widget = widgetsById.get(item.i);
               if (!widget) return null;
               return (
-                <div key={item.i} className="cv:h-full cv:w-full">
+                <div key={item.i} className="cv-dashboard-cell">
                   <RenderWidget widget={widget} editable={editable} />
                 </div>
               );
@@ -147,12 +177,13 @@ export function Dashboard({ spec, editable = false, families }: DashboardProps):
           </ResponsiveGridLayout>
         )}
       </div>
+      </DashboardDrill>
       </DashboardProvider>
     </FamilyRegistryOverride>
   );
 }
 
-export interface ChartViewProps {
+export interface ChartViewProps extends ChartInteractionHandlers {
   /** A standalone chart spec to render (no dashboard / variables). */
   spec: ChartSpec;
   /**
@@ -167,10 +198,15 @@ export interface ChartViewProps {
  * lone chart file looks consistent with a dashboard cell. No `DashboardProvider` —
  * a top-level chart resolves variables against an empty store (fail-safe noFilter).
  */
-export function ChartView({ spec, families }: ChartViewProps): ReactElement {
+export function ChartView({
+  spec,
+  families,
+  onRangeSelect,
+  onPointSelect,
+}: ChartViewProps): ReactElement {
   return (
     <FamilyRegistryOverride families={families}>
-    <div className="cv:h-full cv:w-full">
+    <div className="cv-chart-view">
       <WidgetChrome
         widget={{
           id: spec.id,
@@ -184,7 +220,11 @@ export function ChartView({ spec, families }: ChartViewProps): ReactElement {
         dragHandleProps={{}}
         state={{ loading: false, empty: false }}
       >
-        <CubeChartSpec spec={spec} />
+        <CubeChartSpec
+          spec={spec}
+          onRangeSelect={onRangeSelect}
+          onPointSelect={onPointSelect}
+        />
       </WidgetChrome>
     </div>
     </FamilyRegistryOverride>

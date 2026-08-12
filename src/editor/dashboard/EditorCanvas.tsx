@@ -142,7 +142,7 @@ function EditorCanvasImpl({
 
   return (
     <DashboardProvider spec={spec}>
-      <div ref={ref} className="cv:w-full cv:[&_.react-resizable-handle]:z-20">
+      <div ref={ref} className="cv-editor-canvas">
         {width > 0 ? (
           <ResponsiveGridLayout
             width={width}
@@ -191,12 +191,11 @@ function EditorCanvasImpl({
                     }
                   }}
                   className={cn(
-                    "group cv:relative cv:h-full cv:w-full cv:cursor-move cv:rounded-xl cv:ring-offset-2 cv:ring-offset-background cv:transition-shadow cv:focus-visible:outline-none",
+                    "cv-editor-widget",
                     // No idle/hover outline (it read as harsh); only the SELECTED
-                    // widget gets a ring. Keyboard focus still shows a faint ring.
-                    selected
-                      ? "cv:ring-2 cv:ring-primary"
-                      : "cv:ring-0 cv:focus-visible:ring-2 cv:focus-visible:ring-border",
+                    // widget gets a ring. Keyboard focus still shows a faint ring
+                    // (see .cv-editor-widget:focus-visible).
+                    selected && "cv-editor-widget--selected",
                   )}
                 >
                   <RenderWidget widget={widget} editable />
@@ -205,13 +204,13 @@ function EditorCanvasImpl({
                       the mousedown). z-[10] keeps it above the chart but BELOW the
                       resize handles and the action buttons. Rendered before the actions
                       so it never wins their hit-test. */}
-                  <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "cv:absolute cv:inset-0 cv:z-10 cv:cursor-move cv:rounded-xl")} />
+                  <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "cv-editor-widget-drag-layer")} />
                   {/* Edit / duplicate / delete — top-right, ALWAYS visible + clickable
                       in edit mode, rendered LAST at z-[20] so they sit above the drag
                       layer. (The old hover-revealed, pointer-events-none version was a
                       flaky hit-test target the drag layer kept stealing — you couldn't
                       click the buttons.) stopPropagation so a click doesn't also select. */}
-                  <div className="cv:absolute cv:right-2 cv:top-2 cv:z-20 cv:flex cv:items-center cv:gap-1">
+                  <div className="cv-editor-widget-actions">
                     <button
                       type="button"
                       aria-label={`Edit ${widget.title ?? widget.type}`}
@@ -219,11 +218,7 @@ function EditorCanvasImpl({
                         e.stopPropagation();
                         onEdit(widget.id);
                       }}
-                      className={cn(
-                        "cv:inline-flex cv:size-7 cv:items-center cv:justify-center cv:rounded-md",
-                        "cv:bg-card/90 cv:text-muted-foreground cv:shadow-sm cv:backdrop-blur",
-                        "cv:hover:bg-accent cv:hover:text-foreground cv:[&_svg]:size-4",
-                      )}
+                      className="cv-editor-widget-action"
                     >
                       <Pencil />
                     </button>
@@ -234,11 +229,7 @@ function EditorCanvasImpl({
                         e.stopPropagation();
                         onDuplicate(widget.id);
                       }}
-                      className={cn(
-                        "cv:inline-flex cv:size-7 cv:items-center cv:justify-center cv:rounded-md",
-                        "cv:bg-card/90 cv:text-muted-foreground cv:shadow-sm cv:backdrop-blur",
-                        "cv:hover:bg-accent cv:hover:text-foreground cv:[&_svg]:size-4",
-                      )}
+                      className="cv-editor-widget-action"
                     >
                       <Copy />
                     </button>
@@ -249,11 +240,7 @@ function EditorCanvasImpl({
                         e.stopPropagation();
                         onDelete(widget.id);
                       }}
-                      className={cn(
-                        "cv:inline-flex cv:size-7 cv:items-center cv:justify-center cv:rounded-md",
-                        "cv:bg-card/90 cv:text-muted-foreground cv:shadow-sm cv:backdrop-blur",
-                        "cv:hover:bg-destructive cv:hover:text-destructive-foreground cv:[&_svg]:size-4",
-                      )}
+                      className={cn("cv-editor-widget-action", "cv-editor-widget-action--danger")}
                     >
                       <Trash2 />
                     </button>

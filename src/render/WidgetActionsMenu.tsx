@@ -63,10 +63,7 @@ export function WidgetActionsMenu({
   const stop = (e: React.SyntheticEvent): void => e.stopPropagation();
 
   const itemClass = (enabled = true): string =>
-    cn(
-      "cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent",
-      !enabled && "cv:cursor-not-allowed cv:opacity-50",
-    );
+    cn("cv-menu-item", !enabled && "cv-menu-item--disabled");
 
   return (
     <Popover>
@@ -74,31 +71,31 @@ export function WidgetActionsMenu({
         onMouseDown={stop}
         onPointerDown={stop}
         onTouchStart={stop}
-        className="cv:rounded-md cv:p-1 cv:text-muted-foreground cv:transition-colors cv:hover:bg-accent cv:hover:text-foreground"
+        className="cv-menu-trigger"
         aria-label="Chart actions"
         title="Actions"
       >
-        <MoreVertical className="cv:size-4" />
+        <MoreVertical />
       </PopoverTrigger>
-      <PopoverContent align="end" className="cv:w-44 cv:p-1" onMouseDown={stop} onPointerDown={stop} onTouchStart={stop}>
+      <PopoverContent align="end" className="cv-menu" onMouseDown={stop} onPointerDown={stop} onTouchStart={stop}>
         {refetch ? (
           <button type="button" onClick={refetch} className={itemClass()}>
-            <RefreshCw className="cv:size-3.5 cv:text-muted-foreground" />
+            <RefreshCw />
             Refresh
           </button>
         ) : null}
         {canImage ? (
           <button type="button" onClick={doPng} disabled={busy} className={itemClass(!busy)}>
-            <ImageIcon className="cv:size-3.5 cv:text-muted-foreground" />
+            <ImageIcon />
             Export PNG
           </button>
         ) : null}
         <button type="button" onClick={exportCsv} disabled={!canCsv} className={itemClass(canCsv)}>
-          <Sheet className="cv:size-3.5 cv:text-muted-foreground" />
+          <Sheet />
           Export CSV
         </button>
         {pngError ? (
-          <p className="cv:px-2 cv:pt-1 cv:text-xs cv:text-destructive">{pngError}</p>
+          <p className="cv-menu-error">{pngError}</p>
         ) : null}
       </PopoverContent>
     </Popover>

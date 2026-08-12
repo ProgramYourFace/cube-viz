@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type ReactElement, type ReactNode } from "react";
 
 import type { WidgetSpec } from "@/spec";
+import type { ChartInteractionHandlers } from "@/provider/interactions";
 
 import { ChartErrorBoundary } from "./ChartErrorBoundary";
 import { CubeChart, type CubeChartProps } from "./CubeChart";
@@ -19,7 +20,7 @@ import { WidgetChrome } from "./WidgetChrome";
  * chrome header so the title bar is the RGL drag handle in edit mode.
  */
 
-export interface RenderWidgetProps {
+export interface RenderWidgetProps extends ChartInteractionHandlers {
   /** The widget to render. */
   widget: WidgetSpec;
   /** Spread onto the chrome header so it acts as the RGL drag handle. */
@@ -32,13 +33,26 @@ export interface RenderWidgetProps {
 function WidgetBody({
   widget,
   onState,
+  onRangeSelect,
+  onPointSelect,
 }: {
   widget: WidgetSpec;
   onState?: CubeChartProps["onState"];
-}): ReactElement {
+} & ChartInteractionHandlers): ReactElement {
   switch (widget.type) {
     case "chart":
-      return <CubeChart query={widget.query} chart={widget.chart} onState={onState} />;
+      // `widgetId` is what lets ONE dashboard-wide handler pair tell which widget a
+      // selection came from; per-widget handlers (when given) override the ambient ones.
+      return (
+        <CubeChart
+          query={widget.query}
+          chart={widget.chart}
+          onState={onState}
+          widgetId={widget.id}
+          onRangeSelect={onRangeSelect}
+          onPointSelect={onPointSelect}
+        />
+      );
     case "text":
       return <TextWidget doc={widget.doc} />;
     case "input":
@@ -47,7 +61,13 @@ function WidgetBody({
   }
 }
 
-export function RenderWidget({ widget, dragHandleProps = {}, editable = false }: RenderWidgetProps): ReactElement {
+export function RenderWidget({
+  widget,
+  dragHandleProps = {},
+  editable = false,
+  onRangeSelect,
+  onPointSelect,
+}: RenderWidgetProps): ReactElement {
   // Lift the chart's rows + refetch up so the chrome can offer Export / Refresh — in
   // BOTH view and edit mode (a viewer can get the data out of an embedded dashboard).
   const [chartState, setChartState] = useState<{
@@ -66,7 +86,7 @@ export function RenderWidget({ widget, dragHandleProps = {}, editable = false }:
   // Only data widgets (charts) get the bordered Card chrome + draggable title bar.
   if (widget.type === "text" || widget.type === "input") {
     return (
-      <div className="cv:h-full cv:w-full cv:overflow-auto cv:p-2">
+      <div className="cv-widget-frameless">
         <ChartErrorBoundary>
           <WidgetBody widget={widget} />
         </ChartErrorBoundary>
@@ -98,7 +118,12 @@ export function RenderWidget({ widget, dragHandleProps = {}, editable = false }:
           the host's Tailwind — it's the node PNG/SVG export rasterizes. */}
       <div ref={bodyRef} style={{ height: "100%", width: "100%" }}>
         <ChartErrorBoundary>
-          <WidgetBody widget={widget} onState={onState} />
+          <WidgetBody
+            widget={widget}
+            onState={onState}
+            onRangeSelect={onRangeSelect}
+            onPointSelect={onPointSelect}
+          />
         </ChartErrorBoundary>
       </div>
     </WidgetChrome>

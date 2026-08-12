@@ -74,19 +74,16 @@ export function EditorToolbar({
   return (
     <div
       data-slot="editor-toolbar"
-      className={cn(
-        "cv:flex cv:flex-wrap cv:items-center cv:gap-2 cv:rounded-lg cv:border cv:border-border cv:bg-card cv:p-2",
-        className,
-      )}
+      className={cn("cv-editor-toolbar", className)}
     >
       <Input
         value={name}
         placeholder="Untitled dashboard"
         aria-label="Dashboard name"
         onChange={(e) => onNameChange(e.target.value)}
-        className="cv:h-8 cv:w-full cv:min-w-0 cv:flex-1 cv:sm:w-auto"
+        className="cv-editor-toolbar-name"
       />
-      <div className="cv:flex cv:flex-wrap cv:items-center cv:gap-1">
+      <div className="cv-editor-toolbar-group">
         <Button variant="outline" size="sm" onClick={() => onAdd("chart")}>
           <BarChart3 /> Chart
         </Button>
@@ -104,7 +101,7 @@ export function EditorToolbar({
       </div>
 
       {/* Edit-session actions — Undo / Redo / Discard / Save, right-aligned. */}
-      <div className="cv:ml-auto cv:flex cv:items-center cv:gap-1">
+      <div className="cv-editor-toolbar-actions">
         {hasHistory ? (
           <>
             <Button
@@ -135,7 +132,7 @@ export function EditorToolbar({
             size="sm"
             onClick={onDiscard}
             disabled={discardDisabled}
-            className="cv:text-muted-foreground cv:hover:text-destructive"
+            className="cv-editor-toolbar-discard"
           >
             <RotateCcw /> Discard
           </Button>
@@ -149,7 +146,7 @@ export function EditorToolbar({
             className={cn(
               // Keep the confirmation vivid even though the button is (correctly) disabled
               // right after a save — there's nothing left to save.
-              justSaved && "cv:bg-emerald-600 cv:text-white cv:hover:bg-emerald-600 cv:disabled:opacity-100",
+              justSaved && "cv-editor-toolbar-save--saved",
             )}
           >
             {justSaved ? <Check /> : <Save />} {justSaved ? "Saved" : "Save"}

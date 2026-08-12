@@ -59,37 +59,39 @@ export function VariablePicker({ kind, value, onChange, className }: VariablePic
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={cn("cv:h-8 cv:w-full cv:justify-start cv:gap-1.5", className)}>
-          <VariableIcon className="cv:size-3.5 cv:text-muted-foreground" />
-          <span className={cn("cv:min-w-0 cv:flex-1 cv:truncate cv:text-left", !selected && "cv:text-muted-foreground")}>
+        <Button variant="outline" size="sm" className={cn("cv-var-trigger", className)}>
+          <VariableIcon className="cv-ec-icon cv-ec-icon--muted" />
+          <span className={cn("cv-var-trigger-label", !selected && "cv-var-trigger-label--placeholder")}>
             {selected ? (selected.label ?? selected.name) : value || "Choose variable…"}
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="cv:w-60 cv:p-1">
+      <PopoverContent align="start" className="cv-var-popover">
         {options.length > 0 ? (
           options.map((d) => (
             <button
               key={d.name}
               type="button"
               onClick={() => pick(d.name)}
-              className="cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:hover:bg-accent"
+              className="cv-ec-menu-item"
             >
-              <span className="cv:min-w-0 cv:flex-1 cv:truncate">{d.label ?? d.name}</span>
-              <span className="cv:shrink-0 cv:text-[10px] cv:text-muted-foreground">{d.type}</span>
-              {d.name === value ? <Check className="cv:size-3.5 cv:shrink-0" /> : null}
+              <span className="cv-ec-menu-label">{d.label ?? d.name}</span>
+              <span className="cv-var-type">{d.type}</span>
+              {d.name === value ? <Check className="cv-ec-icon" /> : null}
             </button>
           ))
         ) : (
-          <p className="cv:px-2 cv:py-1.5 cv:text-xs cv:text-muted-foreground">No matching variables yet.</p>
+          <p className="cv-var-empty">No matching variables yet.</p>
         )}
 
         {createVariable ? (
-          <div className="cv:mt-1 cv:border-t cv:border-border cv:pt-1">
+          <div className="cv-var-new">
             {creating ? (
-              <div className="cv:flex cv:items-center cv:gap-1 cv:p-1">
+              <div className="cv-var-new-form">
                 <Input
                   autoFocus
+                  // The visible text is the placeholder, so the name lives in aria-label.
+                  aria-label="New variable label"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   onKeyDown={(e) => {
@@ -97,9 +99,9 @@ export function VariablePicker({ kind, value, onChange, className }: VariablePic
                     if (e.key === "Escape") setCreating(false);
                   }}
                   placeholder="Variable label…"
-                  className="cv:h-7 cv:text-sm"
+                  className="cv-var-new-input"
                 />
-                <Button size="sm" className="cv:h-7 cv:shrink-0" onClick={create}>
+                <Button size="sm" className="cv-var-new-add" onClick={create}>
                   Add
                 </Button>
               </div>
@@ -107,9 +109,9 @@ export function VariablePicker({ kind, value, onChange, className }: VariablePic
               <button
                 type="button"
                 onClick={() => setCreating(true)}
-                className="cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-muted-foreground cv:hover:bg-accent cv:hover:text-foreground"
+                className="cv-ec-menu-item cv-var-new-trigger"
               >
-                <Plus className="cv:size-3.5" />
+                <Plus className="cv-ec-icon" />
                 New variable
               </button>
             )}

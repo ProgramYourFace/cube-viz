@@ -55,31 +55,29 @@ These are the **series color ramp**. cube-viz deliberately mirrors the shadcn 5-
 cube-viz **reads** these CSS variables; it never **defines** them as a hard dependency. Resolution is pure CSS cascade:
 
 - Every cube-viz DOM node lives under the host's themed root, so `bg-background`, `text-muted-foreground`, `border-border`, `var(--chart-1)` etc. resolve against whatever the host already set on `:root` (light) and its dark selector.
-- **The one porting gotcha (documented in research):** aa-app uses Tailwind v4 / uniwind `@variant light` / `@variant dark` selectors, *not* a `.dark` class block. A stock shadcn web host toggles `.dark` on `<html>`. cube-viz must therefore support **both** dark-mode conventions. It does this by *not assuming either*: the library ships **no** dark selector of its own. It only ships an **optional fallback stylesheet** (`cube-viz/theme.css`) carrying the aa-app OKLCH values under *both* a `@variant dark` block **and** a `.dark {}` block (same values), so:
+- **The one porting gotcha (documented in research):** the aa-app host historically used Tailwind v4 / uniwind `@variant light` / `@variant dark` selectors, *not* a `.dark` class block, while a stock shadcn web host toggles `.dark` on `<html>` — so cube-viz must not hard-couple to either convention. The library's own components read token *variables* only. It ships an **optional fallback stylesheet** (`cube-viz/theme.css`, from `src/theme/tokens.css`) carrying the OKLCH values under `:root` (light) and a `.dark {}` block, plus a `.cube-viz-light` re-assertion class so an explicit `theme.mode:"light"` embed forces light even under a host `.dark` ancestor, so:
   - A host with its own tokens imports nothing — its cascade wins.
   - A host with *no* shadcn theme can `@import "cube-viz/theme.css"` to get a complete, working default in either dark convention.
 
 - **OKLCH is the source of truth.** The fallback stylesheet copies aa-app's `global.css` OKLCH values verbatim (e.g. `--color-background: oklch(1 0 0)`, `--color-destructive: oklch(0.577 0.245 27.325)`, dark `--color-border: oklch(1 0 0 / 10%)` preserving alpha). The divergent HSL mirror in `lib/theme.ts` is **not** used — that exists only for React Navigation, which cube-viz (web) does not touch.
 
-### A1.3 Mapping series colors → chart tokens (Recharts 3 form)
+### A1.3 Mapping series colors → chart tokens
 
-The adapter assigns each `NormalizedSeries` a `colorToken` (`ColorAssignment.byKey` → else round-robin over `ramp ?? ["chart-1".."chart-5"]`). The renderer then bridges into shadcn's `ChartConfig` so colors and labels flow through shadcn's `--color-<key>` mechanism automatically:
+The adapter assigns each `NormalizedSeries` a `colorToken` (`ColorAssignment.byKey` → else round-robin over `ramp ?? ["chart-1".."chart-5"]`). The renderer then builds the chart-level **color scale** from it — an explicit `domain` (series labels) + `range` (token `var()` references), so marks, legend swatches, and tooltip rows all agree (see `seriesColor` in `src/charts/tanstack.tsx`):
 
 ```ts
-// renderer-internal: NormalizedSeries[] → shadcn ChartConfig
-function toChartConfig(series: NormalizedSeries[]): ChartConfig {
-  return Object.fromEntries(
-    series.map((s) => [
-      s.key,
-      { label: s.label, color: `var(--${s.colorToken ?? "chart-1"})` }, // Recharts 3: var(), NOT hsl(var())
-    ]),
-  );
+// renderer-internal: NormalizedSeries[] → TanStack color options
+function seriesColor(data: NormalizedChartData): ChartColorOptions {
+  return {
+    domain: data.series.map((s) => s.label || s.key),
+    range: data.series.map((s) => `var(--${s.colorToken ?? "chart-1"})`), // var(), NOT hsl(var())
+  };
 }
 ```
 
-- **Recharts 3 rule:** reference tokens as `var(--chart-1)`, never the Recharts-2 `hsl(var(--chart-1))` wrapping.
-- **Per-datum families (pie/donut/radial):** color goes on each **data row** (`fill: "var(--color-<key>)"`), not on the series element — the renderer handles this per family.
-- `ChartContainer` always gets an explicit height class (`min-h-[...]` / `aspect-*`) so Recharts' `ResponsiveContainer` can measure on first paint.
+- **Token rule:** reference tokens as `var(--chart-1)`, never the legacy `hsl(var(--chart-1))` wrapping. (`--ts-chart-N` is aliased to `--chart-N` in `src/styles/charts.css` so TanStack's own palette lookups resolve to the brand ramp.)
+- **Per-datum families (pie/donut, heatmap):** color is a per-datum channel — pie's arc `color` is the slice label; the heatmap's is the cell value through a `color-mix` ramp scale — the renderer handles this per family.
+- The chart shell (`CvChart`) measures its container with a `ResizeObserver` and mounts the chart only at a non-zero width, with a `minHeight` floor, so first paint is always measurable.
 
 ### A1.4 `<CubeVizProvider>` — the single config surface
 
@@ -340,7 +338,7 @@ function CustomPanel({ query, options }: { query: CubeQuery; options: ChartOptio
 }
 ```
 
-This is the cleanest expression of the abstraction seam: **everything semantic (fetch, `castNumerics`, `Continue wait` polling, variable substitution, `noFilter`, annotation-driven formatting, series alignment) happens in the hook; the host owns only pixels.** Swapping Recharts — or rendering to canvas, or to a native view — touches nothing below `NormalizedChartData`.
+This is the cleanest expression of the abstraction seam: **everything semantic (fetch, `castNumerics`, `Continue wait` polling, variable substitution, `noFilter`, annotation-driven formatting, series alignment) happens in the hook; the host owns only pixels.** Swapping the chart library — as was done for Recharts → `@tanstack/charts` — or rendering to canvas, or to a native view, touches nothing below `NormalizedChartData`.
 
 ### A2.6 Override-model summary
 
@@ -524,4 +522,4 @@ The preview SPA is a single responsive web app; mobile is **the same bytes in a 
 
 ## Closing note
 
-Part A keeps cube-viz **theme-transparent** (it reads aa-app's exact shadcn tokens and the `chart-1..5` ramp, defining nothing the host already defines) and **override-complete** (every chart family, chrome, and control is a registry slot, with `withChart` decorators and a headless hook layer for full-custom rendering — all sitting on the `NormalizedChartData` boundary so Recharts is swappable). Part B makes that surface **provable**: a Bun preview server that renders a local content folder against live Cube, exports edits back to JSON via the editors' JSON-in/out contract, and — via `runPreview` — lets any consuming project preview *its own* theme, overrides, and content against *its own* Cube data, on web and in a mobile WebView, from one codebase. Throughout, credentials are host-supplied and memory-only, and RLS stays in the JWT where no spec or override can widen it.
+Part A keeps cube-viz **theme-transparent** (it reads aa-app's exact shadcn tokens and the `chart-1..5` ramp, defining nothing the host already defines) and **override-complete** (every chart family, chrome, and control is a registry slot, with `withChart` decorators and a headless hook layer for full-custom rendering — all sitting on the `NormalizedChartData` boundary so the chart library is swappable, as the Recharts → `@tanstack/charts` migration proved). Part B makes that surface **provable**: a Bun preview server that renders a local content folder against live Cube, exports edits back to JSON via the editors' JSON-in/out contract, and — via `runPreview` — lets any consuming project preview *its own* theme, overrides, and content against *its own* Cube data, on web and in a mobile WebView, from one codebase. Throughout, credentials are host-supplied and memory-only, and RLS stays in the JWT where no spec or override can widen it.

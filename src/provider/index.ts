@@ -26,6 +26,21 @@ export type {
   MemberFormatMeta,
 } from "./context";
 
+// Semantic interaction seam: brush-to-drill + click-to-cross-filter. Handlers are
+// optional at every level (provider → dashboard → chart, innermost wins) and the
+// selections a chart reports are Cube members/values, never pixels.
+export { ChartInteractionProvider, useChartInteractions } from "./interactions";
+export type {
+  RangeSelection,
+  PointSelection,
+  RangeSelectHandler,
+  PointSelectHandler,
+  ChartInteractionHandlers,
+  ChartInteractionProviderProps,
+  ChartInteractionTarget,
+  ChartInteractions,
+} from "./interactions";
+
 // Component-override registry.
 export { resolveChart } from "./registry";
 export type {

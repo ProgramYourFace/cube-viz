@@ -4,25 +4,24 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/components/ui/utils";
 
 const buttonVariants = cva(
-  // `transition` + `active:scale` give every button a tactile press response (it visibly
-  // reacts when clicked); disabled buttons have pointer-events-none so they never animate.
-  "cv:inline-flex cv:items-center cv:justify-center cv:gap-2 cv:whitespace-nowrap cv:rounded-md cv:text-sm cv:font-medium cv:transition cv:duration-100 cv:active:scale-[0.97] cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:pointer-events-none cv:disabled:opacity-50 cv:[&_svg]:pointer-events-none cv:[&_svg]:size-4 cv:[&_svg]:shrink-0",
+  // Semantic classes (styles/ui.css). `.cv-btn` carries the transition + :active
+  // scale that give every button a tactile press response (it visibly reacts when
+  // clicked); disabled buttons have pointer-events:none so they never animate.
+  "cv-btn",
   {
     variants: {
       variant: {
-        default: "cv:bg-primary cv:text-primary-foreground cv:shadow cv:hover:bg-primary/90",
-        secondary: "cv:bg-secondary cv:text-secondary-foreground cv:shadow-sm cv:hover:bg-secondary/80",
-        outline:
-          "cv:border cv:border-input cv:bg-background cv:text-foreground cv:shadow-sm cv:hover:bg-accent cv:hover:text-accent-foreground",
-        ghost: "cv:text-foreground cv:hover:bg-accent cv:hover:text-accent-foreground",
-        destructive:
-          "cv:bg-destructive cv:text-destructive-foreground cv:shadow-sm cv:hover:bg-destructive/90",
+        default: "cv-btn--default",
+        secondary: "cv-btn--secondary",
+        outline: "cv-btn--outline",
+        ghost: "cv-btn--ghost",
+        destructive: "cv-btn--destructive",
       },
       size: {
-        sm: "cv:h-8 cv:rounded-md cv:px-3 cv:text-xs",
-        default: "cv:h-9 cv:px-4 cv:py-2",
-        lg: "cv:h-10 cv:rounded-md cv:px-8",
-        icon: "cv:size-9",
+        sm: "cv-btn--size-sm",
+        default: "cv-btn--size-default",
+        lg: "cv-btn--size-lg",
+        icon: "cv-btn--size-icon",
       },
     },
     defaultVariants: {

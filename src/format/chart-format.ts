@@ -66,7 +66,19 @@ export function makeChartFormat(
 ): ChartFormat {
   const granularity = categoryGranularity(annotation, options);
 
-  return {
+  const bound: ChartFormat = {
+    // A per-axis / per-column FormatOptions override (`axes.*.tickFormat`,
+    // `TableColumnOpt.format`) is just this same binder with a merged `format`, so
+    // the member lookup, granularity discovery and host formatter stay identical.
+    derive: (overrides) =>
+      !overrides || Object.keys(overrides).length === 0
+        ? bound
+        : makeChartFormat(
+            annotation,
+            { ...options, format: { ...options.format, ...overrides } },
+            formatter,
+            ctx,
+          ),
     value(value, member, role: FormatRole = "value") {
       const annotated = member ? lookupMember(member, annotation) : undefined;
       const meta = annotated?.meta as MemberMeta | undefined;
@@ -92,4 +104,5 @@ export function makeChartFormat(
       });
     },
   };
+  return bound;
 }

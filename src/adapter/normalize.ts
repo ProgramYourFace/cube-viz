@@ -48,7 +48,7 @@ type AnyResultSet = ResultSet<Record<string, unknown>>;
  * `empty` flag keys on row count alone, so a query returning rows whose measure is
  * null in every bucket would render a fully-mounted but blank cartesian chart. Folding
  * this into `empty` lets ChartRenderer's shared muted "No data" fire once for the
- * series-reading families (line/bar/area/combo) — the polar/raw families (pie/scatter/
+ * series-reading families (line/bar/area) — the polar/raw families (pie/scatter/
  * kpi/table) keep their own guards and never reach this (they return `series: []`).
  */
 function allSeriesNull(series: NormalizedSeries[]): boolean {
@@ -173,7 +173,7 @@ function findMember(ann: ResultAnnotation, member: string): AnnotatedMember | un
 
 /**
  * Build the per-series value meta: formatting hints from the member's Cube
- * `meta.{unit,quantity,convert}`, then spec overrides (axis/stackId/format).
+ * `meta.{unit,quantity,convert}`, then spec overrides (stackId/format).
  */
 function resolveSeriesMeta(
   memberMeta: AnnotatedMember | undefined,
@@ -194,8 +194,9 @@ function resolveSeriesMeta(
   const fmtName = typeof memberMeta?.format === "string" ? memberMeta.format : undefined;
   if (fmtName?.startsWith("percent") && out.unit === undefined) out.unit = "%";
 
-  // Format: per-series override, then chart-level default.
-  let format = specMeta?.format ?? chartFormat;
+  // Format is CHART-level (there is no per-series override — see SeriesMetaSchema):
+  // series sharing a value axis share its unit, so one format describes them all.
+  let format = chartFormat;
   if (
     (fmtName?.startsWith("currency") || fmtName?.startsWith("accounting")) &&
     (!format || format.kind === undefined || format.kind === "auto")
@@ -204,7 +205,6 @@ function resolveSeriesMeta(
   }
   if (format) out.format = format;
 
-  if (specMeta?.axis) out.axis = specMeta.axis;
   if (specMeta?.stackId) out.stackId = specMeta.stackId;
   if (specMeta?.curve) out.curve = specMeta.curve;
   if (specMeta?.dots !== undefined) out.dots = specMeta.dots;
@@ -445,12 +445,19 @@ function normalizePivot(
     const pivotValue = sn.yValues?.[0];
     const measure = sn.yValues && sn.yValues.length >= 2 ? sn.yValues[sn.yValues.length - 1] : value;
     const measureMeta = findMember(annotation, measure);
-    const measureLabel = measureMeta?.shortTitle ?? measureMeta?.title ?? measure;
+    // Per-MEASURE spec meta (label/format overrides for the split measure).
+    const measureSpecMeta = series.meta?.[measure];
+    // A per-measure `meta.label` renames THE MEASURE, so it applies to the measure
+    // half of a multi-measure label ("Revenue · Truck 1"). It cannot rename a
+    // single-measure pivot's series — those are named by their pivot VALUE, and one
+    // measure-level label would collapse every series to the same name. (Same reason
+    // a per-measure `meta.colorToken` is not applied here: it would paint every pivot
+    // value of that measure identically — see docs/02-chart-options.md §7.6.)
+    const measureLabel =
+      measureSpecMeta?.label ?? measureMeta?.shortTitle ?? measureMeta?.title ?? measure;
     const base = pivotValue ?? sn.shortTitle ?? sn.title ?? sn.key;
     const label = multiMeasure ? `${measureLabel} · ${base}` : base;
     const data = chartRows.map((row) => coerceNumber(row[sn.key]));
-    // Per-MEASURE spec meta carries the value-axis (left/right) for dual-axis splits.
-    const measureSpecMeta = series.meta?.[measure];
     return {
       key: sn.key,
       label,

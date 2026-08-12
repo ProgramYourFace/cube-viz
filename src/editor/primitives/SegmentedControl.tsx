@@ -46,10 +46,7 @@ export function SegmentedControl<T extends string>({
       data-slot="segmented-control"
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cn(
-        "cv:flex cv:flex-wrap cv:gap-1 cv:rounded-lg cv:bg-muted cv:p-1 cv:text-muted-foreground",
-        className,
-      )}
+      className={cn("cv-segmented", className)}
     >
       {options.map((opt) => {
         const selected = opt.value === value;
@@ -63,12 +60,10 @@ export function SegmentedControl<T extends string>({
             disabled={disabled || opt.disabled}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "cv:inline-flex cv:items-center cv:justify-center cv:gap-1.5 cv:whitespace-nowrap cv:rounded-md cv:font-medium cv:transition-all cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:pointer-events-none cv:disabled:opacity-50",
-              size === "sm" ? "cv:h-7 cv:px-2 cv:text-xs" : "cv:h-7 cv:px-2.5 cv:text-sm",
-              fullWidth && "cv:flex-1",
-              selected
-                ? "cv:bg-background cv:text-foreground cv:shadow-sm"
-                : "cv:hover:text-foreground",
+              "cv-segmented-option",
+              size === "sm" && "cv-segmented-option--sm",
+              fullWidth && "cv-segmented-option--full",
+              selected && "cv-segmented-option--selected",
             )}
           >
             {opt.icon}

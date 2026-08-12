@@ -8,7 +8,9 @@ import type {
   SeriesMeta,
   TimeDimension,
 } from "@/spec";
-import type { FamilyRegistry } from "@/charts";
+import type { ChartFamilyDescriptor, FamilyRegistry } from "@/charts";
+
+import { placeInChannelWell, unifyChannels, wellAccepts, type FieldKind } from "./builder/channels";
 
 /**
  * Pure, side-effect-free helpers for the ChartEditor (docs/03 §A3.1). They derive
@@ -101,73 +103,117 @@ export function buildMapping(
 export const DEFAULT_GRANULARITY: Granularity = "day";
 
 /**
- * Switch a chart to `next` family WITHOUT losing the field bindings. Each family stores
- * its fields differently (cartesian/pie in `mapping`; kpi/scatter/table/combo in
- * `familyOptions`), so a naive `familyOptions: undefined` reset drops the user's work and
- * leaves the new family empty. This re-derives the new family's structure from the query
- * (measures + the first category/dimension/time member), so type-switching is lossless.
+ * Whether EVERY one of a family's wells is serviced by the generic channel interpreter.
+ * A family with even one host-managed well (no `target`) keeps fields the interpreter
+ * cannot see, so unifying its channels would silently drop them — such a family
+ * migrates through the query-derivation fallback instead.
+ */
+function isChannelManaged(descriptor: ChartFamilyDescriptor): boolean {
+  return (
+    descriptor.wells.length > 0 &&
+    descriptor.wells.every((w) => w.target !== undefined && w.channel !== undefined)
+  );
+}
+
+/**
+ * Switch a chart to `next` family WITHOUT losing the field bindings.
+ *
+ * This used to be a per-family `switch` that re-derived each destination's structure
+ * from the raw query. It is now CHANNEL UNIFICATION: wells that feed the same visual
+ * channel mean the same thing across families, so the migration is "read the source's
+ * channels, re-place them into the destination's wells that want those channels"
+ * (x→x, y→y, color→color…). Flipping through chart types to find the right one is
+ * therefore lossless and symmetric — the single most common way a non-technical user
+ * arrives at their chart.
+ *
+ * NON-well concerns preserved from the old switch: `mapping` + `familyOptions` are
+ * cleared (the destination re-derives them; family DEFAULTS supply the rest, e.g. the
+ * kpi's `display: "number"`), while the rest of the display envelope
+ * (orientation/stackMode/axes/legend/format) is carried across UNCHANGED — as before,
+ * so bar→pie→bar restores the user's stacking and orientation rather than silently
+ * resetting them. The query (date range, granularity, filters, limit) is the user's
+ * context, not the chart's, and is never touched.
+ *
+ * A HOST family owns some or all of its wells through its own placement hooks; when
+ * either side is not fully interpreter-managed the migration falls back to re-deriving
+ * the destination from the query, the way the old switch did.
  */
 export function migrateToFamily(
   spec: ChartSpec,
   next: ChartFamily,
   registry: FamilyRegistry,
 ): ChartSpec {
+  const from = registry.require(spec.chart.family);
+  const to = registry.require(next);
+  const swapped =
+    isChannelManaged(from) && isChannelManaged(to)
+      ? unifyChannels(spec, from.wells, to.wells)
+      : migrateFromQuery(spec, to);
+  return { ...swapped, chart: { ...swapped.chart, family: next } };
+}
+
+/**
+ * The host-family fallback: re-derive the destination from the QUERY (the old switch's
+ * behaviour, generalized). Measures and dimensions are handed to the destination's
+ * channel wells greedily, in well order, by what each well accepts — which reproduces
+ * the old per-family recipes (cartesian: all measures + first dimension; pie: one
+ * measure + one slice dimension; scatter: the first three measures + a group-by; kpi:
+ * the first measure; table: every member as a column).
+ */
+function migrateFromQuery(spec: ChartSpec, to: ChartFamilyDescriptor): ChartSpec {
   const { chart } = spec;
   const query = spec.query ?? {}; // query-less families carry no query — treat as empty
   const measures = measuresOf(chart).length ? measuresOf(chart) : (query.measures ?? []);
-  const category =
-    categoryOf(chart) ?? query.dimensions?.[0] ?? query.timeDimensions?.[0]?.dimension;
-  const cartesianMapping: SeriesMapping | undefined = category
-    ? { category: { member: category }, series: { mode: "measures", members: measures } }
-    : undefined;
-  const base: ChartSpec = {
+  const times = (query.timeDimensions ?? []).map((t) => t.dimension);
+  const category = categoryOf(chart) ?? query.dimensions?.[0] ?? times[0];
+  const dimensions = [category, ...(query.dimensions ?? []), ...times].filter(
+    (m, i, all): m is string => !!m && all.indexOf(m) === i,
+  );
+  const cleared: ChartSpec = {
     ...spec,
-    chart: { ...chart, family: next, mapping: undefined, familyOptions: undefined },
+    chart: { ...chart, mapping: undefined, familyOptions: undefined },
   };
-  const withChart = (patch: Partial<ChartOptions>): ChartSpec => ({
-    ...base,
-    chart: { ...base.chart, ...patch },
-  });
 
-  switch (next) {
-    case "bar":
-    case "line":
-    case "area":
-    case "pie":
-      return withChart({ mapping: cartesianMapping });
-    case "combo":
-      return withChart({
-        mapping: cartesianMapping,
-        familyOptions: {
-          series: measures.map((m, i) => ({ member: m, render: i % 2 === 1 ? "bar" : "line" })),
-        },
-      });
-    case "kpi":
-      return withChart({
-        familyOptions: { display: "number", ...(measures[0] ? { measure: measures[0] } : {}) },
-      });
-    case "scatter":
-      return withChart({
-        familyOptions: {
-          ...(measures[0] ? { x: measures[0] } : {}),
-          ...(measures[1] ? { y: measures[1] } : {}),
-        },
-      });
-    case "table": {
-      const cols = [
-        ...(query.dimensions ?? []),
-        ...(query.timeDimensions?.map((t) => t.dimension) ?? []),
-        ...measures,
-      ].map((m) => ({ member: m }));
-      return withChart({ familyOptions: cols.length ? { columns: cols } : undefined });
-    }
-    default:
-      // A host-registered family has no builtin migration recipe — switch the family
-      // and clear the builtin-shaped familyOptions. If the host family consumes the
-      // generic `mapping` envelope (supportsMapping), carry the current category +
-      // measures across so switching TO it is lossless (it reads `mapping.category` /
-      // series directly); otherwise clear mapping too and let its wells/placement
-      // re-derive structure as the user (re)binds fields.
-      return registry.require(next).supportsMapping ? withChart({ mapping: cartesianMapping }) : base;
+  if (!isChannelManaged(to)) {
+    // A host destination owns its own structure. If it consumes the generic mapping
+    // envelope, carry the category + measures across so switching TO it is lossless;
+    // otherwise let its wells/placement hooks re-derive as the user (re)binds fields.
+    const mapping: SeriesMapping | undefined = category
+      ? { category: { member: category }, series: { mode: "measures", members: measures } }
+      : undefined;
+    return to.supportsMapping ? { ...cleared, chart: { ...cleared.chart, mapping } } : cleared;
   }
+
+  const measurePool = [...measures];
+  const dimensionPool = [...dimensions];
+  const kindOfDimension = (m: string): FieldKind => (times.includes(m) ? "time" : "category");
+  let out = cleared;
+
+  for (const well of to.wells) {
+    if (!well.target || !well.channel) continue;
+    // A well that takes BOTH (the table's columns) reads best dimensions-first, which
+    // is the column order the old recipe produced.
+    const pools: [string[], (m: string) => FieldKind][] = wellAccepts(well, "category")
+      ? [
+          [dimensionPool, kindOfDimension],
+          [measurePool, () => "number"],
+        ]
+      : [
+          [measurePool, () => "number"],
+          [dimensionPool, kindOfDimension],
+        ];
+    let taken = 0;
+    for (const [pool, kindOf] of pools) {
+      for (let i = 0; i < pool.length; ) {
+        if ((well.cardinality === "one" && taken > 0) || !wellAccepts(well, kindOf(pool[i]))) {
+          i += 1;
+          continue;
+        }
+        out = placeInChannelWell(out, to.wells, well.id, pool[i], kindOf(pool[i]));
+        pool.splice(i, 1);
+        taken += 1;
+      }
+    }
+  }
+  return out;
 }

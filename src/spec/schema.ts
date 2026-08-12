@@ -8,7 +8,7 @@ import { z } from "zod";
  * See docs/01-spec-schema.md for the full rationale.
  */
 
-export const SCHEMA_VERSION = 1 as const;
+export const SCHEMA_VERSION = 4 as const;
 
 /* ────────────────────────── variable reference token ────────────────────── */
 
@@ -146,16 +146,17 @@ export type CubeQuery = z.infer<typeof CubeQuerySchema>;
 export const ChartFamilySchema = z.string().min(1);
 export type ChartFamily = z.infer<typeof ChartFamilySchema>;
 
-/** The families cube-viz ships in-box (the picker order). `map` REMOVED. */
+/** The families cube-viz ships in-box (the picker order). `map` and `combo` REMOVED
+ *  (combo + dual-axis were dropped in schemaVersion 2; `heatmap` was added). */
 export const BUILTIN_CHART_FAMILIES = [
   "bar",
   "line",
   "area",
   "pie",
   "scatter",
+  "heatmap",
   "kpi",
   "table",
-  "combo",
 ] as const;
 export type BuiltinChartFamily = (typeof BUILTIN_CHART_FAMILIES)[number];
 
@@ -191,13 +192,17 @@ export const SeriesMetaSchema = z
   .object({
     label: z.string().optional(),
     colorToken: ChartColorTokenSchema.optional(),
+    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
     stackId: z.string().optional(),
-    axis: z.enum(["left", "right"]).optional(),
     /** Per-series line shape (line/area) — overrides the family default. */
     curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
     /** Per-series point markers (line/area) — overrides the family default. */
     dots: z.boolean().optional(),
-    format: FormatOptionsSchema.optional(),
+    // NOTE — there is deliberately no per-series `format`. Numbers on ONE value axis
+    // share a unit, so a per-series format would print two different units against the
+    // same ticks; formatting is chart-level (`chart.format`) with per-axis /
+    // per-column overrides. Removed in v3 (it parsed but nothing ever read it).
   })
   .strict();
 export type SeriesMeta = z.infer<typeof SeriesMetaSchema>;
@@ -224,9 +229,8 @@ export const SeriesMappingSchema = z
            *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
           values: z.array(MemberSchema).optional(),
           pivot: MemberSchema,
-          /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-           *  each measure's series sit on, so a multi-measure color split can be
-           *  dual-axis (each axis one unit). */
+          /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+           *  each split measure's series. */
           meta: z.record(MemberSchema, SeriesMetaSchema).optional(),
         })
         .strict(),
@@ -238,7 +242,10 @@ export type SeriesMapping = z.infer<typeof SeriesMappingSchema>;
 export const LegendOptionsSchema = z
   .object({
     show: z.boolean().optional(),
-    position: z.enum(["top", "right", "bottom", "left"]).optional(),
+    /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+     *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+     *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+    position: z.enum(["top", "bottom"]).optional(),
   })
   .strict();
 export type LegendOptions = z.infer<typeof LegendOptionsSchema>;
@@ -252,15 +259,23 @@ export const TooltipOptionsSchema = z
   .strict();
 export type TooltipOptions = z.infer<typeof TooltipOptionsSchema>;
 
-const AxisBoundSchema = z.union([z.number(), z.literal("auto")]);
 export const AxisOptionsSchema = z
   .object({
+    /**
+     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+     * (the ticks and line stay). There is no separate hide flag: the editor's title
+     * field IS the control, and clearing it is how you remove the title. (v4)
+     */
     label: z.string().optional(),
-    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-    labelHide: z.boolean().optional(),
+    /** Hide the whole axis — ticks, line and title. */
     hide: z.boolean().optional(),
+    /** Value-axis only: a category axis is band/point/utc and has no log form. */
     scale: z.enum(["linear", "log"]).optional(),
-    domain: z.tuple([AxisBoundSchema, AxisBoundSchema]).optional(),
+    /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+     *  either takes a configured domain verbatim or infers both ends from the data, so
+     *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+    domain: z.tuple([z.number(), z.number()]).optional(),
+    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
     tickFormat: FormatOptionsSchema.optional(),
   })
   .strict();
@@ -270,7 +285,6 @@ export const AxesOptionsSchema = z
   .object({
     x: AxisOptionsSchema.optional(),
     y: AxisOptionsSchema.optional(),
-    y2: AxisOptionsSchema.optional(),
   })
   .strict();
 export type AxesOptions = z.infer<typeof AxesOptionsSchema>;
@@ -283,10 +297,40 @@ export const ColorAssignmentSchema = z
   .strict();
 export type ColorAssignment = z.infer<typeof ColorAssignmentSchema>;
 
+/** The default trailing window (in categories) for a `rollingAvg` transform. */
+export const DEFAULT_TRANSFORM_WINDOW = 7;
+
+export const TransformKindSchema = z.enum(["rollingAvg", "cumulative", "percentOfTotal"]);
+export type TransformKind = z.infer<typeof TransformKindSchema>;
+
+/**
+ * A PRESENTATION transform applied to the already-aggregated, already-normalized
+ * series — the seam TanStack Charts deliberately leaves to the view layer while the
+ * semantic layer (Cube) owns aggregation. It lets "7-day rolling average" / "running
+ * total" / "% of total" be a display choice instead of three new Cube measures.
+ *
+ * Envelope-level (NOT per-family) on purpose: it reshapes the generic
+ * `{categories, series[].data}` shape, so every cartesian family gets it for free
+ * and no family option schema grows a knob. Applied in `ChartRenderer` before the
+ * family component sees the data (see `src/charts/transforms.ts`).
+ */
+export const ChartTransformSchema = z
+  .object({
+    kind: TransformKindSchema,
+    /**
+     * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+     * (ignored by cumulative / percentOfTotal); defaults to
+     * {@link DEFAULT_TRANSFORM_WINDOW}.
+     */
+    window: z.number().int().min(2).max(90).optional(),
+  })
+  .strict();
+export type ChartTransform = z.infer<typeof ChartTransformSchema>;
+
 export const ChartOptionsSchema = z
   .object({
     family: ChartFamilySchema,
-    /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+    /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
         carry their own mapping inside familyOptions, so this is optional at the envelope. */
     mapping: SeriesMappingSchema.optional(),
     orientation: z.enum(["vertical", "horizontal"]).optional(),
@@ -296,6 +340,12 @@ export const ChartOptionsSchema = z
     axes: AxesOptionsSchema.optional(),
     colors: ColorAssignmentSchema.optional(),
     format: FormatOptionsSchema.optional(),
+    /**
+     * Presentation-only reshaping of the normalized series (rolling average /
+     * running total / share of category total). Purely additive + optional, so it
+     * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
+     */
+    transform: ChartTransformSchema.optional(),
     /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
     familyOptions: z.record(z.string(), z.unknown()).optional(),
   })

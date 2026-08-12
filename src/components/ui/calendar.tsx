@@ -36,19 +36,19 @@ type DayButtonProps = React.ComponentProps<typeof RdpDayButton>;
 /** Prev · "Month YYYY" · Next, using react-day-picker's navigation context. */
 function MonthCaption({ calendarMonth }: MonthCaptionProps): React.ReactElement {
   const { goToMonth, nextMonth, previousMonth } = useDayPicker();
-  const navBtn = cn(buttonVariants({ variant: "outline" }), "cv:size-7 cv:shrink-0 cv:p-0");
+  const navBtn = cn(buttonVariants({ variant: "outline" }), "cv-cal-nav-btn");
   return (
-    <div className="cv:mb-2 cv:flex cv:items-center cv:justify-between cv:gap-1">
+    <div className="cv-cal-caption">
       <button
         type="button"
         aria-label="Go to previous month"
         disabled={!previousMonth}
         onClick={() => previousMonth && goToMonth(previousMonth)}
-        className={cn(navBtn, !previousMonth && "cv:opacity-40")}
+        className={cn(navBtn, !previousMonth && "cv-cal-nav-btn--dim")}
       >
-        <ChevronLeft className="cv:size-4" />
+        <ChevronLeft />
       </button>
-      <span className="cv:text-sm cv:font-medium cv:text-foreground">
+      <span className="cv-cal-caption-label">
         {format(calendarMonth.date, "MMMM yyyy")}
       </span>
       <button
@@ -56,9 +56,9 @@ function MonthCaption({ calendarMonth }: MonthCaptionProps): React.ReactElement 
         aria-label="Go to next month"
         disabled={!nextMonth}
         onClick={() => nextMonth && goToMonth(nextMonth)}
-        className={cn(navBtn, !nextMonth && "cv:opacity-40")}
+        className={cn(navBtn, !nextMonth && "cv-cal-nav-btn--dim")}
       >
-        <ChevronRight className="cv:size-4" />
+        <ChevronRight />
       </button>
     </div>
   );
@@ -78,11 +78,11 @@ function DayButton({ day: _day, modifiers, className, style, ...props }: DayButt
       {...props}
       style={{ ...style, color }}
       className={cn(
-        "cv:flex cv:size-9 cv:items-center cv:justify-center cv:rounded-md cv:text-sm cv:font-normal cv:transition-colors",
+        "cv-cal-day-btn",
         // size-9 cells touch edge-to-edge, so a contiguous range reads as one band.
-        selected ? "cv:bg-primary cv:hover:bg-primary" : "cv:hover:bg-accent",
-        modifiers.today && !selected && "cv:border cv:border-primary",
-        modifiers.disabled && "cv:opacity-40",
+        selected && "cv-cal-day-btn--selected",
+        modifiers.today && !selected && "cv-cal-day-btn--today",
+        modifiers.disabled && "cv-cal-day-btn--disabled",
         className,
       )}
     />
@@ -99,18 +99,18 @@ export function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       hideNavigation
-      className={cn("cv:p-3", className)}
+      className={cn("cv-cal", className)}
       classNames={{
-        months: "cv:flex cv:flex-col cv:sm:flex-row cv:gap-2",
-        month: "cv:flex cv:flex-col cv:gap-2",
+        months: "cv-cal-months",
+        month: "cv-cal-month",
         month_caption: "",
         // Native table: <th> weekdays + <td> days share columns -> always aligned.
-        month_grid: "cv:border-collapse",
+        month_grid: "cv-cal-grid",
         weekdays: "",
-        weekday: "cv:size-9 cv:p-0 cv:text-xs cv:font-normal cv:text-muted-foreground",
+        weekday: "cv-cal-weekday",
         week: "",
-        day: "cv:p-0 cv:text-center cv:align-middle",
-        hidden: "cv:invisible",
+        day: "cv-cal-day",
+        hidden: "cv-cal-hidden",
         ...classNames,
       }}
       components={{
@@ -118,7 +118,7 @@ export function Calendar({
         DayButton,
         Chevron: ({ orientation, className: chevronClassName, ...chevronProps }: ChevronProps) => {
           const Icon = orientation === "left" ? ChevronLeft : ChevronRight;
-          return <Icon className={cn("cv:size-4", chevronClassName)} {...chevronProps} />;
+          return <Icon className={cn("cv-icon", chevronClassName)} {...chevronProps} />;
         },
       }}
       {...props}

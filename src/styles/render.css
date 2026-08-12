@@ -1,0 +1,433 @@
+/*
+ * Render-surface styles (Dashboard grid, widget chrome + actions menu, input
+ * controls, chart loading/error states, and the table family's own chrome).
+ * Plain CSS — cube-viz no longer ships Tailwind utilities. Class prefix: `cv-`
+ * (semantic, hand-authored). Palette/theme tokens come from theme.css
+ * (--background, --border, --muted-foreground, --radius, …).
+ *
+ * Specificity note: rules that intentionally override a shadcn ui-primitive's
+ * own semantic class (Card, Popover content, Button, Table cells, …) either
+ * double the class selector (`.cv-x.cv-x`) or scope under a component root
+ * (`.cv-table .cv-x`) so they win regardless of stylesheet import order.
+ */
+
+/* ───────────────────────────── dashboard grid ─────────────────────────────
+ * The render surface root reflows to its CONTAINER (useContainerWidth), so it
+ * only needs to fill the container's width; each grid cell fills the RGL item.
+ */
+
+.cv-dashboard {
+  width: 100%;
+}
+
+/* An RGL grid item's inner wrapper — the widget fills the cell. */
+.cv-dashboard-cell {
+  height: 100%;
+  width: 100%;
+}
+
+/* Standalone ChartView wrapper (a lone chart framed like a dashboard cell). */
+.cv-chart-view {
+  height: 100%;
+  width: 100%;
+}
+
+/* ───────────────────────────── widget frame ───────────────────────────────
+ * Frameless bodies (text / input widgets) sit directly on the dashboard;
+ * chart widgets get the Card chrome below.
+ */
+
+.cv-widget-frameless {
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+  padding: 0.5rem;
+}
+
+/* The default chart frame: an inline, Embeddable-style softly-tinted rounded
+ * panel — NO hard border, NO drop shadow, NO header divider. Overrides the ui
+ * Card's own border/gap/background (hence the doubled selectors). */
+.cv-widget-chrome.cv-widget-chrome {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border-radius: calc(var(--radius) + 4px);
+  border: 0;
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  box-shadow: none;
+}
+
+/* The title header doubles as the react-grid-layout drag handle. */
+.cv-widget-chrome-header.cv-widget-chrome-header {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0.25rem;
+  cursor: grab;
+}
+
+.cv-widget-chrome-header.cv-widget-chrome-header:active {
+  cursor: grabbing;
+}
+
+.cv-widget-chrome-title.cv-widget-chrome-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* The body fills the remaining height so charts can measure inside it. */
+.cv-widget-chrome-body.cv-widget-chrome-body {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow: auto;
+  padding: 0.25rem 1rem 1rem;
+}
+
+/* Muted inline fallback note ("Unknown variable …", "Unsupported text content"). */
+.cv-widget-note {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+/* ─────────────────────────── widget actions menu ──────────────────────────
+ * The chrome's "⋮" popover (Refresh / Export PNG / Export CSV).
+ */
+
+/* The trigger is a bare <button>; reset UA chrome explicitly (no preflight). */
+.cv-menu-trigger {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.25rem;
+  color: var(--muted-foreground);
+  transition:
+    color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-menu-trigger:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.cv-menu-trigger svg {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+/* The popover panel — narrower + tighter than the ui Popover default. */
+.cv-menu.cv-menu {
+  width: 11rem;
+  padding: 0.25rem;
+}
+
+/* A menu row (bare <button>; same UA reset rationale as the trigger). */
+.cv-menu-item {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.cv-menu-item:hover {
+  background: var(--accent);
+}
+
+.cv-menu-item--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cv-menu-item svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+/* PNG-export failure note under the menu items. */
+.cv-menu-error {
+  margin: 0;
+  padding: 0.25rem 0.5rem 0;
+  font-size: 0.75rem;
+  color: var(--destructive);
+}
+
+/* ─────────────────────────── chart load states ────────────────────────────
+ * Shared loading / error chrome (ChartRenderer + ChartErrorBoundary). The
+ * empty state reuses `.cv-chart-empty` from charts.css.
+ */
+
+/* Skeleton sized to the container height (no chart mount yet). */
+.cv-chart-skeleton {
+  height: 100%;
+  width: 100%;
+  min-height: 200px;
+}
+
+/* Destructive Alert wrapper (fetch error / render crash). */
+.cv-chart-error {
+  width: 100%;
+}
+
+/* ───────────────────────────── input widget ───────────────────────────────
+ * An InputControl bound to a dashboard variable: stacked field label + the
+ * kind-specific control (select / date range / text / number / toggle).
+ */
+
+.cv-field-label {
+  display: block;
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+/* Shared field shell — native <input>/<select> AND the ui SelectTrigger. */
+.cv-field {
+  display: flex;
+  height: 2.25rem;
+  width: 100%;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--input);
+  background: var(--background);
+  padding: 0.25rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1);
+  transition:
+    color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-field::placeholder {
+  color: var(--muted-foreground);
+}
+
+.cv-field:focus-visible {
+  outline: none;
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1),
+    0 0 0 1px var(--ring);
+}
+
+/* Native <option> popups are OS-drawn; set readable colors so dark mode
+   isn't black-on-black. */
+.cv-field > option {
+  background: var(--popover);
+  color: var(--popover-foreground);
+}
+
+.cv-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Multi-select grows into a listbox instead of a single-line field. */
+.cv-field--multi {
+  height: auto;
+  min-height: 6rem;
+}
+
+/* Date-range popover trigger (a ui Button, outline variant — hence doubled). */
+.cv-daterange-trigger.cv-daterange-trigger {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  font-weight: 400;
+}
+
+.cv-daterange-trigger--placeholder.cv-daterange-trigger--placeholder {
+  color: var(--muted-foreground);
+}
+
+.cv-daterange-trigger svg {
+  margin-right: 0.5rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+/* The popover: preset rail + range calendar side by side (portaled, so the
+   doubled selector must beat the ui Popover content's own width/padding). */
+.cv-daterange-popover.cv-daterange-popover {
+  display: flex;
+  width: auto;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.cv-daterange-presets {
+  display: flex;
+  max-height: 20rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding-right: 0.5rem;
+}
+
+/* A preset row (ui Button, ghost/sm — portaled, hence doubled). */
+.cv-daterange-preset.cv-daterange-preset {
+  justify-content: flex-start;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+/* Toggle control: inline checkbox + its own label (no stacked field label). */
+.cv-toggle {
+  display: inline-flex;
+  cursor: pointer;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cv-toggle-check {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+  border-color: var(--input);
+  color: var(--primary);
+  accent-color: var(--primary);
+}
+
+.cv-toggle-check:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-toggle-label {
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+/* ───────────────────────────── table family ───────────────────────────────
+ * src/charts/table.tsx — the shadcn <Table> primitives carry their own
+ * styles; these are the family's OWN chrome (sticky header, row numbers,
+ * sort buttons, pagination). Cell/button overrides are scoped under
+ * `.cv-table` to outrank the ui primitives' single-class rules.
+ */
+
+.cv-table {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+}
+
+.cv-table-scroll {
+  width: 100%;
+}
+
+/* stickyHeader: the wrapper scrolls, the header pins to its top. */
+.cv-table-scroll--sticky {
+  max-height: 100%;
+  overflow: auto;
+}
+
+.cv-table .cv-table-header--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--background);
+}
+
+/* Row-number column ("#"): fixed narrow head, muted right-aligned cells. */
+.cv-table .cv-table-rownum {
+  width: 2.5rem;
+  text-align: right;
+}
+
+/* Per-column alignment (measures default right, dimensions left). */
+.cv-table .cv-table-cell--left {
+  text-align: left;
+}
+
+.cv-table .cv-table-cell--center {
+  text-align: center;
+}
+
+.cv-table .cv-table-cell--right {
+  text-align: right;
+}
+
+.cv-table .cv-table-cell--muted {
+  color: var(--muted-foreground);
+}
+
+/* rowHeight: "compact" tightens the ui TableCell's vertical padding. */
+.cv-table .cv-table-cell--compact {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+/* Sortable column header (ui Button, ghost variant). */
+.cv-table .cv-table-sort {
+  margin-left: -0.5rem;
+  height: 1.75rem;
+  padding-inline: 0.5rem;
+  color: var(--muted-foreground);
+}
+
+.cv-table-sort-icon {
+  margin-left: 0.25rem;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* Not-yet-sorted columns show a faded up/down affordance. */
+.cv-table-sort-icon--idle {
+  opacity: 0.5;
+}
+
+/* "No data" spanning cell. */
+.cv-table .cv-table-empty {
+  height: 6rem;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+/* Footer: "N–M of T" + Prev/Next (only when the rows overflow one page). */
+.cv-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+.cv-table-pager {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Prev/Next (ui Button, outline variant) — shrunk to the footer's scale. */
+.cv-table .cv-table-page-btn {
+  height: 1.75rem;
+  padding-inline: 0.5rem;
+}

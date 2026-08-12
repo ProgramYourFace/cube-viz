@@ -5,13 +5,22 @@ import { cn } from "@/components/ui/utils";
 import type { AxisOptions, ChartSpec } from "@/spec";
 
 /**
- * In-context editing of a chart's CHROME — axis labels (auto, with an inline override)
- * and the show/hide of axes and the legend — instead of burying them as toggles in the
- * chart-type options. A hidden element greys its control. This is the "fewest knobs,
- * edit on the chart" surface; the renderers honor `axes.*.{label,hide}` + `legend.show`.
+ * In-context editing of a chart's CHROME — the axis titles and the legend's visibility —
+ * instead of burying them as toggles in the chart-type options.
+ *
+ * The axis title has no hide button. It used to: a text input whose PLACEHOLDER showed
+ * the automatic title, beside an eye that set `labelHide`. That is three states across
+ * two controls (auto / overridden / hidden) where the user can only see two, and the
+ * input went disabled when hidden — so the thing you would reach for to fix it was the
+ * thing that stopped working.
+ *
+ * Now the input shows the title that is actually on the chart, and clearing it removes
+ * the title. One control, and what you read is what renders. In the spec that is
+ * `label: undefined` ⇒ automatic, `label: ""` ⇒ no title, anything else ⇒ itself; the
+ * separate `labelHide` flag is gone (v4).
  */
 
-type AxisKey = "x" | "y" | "y2";
+type AxisKey = "x" | "y";
 
 function patchAxis(
   spec: ChartSpec,
@@ -23,7 +32,7 @@ function patchAxis(
   update({ ...spec, chart: { ...spec.chart, axes: { ...spec.chart.axes, [axis]: { ...ax, ...patch } } } });
 }
 
-/** An axis chrome control: title + inline label override (auto placeholder) + show/hide. */
+/** The axis title field. Shows what the chart draws; clearing it removes the title. */
 export function AxisChrome({
   spec,
   update,
@@ -38,31 +47,35 @@ export function AxisChrome({
   auto?: string;
 }): React.ReactElement {
   const ax = (spec.chart.axes?.[axis] ?? {}) as AxisOptions;
-  const hidden = ax.labelHide === true;
+  // WYSIWYG: show the title the chart is actually drawing. Untouched, that is the
+  // member's own name (`auto`) and the spec stays clean — `label` is only written once
+  // the user edits, so renaming the member keeps flowing through until then.
+  const shown = ax.label ?? auto ?? "";
+  const hidden = ax.label === "";
+  // The visible "TITLE" caption IS this input's label, so it is what names the field:
+  // the caption carries an id and the input points at it (`aria-labelledby`), which
+  // keeps the compact inline design and still gives the field a real accessible name.
+  // With no caption rendered, fall back to naming the axis outright.
+  const captionId = React.useId();
+  const inputId = React.useId();
+  const axisName = axis === "y" ? "Value axis title" : "Category axis title";
   return (
-    <div
-      className={cn(
-        "cv:flex cv:w-full cv:min-w-[8rem] cv:items-center cv:gap-1 cv:rounded-md cv:border cv:border-border cv:bg-background cv:px-1.5 cv:py-1 cv:transition-opacity",
-        hidden && "cv:opacity-50",
-      )}
-    >
+    <div className={cn("cv-axis-chrome", hidden && "cv-axis-chrome--hidden")}>
       {title ? (
-        <span className="cv:shrink-0 cv:text-[10px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">
+        <span id={captionId} className="cv-axis-chrome-label">
           {title}
         </span>
       ) : null}
       <input
-        value={ax.label ?? ""}
-        placeholder={auto ?? "Axis title"}
-        disabled={hidden}
-        onChange={(e) => patchAxis(spec, update, axis, { label: e.target.value || undefined })}
-        title={`Axis title${auto ? ` — defaults to “${auto}”` : ""} (leave blank for the default)`}
-        className="cv:h-6 cv:min-w-0 cv:flex-1 cv:rounded cv:border cv:border-input cv:bg-background cv:px-1.5 cv:text-xs cv:text-foreground cv:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:cursor-not-allowed"
-      />
-      <EyeButton
-        hidden={hidden}
-        what="axis title"
-        onClick={() => patchAxis(spec, update, axis, { labelHide: hidden ? undefined : true })}
+        id={inputId}
+        {...(title ? { "aria-labelledby": captionId } : { "aria-label": axisName })}
+        value={shown}
+        placeholder="No title"
+        // "" is MEANINGFUL here (no title) and must reach the spec, so this cannot
+        // collapse an empty string to undefined the way an optional field usually would.
+        onChange={(e) => patchAxis(spec, update, axis, { label: e.target.value })}
+        title="Axis title — clear it to remove the title"
+        className="cv-axis-chrome-input"
       />
     </div>
   );
@@ -83,8 +96,8 @@ export function LegendChrome({
 }): React.ReactElement {
   const hidden = spec.chart.legend?.show === false;
   return (
-    <div className={cn("cv:flex cv:flex-col cv:gap-1 cv:transition-opacity", hidden && "cv:opacity-50")}>
-      <span className="cv:px-0.5 cv:text-[10px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">
+    <div className={cn("cv-legend-chrome", hidden && "cv-legend-chrome--hidden")}>
+      <span className="cv-legend-chrome-label">
         Show legend
       </span>
       <button
@@ -94,33 +107,11 @@ export function LegendChrome({
         }
         aria-label={hidden ? "Show legend" : "Hide legend"}
         title={hidden ? "Show legend" : "Hide legend"}
-        className="cv:flex cv:items-center cv:gap-1.5 cv:rounded-md cv:border cv:border-border cv:bg-background cv:px-2 cv:py-1 cv:text-xs cv:text-muted-foreground cv:transition-colors cv:hover:bg-accent cv:hover:text-foreground"
+        className="cv-legend-chrome-toggle"
       >
-        {hidden ? <EyeOff className="cv:size-3.5" /> : <Eye className="cv:size-3.5" />}
+        {hidden ? <EyeOff className="cv-ec-icon" /> : <Eye className="cv-ec-icon" />}
         {hidden ? "Hidden" : "Shown"}
       </button>
     </div>
-  );
-}
-
-function EyeButton({
-  hidden,
-  what,
-  onClick,
-}: {
-  hidden: boolean;
-  what: string;
-  onClick: () => void;
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={hidden ? `Show ${what}` : `Hide ${what}`}
-      title={hidden ? `Show ${what}` : `Hide ${what}`}
-      className="cv:rounded cv:p-0.5 cv:text-muted-foreground cv:transition-colors cv:hover:bg-accent cv:hover:text-foreground"
-    >
-      {hidden ? <EyeOff className="cv:size-3.5" /> : <Eye className="cv:size-3.5" />}
-    </button>
   );
 }

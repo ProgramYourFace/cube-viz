@@ -2,6 +2,7 @@ import * as React from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
 import { cn } from "@/components/ui/utils";
+import { rowKeyFor } from "./tanstack";
 import {
   Table,
   TableBody,
@@ -36,14 +37,23 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
   const [sort, setSort] = React.useState<{ member: string; dir: "asc" | "desc" } | null>(null);
   const [page, setPage] = React.useState(0);
 
-  const sortable = fo.sortable !== false;
+  /**
+   * A table that cannot be sorted, or whose header scrolls away, is simply a worse
+   * table — so both are ALWAYS on, and neither is a question the editor asks. Row
+   * numbers stay off: they add a column that means nothing about the fleet.
+   * (`sortable`/`stickyHeader`/`showRowNumbers`/`rowHeight` left the spec in v4.)
+   */
+  const sortable = true;
   const pageSize = fo.pageSize ?? 25;
 
   const sorted = React.useMemo(() => {
     if (!sort) return rows;
     const dir = sort.dir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => compareCell(a[sort.member], b[sort.member]) * dir);
-  }, [rows, sort]);
+    // Sort state stores the MEMBER (that is what the header identifies), so the
+    // comparator resolves it to the row key the same way the cells do.
+    const key = columns.find((c) => c.member === sort.member)?.key ?? sort.member;
+    return [...rows].sort((a, b) => compareCell(a[key], b[key]) * dir);
+  }, [rows, sort, columns]);
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
@@ -59,15 +69,16 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
     setPage(0);
   };
 
-  const compact = fo.rowHeight === "compact";
+  // Density follows the DATA: a long table is worth compacting, a short one has the
+  // room to breathe. Nobody has to decide this per chart.
+  const compact = sorted.length > 12;
 
   return (
-    <div className="cv:flex cv:h-full cv:w-full cv:flex-col">
-      <div className={cn("cv:w-full", fo.stickyHeader && "cv:max-h-full cv:overflow-auto")}>
+    <div className="cv-table">
+      <div className="cv-table-scroll cv-table-scroll--sticky">
         <Table>
-          <TableHeader className={cn(fo.stickyHeader && "cv:sticky cv:top-0 cv:z-10 cv:bg-background")}>
+          <TableHeader className="cv-table-header--sticky">
             <TableRow>
-              {fo.showRowNumbers && <TableHead className="cv:w-10 cv:text-right">#</TableHead>}
               {columns.map((col) => (
                 <TableHead
                   key={col.member}
@@ -77,7 +88,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
                   {sortable ? (
                     <Button
                       variant="ghost"
-                      className="cv:-ml-2 cv:h-7 cv:px-2 cv:text-muted-foreground"
+                      className="cv-table-sort"
                       onClick={() => onSort(col.member)}
                     >
                       {col.label}
@@ -93,20 +104,15 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
           <TableBody>
             {pageRows.map((row, ri) => (
               <TableRow key={ri}>
-                {fo.showRowNumbers && (
-                  <TableCell className={cn("cv:text-right cv:text-muted-foreground", compact && "cv:py-1")}>
-                    {safePage * pageSize + ri + 1}
-                  </TableCell>
-                )}
                 {columns.map((col) => {
-                  const tint = condTint(col.member, row[col.member], fo.conditionalFormat);
+                  const tint = condTint(col.member, row[col.key], fo.conditionalFormat);
                   return (
                     <TableCell
                       key={col.member}
-                      className={cn(alignClass(col.align), compact && "cv:py-1")}
+                      className={cn(alignClass(col.align), compact && "cv-table-cell--compact")}
                       style={tint ? { color: tint } : undefined}
                     >
-                      {col.render(row[col.member])}
+                      {col.render(row[col.key])}
                     </TableCell>
                   );
                 })}
@@ -115,8 +121,8 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
             {pageRows.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (fo.showRowNumbers ? 1 : 0)}
-                  className="cv:h-24 cv:text-center cv:text-muted-foreground"
+                  colSpan={columns.length}
+                  className="cv-table-empty"
                 >
                   No data
                 </TableCell>
@@ -126,15 +132,15 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
         </Table>
       </div>
       {sorted.length > pageSize && (
-        <div className="cv:flex cv:items-center cv:justify-between cv:gap-2 cv:px-2 cv:py-2 cv:text-sm cv:text-muted-foreground">
+        <div className="cv-table-pagination">
           <span>
             {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, sorted.length)} of{" "}
             {sorted.length}
           </span>
-          <div className="cv:flex cv:gap-2">
+          <div className="cv-table-pager">
             <Button
               variant="outline"
-              className="cv:h-7 cv:px-2"
+              className="cv-table-page-btn"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
             >
@@ -142,7 +148,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
             </Button>
             <Button
               variant="outline"
-              className="cv:h-7 cv:px-2"
+              className="cv-table-page-btn"
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
             >
@@ -156,7 +162,10 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
 }
 
 interface ResolvedColumn {
+  /** The member as SELECTED (annotation lookups, sort identity, format rules). */
   member: string;
+  /** The key this member actually occupies in a tablePivot row (see rowKeyFor). */
+  key: string;
   label: string;
   align?: TableColumnOpt["align"];
   width?: number;
@@ -180,16 +189,21 @@ function resolveColumns(
     .filter((c) => !c.hidden)
     .map((c) => {
       const member = c.member;
+      const key = rowKeyFor(rows, member);
       const meta = ann ? memberMeta(ann, member) : undefined;
       const isMeasure = ann ? member in ann.measures : false;
       const label = c.label ?? meta?.shortTitle ?? meta?.title ?? member;
       const align: TableColumnOpt["align"] = c.align ?? (isMeasure ? "right" : "left");
+      // Per-column `format` (decimals/prefix/suffix/currency/dateFormat/kind) re-binds
+      // the formatter for THIS column only, merged over the chart-level `format`.
+      const columnFormat = c.format && format.derive ? format.derive(c.format) : format;
       return {
         member,
+        key,
         label,
         align,
         width: c.width,
-        render: (value: unknown) => renderCell(value, isMeasure, member, format),
+        render: (value: unknown) => renderCell(value, isMeasure, member, columnFormat),
       };
     });
 }
@@ -228,17 +242,17 @@ function memberMeta(ann: ResultAnnotation, member: string) {
 }
 
 function alignClass(align?: TableColumnOpt["align"]): string {
-  if (align === "right") return "cv:text-right";
-  if (align === "center") return "cv:text-center";
-  return "cv:text-left";
+  if (align === "right") return "cv-table-cell--right";
+  if (align === "center") return "cv-table-cell--center";
+  return "cv-table-cell--left";
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir?: "asc" | "desc" }): React.ReactElement {
-  if (!active) return <ChevronsUpDown className="cv:ml-1 cv:size-3.5 cv:opacity-50" />;
+  if (!active) return <ChevronsUpDown className="cv-table-sort-icon cv-table-sort-icon--idle" />;
   return dir === "asc" ? (
-    <ArrowUp className="cv:ml-1 cv:size-3.5" />
+    <ArrowUp className="cv-table-sort-icon" />
   ) : (
-    <ArrowDown className="cv:ml-1 cv:size-3.5" />
+    <ArrowDown className="cv-table-sort-icon" />
   );
 }
 

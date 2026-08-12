@@ -16,16 +16,13 @@ import type { MemberOption } from "../../primitives/meta-helpers";
 
 /**
  * Per-field spec writers for the on-chart editor — the single implementation that
- * knows which CORNER of the spec backs a placed field's label / color / granularity
- * / render, by family + well (lifted verbatim from the old BuilderChip so the new
+ * knows which CORNER of the spec backs a placed field's label / color / granularity,
+ * by family + well (lifted verbatim from the old BuilderChip so the new
  * {@link FieldPill} + its config popover stay in lockstep with the `wells.ts` seam).
  * Pure: every writer funnels a full next-spec through `update`.
  */
 
-export type ComboRender = "bar" | "line" | "area";
 export type LineCurve = "linear" | "monotone" | "step" | "natural";
-
-type AxisSide = "left" | "right";
 
 /** How the category axis is ordered (contextual: by value, by label, or chronological). */
 export type SortKey =
@@ -48,16 +45,6 @@ function orderEntries(order: OrderSpec | undefined): [string, "asc" | "desc"][] 
   return Array.isArray(order) ? order : (Object.entries(order) as [string, "asc" | "desc"][]);
 }
 
-interface ComboSeriesEntry {
-  member: string;
-  render: ComboRender;
-  label?: string;
-  colorToken?: ChartColorToken;
-  axis?: AxisSide;
-  curve?: LineCurve;
-  dots?: boolean;
-}
-
 interface TableColumnEntry {
   member: string;
   label?: string;
@@ -74,24 +61,17 @@ export interface ChipBindings {
   granularity?: Granularity | VarRef;
   /** The date range — a literal range OR a `{var}` binding — when this is the time field. */
   dateRange?: DateRange | VarRef;
-  /** A combo render type, when this is a combo Y field. */
-  render?: ComboRender;
-  /** The value axis (left/right) this series is on — for dual-axis families. */
-  axis?: AxisSide;
   /** Per-series line shape, when this series draws a line/area. */
   curve?: LineCurve;
   /** Per-series point markers, when this series draws a line/area. */
   dots?: boolean;
   /** Whether per-series line style (shape + points) applies to this field. */
   canLineStyle: boolean;
-  /** Whether this field can be moved between left/right value axes (line + combo Y). */
-  canAxis: boolean;
   canRename: boolean;
   /** Whether a per-series color is meaningful (one rendered series ↔ this field). */
   canColor: boolean;
   /** Whether this placed field IS the (groupable) time dimension → granularity + date range. */
   isTimeField: boolean;
-  isComboY: boolean;
   /** Whether this field IS the single category axis (x / pie slices) → sort + top-N apply. */
   isCategoryField: boolean;
   /** Whether a previous-period comparison toggle applies here (time field of bar/line/area). */
@@ -117,8 +97,6 @@ export interface ChipBindings {
   onRecolor: (token: ChartColorToken | null) => void;
   onGranularity: (g: Granularity | VarRef | undefined) => void;
   onDateRange: (range: DateRange | VarRef | undefined) => void;
-  onRender: (r: ComboRender) => void;
-  onAxis: (side: AxisSide) => void;
   onCurve: (c: LineCurve) => void;
   onDots: (on: boolean) => void;
   onRemove: () => void;
@@ -141,12 +119,10 @@ export function chipBindings(
   const kind: FieldKind = well.kinds.length === 1 ? well.kinds[0] : kindOf(option);
 
   const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
-  const comboSeries = (Array.isArray(fo.series) ? fo.series : []) as ComboSeriesEntry[];
   const tableColumns = (Array.isArray(fo.columns) ? fo.columns : []) as TableColumnEntry[];
   const seriesMeta = seriesMetaOf(chart);
   const meta = seriesMeta[member];
 
-  const isComboY = family === "combo" && well.id === "y";
   const isTableCol = family === "table" && well.id === "columns";
   const isCartesian = family === "bar" || family === "line" || family === "area";
   const measuresMode = chart.mapping?.series?.mode === "measures";
@@ -157,19 +133,13 @@ export function chipBindings(
   // the mapping as measures-mode and orphans the colour dimension, blanking the chart.
   const usesSeriesMeta = isCartesianY && measuresMode;
 
-  const label = isComboY
-    ? comboSeries.find((s) => s.member === member)?.label
-    : isTableCol
-      ? tableColumns.find((c) => c.member === member)?.label
-      : usesSeriesMeta
-        ? meta?.label
-        : undefined;
-
-  const colorToken: ChartColorToken | undefined = isComboY
-    ? comboSeries.find((s) => s.member === member)?.colorToken
+  const label = isTableCol
+    ? tableColumns.find((c) => c.member === member)?.label
     : usesSeriesMeta
-      ? meta?.colorToken
+      ? meta?.label
       : undefined;
+
+  const colorToken: ChartColorToken | undefined = usesSeriesMeta ? meta?.colorToken : undefined;
 
   const timeDim = timeDimensionOf(query);
   // This placed field IS the (groupable) time dimension — so it owns granularity +
@@ -178,40 +148,10 @@ export function chipBindings(
   const granularity = isTimeField ? timeDim?.granularity : undefined;
   const dateRange = isTimeField ? timeDim?.dateRange : undefined;
 
-  const render = isComboY
-    ? (comboSeries.find((s) => s.member === member)?.render ?? "line")
-    : undefined;
-
-  // Dual value axes (left/right) are renderer-supported for line + VERTICAL bar
-  // (SeriesMeta.axis) and combo (ComboSeriesOpt.axis). A horizontal bar has a single
-  // value axis → no axis control.
-  const isLineY = family === "line" && well.id === "y";
-  const isBarY = family === "bar" && well.id === "y" && chart.orientation !== "horizontal";
-  // A color split (pivot) can also be dual-axis: each MEASURE owns an axis, stored in the
-  // pivot mapping's per-measure meta.
-  const isPivotMode = chart.mapping?.series?.mode === "pivot";
-  const pivotSeriesMeta =
-    chart.mapping?.series?.mode === "pivot" ? chart.mapping.series.meta : undefined;
-  const canAxis = ((isLineY || isBarY) && (measuresMode || isPivotMode)) || isComboY;
-  const axis: AxisSide | undefined = canAxis
-    ? ((isComboY
-        ? comboSeries.find((s) => s.member === member)?.axis
-        : measuresMode
-          ? meta?.axis
-          : pivotSeriesMeta?.[member]?.axis) ?? "left")
-    : undefined;
-
-  // Per-series line shape + points: line/area measures-mode Y, or a combo line/area series.
-  const isLineAreaY = (family === "line" || family === "area") && well.id === "y" && measuresMode;
-  const comboLineArea = isComboY && (render === "line" || render === "area");
-  const canLineStyle = isLineAreaY || comboLineArea;
-  const comboEntry = isComboY ? comboSeries.find((s) => s.member === member) : undefined;
-  const curve: LineCurve | undefined = canLineStyle
-    ? (isComboY ? comboEntry?.curve : (meta?.curve as LineCurve | undefined))
-    : undefined;
-  const dots: boolean | undefined = canLineStyle
-    ? (isComboY ? comboEntry?.dots : meta?.dots)
-    : undefined;
+  // Per-series line shape + points: line/area measures-mode Y.
+  const canLineStyle = (family === "line" || family === "area") && well.id === "y" && measuresMode;
+  const curve: LineCurve | undefined = canLineStyle ? (meta?.curve as LineCurve | undefined) : undefined;
+  const dots: boolean | undefined = canLineStyle ? meta?.dots : undefined;
 
   /* ── writers ────────────────────────────────────────────────────────────── */
 
@@ -236,25 +176,18 @@ export function chipBindings(
     });
   };
 
-  const patchComboSeries = (patch: Partial<ComboSeriesEntry>): void => {
-    const next = comboSeries.map((s) => (s.member === member ? { ...s, ...patch } : s));
-    update({ ...spec, chart: { ...chart, familyOptions: { ...fo, series: next } } });
-  };
-
   const patchTableColumn = (patch: Partial<TableColumnEntry>): void => {
     const next = tableColumns.map((c) => (c.member === member ? { ...c, ...patch } : c));
     update({ ...spec, chart: { ...chart, familyOptions: { ...fo, columns: next } } });
   };
 
   const onRename = (value: string | undefined): void => {
-    if (isComboY) patchComboSeries({ label: value });
-    else if (isTableCol) patchTableColumn({ label: value });
+    if (isTableCol) patchTableColumn({ label: value });
     else if (usesSeriesMeta) patchSeriesMeta({ ...meta, label: value });
   };
 
   const onRecolor = (token: ChartColorToken | null): void => {
-    if (isComboY) patchComboSeries({ colorToken: token ?? undefined });
-    else if (usesSeriesMeta) patchSeriesMeta({ ...meta, colorToken: token ?? undefined });
+    if (usesSeriesMeta) patchSeriesMeta({ ...meta, colorToken: token ?? undefined });
   };
 
   // Set a time-dimension field (granularity / dateRange), dropping a key set to undefined.
@@ -272,31 +205,23 @@ export function chipBindings(
   const onGranularity = (g: Granularity | VarRef | undefined): void => patchTimeDim({ granularity: g });
   const onDateRange = (range: DateRange | VarRef | undefined): void => patchTimeDim({ dateRange: range });
 
-  const onRender = (r: ComboRender): void => patchComboSeries({ render: r });
-
-  const onAxis = (side: AxisSide): void => {
-    if (isComboY) patchComboSeries({ axis: side });
-    else if (usesSeriesMeta) patchSeriesMeta({ ...meta, axis: side });
-    // Pivot (color split): write the per-measure axis straight into the pivot mapping meta.
-    else if (chart.mapping?.series?.mode === "pivot") update(withSeriesAxis(spec, family, member, side));
-  };
-
   const onCurve = (c: LineCurve): void => {
-    if (isComboY) patchComboSeries({ curve: c });
-    else if (usesSeriesMeta) patchSeriesMeta({ ...meta, curve: c });
+    if (usesSeriesMeta) patchSeriesMeta({ ...meta, curve: c });
   };
   const onDots = (on: boolean): void => {
-    if (isComboY) patchComboSeries({ dots: on });
-    else if (usesSeriesMeta) patchSeriesMeta({ ...meta, dots: on });
+    if (usesSeriesMeta) patchSeriesMeta({ ...meta, dots: on });
   };
 
   const onRemove = (): void => update(removeField(spec, family, well.id, member, registry));
 
   /* ── category ordering (sort) + top-N (limit) ─────────────────────────────── */
 
-  // The single category axis: cartesian/combo "x" or pie "slices". Sort + top-N
-  // shape the whole query, but read most naturally pinned to this chip.
-  const isCategoryField = (well.id === "x" || well.id === "slices") && (kind === "category" || kind === "time");
+  // The single category axis: cartesian "x", pie "slices", or the heatmap's
+  // "hx" (Columns). Sort + top-N shape the whole query, but read most naturally
+  // pinned to this chip.
+  const isCategoryField =
+    (well.id === "x" || well.id === "slices" || well.id === "hx") &&
+    (kind === "category" || kind === "time");
   // Order by the primary measure (the first one). In pivot mode that's the split value.
   const pivotSeries = chart.mapping?.series;
   const primaryMeasure =
@@ -385,19 +310,15 @@ export function chipBindings(
     colorToken,
     granularity,
     dateRange,
-    render,
-    axis,
     curve,
     dots,
     canLineStyle,
-    canAxis,
-    canRename: isComboY || isTableCol || usesSeriesMeta,
+    canRename: isTableCol || usesSeriesMeta,
     // A color dot is meaningful only when one rendered series ↔ this field: a
-    // measures-mode cartesian Y measure, or a combo Y series. (Pivot Y, pie size,
-    // scatter, etc. colour per-datum, so they show an icon, not a swatch.)
-    canColor: (isCartesianY && measuresMode) || isComboY,
+    // measures-mode cartesian Y measure. (Pivot Y, pie size, scatter, heatmap,
+    // etc. colour per-datum, so they show an icon, not a swatch.)
+    canColor: isCartesianY && measuresMode,
     isTimeField,
-    isComboY,
     isCategoryField,
     sortValue,
     sortOptions,
@@ -412,37 +333,10 @@ export function chipBindings(
     onRecolor,
     onGranularity,
     onDateRange,
-    onRender,
-    onAxis,
     onCurve,
     onDots,
     onRemove,
   };
-}
-
-/**
- * Set a Y series' value AXIS (left/right) for a dual-axis family — combo
- * (`ComboSeriesOpt.axis`) or measures-mode cartesian/line (`SeriesMeta.axis`). Pure;
- * used by the overlay to auto-assign a freshly-added measure to an axis by its unit.
- */
-export function withSeriesAxis(spec: ChartSpec, family: string, member: string, side: AxisSide): ChartSpec {
-  const { chart } = spec;
-  if (family === "combo") {
-    const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
-    const series = (Array.isArray(fo.series) ? fo.series : []).map((s) =>
-      (s as ComboSeriesEntry).member === member ? { ...(s as ComboSeriesEntry), axis: side } : s,
-    );
-    return { ...spec, chart: { ...chart, familyOptions: { ...fo, series } } };
-  }
-  const s = chart.mapping?.series;
-  // Both measures-mode AND pivot-mode (color split) carry a per-member meta map, so a
-  // multi-measure color split can assign each MEASURE to its own value axis.
-  if (s && (s.mode === "measures" || s.mode === "pivot")) {
-    const meta: Record<string, SeriesMeta> = { ...(s.meta ?? {}) };
-    meta[member] = { ...(meta[member] ?? {}), axis: side };
-    return { ...spec, chart: { ...chart, mapping: { ...chart.mapping!, series: { ...s, meta } } } };
-  }
-  return spec;
 }
 
 function kindOf(option: MemberOption | undefined): FieldKind {
@@ -454,8 +348,8 @@ function kindOf(option: MemberOption | undefined): FieldKind {
 
 /**
  * Reorder a member within a many-cardinality well, rewriting the backing array(s)
- * in lockstep (cartesian measures + mapping members; combo series + query.measures;
- * table columns). Returns a full spec. Lifted verbatim from the old panel.
+ * in lockstep (cartesian measures + mapping members; table columns). Returns a
+ * full spec. Lifted verbatim from the old panel.
  */
 export function reorderWell(
   spec: ChartSpec,
@@ -472,17 +366,6 @@ export function reorderWell(
     next.splice(to, 0, it);
     return next;
   };
-
-  if (family === "combo" && well.id === "y") {
-    const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;
-    const series = move((Array.isArray(fo.series) ? fo.series : []) as ComboSeriesEntry[]);
-    const measures = move(query.measures ?? []);
-    return {
-      ...spec,
-      query: { ...query, measures },
-      chart: { ...chart, familyOptions: { ...fo, series } },
-    };
-  }
 
   if (family === "table" && well.id === "columns") {
     const fo = (chart.familyOptions ?? {}) as Record<string, unknown>;

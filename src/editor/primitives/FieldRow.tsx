@@ -33,18 +33,18 @@ export function FieldRow({
   children,
 }: FieldRowProps): React.ReactElement {
   return (
-    <div data-slot="field-row" className={cn("cv:flex cv:flex-col cv:gap-1.5 cv:py-1.5", className)}>
-      <div className="cv:flex cv:items-center cv:justify-between cv:gap-2">
-        <Label htmlFor={htmlFor} className="cv:text-muted-foreground">
+    <div data-slot="field-row" className={cn("cv-field-row", className)}>
+      <div className="cv-field-row-header">
+        <Label htmlFor={htmlFor} className="cv-field-row-label">
           {label}
         </Label>
-        {action ? <div className="cv:flex cv:shrink-0 cv:items-center">{action}</div> : null}
+        {action ? <div className="cv-field-row-action">{action}</div> : null}
       </div>
       {children}
       {error ? (
-        <p className="cv:text-xs cv:text-destructive">{error}</p>
+        <p className="cv-field-row-error">{error}</p>
       ) : hint ? (
-        <p className="cv:text-xs cv:text-muted-foreground">{hint}</p>
+        <p className="cv-field-row-hint">{hint}</p>
       ) : null}
     </div>
   );

@@ -10,6 +10,13 @@ import { ReactNode } from 'react';
 import { ResultSet } from '@cubejs-client/core';
 import { z } from 'zod';
 
+/**
+ * Adaptive default granularity for a freshly-placed date X: pick from the bound
+ * dateRange span when present (≤2 days→hour, ≤90→day, ≤730→month, else year),
+ * else fall back to `day` (docs/05 §3.3).
+ */
+export declare function adaptiveGranularity(dateRange: TimeDimension["dateRange"]): Granularity;
+
 /** Subset of Cube's annotation we rely on for labels + formatting. */
 export declare interface AnnotatedMember {
     title?: string;
@@ -32,10 +39,18 @@ export declare function appendWidget(spec: DashboardSpec, widget: WidgetSpec, co
 
 /**
  * `area` — absorbs Area/StackedArea/AreaPercent (docs/02-chart-options.md §2.3).
- * `stackMode` is the load-bearing input: none = overlapping areas, stacked =
- * shared stackId, percent = stackId + stackOffset="expand". orientation ignored.
+ * `stackMode` is the load-bearing input, translated to the TanStack grammar:
+ *  - none    → one areaY PER SERIES with an explicit `y1: 0` baseline (explicit
+ *              endpoints opt out of implicit stacking → overlapping fills).
+ *  - stacked → ONE areaY over long rows with `z`/`color` = label, so repeated x
+ *              positions stack implicitly by series.
+ *  - percent → the stacked mark plus `layout: stack({ offset: "normalize" })`,
+ *              percent value ticks, and share-of-total tooltip rows.
+ * TanStack areas don't draw their upper line; the boundary stroke comes from the
+ * areaY mark's own `stroke` channel (no separate line layer needed).
+ * orientation is ignored, as before. Dual-axis was removed with the combo family.
  */
-export declare function AreaChartFamily({ data, options, config, format, editing, }: ChartComponentProps): React_2.ReactElement;
+export declare function AreaChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 export declare const areaChartFamily: ChartFamilyDescriptor;
 
@@ -43,14 +58,11 @@ export declare type AreaFamilyOptions = z.infer<typeof AreaFamilyOptionsSchema>;
 
 export declare const AreaFamilyOptionsSchema: z.ZodObject<{
     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-    fillOpacity: z.ZodOptional<z.ZodNumber>;
-    strokeWidth: z.ZodOptional<z.ZodNumber>;
     connectNulls: z.ZodOptional<z.ZodBoolean>;
     dots: z.ZodOptional<z.ZodBoolean>;
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
-        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -58,40 +70,32 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }>, "many">>;
     comparePrevious: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
-    fillOpacity?: number | undefined;
-    strokeWidth?: number | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
 }, {
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
-    fillOpacity?: number | undefined;
-    strokeWidth?: number | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
@@ -107,12 +111,21 @@ export declare type AxesOptions = z.infer<typeof AxesOptionsSchema>;
 
 export declare const AxesOptionsSchema: z.ZodObject<{
     x: z.ZodOptional<z.ZodObject<{
+        /**
+         * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+         * (the ticks and line stay). There is no separate hide flag: the editor's title
+         * field IS the control, and clearing it is how you remove the title. (v4)
+         */
         label: z.ZodOptional<z.ZodString>;
-        /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-        labelHide: z.ZodOptional<z.ZodBoolean>;
+        /** Hide the whole axis — ticks, line and title. */
         hide: z.ZodOptional<z.ZodBoolean>;
+        /** Value-axis only: a category axis is band/point/utc and has no log form. */
         scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-        domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+        /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+         *  either takes a configured domain verbatim or infers both ends from the data, so
+         *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+        domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+        /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
         tickFormat: z.ZodOptional<z.ZodObject<{
             kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
             decimals: z.ZodOptional<z.ZodNumber>;
@@ -144,10 +157,9 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         }>>;
     }, "strict", z.ZodTypeAny, {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
+        domain?: [number, number] | undefined;
         tickFormat?: {
             currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -160,10 +172,9 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         } | undefined;
     }, {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
+        domain?: [number, number] | undefined;
         tickFormat?: {
             currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -176,12 +187,21 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         } | undefined;
     }>>;
     y: z.ZodOptional<z.ZodObject<{
+        /**
+         * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+         * (the ticks and line stay). There is no separate hide flag: the editor's title
+         * field IS the control, and clearing it is how you remove the title. (v4)
+         */
         label: z.ZodOptional<z.ZodString>;
-        /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-        labelHide: z.ZodOptional<z.ZodBoolean>;
+        /** Hide the whole axis — ticks, line and title. */
         hide: z.ZodOptional<z.ZodBoolean>;
+        /** Value-axis only: a category axis is band/point/utc and has no log form. */
         scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-        domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+        /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+         *  either takes a configured domain verbatim or infers both ends from the data, so
+         *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+        domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+        /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
         tickFormat: z.ZodOptional<z.ZodObject<{
             kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
             decimals: z.ZodOptional<z.ZodNumber>;
@@ -213,10 +233,9 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         }>>;
     }, "strict", z.ZodTypeAny, {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
+        domain?: [number, number] | undefined;
         tickFormat?: {
             currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -229,79 +248,9 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         } | undefined;
     }, {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
-        tickFormat?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
-    }>>;
-    y2: z.ZodOptional<z.ZodObject<{
-        label: z.ZodOptional<z.ZodString>;
-        /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-        labelHide: z.ZodOptional<z.ZodBoolean>;
-        hide: z.ZodOptional<z.ZodBoolean>;
-        scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-        domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
-        tickFormat: z.ZodOptional<z.ZodObject<{
-            kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-            decimals: z.ZodOptional<z.ZodNumber>;
-            abbreviate: z.ZodOptional<z.ZodBoolean>;
-            prefix: z.ZodOptional<z.ZodString>;
-            suffix: z.ZodOptional<z.ZodString>;
-            unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-            dateFormat: z.ZodOptional<z.ZodString>;
-            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-            currency: z.ZodOptional<z.ZodString>;
-        }, "strict", z.ZodTypeAny, {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        }, {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        }>>;
-    }, "strict", z.ZodTypeAny, {
-        label?: string | undefined;
-        labelHide?: boolean | undefined;
-        hide?: boolean | undefined;
-        scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
-        tickFormat?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
-    }, {
-        label?: string | undefined;
-        labelHide?: boolean | undefined;
-        hide?: boolean | undefined;
-        scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
+        domain?: [number, number] | undefined;
         tickFormat?: {
             currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -316,10 +265,9 @@ export declare const AxesOptionsSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     x?: {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
+        domain?: [number, number] | undefined;
         tickFormat?: {
             currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -333,27 +281,9 @@ export declare const AxesOptionsSchema: z.ZodObject<{
     } | undefined;
     y?: {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
-        tickFormat?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
-    } | undefined;
-    y2?: {
-        label?: string | undefined;
-        labelHide?: boolean | undefined;
-        hide?: boolean | undefined;
-        scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
+        domain?: [number, number] | undefined;
         tickFormat?: {
             currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -368,10 +298,9 @@ export declare const AxesOptionsSchema: z.ZodObject<{
 }, {
     x?: {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
+        domain?: [number, number] | undefined;
         tickFormat?: {
             currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -385,27 +314,9 @@ export declare const AxesOptionsSchema: z.ZodObject<{
     } | undefined;
     y?: {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
-        tickFormat?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
-    } | undefined;
-    y2?: {
-        label?: string | undefined;
-        labelHide?: boolean | undefined;
-        hide?: boolean | undefined;
-        scale?: "linear" | "log" | undefined;
-        domain?: [number | "auto", number | "auto"] | undefined;
+        domain?: [number, number] | undefined;
         tickFormat?: {
             currency?: string | undefined;
             kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -433,12 +344,21 @@ export declare function axisKey(meta: MemberMeta | undefined): string;
 export declare type AxisOptions = z.infer<typeof AxisOptionsSchema>;
 
 export declare const AxisOptionsSchema: z.ZodObject<{
+    /**
+     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+     * (the ticks and line stay). There is no separate hide flag: the editor's title
+     * field IS the control, and clearing it is how you remove the title. (v4)
+     */
     label: z.ZodOptional<z.ZodString>;
-    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-    labelHide: z.ZodOptional<z.ZodBoolean>;
+    /** Hide the whole axis — ticks, line and title. */
     hide: z.ZodOptional<z.ZodBoolean>;
+    /** Value-axis only: a category axis is band/point/utc and has no log form. */
     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-    domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+    /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+     *  either takes a configured domain verbatim or infers both ends from the data, so
+     *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+    domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
     tickFormat: z.ZodOptional<z.ZodObject<{
         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
         decimals: z.ZodOptional<z.ZodNumber>;
@@ -470,10 +390,9 @@ export declare const AxisOptionsSchema: z.ZodObject<{
     }>>;
 }, "strict", z.ZodTypeAny, {
     label?: string | undefined;
-    labelHide?: boolean | undefined;
     hide?: boolean | undefined;
     scale?: "linear" | "log" | undefined;
-    domain?: [number | "auto", number | "auto"] | undefined;
+    domain?: [number, number] | undefined;
     tickFormat?: {
         currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -486,10 +405,9 @@ export declare const AxisOptionsSchema: z.ZodObject<{
     } | undefined;
 }, {
     label?: string | undefined;
-    labelHide?: boolean | undefined;
     hide?: boolean | undefined;
     scale?: "linear" | "log" | undefined;
-    domain?: [number | "auto", number | "auto"] | undefined;
+    domain?: [number, number] | undefined;
     tickFormat?: {
         currency?: string | undefined;
         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -504,10 +422,14 @@ export declare const AxisOptionsSchema: z.ZodObject<{
 
 /**
  * `bar` — absorbs all six Embeddable Bar Pros via `orientation` × `stackMode`
- * (docs/02-chart-options.md §2.1). orientation→layout, stackMode→stackId/
- * stackOffset are translated HERE; the spec never carries a Recharts prop.
+ * (docs/02-chart-options.md §2.1). orientation → barY/barX, stackMode → mark
+ * layout (group()/implicit stack/stack({offset:"normalize"})) are translated
+ * HERE; the spec never carries a renderer prop. One mark renders ALL series
+ * from long rows — grouping/stacking is per-mark geometry, and per-series
+ * paint comes from the chart-level color domain/range (seriesColor).
+ * Dual-axis (`meta.axis === "right"`) was removed with the combo family.
  */
-export declare function BarChartFamily({ data, options, config, format, editing, }: ChartComponentProps): React_2.ReactElement;
+export declare function BarChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 /**
  * The chart-family registry — an IMMUTABLE value (no module-mutable state). A
@@ -527,15 +449,10 @@ export declare const barChartFamily: ChartFamilyDescriptor;
 export declare type BarFamilyOptions = z.infer<typeof BarFamilyOptionsSchema>;
 
 export declare const BarFamilyOptionsSchema: z.ZodObject<{
-    barRadius: z.ZodOptional<z.ZodNumber>;
-    barCategoryGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
-    barGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
-    maxBarSize: z.ZodOptional<z.ZodNumber>;
     showValueLabels: z.ZodOptional<z.ZodBoolean>;
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
-        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -543,42 +460,30 @@ export declare const BarFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }>, "many">>;
     comparePrevious: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
-    barRadius?: number | undefined;
-    barCategoryGap?: string | number | undefined;
-    barGap?: string | number | undefined;
-    maxBarSize?: number | undefined;
-    showValueLabels?: boolean | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }[] | undefined;
+    showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
 }, {
-    barRadius?: number | undefined;
-    barCategoryGap?: string | number | undefined;
-    barGap?: string | number | undefined;
-    maxBarSize?: number | undefined;
-    showValueLabels?: boolean | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }[] | undefined;
+    showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
 }>;
 
@@ -598,8 +503,9 @@ export declare interface BridgeError {
  */
 export declare function buildFamilyRegistry(defaults: readonly ChartFamilyDescriptor[], host?: readonly ChartFamilyDescriptor[]): FamilyRegistry;
 
-/** The families cube-viz ships in-box (the picker order). `map` REMOVED. */
-export declare const BUILTIN_CHART_FAMILIES: readonly ["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"];
+/** The families cube-viz ships in-box (the picker order). `map` and `combo` REMOVED
+ *  (combo + dual-axis were dropped in schemaVersion 2; `heatmap` was added). */
+export declare const BUILTIN_CHART_FAMILIES: readonly ["bar", "line", "area", "pie", "scatter", "heatmap", "kpi", "table"];
 
 /**
  * Total defaults per family (docs/02-chart-options.md §4). Stored specs carry
@@ -623,8 +529,6 @@ export declare const BUILTIN_DEFAULTS: {
             };
         };
         familyOptions: {
-            barRadius: number;
-            maxBarSize: number;
             showValueLabels: false;
         };
     };
@@ -644,7 +548,6 @@ export declare const BUILTIN_DEFAULTS: {
         };
         familyOptions: {
             curve: "monotone";
-            strokeWidth: number;
             dots: "active";
             connectNulls: false;
             chrome: "full";
@@ -666,8 +569,6 @@ export declare const BUILTIN_DEFAULTS: {
         };
         familyOptions: {
             curve: "monotone";
-            fillOpacity: number;
-            strokeWidth: number;
             connectNulls: false;
         };
     };
@@ -675,7 +576,7 @@ export declare const BUILTIN_DEFAULTS: {
         envelope: {
             legend: {
                 show: true;
-                position: "right";
+                position: "bottom";
             };
             tooltip: {
                 show: true;
@@ -687,7 +588,6 @@ export declare const BUILTIN_DEFAULTS: {
         };
         familyOptions: {
             innerRadiusPct: number;
-            outerRadiusPct: number;
             showLabels: "percent";
             maxSlices: number;
         };
@@ -716,21 +616,8 @@ export declare const BUILTIN_DEFAULTS: {
         };
         familyOptions: Record<string, unknown>;
     };
-    table: {
-        envelope: {};
-        familyOptions: {
-            pageSize: number;
-            sortable: true;
-            stickyHeader: true;
-            rowHeight: "default";
-        };
-    };
-    combo: {
+    heatmap: {
         envelope: {
-            legend: {
-                show: true;
-                position: "bottom";
-            };
             tooltip: {
                 show: true;
                 indicator: "dot";
@@ -740,7 +627,13 @@ export declare const BUILTIN_DEFAULTS: {
             };
         };
         familyOptions: {
-            series: never[];
+            colorToken: "chart-1";
+        };
+    };
+    table: {
+        envelope: {};
+        familyOptions: {
+            pageSize: number;
         };
     };
 };
@@ -754,15 +647,10 @@ export declare const BUILTIN_DEFAULTS: {
  */
 export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
     bar: z.ZodObject<{
-        barRadius: z.ZodOptional<z.ZodNumber>;
-        barCategoryGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
-        barGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
-        maxBarSize: z.ZodOptional<z.ZodNumber>;
         showValueLabels: z.ZodOptional<z.ZodBoolean>;
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
-            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -770,54 +658,40 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }>, "many">>;
         comparePrevious: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
-        barRadius?: number | undefined;
-        barCategoryGap?: string | number | undefined;
-        barGap?: string | number | undefined;
-        maxBarSize?: number | undefined;
-        showValueLabels?: boolean | undefined;
         referenceLines?: {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }[] | undefined;
+        showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
     }, {
-        barRadius?: number | undefined;
-        barCategoryGap?: string | number | undefined;
-        barGap?: string | number | undefined;
-        maxBarSize?: number | undefined;
-        showValueLabels?: boolean | undefined;
         referenceLines?: {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }[] | undefined;
+        showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
     }>;
     line: z.ZodObject<{
         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-        strokeWidth: z.ZodOptional<z.ZodNumber>;
         dots: z.ZodOptional<z.ZodUnion<[z.ZodBoolean, z.ZodLiteral<"active">]>>;
         connectNulls: z.ZodOptional<z.ZodBoolean>;
         chrome: z.ZodOptional<z.ZodEnum<["full", "none"]>>;
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
-            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -825,57 +699,48 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }>, "many">>;
         showValueLabels: z.ZodOptional<z.ZodBoolean>;
         comparePrevious: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | "active" | undefined;
-        strokeWidth?: number | undefined;
-        showValueLabels?: boolean | undefined;
         referenceLines?: {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }[] | undefined;
+        showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
         chrome?: "none" | "full" | undefined;
     }, {
         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | "active" | undefined;
-        strokeWidth?: number | undefined;
-        showValueLabels?: boolean | undefined;
         referenceLines?: {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }[] | undefined;
+        showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
         chrome?: "none" | "full" | undefined;
     }>;
     area: z.ZodObject<{
         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-        fillOpacity: z.ZodOptional<z.ZodNumber>;
-        strokeWidth: z.ZodOptional<z.ZodNumber>;
         connectNulls: z.ZodOptional<z.ZodBoolean>;
         dots: z.ZodOptional<z.ZodBoolean>;
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
-            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -883,49 +748,38 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }>, "many">>;
         comparePrevious: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | undefined;
-        fillOpacity?: number | undefined;
-        strokeWidth?: number | undefined;
         referenceLines?: {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
     }, {
         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | undefined;
-        fillOpacity?: number | undefined;
-        strokeWidth?: number | undefined;
         referenceLines?: {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
     }>;
     pie: z.ZodObject<{
         innerRadiusPct: z.ZodOptional<z.ZodNumber>;
-        outerRadiusPct: z.ZodOptional<z.ZodNumber>;
-        padAngle: z.ZodOptional<z.ZodNumber>;
-        cornerRadius: z.ZodOptional<z.ZodNumber>;
         showLabels: z.ZodOptional<z.ZodEnum<["none", "value", "percent", "name"]>>;
         centerLabel: z.ZodOptional<z.ZodObject<{
             value: z.ZodOptional<z.ZodString>;
@@ -939,39 +793,30 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         }>>;
         maxSlices: z.ZodOptional<z.ZodNumber>;
     }, "strict", z.ZodTypeAny, {
+        maxSlices?: number | undefined;
         innerRadiusPct?: number | undefined;
-        outerRadiusPct?: number | undefined;
-        padAngle?: number | undefined;
-        cornerRadius?: number | undefined;
         showLabels?: "value" | "percent" | "none" | "name" | undefined;
         centerLabel?: {
             value?: string | undefined;
             label?: string | undefined;
         } | undefined;
-        maxSlices?: number | undefined;
     }, {
+        maxSlices?: number | undefined;
         innerRadiusPct?: number | undefined;
-        outerRadiusPct?: number | undefined;
-        padAngle?: number | undefined;
-        cornerRadius?: number | undefined;
         showLabels?: "value" | "percent" | "none" | "name" | undefined;
         centerLabel?: {
             value?: string | undefined;
             label?: string | undefined;
         } | undefined;
-        maxSlices?: number | undefined;
     }>;
     scatter: z.ZodObject<{
         x: z.ZodString;
         y: z.ZodString;
         size: z.ZodOptional<z.ZodString>;
-        sizeRange: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
         groupBy: z.ZodOptional<z.ZodString>;
-        shape: z.ZodOptional<z.ZodEnum<["circle", "square", "triangle", "diamond"]>>;
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
             value: z.ZodNumber;
-            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
         }, "strict", z.ZodTypeAny, {
@@ -979,42 +824,42 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }, {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }>, "many">>;
     }, "strict", z.ZodTypeAny, {
         x: string;
         y: string;
-        shape?: "circle" | "square" | "triangle" | "diamond" | undefined;
-        size?: string | undefined;
-        groupBy?: string | undefined;
         referenceLines?: {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }[] | undefined;
-        sizeRange?: [number, number] | undefined;
+        size?: string | undefined;
+        groupBy?: string | undefined;
     }, {
         x: string;
         y: string;
-        shape?: "circle" | "square" | "triangle" | "diamond" | undefined;
-        size?: string | undefined;
-        groupBy?: string | undefined;
         referenceLines?: {
             value: number;
             axis: "x" | "y";
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
         }[] | undefined;
-        sizeRange?: [number, number] | undefined;
+        size?: string | undefined;
+        groupBy?: string | undefined;
+    }>;
+    heatmap: z.ZodObject<{
+        /** The single-hue ramp token; cells shade light→dark within this hue. */
+        colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+    }, "strict", z.ZodTypeAny, {
+        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+    }, {
+        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }>;
     kpi: z.ZodObject<{
         display: z.ZodOptional<z.ZodEnum<["number", "gauge"]>>;
@@ -1106,11 +951,8 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
             }[] | undefined;
         }>>;
-        icon: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         measure: string;
-        display?: "number" | "gauge" | undefined;
-        icon?: string | undefined;
         gauge?: {
             max: number;
             min?: number | undefined;
@@ -1119,6 +961,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
             }[] | undefined;
         } | undefined;
+        display?: "number" | "gauge" | undefined;
         goodDirection?: "up" | "down" | undefined;
         comparison?: {
             mode: "value" | "previousPeriod";
@@ -1138,8 +981,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         } | undefined;
     }, {
         measure: string;
-        display?: "number" | "gauge" | undefined;
-        icon?: string | undefined;
         gauge?: {
             max: number;
             min?: number | undefined;
@@ -1148,6 +989,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
             }[] | undefined;
         } | undefined;
+        display?: "number" | "gauge" | undefined;
         goodDirection?: "up" | "down" | undefined;
         comparison?: {
             mode: "value" | "previousPeriod";
@@ -1215,8 +1057,8 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 dateFormat?: string | undefined;
             } | undefined;
             hidden?: boolean | undefined;
-            width?: number | undefined;
             align?: "left" | "right" | "center" | undefined;
+            width?: number | undefined;
         }, {
             member: string;
             label?: string | undefined;
@@ -1231,14 +1073,10 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 dateFormat?: string | undefined;
             } | undefined;
             hidden?: boolean | undefined;
-            width?: number | undefined;
             align?: "left" | "right" | "center" | undefined;
+            width?: number | undefined;
         }>, "many">>;
         pageSize: z.ZodOptional<z.ZodNumber>;
-        sortable: z.ZodOptional<z.ZodBoolean>;
-        stickyHeader: z.ZodOptional<z.ZodBoolean>;
-        rowHeight: z.ZodOptional<z.ZodEnum<["compact", "default"]>>;
-        showRowNumbers: z.ZodOptional<z.ZodBoolean>;
         conditionalFormat: z.ZodOptional<z.ZodArray<z.ZodObject<{
             member: z.ZodString;
             when: z.ZodObject<{
@@ -1268,7 +1106,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }>, "many">>;
     }, "strict", z.ZodTypeAny, {
-        rowHeight?: "default" | "compact" | undefined;
         columns?: {
             member: string;
             label?: string | undefined;
@@ -1283,13 +1120,10 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 dateFormat?: string | undefined;
             } | undefined;
             hidden?: boolean | undefined;
-            width?: number | undefined;
             align?: "left" | "right" | "center" | undefined;
+            width?: number | undefined;
         }[] | undefined;
         pageSize?: number | undefined;
-        sortable?: boolean | undefined;
-        stickyHeader?: boolean | undefined;
-        showRowNumbers?: boolean | undefined;
         conditionalFormat?: {
             member: string;
             when: {
@@ -1299,7 +1133,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
     }, {
-        rowHeight?: "default" | "compact" | undefined;
         columns?: {
             member: string;
             label?: string | undefined;
@@ -1314,13 +1147,10 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
                 dateFormat?: string | undefined;
             } | undefined;
             hidden?: boolean | undefined;
-            width?: number | undefined;
             align?: "left" | "right" | "center" | undefined;
+            width?: number | undefined;
         }[] | undefined;
         pageSize?: number | undefined;
-        sortable?: boolean | undefined;
-        stickyHeader?: boolean | undefined;
-        showRowNumbers?: boolean | undefined;
         conditionalFormat?: {
             member: string;
             when: {
@@ -1329,109 +1159,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             };
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
-    }>;
-    combo: z.ZodObject<{
-        series: z.ZodArray<z.ZodObject<{
-            member: z.ZodString;
-            render: z.ZodEnum<["bar", "line", "area"]>;
-            axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
-            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
-            stackId: z.ZodOptional<z.ZodString>;
-            curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-            dots: z.ZodOptional<z.ZodBoolean>;
-            label: z.ZodOptional<z.ZodString>;
-        }, "strict", z.ZodTypeAny, {
-            member: string;
-            render: "bar" | "line" | "area";
-            label?: string | undefined;
-            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-            dots?: boolean | undefined;
-        }, {
-            member: string;
-            render: "bar" | "line" | "area";
-            label?: string | undefined;
-            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-            dots?: boolean | undefined;
-        }>, "many">;
-        referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            axis: z.ZodEnum<["x", "y"]>;
-            value: z.ZodNumber;
-            side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
-            label: z.ZodOptional<z.ZodString>;
-            colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
-        }, "strict", z.ZodTypeAny, {
-            value: number;
-            axis: "x" | "y";
-            label?: string | undefined;
-            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
-        }, {
-            value: number;
-            axis: "x" | "y";
-            label?: string | undefined;
-            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
-        }>, "many">>;
-        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-        dots: z.ZodOptional<z.ZodBoolean>;
-        connectNulls: z.ZodOptional<z.ZodBoolean>;
-        strokeWidth: z.ZodOptional<z.ZodNumber>;
-        fillOpacity: z.ZodOptional<z.ZodNumber>;
-        barRadius: z.ZodOptional<z.ZodNumber>;
-    }, "strict", z.ZodTypeAny, {
-        series: {
-            member: string;
-            render: "bar" | "line" | "area";
-            label?: string | undefined;
-            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-            dots?: boolean | undefined;
-        }[];
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-        dots?: boolean | undefined;
-        fillOpacity?: number | undefined;
-        strokeWidth?: number | undefined;
-        barRadius?: number | undefined;
-        referenceLines?: {
-            value: number;
-            axis: "x" | "y";
-            label?: string | undefined;
-            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
-        }[] | undefined;
-        connectNulls?: boolean | undefined;
-    }, {
-        series: {
-            member: string;
-            render: "bar" | "line" | "area";
-            label?: string | undefined;
-            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-            dots?: boolean | undefined;
-        }[];
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-        dots?: boolean | undefined;
-        fillOpacity?: number | undefined;
-        strokeWidth?: number | undefined;
-        barRadius?: number | undefined;
-        referenceLines?: {
-            value: number;
-            axis: "x" | "y";
-            label?: string | undefined;
-            colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-            side?: "left" | "right" | undefined;
-        }[] | undefined;
-        connectNulls?: boolean | undefined;
     }>;
 };
 
@@ -1458,6 +1185,19 @@ export declare const builtinFamilyRegistry: FamilyRegistry;
 
 /** The breakpoint key under which {@link Dashboard} stores the canonical layout. */
 export declare const CANONICAL_BREAKPOINT: "lg";
+
+/**
+ * The visual role a well feeds. Two families that expose the same channel mean
+ * the same thing by it, which is what makes type-switching lossless
+ * ({@link unifyChannels}), fit-ranking possible, and the editor uniform: the
+ * "category" well behaves identically in bar, line, area and heatmap because it
+ * IS the same channel.
+ *
+ * `row` is a second categorical POSITION channel (the heatmap's rows) as opposed
+ * to `color`, which is a categorical PAINT channel (a bar/line split). Both are
+ * stored the same way (a pivot dimension); they differ in how the mark reads them.
+ */
+export declare type Channel = "x" | "y" | "color" | "size" | "row" | "detail";
 
 export declare type ChartColorToken = z.infer<typeof ChartColorTokenSchema>;
 
@@ -1487,6 +1227,12 @@ export declare interface ChartComponentProps {
      * {@link ValueFormatter} + annotation + options.
      */
     format: ChartFormat;
+    /**
+     * Resolved mark geometry — bar radius, area fill opacity, pie gap and the rest.
+     * App-level appearance, NOT a spec option: it comes from the host's provider theme,
+     * already defaulted, so a family reads `theme.barRadius` with no fallback of its own.
+     */
+    theme: ChartMarkTheme;
     /** Optional fetch state; families render their own loading/error chrome from it. */
     state?: {
         loading?: boolean;
@@ -1508,6 +1254,15 @@ export declare interface ChartComponentProps {
     updateFamilyOptions?: (patch: Record<string, unknown>) => void;
 }
 
+/**
+ * Chart config: the series-key → { label, color } map handed to every chart
+ * family (ChartComponentProps.config). It survives the Recharts→TanStack
+ * migration as the family-facing color/label contract — host-extension
+ * families (e.g. aa-app's map) read it — but the Recharts wrapper components
+ * that used to live here (ChartContainer/Tooltip/Legend + the ChartStyle
+ * `--color-<key>` injector) are gone: the TanStack seam (src/charts/tanstack.tsx)
+ * passes palette tokens straight to mark paints and the built-in legend/tooltip.
+ */
 export declare type ChartConfig = {
     [k in string]: {
         label?: React_2.ReactNode;
@@ -1517,7 +1272,7 @@ export declare type ChartConfig = {
         theme?: never;
     } | {
         color?: never;
-        theme: Record<keyof typeof THEMES, string>;
+        theme: Record<"light" | "dark", string>;
     });
 };
 
@@ -1593,17 +1348,21 @@ export declare type ChartFamily = z.infer<typeof ChartFamilySchema>;
  *
  * Before this registry, each family's identity was smeared across ~10 scattered
  * tables/switches/Sets (icon + label in the picker, component in the dispatcher,
- * option schema + defaults in `defaults.ts`, wells + zones + dual-axis + legend in
+ * option schema + defaults in `defaults.ts`, wells + zones + legend in
  * the editor overlay, customize-options Set, mapping/cartesian/measure-only/compare
  * booleans, axis-enforcement). A {@link ChartFamilyDescriptor} centralizes all of
  * that DATA + dispatch so adding a family later is "write one descriptor (+ its
  * procedural field writers)" rather than editing every table.
  *
- * What is INTENTIONALLY NOT absorbed (Phase 1): the procedural per-family bodies —
- * `placeField`/`removeField` impls (`wells.ts`), `migrateToFamily`, the
- * `CustomizeSection` per-family control JSX, the chip-binding patch writers, and
- * `readWells`. Those READ descriptor flags but their bodies stay; the DATA/dispatch
- * is what centralizes here.
+ * Field placement is DATA here too: each well declares its `target` (where its member
+ * lives in the spec) + `channel` (which visual role it feeds), and the generic
+ * interpreter in `editor/chart/builder/channels.ts` reads/writes every builtin family
+ * from those two facts. The per-family `placeField`/`removeField`/`readWells`/
+ * `migrateToFamily` switches are GONE.
+ *
+ * What is still INTENTIONALLY NOT absorbed: the `CustomizeSection` per-family control
+ * JSX and the chip-binding patch writers. Those READ descriptor flags but their bodies
+ * stay; the DATA/dispatch is what centralizes here.
  */
 export declare interface ChartFamilyDescriptor {
     /** The family key (the discriminator). */
@@ -1627,8 +1386,6 @@ export declare interface ChartFamilyDescriptor {
         left: string[];
         bottom: string[];
     };
-    /** Has TWO renderer-supported value axes (left + right). */
-    dualAxisY: boolean;
     /** Consumes the generic `mapping` envelope (vs. storing fields in `familyOptions`). */
     supportsMapping: boolean;
     /** Exposes the cross-family display envelope (orientation/stack/axes). */
@@ -1673,7 +1430,7 @@ export declare interface ChartFamilyDescriptor {
      * A well id the editor AUTO-FILLS with the cube's canonical time dimension (member
      * meta `canonicalTime: true`) when a field is placed and this well is still empty —
      * so time-oriented families come up chronological without the user picking "the"
-     * time axis. Builtins: `line`/`area`/`combo` → `"x"`; `bar` deliberately unset (its
+     * time axis. Builtins: `line`/`area` → `"x"`; `bar` deliberately unset (its
      * default axis is categorical). A host family points this at its own time well
      * (e.g. the map's `"time"` path-order well). The auto-fill is a plain placement —
      * one tap removes it.
@@ -1690,15 +1447,6 @@ export declare interface ChartFamilyDescriptor {
     removeField?: (spec: ChartSpec, wellId: string, member: string) => ChartSpec;
     /** Derive each well's current member name(s) from the spec (inverse of place/remove). */
     readWells?: (spec: ChartSpec) => Record<string, string[]>;
-    /**
-     * Assign `member` to a value axis (`"left"`/`"right"`) for a `dualAxisY` family,
-     * returning a FULL next spec. The editor calls this after `placeField` on a
-     * dual-axis family so the axis lands in the SAME shape the host's own
-     * placeField/readWells read. Builtins leave this unset and the editor falls back to
-     * the builtin `withSeriesAxis` (combo / cartesian `mapping.series` meta) — so a host
-     * with its own field storage must supply this to control dual-axis assignment.
-     */
-    assignSeriesAxis?: (spec: ChartSpec, member: string, side: "left" | "right") => ChartSpec;
 }
 
 /**
@@ -1728,13 +1476,129 @@ export declare interface ChartFormat {
      * granularity from the chart options/query when discoverable.
      */
     category: (value: string | number | null | undefined) => string;
+    /**
+     * A COPY of this formatter whose {@link FormatOptions} are `overrides` merged over
+     * the chart's own — the seam for the option surfaces that carry their own
+     * FormatOptions: `axes.{x,y}.tickFormat` (per-axis ticks) and
+     * `TableColumnOpt.format` (per-column cells). `undefined`/`{}` returns the same
+     * instance, so the common path allocates nothing.
+     *
+     * OPTIONAL on the interface so a host (or a test) can still hand in a hand-rolled
+     * two-method ChartFormat; call sites fall back to the undecorated formatter.
+     */
+    derive?: (overrides: FormatOptions | undefined) => ChartFormat;
+}
+
+/** The optional handler pair a host supplies at any level. */
+export declare interface ChartInteractionHandlers {
+    /**
+     * A time range was brushed on a chart with a TEMPORAL category axis. Called
+     * with `null` when the brush is cleared (a click on empty plot).
+     */
+    onRangeSelect?: RangeSelectHandler;
+    /**
+     * A bar / point / slice / cell was clicked. Called with `null` when the reader
+     * clicks the blank surface (clear the cross-filter).
+     */
+    onPointSelect?: PointSelectHandler;
+}
+
+/**
+ * Publish (or override) the interaction handlers for a subtree. Nesting is
+ * innermost-wins PER CHANNEL: a chart that supplies only `onPointSelect` still
+ * inherits the dashboard's `onRangeSelect`. `widgetId` and `target` are merged
+ * the same way, so the widget level names the source without the dashboard level
+ * having to know about it.
+ */
+export declare function ChartInteractionProvider({ widgetId, onRangeSelect, onPointSelect, target, children, }: ChartInteractionProviderProps): React_2.ReactElement;
+
+export declare interface ChartInteractionProviderProps extends ChartInteractionHandlers {
+    /** Names the source widget on every selection emitted below this provider. */
+    widgetId?: string;
+    /** Per-chart semantic context (category/pivot member + label formatter). */
+    target?: ChartInteractionTarget;
+    children: React_2.ReactNode;
+}
+
+/** What a chart reads: capability flags, the semantic target, and stable emitters. */
+export declare interface ChartInteractions {
+    /** The innermost widget id, stamped onto every emitted selection. */
+    widgetId?: string;
+    target: ChartInteractionTarget;
+    /** A range handler exists somewhere up the tree ⇒ mount the brush. */
+    rangeEnabled: boolean;
+    /** A point handler exists somewhere up the tree ⇒ attach `onSelect`. */
+    pointEnabled: boolean;
+    /** Stable for the provider's lifetime — safe inside a definition `useMemo`. */
+    emitRange: RangeSelectHandler;
+    /** Stable for the provider's lifetime — safe inside a definition `useMemo`. */
+    emitPoint: PointSelectHandler;
+}
+
+/**
+ * The per-chart semantic context the emitters need to name what was clicked.
+ * Supplied by {@link import("@/render").CubeChart} (it is the layer that holds
+ * both the resolved `mapping` and the bound formatter); charts only READ it.
+ */
+export declare interface ChartInteractionTarget {
+    /** `mapping.category.member` — the dimension on the category axis. */
+    categoryMember?: string;
+    /** `mapping.series.pivot` — the colour-split dimension, when the series ARE a split. */
+    pivotMember?: string;
+    /** The chart's bound category formatter, for a selection's display label. */
+    formatCategory?: (value: string | number) => string;
+}
+
+/**
+ * MARK GEOMETRY — the shape of the ink, set once for the app.
+ *
+ * These used to be per-chart `familyOptions`: `barRadius`, `padAngle`, `fillOpacity`
+ * and the rest. Every one of them was honored by the renderer, and every one of them
+ * was the wrong kind of question to put in front of someone building a chart. A person
+ * opens the editor to answer something about their fleet; "how round should the bar
+ * corners be" is not that, and no value they pick is wrong — which is exactly what
+ * makes the choice worthless. A knob whose every setting is defensible carries no
+ * information, it only carries a decision.
+ *
+ * So they moved here: ONE resolved geometry for the whole app, supplied by the host
+ * through `CubeVizProvider`'s `theme.marks` and defaulted to values that look right
+ * without anyone touching them. A saved chart can no longer carry a stale look, the
+ * editor has nothing to show for them, and restyling every chart at once is a one-line
+ * change instead of a migration.
+ *
+ * What stays a spec option is what changes MEANING: stacking, orientation, transforms,
+ * what each series is called. Appearance is a property of the product; meaning is a
+ * property of the chart.
+ */
+/** The resolved geometry every family renders with. All fields required — see {@link DEFAULT_MARK_THEME}. */
+export declare interface ChartMarkTheme {
+    /** Bar corner radius, px. */
+    barRadius: number;
+    /** Space BETWEEN the bars of one group, as a 0..1 fraction of the group's slot. */
+    barGap: number;
+    /** Space between CATEGORY bands, as a 0..1 fraction of the band. */
+    barCategoryGap: number;
+    /** Upper bound on bar thickness, px — keeps a 3-category chart from drawing slabs. */
+    maxBarSize: number;
+    /** Peak opacity of an area's gradient fill. */
+    areaFillOpacity: number;
+    /** Stroke width for line + area marks, px. */
+    lineWidth: number;
+    /** Gap between pie slices, DEGREES. */
+    pieGapAngle: number;
+    /** Pie/donut slice corner radius, px. */
+    pieCornerRadius: number;
+    /** Pie outer radius as a percentage of the available radius. */
+    pieRadiusPct: number;
+    /** Bubble AREA range [min, max] in px² — area, not radius, so size reads honestly. */
+    bubbleAreaRange: readonly [number, number];
 }
 
 export declare type ChartOptions = z.infer<typeof ChartOptionsSchema>;
 
 export declare const ChartOptionsSchema: z.ZodObject<{
     family: z.ZodString;
-    /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+    /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
      carry their own mapping inside familyOptions, so this is optional at the envelope. */
     mapping: z.ZodOptional<z.ZodObject<{
         category: z.ZodObject<{
@@ -1750,75 +1614,25 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                 label: z.ZodOptional<z.ZodString>;
                 colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                 *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                 stackId: z.ZodOptional<z.ZodString>;
-                axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                 /** Per-series line shape (line/area) — overrides the family default. */
                 curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                 /** Per-series point markers (line/area) — overrides the family default. */
                 dots: z.ZodOptional<z.ZodBoolean>;
-                format: z.ZodOptional<z.ZodObject<{
-                    kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                    decimals: z.ZodOptional<z.ZodNumber>;
-                    abbreviate: z.ZodOptional<z.ZodBoolean>;
-                    prefix: z.ZodOptional<z.ZodString>;
-                    suffix: z.ZodOptional<z.ZodString>;
-                    unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                    dateFormat: z.ZodOptional<z.ZodString>;
-                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                    currency: z.ZodOptional<z.ZodString>;
-                }, "strict", z.ZodTypeAny, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }, {
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }>>>;
         }, "strict", z.ZodTypeAny, {
             mode: "measures";
@@ -1827,19 +1641,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         }, {
             mode: "measures";
@@ -1848,19 +1651,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         }>, z.ZodObject<{
             mode: z.ZodLiteral<"pivot">;
@@ -1872,81 +1664,30 @@ export declare const ChartOptionsSchema: z.ZodObject<{
              *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
             values: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
             pivot: z.ZodString;
-            /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-             *  each measure's series sit on, so a multi-measure color split can be
-             *  dual-axis (each axis one unit). */
+            /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+             *  each split measure's series. */
             meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                 label: z.ZodOptional<z.ZodString>;
                 colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                 *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                 stackId: z.ZodOptional<z.ZodString>;
-                axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                 /** Per-series line shape (line/area) — overrides the family default. */
                 curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                 /** Per-series point markers (line/area) — overrides the family default. */
                 dots: z.ZodOptional<z.ZodBoolean>;
-                format: z.ZodOptional<z.ZodObject<{
-                    kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                    decimals: z.ZodOptional<z.ZodNumber>;
-                    abbreviate: z.ZodOptional<z.ZodBoolean>;
-                    prefix: z.ZodOptional<z.ZodString>;
-                    suffix: z.ZodOptional<z.ZodString>;
-                    unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                    dateFormat: z.ZodOptional<z.ZodString>;
-                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                    currency: z.ZodOptional<z.ZodString>;
-                }, "strict", z.ZodTypeAny, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }, {
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }>>>;
         }, "strict", z.ZodTypeAny, {
             value: string;
@@ -1957,19 +1698,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         }, {
             value: string;
@@ -1980,19 +1710,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         }>]>;
     }, "strict", z.ZodTypeAny, {
@@ -2006,19 +1725,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         } | {
             value: string;
@@ -2029,19 +1737,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         };
     }, {
@@ -2055,19 +1752,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         } | {
             value: string;
@@ -2078,19 +1764,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         };
     }>>;
@@ -2098,13 +1773,16 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
     legend: z.ZodOptional<z.ZodObject<{
         show: z.ZodOptional<z.ZodBoolean>;
-        position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
+        /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+         *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+         *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+        position: z.ZodOptional<z.ZodEnum<["top", "bottom"]>>;
     }, "strict", z.ZodTypeAny, {
         show?: boolean | undefined;
-        position?: "left" | "right" | "top" | "bottom" | undefined;
+        position?: "top" | "bottom" | undefined;
     }, {
         show?: boolean | undefined;
-        position?: "left" | "right" | "top" | "bottom" | undefined;
+        position?: "top" | "bottom" | undefined;
     }>>;
     tooltip: z.ZodOptional<z.ZodObject<{
         show: z.ZodOptional<z.ZodBoolean>;
@@ -2121,12 +1799,21 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     }>>;
     axes: z.ZodOptional<z.ZodObject<{
         x: z.ZodOptional<z.ZodObject<{
+            /**
+             * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+             * (the ticks and line stay). There is no separate hide flag: the editor's title
+             * field IS the control, and clearing it is how you remove the title. (v4)
+             */
             label: z.ZodOptional<z.ZodString>;
-            /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-            labelHide: z.ZodOptional<z.ZodBoolean>;
+            /** Hide the whole axis — ticks, line and title. */
             hide: z.ZodOptional<z.ZodBoolean>;
+            /** Value-axis only: a category axis is band/point/utc and has no log form. */
             scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-            domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+            /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+             *  either takes a configured domain verbatim or infers both ends from the data, so
+             *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+            domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+            /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
             tickFormat: z.ZodOptional<z.ZodObject<{
                 kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                 decimals: z.ZodOptional<z.ZodNumber>;
@@ -2158,10 +1845,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             }>>;
         }, "strict", z.ZodTypeAny, {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2174,10 +1860,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             } | undefined;
         }, {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2190,12 +1875,21 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             } | undefined;
         }>>;
         y: z.ZodOptional<z.ZodObject<{
+            /**
+             * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+             * (the ticks and line stay). There is no separate hide flag: the editor's title
+             * field IS the control, and clearing it is how you remove the title. (v4)
+             */
             label: z.ZodOptional<z.ZodString>;
-            /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-            labelHide: z.ZodOptional<z.ZodBoolean>;
+            /** Hide the whole axis — ticks, line and title. */
             hide: z.ZodOptional<z.ZodBoolean>;
+            /** Value-axis only: a category axis is band/point/utc and has no log form. */
             scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-            domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+            /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+             *  either takes a configured domain verbatim or infers both ends from the data, so
+             *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+            domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+            /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
             tickFormat: z.ZodOptional<z.ZodObject<{
                 kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                 decimals: z.ZodOptional<z.ZodNumber>;
@@ -2227,10 +1921,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             }>>;
         }, "strict", z.ZodTypeAny, {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2243,79 +1936,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             } | undefined;
         }, {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
-            tickFormat?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
-        }>>;
-        y2: z.ZodOptional<z.ZodObject<{
-            label: z.ZodOptional<z.ZodString>;
-            /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-            labelHide: z.ZodOptional<z.ZodBoolean>;
-            hide: z.ZodOptional<z.ZodBoolean>;
-            scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-            domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
-            tickFormat: z.ZodOptional<z.ZodObject<{
-                kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                decimals: z.ZodOptional<z.ZodNumber>;
-                abbreviate: z.ZodOptional<z.ZodBoolean>;
-                prefix: z.ZodOptional<z.ZodString>;
-                suffix: z.ZodOptional<z.ZodString>;
-                unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                dateFormat: z.ZodOptional<z.ZodString>;
-                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                currency: z.ZodOptional<z.ZodString>;
-            }, "strict", z.ZodTypeAny, {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            }, {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            }>>;
-        }, "strict", z.ZodTypeAny, {
-            label?: string | undefined;
-            labelHide?: boolean | undefined;
-            hide?: boolean | undefined;
-            scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
-            tickFormat?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
-        }, {
-            label?: string | undefined;
-            labelHide?: boolean | undefined;
-            hide?: boolean | undefined;
-            scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2330,10 +1953,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         x?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2347,27 +1969,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         } | undefined;
         y?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
-            tickFormat?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
-        } | undefined;
-        y2?: {
-            label?: string | undefined;
-            labelHide?: boolean | undefined;
-            hide?: boolean | undefined;
-            scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2382,10 +1986,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     }, {
         x?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2399,27 +2002,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         } | undefined;
         y?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
-            tickFormat?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
-        } | undefined;
-        y2?: {
-            label?: string | undefined;
-            labelHide?: boolean | undefined;
-            hide?: boolean | undefined;
-            scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2471,20 +2056,30 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         unitSystem?: "metric" | "imperial" | undefined;
         dateFormat?: string | undefined;
     }>>;
+    /**
+     * Presentation-only reshaping of the normalized series (rolling average /
+     * running total / share of category total). Purely additive + optional, so it
+     * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
+     */
+    transform: z.ZodOptional<z.ZodObject<{
+        kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+        /**
+         * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+         * (ignored by cumulative / percentOfTotal); defaults to
+         * {@link DEFAULT_TRANSFORM_WINDOW}.
+         */
+        window: z.ZodOptional<z.ZodNumber>;
+    }, "strict", z.ZodTypeAny, {
+        kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+        window?: number | undefined;
+    }, {
+        kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+        window?: number | undefined;
+    }>>;
     /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
     familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
 }, "strict", z.ZodTypeAny, {
     family: string;
-    format?: {
-        currency?: string | undefined;
-        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-        decimals?: number | undefined;
-        abbreviate?: boolean | undefined;
-        prefix?: string | undefined;
-        suffix?: string | undefined;
-        unitSystem?: "metric" | "imperial" | undefined;
-        dateFormat?: string | undefined;
-    } | undefined;
     mapping?: {
         category: {
             member: string;
@@ -2496,19 +2091,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         } | {
             value: string;
@@ -2519,19 +2103,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         };
     } | undefined;
@@ -2539,7 +2112,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
     legend?: {
         show?: boolean | undefined;
-        position?: "left" | "right" | "top" | "bottom" | undefined;
+        position?: "top" | "bottom" | undefined;
     } | undefined;
     tooltip?: {
         show?: boolean | undefined;
@@ -2549,10 +2122,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     axes?: {
         x?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2566,27 +2138,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         } | undefined;
         y?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
-            tickFormat?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
-        } | undefined;
-        y2?: {
-            label?: string | undefined;
-            labelHide?: boolean | undefined;
-            hide?: boolean | undefined;
-            scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2602,20 +2156,24 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     colors?: {
         byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
         ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+    } | undefined;
+    format?: {
+        currency?: string | undefined;
+        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+        decimals?: number | undefined;
+        abbreviate?: boolean | undefined;
+        prefix?: string | undefined;
+        suffix?: string | undefined;
+        unitSystem?: "metric" | "imperial" | undefined;
+        dateFormat?: string | undefined;
+    } | undefined;
+    transform?: {
+        kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+        window?: number | undefined;
     } | undefined;
     familyOptions?: Record<string, unknown> | undefined;
 }, {
     family: string;
-    format?: {
-        currency?: string | undefined;
-        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-        decimals?: number | undefined;
-        abbreviate?: boolean | undefined;
-        prefix?: string | undefined;
-        suffix?: string | undefined;
-        unitSystem?: "metric" | "imperial" | undefined;
-        dateFormat?: string | undefined;
-    } | undefined;
     mapping?: {
         category: {
             member: string;
@@ -2627,19 +2185,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         } | {
             value: string;
@@ -2650,19 +2197,8 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                axis?: "left" | "right" | undefined;
                 curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
-                format?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
             }> | undefined;
         };
     } | undefined;
@@ -2670,7 +2206,7 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
     legend?: {
         show?: boolean | undefined;
-        position?: "left" | "right" | "top" | "bottom" | undefined;
+        position?: "top" | "bottom" | undefined;
     } | undefined;
     tooltip?: {
         show?: boolean | undefined;
@@ -2680,10 +2216,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     axes?: {
         x?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2697,27 +2232,9 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         } | undefined;
         y?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
-            tickFormat?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
-        } | undefined;
-        y2?: {
-            label?: string | undefined;
-            labelHide?: boolean | undefined;
-            hide?: boolean | undefined;
-            scale?: "linear" | "log" | undefined;
-            domain?: [number | "auto", number | "auto"] | undefined;
+            domain?: [number, number] | undefined;
             tickFormat?: {
                 currency?: string | undefined;
                 kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -2734,12 +2251,33 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
         ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
     } | undefined;
+    format?: {
+        currency?: string | undefined;
+        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+        decimals?: number | undefined;
+        abbreviate?: boolean | undefined;
+        prefix?: string | undefined;
+        suffix?: string | undefined;
+        unitSystem?: "metric" | "imperial" | undefined;
+        dateFormat?: string | undefined;
+    } | undefined;
+    transform?: {
+        kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+        window?: number | undefined;
+    } | undefined;
     familyOptions?: Record<string, unknown> | undefined;
 }>;
 
-export declare function ChartRenderer({ data, options, config, format, state, components, editing, updateFamilyOptions, registry, }: ChartRendererProps): ReactElement;
+export declare function ChartRenderer({ data, options, config, format, state, components, editing, updateFamilyOptions, registry, theme, }: ChartRendererProps): ReactElement;
 
-export declare interface ChartRendererProps extends Omit<ChartComponentProps, "format"> {
+export declare interface ChartRendererProps extends Omit<ChartComponentProps, "format" | "theme"> {
+    /**
+     * Mark geometry overrides (bar radius, area fill opacity, pie gap…). Optional and
+     * PARTIAL: whatever the host omits falls back to {@link DEFAULT_MARK_THEME}, and the
+     * families receive the resolved whole. `CubeChart` passes the provider's
+     * `theme.marks`. Deliberately not a spec option — see charts/theme.ts.
+     */
+    theme?: Partial<ChartMarkTheme>;
     /**
      * The bound value formatter. Optional here: when absent the renderer builds a
      * default from `data.raw.annotation` + the resolved options + the minimal
@@ -2869,7 +2407,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
     }>>;
     chart: z.ZodObject<{
         family: z.ZodString;
-        /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+        /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
             category: z.ZodObject<{
@@ -2885,75 +2423,25 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
-                    format: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
                 mode: "measures";
@@ -2962,19 +2450,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }, {
                 mode: "measures";
@@ -2983,19 +2460,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }>, z.ZodObject<{
                 mode: z.ZodLiteral<"pivot">;
@@ -3007,81 +2473,30 @@ export declare const ChartSpecSchema: z.ZodObject<{
                  *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
                 values: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
                 pivot: z.ZodString;
-                /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-                 *  each measure's series sit on, so a multi-measure color split can be
-                 *  dual-axis (each axis one unit). */
+                /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+                 *  each split measure's series. */
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
-                    format: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
                 value: string;
@@ -3092,19 +2507,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }, {
                 value: string;
@@ -3115,19 +2519,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }>]>;
         }, "strict", z.ZodTypeAny, {
@@ -3141,19 +2534,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -3164,19 +2546,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         }, {
@@ -3190,19 +2561,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -3213,19 +2573,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         }>>;
@@ -3233,13 +2582,16 @@ export declare const ChartSpecSchema: z.ZodObject<{
         stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
         legend: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
-            position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
+            /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+             *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+             *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+            position: z.ZodOptional<z.ZodEnum<["top", "bottom"]>>;
         }, "strict", z.ZodTypeAny, {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         }, {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         }>>;
         tooltip: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
@@ -3256,12 +2608,21 @@ export declare const ChartSpecSchema: z.ZodObject<{
         }>>;
         axes: z.ZodOptional<z.ZodObject<{
             x: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                 *  either takes a configured domain verbatim or infers both ends from the data, so
+                 *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -3293,10 +2654,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3309,10 +2669,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3325,12 +2684,21 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 } | undefined;
             }>>;
             y: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                 *  either takes a configured domain verbatim or infers both ends from the data, so
+                 *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -3362,10 +2730,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3378,79 +2745,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            }>>;
-            y2: z.ZodOptional<z.ZodObject<{
-                label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
-                hide: z.ZodOptional<z.ZodBoolean>;
-                scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
-                tickFormat: z.ZodOptional<z.ZodObject<{
-                    kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                    decimals: z.ZodOptional<z.ZodNumber>;
-                    abbreviate: z.ZodOptional<z.ZodBoolean>;
-                    prefix: z.ZodOptional<z.ZodString>;
-                    suffix: z.ZodOptional<z.ZodString>;
-                    unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                    dateFormat: z.ZodOptional<z.ZodString>;
-                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                    currency: z.ZodOptional<z.ZodString>;
-                }, "strict", z.ZodTypeAny, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }>>;
-            }, "strict", z.ZodTypeAny, {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            }, {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3465,10 +2762,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
         }, "strict", z.ZodTypeAny, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3482,27 +2778,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3517,10 +2795,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
         }, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3534,27 +2811,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3606,20 +2865,30 @@ export declare const ChartSpecSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }>>;
+        /**
+         * Presentation-only reshaping of the normalized series (rolling average /
+         * running total / share of category total). Purely additive + optional, so it
+         * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
+         */
+        transform: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+            /**
+             * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+             * (ignored by cumulative / percentOfTotal); defaults to
+             * {@link DEFAULT_TRANSFORM_WINDOW}.
+             */
+            window: z.ZodOptional<z.ZodNumber>;
+        }, "strict", z.ZodTypeAny, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }>>;
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -3631,19 +2900,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -3654,19 +2912,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -3674,7 +2921,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -3684,10 +2931,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3701,27 +2947,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3737,20 +2965,24 @@ export declare const ChartSpecSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -3762,19 +2994,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -3785,19 +3006,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -3805,7 +3015,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -3815,10 +3025,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3832,27 +3041,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3869,9 +3060,23 @@ export declare const ChartSpecSchema: z.ZodObject<{
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
-    schemaVersion: z.ZodLiteral<1>;
+    schemaVersion: z.ZodLiteral<4>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -3881,16 +3086,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
     kind: "chart";
     chart: {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -3902,19 +3097,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -3925,19 +3109,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -3945,7 +3118,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -3955,10 +3128,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -3972,27 +3144,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4008,6 +3162,20 @@ export declare const ChartSpecSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -4037,7 +3205,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         timezone?: string | undefined;
     };
     id: string;
-    schemaVersion: 1;
+    schemaVersion: 4;
     name?: string | undefined;
     description?: string | undefined;
     createdAt?: string | undefined;
@@ -4046,16 +3214,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
     kind: "chart";
     chart: {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -4067,19 +3225,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -4090,19 +3237,8 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -4110,7 +3246,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -4120,10 +3256,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4137,27 +3272,9 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4174,10 +3291,24 @@ export declare const ChartSpecSchema: z.ZodObject<{
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
     id: string;
-    schemaVersion: 1;
+    schemaVersion: 4;
     query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
@@ -4209,14 +3340,43 @@ export declare const ChartSpecSchema: z.ZodObject<{
     updatedAt?: string | undefined;
 }>;
 
+export declare type ChartTransform = z.infer<typeof ChartTransformSchema>;
+
+/**
+ * A PRESENTATION transform applied to the already-aggregated, already-normalized
+ * series — the seam TanStack Charts deliberately leaves to the view layer while the
+ * semantic layer (Cube) owns aggregation. It lets "7-day rolling average" / "running
+ * total" / "% of total" be a display choice instead of three new Cube measures.
+ *
+ * Envelope-level (NOT per-family) on purpose: it reshapes the generic
+ * `{categories, series[].data}` shape, so every cartesian family gets it for free
+ * and no family option schema grows a knob. Applied in `ChartRenderer` before the
+ * family component sees the data (see `src/charts/transforms.ts`).
+ */
+export declare const ChartTransformSchema: z.ZodObject<{
+    kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+    /**
+     * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+     * (ignored by cumulative / percentOfTotal); defaults to
+     * {@link DEFAULT_TRANSFORM_WINDOW}.
+     */
+    window: z.ZodOptional<z.ZodNumber>;
+}, "strict", z.ZodTypeAny, {
+    kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+    window?: number | undefined;
+}, {
+    kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+    window?: number | undefined;
+}>;
+
 /**
  * Render a standalone {@link ChartSpec} inside the default {@link WidgetChrome}, so a
  * lone chart file looks consistent with a dashboard cell. No `DashboardProvider` —
  * a top-level chart resolves variables against an empty store (fail-safe noFilter).
  */
-export declare function ChartView({ spec, families }: ChartViewProps): ReactElement;
+export declare function ChartView({ spec, families, onRangeSelect, onPointSelect, }: ChartViewProps): ReactElement;
 
-export declare interface ChartViewProps {
+export declare interface ChartViewProps extends ChartInteractionHandlers {
     /** A standalone chart spec to render (no dashboard / variables). */
     spec: ChartSpec;
     /**
@@ -4339,7 +3499,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
     }>>;
     chart: z.ZodObject<{
         family: z.ZodString;
-        /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+        /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
             category: z.ZodObject<{
@@ -4355,75 +3515,25 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
-                    format: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
                 mode: "measures";
@@ -4432,19 +3542,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }, {
                 mode: "measures";
@@ -4453,19 +3552,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }>, z.ZodObject<{
                 mode: z.ZodLiteral<"pivot">;
@@ -4477,81 +3565,30 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                  *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
                 values: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
                 pivot: z.ZodString;
-                /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-                 *  each measure's series sit on, so a multi-measure color split can be
-                 *  dual-axis (each axis one unit). */
+                /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+                 *  each split measure's series. */
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
-                    format: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
                 value: string;
@@ -4562,19 +3599,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }, {
                 value: string;
@@ -4585,19 +3611,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }>]>;
         }, "strict", z.ZodTypeAny, {
@@ -4611,19 +3626,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -4634,19 +3638,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         }, {
@@ -4660,19 +3653,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -4683,19 +3665,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         }>>;
@@ -4703,13 +3674,16 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
         legend: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
-            position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
+            /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+             *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+             *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+            position: z.ZodOptional<z.ZodEnum<["top", "bottom"]>>;
         }, "strict", z.ZodTypeAny, {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         }, {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         }>>;
         tooltip: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
@@ -4726,12 +3700,21 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         }>>;
         axes: z.ZodOptional<z.ZodObject<{
             x: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                 *  either takes a configured domain verbatim or infers both ends from the data, so
+                 *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -4763,10 +3746,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4779,10 +3761,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4795,12 +3776,21 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 } | undefined;
             }>>;
             y: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                 *  either takes a configured domain verbatim or infers both ends from the data, so
+                 *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -4832,10 +3822,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4848,79 +3837,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            }>>;
-            y2: z.ZodOptional<z.ZodObject<{
-                label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
-                hide: z.ZodOptional<z.ZodBoolean>;
-                scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
-                tickFormat: z.ZodOptional<z.ZodObject<{
-                    kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                    decimals: z.ZodOptional<z.ZodNumber>;
-                    abbreviate: z.ZodOptional<z.ZodBoolean>;
-                    prefix: z.ZodOptional<z.ZodString>;
-                    suffix: z.ZodOptional<z.ZodString>;
-                    unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                    dateFormat: z.ZodOptional<z.ZodString>;
-                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                    currency: z.ZodOptional<z.ZodString>;
-                }, "strict", z.ZodTypeAny, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }>>;
-            }, "strict", z.ZodTypeAny, {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            }, {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4935,10 +3854,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         }, "strict", z.ZodTypeAny, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4952,27 +3870,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -4987,10 +3887,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         }, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5004,27 +3903,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5076,20 +3957,30 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }>>;
+        /**
+         * Presentation-only reshaping of the normalized series (rolling average /
+         * running total / share of category total). Purely additive + optional, so it
+         * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
+         */
+        transform: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+            /**
+             * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+             * (ignored by cumulative / percentOfTotal); defaults to
+             * {@link DEFAULT_TRANSFORM_WINDOW}.
+             */
+            window: z.ZodOptional<z.ZodNumber>;
+        }, "strict", z.ZodTypeAny, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }>>;
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -5101,19 +3992,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -5124,19 +4004,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -5144,7 +4013,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -5154,10 +4023,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5171,27 +4039,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5207,20 +4057,24 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -5232,19 +4086,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -5255,19 +4098,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -5275,7 +4107,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -5285,10 +4117,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5302,27 +4133,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5338,6 +4151,20 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
@@ -5347,16 +4174,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
     type: "chart";
     chart: {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -5368,19 +4185,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -5391,19 +4197,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -5411,7 +4206,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -5421,10 +4216,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5438,27 +4232,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5474,6 +4250,20 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -5508,16 +4298,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
     type: "chart";
     chart: {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -5529,19 +4309,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -5552,19 +4321,8 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -5572,7 +4330,7 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -5582,10 +4340,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5599,27 +4356,9 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -5635,6 +4374,20 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -5678,153 +4431,6 @@ export declare const ColorAssignmentSchema: z.ZodObject<{
 }, {
     byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
     ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
-}>;
-
-/**
- * `combo` — covers Combo / Bar+Line / Dual-axis (docs/02-chart-options.md §2.8).
- * Each `ComboSeriesOpt` declares its own `render` (bar|line|area) and `axis`
- * (left|right → mounts a 2nd YAxis). `mapping.category` is the shared x. The
- * inline `series` list is the combo seam, so envelope `mapping.series` is ignored.
- */
-export declare function ComboChartFamily({ data, options, format, editing }: ChartComponentProps): React_2.ReactElement;
-
-export declare const comboChartFamily: ChartFamilyDescriptor;
-
-export declare type ComboFamilyOptions = z.infer<typeof ComboFamilyOptionsSchema>;
-
-export declare const ComboFamilyOptionsSchema: z.ZodObject<{
-    series: z.ZodArray<z.ZodObject<{
-        member: z.ZodString;
-        render: z.ZodEnum<["bar", "line", "area"]>;
-        axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
-        colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
-        stackId: z.ZodOptional<z.ZodString>;
-        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-        dots: z.ZodOptional<z.ZodBoolean>;
-        label: z.ZodOptional<z.ZodString>;
-    }, "strict", z.ZodTypeAny, {
-        member: string;
-        render: "bar" | "line" | "area";
-        label?: string | undefined;
-        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        stackId?: string | undefined;
-        axis?: "left" | "right" | undefined;
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-        dots?: boolean | undefined;
-    }, {
-        member: string;
-        render: "bar" | "line" | "area";
-        label?: string | undefined;
-        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        stackId?: string | undefined;
-        axis?: "left" | "right" | undefined;
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-        dots?: boolean | undefined;
-    }>, "many">;
-    referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        axis: z.ZodEnum<["x", "y"]>;
-        value: z.ZodNumber;
-        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
-        label: z.ZodOptional<z.ZodString>;
-        colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
-    }, "strict", z.ZodTypeAny, {
-        value: number;
-        axis: "x" | "y";
-        label?: string | undefined;
-        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
-    }, {
-        value: number;
-        axis: "x" | "y";
-        label?: string | undefined;
-        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
-    }>, "many">>;
-    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-    dots: z.ZodOptional<z.ZodBoolean>;
-    connectNulls: z.ZodOptional<z.ZodBoolean>;
-    strokeWidth: z.ZodOptional<z.ZodNumber>;
-    fillOpacity: z.ZodOptional<z.ZodNumber>;
-    barRadius: z.ZodOptional<z.ZodNumber>;
-}, "strict", z.ZodTypeAny, {
-    series: {
-        member: string;
-        render: "bar" | "line" | "area";
-        label?: string | undefined;
-        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        stackId?: string | undefined;
-        axis?: "left" | "right" | undefined;
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-        dots?: boolean | undefined;
-    }[];
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-    dots?: boolean | undefined;
-    fillOpacity?: number | undefined;
-    strokeWidth?: number | undefined;
-    barRadius?: number | undefined;
-    referenceLines?: {
-        value: number;
-        axis: "x" | "y";
-        label?: string | undefined;
-        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
-    }[] | undefined;
-    connectNulls?: boolean | undefined;
-}, {
-    series: {
-        member: string;
-        render: "bar" | "line" | "area";
-        label?: string | undefined;
-        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        stackId?: string | undefined;
-        axis?: "left" | "right" | undefined;
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-        dots?: boolean | undefined;
-    }[];
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-    dots?: boolean | undefined;
-    fillOpacity?: number | undefined;
-    strokeWidth?: number | undefined;
-    barRadius?: number | undefined;
-    referenceLines?: {
-        value: number;
-        axis: "x" | "y";
-        label?: string | undefined;
-        colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
-    }[] | undefined;
-    connectNulls?: boolean | undefined;
-}>;
-
-export declare type ComboSeriesOpt = z.infer<typeof ComboSeriesOptSchema>;
-
-export declare const ComboSeriesOptSchema: z.ZodObject<{
-    member: z.ZodString;
-    render: z.ZodEnum<["bar", "line", "area"]>;
-    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
-    colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
-    stackId: z.ZodOptional<z.ZodString>;
-    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-    dots: z.ZodOptional<z.ZodBoolean>;
-    label: z.ZodOptional<z.ZodString>;
-}, "strict", z.ZodTypeAny, {
-    member: string;
-    render: "bar" | "line" | "area";
-    label?: string | undefined;
-    colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-    stackId?: string | undefined;
-    axis?: "left" | "right" | undefined;
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-    dots?: boolean | undefined;
-}, {
-    member: string;
-    render: "bar" | "line" | "area";
-    label?: string | undefined;
-    colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-    stackId?: string | undefined;
-    axis?: "left" | "right" | undefined;
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
-    dots?: boolean | undefined;
 }>;
 
 /**
@@ -5929,7 +4535,7 @@ export declare function createUnitsFormatter(conversions?: Record<string, UnitDe
  */
 export declare function createVariableStore(decls: VariableDecl[], seed?: Record<string, VariableValue>): VariableStore;
 
-export declare function CubeChart({ query, chart, onState, editing, updateFamilyOptions }: CubeChartProps): ReactElement;
+export declare function CubeChart({ query, chart, onState, editing, updateFamilyOptions, widgetId, onRangeSelect, onPointSelect, }: CubeChartProps): ReactElement;
 
 /**
  * The data-fetching wrapper around the pure {@link ChartRenderer}
@@ -5944,11 +4550,17 @@ export declare function CubeChart({ query, chart, onState, editing, updateFamily
  * the renderer only maps `NormalizedChartData` → Recharts. Loading / error / empty
  * pass straight through to `ChartRenderer`, which renders the shared state chrome.
  */
-export declare interface CubeChartProps {
+export declare interface CubeChartProps extends ChartInteractionHandlers {
     /** The Cube query (may carry `{var}` tokens — resolved by the surrounding dashboard). */
     query: CubeQuery;
     /** The chart option envelope (family, mapping, axes, …). */
     chart: ChartOptions;
+    /**
+     * Names this chart on every {@link import("@/provider").RangeSelection} /
+     * {@link import("@/provider").PointSelection} it emits, so ONE dashboard-wide
+     * handler pair can tell its widgets apart. Set automatically by `RenderWidget`.
+     */
+    widgetId?: string;
     /** Lifts the resolved rows + a refetch up to the chrome (for export / refresh). */
     onState?: (state: {
         rows: Record<string, unknown>[];
@@ -5962,9 +4574,9 @@ export declare interface CubeChartProps {
 }
 
 /** Convenience wrapper that renders a standalone {@link ChartSpec}. */
-export declare function CubeChartSpec({ spec }: CubeChartSpecProps): ReactElement;
+export declare function CubeChartSpec({ spec, onRangeSelect, onPointSelect, }: CubeChartSpecProps): ReactElement;
 
-export declare interface CubeChartSpecProps {
+export declare interface CubeChartSpecProps extends ChartInteractionHandlers {
     /** A standalone chart spec; its `query` + `chart` drive the render. */
     spec: ChartSpec;
 }
@@ -6174,7 +4786,7 @@ export declare type CubeVizLocaleConfig = ResolvedLocale;
  */
 export declare type CubeVizMapsConfig = ResolvedMaps;
 
-export declare function CubeVizProvider({ cube, theme, locale, maps, registry, families, children, }: CubeVizProviderProps): React_2.ReactElement;
+export declare function CubeVizProvider({ cube, theme, locale, maps, registry, families, interactions, children, }: CubeVizProviderProps): React_2.ReactElement;
 
 export declare interface CubeVizProviderProps {
     /**
@@ -6205,6 +4817,14 @@ export declare interface CubeVizProviderProps {
      * does NOT churn the registry identity.
      */
     families?: ChartFamilyDescriptor[];
+    /**
+     * App-wide semantic interaction handlers (brush-to-drill / click-to-cross-filter).
+     * This is the OUTERMOST level of the innermost-wins chain
+     * provider → `<Dashboard>` → `<CubeChart>`; every emitted selection names its
+     * source widget. Omit it and no chart mounts a brush or a click handler, so an
+     * existing embed is untouched.
+     */
+    interactions?: ChartInteractionHandlers;
     children: React_2.ReactNode;
 }
 
@@ -6224,9 +4844,26 @@ export declare interface CubeVizThemeConfig {
     chartRamp?: ChartColorToken[];
     /** Force a mode; "system" (default) defers to the host's existing dark selector. */
     mode?: "light" | "dark" | "system";
+    /**
+     * Mark GEOMETRY for every chart in the app — bar radius and thickness, area fill
+     * opacity, line width, pie gap/radius, bubble area range. Partial: anything omitted
+     * keeps {@link DEFAULT_MARK_THEME}.
+     *
+     * These are set HERE and nowhere else. They used to be per-chart `familyOptions`,
+     * which meant a person building a chart was asked how round its corners should be —
+     * a question about a rectangle, not about their data, and one with no wrong answer.
+     * Appearance is a property of the product, so it is configured once by the host.
+     */
+    marks?: Partial<ChartMarkTheme>;
 }
 
-export declare function Dashboard({ spec, editable, families }: DashboardProps): ReactElement;
+/**
+ * `onRangeSelect` / `onPointSelect` are DASHBOARD-WIDE: one handler pair serves
+ * every widget, and each emitted selection carries the source `widgetId`. A single
+ * widget can still override either channel by rendering its own `CubeChart`. Omit
+ * both and nothing interactive is mounted (no brush, no click handler).
+ */
+export declare function Dashboard({ spec, editable, families, drill, onRangeSelect, onPointSelect, }: DashboardProps): ReactElement;
 
 /**
  * The dashboard variable layer (docs/03-override-theme-preview.md §A2.5): a React
@@ -6337,11 +4974,18 @@ export declare interface DashboardEditorProps {
     className?: string;
 }
 
-export declare interface DashboardProps {
+export declare interface DashboardProps extends ChartInteractionHandlers {
     /** The dashboard spec (variables + widgets + canonical layout + grid). */
     spec: DashboardSpec;
     /** Edit mode: enables drag/resize (handle = chrome header). Default `false`. */
     editable?: boolean;
+    /**
+     * Opt in to brush/click drilling: a selection narrows the dashboard variables
+     * its widgets already read. Default `false` — see {@link DashboardDrillProps.drill}
+     * for why enabling it is a deliberate trade (the brush takes over hover
+     * inspection on temporal charts).
+     */
+    drill?: boolean;
     /**
      * Per-component chart-families override. When set, this dashboard's subtree resolves
      * families from a registry built from `defaultChartFamilies` + these descriptors —
@@ -6501,7 +5145,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         }>>;
         chart: z.ZodObject<{
             family: z.ZodString;
-            /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+            /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
              carry their own mapping inside familyOptions, so this is optional at the envelope. */
             mapping: z.ZodOptional<z.ZodObject<{
                 category: z.ZodObject<{
@@ -6517,75 +5161,25 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
                         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                        /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                         *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
-                        axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                         /** Per-series line shape (line/area) — overrides the family default. */
                         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
-                        format: z.ZodOptional<z.ZodObject<{
-                            kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                            decimals: z.ZodOptional<z.ZodNumber>;
-                            abbreviate: z.ZodOptional<z.ZodBoolean>;
-                            prefix: z.ZodOptional<z.ZodString>;
-                            suffix: z.ZodOptional<z.ZodString>;
-                            unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                            dateFormat: z.ZodOptional<z.ZodString>;
-                            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                            currency: z.ZodOptional<z.ZodString>;
-                        }, "strict", z.ZodTypeAny, {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        }, {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        }>>;
                     }, "strict", z.ZodTypeAny, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }>>>;
                 }, "strict", z.ZodTypeAny, {
                     mode: "measures";
@@ -6594,19 +5188,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 }, {
                     mode: "measures";
@@ -6615,19 +5198,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 }>, z.ZodObject<{
                     mode: z.ZodLiteral<"pivot">;
@@ -6639,81 +5211,30 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                      *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
                     values: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
                     pivot: z.ZodString;
-                    /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-                     *  each measure's series sit on, so a multi-measure color split can be
-                     *  dual-axis (each axis one unit). */
+                    /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+                     *  each split measure's series. */
                     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
                         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                        /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                         *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
-                        axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                         /** Per-series line shape (line/area) — overrides the family default. */
                         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
-                        format: z.ZodOptional<z.ZodObject<{
-                            kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                            decimals: z.ZodOptional<z.ZodNumber>;
-                            abbreviate: z.ZodOptional<z.ZodBoolean>;
-                            prefix: z.ZodOptional<z.ZodString>;
-                            suffix: z.ZodOptional<z.ZodString>;
-                            unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                            dateFormat: z.ZodOptional<z.ZodString>;
-                            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                            currency: z.ZodOptional<z.ZodString>;
-                        }, "strict", z.ZodTypeAny, {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        }, {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        }>>;
                     }, "strict", z.ZodTypeAny, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }>>>;
                 }, "strict", z.ZodTypeAny, {
                     value: string;
@@ -6724,19 +5245,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 }, {
                     value: string;
@@ -6747,19 +5257,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 }>]>;
             }, "strict", z.ZodTypeAny, {
@@ -6773,19 +5272,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -6796,19 +5284,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             }, {
@@ -6822,19 +5299,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -6845,19 +5311,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             }>>;
@@ -6865,13 +5320,16 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
             legend: z.ZodOptional<z.ZodObject<{
                 show: z.ZodOptional<z.ZodBoolean>;
-                position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
+                /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+                 *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+                 *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+                position: z.ZodOptional<z.ZodEnum<["top", "bottom"]>>;
             }, "strict", z.ZodTypeAny, {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             }, {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             }>>;
             tooltip: z.ZodOptional<z.ZodObject<{
                 show: z.ZodOptional<z.ZodBoolean>;
@@ -6888,12 +5346,21 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             }>>;
             axes: z.ZodOptional<z.ZodObject<{
                 x: z.ZodOptional<z.ZodObject<{
+                    /**
+                     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                     * (the ticks and line stay). There is no separate hide flag: the editor's title
+                     * field IS the control, and clearing it is how you remove the title. (v4)
+                     */
                     label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
+                    /** Hide the whole axis — ticks, line and title. */
                     hide: z.ZodOptional<z.ZodBoolean>;
+                    /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                    domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                    /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                     *  either takes a configured domain verbatim or infers both ends from the data, so
+                     *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                    domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                     tickFormat: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -6925,10 +5392,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -6941,10 +5407,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     } | undefined;
                 }, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -6957,12 +5422,21 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     } | undefined;
                 }>>;
                 y: z.ZodOptional<z.ZodObject<{
+                    /**
+                     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                     * (the ticks and line stay). There is no separate hide flag: the editor's title
+                     * field IS the control, and clearing it is how you remove the title. (v4)
+                     */
                     label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
+                    /** Hide the whole axis — ticks, line and title. */
                     hide: z.ZodOptional<z.ZodBoolean>;
+                    /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                    domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                    /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                     *  either takes a configured domain verbatim or infers both ends from the data, so
+                     *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                    domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                     tickFormat: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -6994,10 +5468,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7010,79 +5483,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     } | undefined;
                 }, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                }>>;
-                y2: z.ZodOptional<z.ZodObject<{
-                    label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
-                    hide: z.ZodOptional<z.ZodBoolean>;
-                    scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                    domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
-                    tickFormat: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
-                }, "strict", z.ZodTypeAny, {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                }, {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7097,10 +5500,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             }, "strict", z.ZodTypeAny, {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7114,27 +5516,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7149,10 +5533,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             }, {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7166,27 +5549,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7238,20 +5603,30 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }>>;
+            /**
+             * Presentation-only reshaping of the normalized series (rolling average /
+             * running total / share of category total). Purely additive + optional, so it
+             * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
+             */
+            transform: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+                /**
+                 * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+                 * (ignored by cumulative / percentOfTotal); defaults to
+                 * {@link DEFAULT_TRANSFORM_WINDOW}.
+                 */
+                window: z.ZodOptional<z.ZodNumber>;
+            }, "strict", z.ZodTypeAny, {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            }, {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            }>>;
             /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
             familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         }, "strict", z.ZodTypeAny, {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -7263,19 +5638,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -7286,19 +5650,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -7306,7 +5659,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -7316,10 +5669,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7333,27 +5685,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7369,20 +5703,24 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }, {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -7394,19 +5732,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -7417,19 +5744,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -7437,7 +5753,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -7447,10 +5763,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7464,27 +5779,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7500,6 +5797,20 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }>;
@@ -7509,16 +5820,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         type: "chart";
         chart: {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -7530,19 +5831,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -7553,19 +5843,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -7573,7 +5852,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -7583,10 +5862,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7600,27 +5878,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7636,6 +5896,20 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -7670,16 +5944,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         type: "chart";
         chart: {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -7691,19 +5955,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -7714,19 +5967,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -7734,7 +5976,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -7744,10 +5986,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7761,27 +6002,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -7797,6 +6020,20 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -8139,7 +6376,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         margin?: [number, number] | undefined;
         containerPadding?: [number, number] | undefined;
     }>>;
-    schemaVersion: z.ZodLiteral<1>;
+    schemaVersion: z.ZodLiteral<4>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -8148,7 +6385,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 1;
+    schemaVersion: 4;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -8160,16 +6397,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         type: "chart";
         chart: {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -8181,19 +6408,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -8204,19 +6420,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -8224,7 +6429,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -8234,10 +6439,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -8251,27 +6455,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -8287,6 +6473,20 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -8386,7 +6586,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
 }, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 1;
+    schemaVersion: 4;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -8398,16 +6598,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         type: "chart";
         chart: {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -8419,19 +6609,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -8442,19 +6621,8 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -8462,7 +6630,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -8472,10 +6640,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -8489,27 +6656,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -8525,6 +6674,20 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -8645,6 +6808,16 @@ export declare const DEFAULT_COLOR_RAMP: ChartColorToken[];
 
 /** Mirror of {@link Dashboard}'s default grid column count (12). */
 export declare const DEFAULT_COLS = 12;
+
+/**
+ * The look cube-viz ships with. Chosen to read well in a dashboard TILE — the size
+ * every chart here actually renders at — which is why bars are capped and the area
+ * fill is light enough to stack two or three deep without turning to mud.
+ */
+export declare const DEFAULT_MARK_THEME: ChartMarkTheme;
+
+/** The default trailing window (in categories) for a `rollingAvg` transform. */
+export declare const DEFAULT_TRANSFORM_WINDOW = 7;
 
 /**
  * The default metric-storage-unit → imperial display rule table. EXTENSIBLE: hosts
@@ -8818,20 +6991,33 @@ export declare function FamilyRegistryOverride({ families, children, }: {
 export declare function fetchMeta(api: CubeClient): Promise<CubeMeta>;
 
 /**
- * Chart Builder v2 — the PURE seam (no React). It is the single place that knows
- * the typed-well ↔ {@link ChartSpec} mapping (docs/05 §2). Every writer returns a
- * FULL `ChartSpec`, so the panel funnels each edit through the unchanged
- * `update → validate → debounce-emit` engine. Unit-testable in isolation.
+ * Chart Builder v4 — the CHANNEL model (docs/05 §2).
+ *
+ * A well is not a family-specific slot; it is a binding of a *visual channel*
+ * (x / y / color / size …) to a *place in the spec* (the mapping envelope or a
+ * `familyOptions` key). Declaring that binding on the descriptor lets ONE
+ * interpreter answer every question the editor used to answer per family:
+ *
+ *  - "what is in this well?"          → {@link readChannelWells}
+ *  - "may this field go here?"        → {@link wellAccepts}
+ *  - "put it here"                    → {@link placeInChannelWell}
+ *  - "take it out"                    → {@link removeFromChannelWell}
+ *  - "keep my fields when I switch"   → {@link unifyChannels}
+ *
+ * The per-family `placeField`/`removeField`/`readWells` switches this replaces
+ * re-answered those questions in five dialects. Host families (map/ai) still
+ * bring their own hooks — a well with no {@link WellTarget} is host-managed.
  */
 /**
  * A field's primitive role: a measure / a non-time dimension / a time dimension /
- * a NUMERIC dimension / a synthetic geographic point. `numberDimension` exists because Cube models coordinates and
- * other per-row numbers (latitude, longitude, headings) as `type: number`
- * DIMENSIONS — the `number` kind only surfaces measures, so a well that wants raw
- * per-row numbers opts in with `kinds: ["number", "numberDimension"]`. Placement
- * writers route the kinds differently (`number` → `query.measures`,
- * `numberDimension` → `query.dimensions`). `geoPoint` bundles a model-authored
- * latitude/longitude pair; the editor fans it out to a host family's internal wells.
+ * a NUMERIC dimension / a synthetic geographic point. `numberDimension` exists
+ * because Cube models coordinates and other per-row numbers (latitude, longitude,
+ * headings) as `type: number` DIMENSIONS — the `number` kind only surfaces
+ * measures, so a well that wants raw per-row numbers opts in with
+ * `kinds: ["number", "numberDimension"]`. Placement routes the kinds differently
+ * (`number` → `query.measures`, `numberDimension` → `query.dimensions`).
+ * `geoPoint` bundles a model-authored latitude/longitude pair; the editor fans it
+ * out to a host family's internal wells.
  */
 export declare type FieldKind = "number" | "category" | "time" | "numberDimension" | "geoPoint";
 
@@ -8987,6 +7173,26 @@ export declare const GridConfigSchema: z.ZodObject<{
     rowHeight?: number | undefined;
     margin?: [number, number] | undefined;
     containerPadding?: [number, number] | undefined;
+}>;
+
+export declare function HeatmapChartFamily({ data, options, format, }: ChartComponentProps): React_2.ReactElement;
+
+export declare const heatmapChartFamily: ChartFamilyDescriptor;
+
+export declare type HeatmapFamilyOptions = z.infer<typeof HeatmapFamilyOptionsSchema>;
+
+/**
+ * `heatmap` options — deliberately minimal (simplicity over knobs). The grid's
+ * members (x dimension, y dimension, value measure) live in the generic `mapping`
+ * envelope (category = x, pivot = y, value = measure), NOT here.
+ */
+export declare const HeatmapFamilyOptionsSchema: z.ZodObject<{
+    /** The single-hue ramp token; cells shade light→dark within this hue. */
+    colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+}, "strict", z.ZodTypeAny, {
+    colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
+}, {
+    colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
 }>;
 
 /**
@@ -9523,9 +7729,14 @@ export declare const kpiChartFamily: ChartFamilyDescriptor;
 
 /**
  * `kpi` — covers KPI/Number/Comparison + the folded-in radial gauge
- * (docs/02-chart-options.md §2.6). `display:"number"` is a styled card (NOT
- * Recharts) with an optional comparison delta chip; `display:"gauge"` is a
- * Recharts RadialBarChart. `sparkline` reuses the line family with chrome:"none".
+ * (docs/02-chart-options.md §2.6). `display:"number"` is a styled card (NOT a
+ * chart) with an optional comparison delta chip; `display:"gauge"` is a TanStack
+ * polar radialArc composition. `sparkline` is a chrome-less inline areaY chart.
+ *
+ * There is no `icon` option: painting an arbitrary lucide icon NAME would mean
+ * bundling lucide's entire icon map into every consumer. A host that wants one puts
+ * it in its own widget chrome. (Removed from the schema in v3 — it had never been
+ * rendered by any version of this library; docs/02-chart-options.md §7.8.)
  */
 export declare function KpiFamily(props: ChartComponentProps): React_2.ReactElement;
 
@@ -9621,11 +7832,8 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
             colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
         }[] | undefined;
     }>>;
-    icon: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     measure: string;
-    display?: "number" | "gauge" | undefined;
-    icon?: string | undefined;
     gauge?: {
         max: number;
         min?: number | undefined;
@@ -9634,6 +7842,7 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
             colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
         }[] | undefined;
     } | undefined;
+    display?: "number" | "gauge" | undefined;
     goodDirection?: "up" | "down" | undefined;
     comparison?: {
         mode: "value" | "previousPeriod";
@@ -9653,8 +7862,6 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
     } | undefined;
 }, {
     measure: string;
-    display?: "number" | "gauge" | undefined;
-    icon?: string | undefined;
     gauge?: {
         max: number;
         min?: number | undefined;
@@ -9663,6 +7870,7 @@ export declare const KpiFamilyOptionsSchema: z.ZodObject<{
             colorToken: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
         }[] | undefined;
     } | undefined;
+    display?: "number" | "gauge" | undefined;
     goodDirection?: "up" | "down" | undefined;
     comparison?: {
         mode: "value" | "previousPeriod";
@@ -9743,22 +7951,29 @@ export declare type LegendOptions = z.infer<typeof LegendOptionsSchema>;
 
 export declare const LegendOptionsSchema: z.ZodObject<{
     show: z.ZodOptional<z.ZodBoolean>;
-    position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
+    /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+     *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+     *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+    position: z.ZodOptional<z.ZodEnum<["top", "bottom"]>>;
 }, "strict", z.ZodTypeAny, {
     show?: boolean | undefined;
-    position?: "left" | "right" | "top" | "bottom" | undefined;
+    position?: "top" | "bottom" | undefined;
 }, {
     show?: boolean | undefined;
-    position?: "left" | "right" | "top" | "bottom" | undefined;
+    position?: "top" | "bottom" | undefined;
 }>;
 
 /**
  * `line` — absorbs Line/Grouped/Multi/Sparkline (docs/02-chart-options.md §2.2).
- * Multi-series = `series.length`; sparkline = `chrome:"none"` (no axes/grid/
- * legend/tooltip); dual-axis = a series with `meta.axis:"right"`. Line ignores
- * orientation/stackMode (stacked lines use the `area` family).
+ * Multi-series = one lineY mark per series; sparkline = `chrome:"none"` (no
+ * axes/grid/legend/tooltip). Line ignores orientation/stackMode (stacked lines
+ * use the `area` family). Dual-axis was removed with the combo family.
+ *
+ * A TIME-DIMENSION category axis renders on a real `scaleUtc` (see
+ * {@link annotationToAxis}): buckets sit at their true elapsed distance, so a
+ * missing day now draws as a gap instead of collapsing into the next bucket.
  */
-export declare function LineChartFamily({ data, options, config, format, editing, }: ChartComponentProps): React_2.ReactElement;
+export declare function LineChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 export declare const lineChartFamily: ChartFamilyDescriptor;
 
@@ -9766,14 +7981,12 @@ export declare type LineFamilyOptions = z.infer<typeof LineFamilyOptionsSchema>;
 
 export declare const LineFamilyOptionsSchema: z.ZodObject<{
     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-    strokeWidth: z.ZodOptional<z.ZodNumber>;
     dots: z.ZodOptional<z.ZodUnion<[z.ZodBoolean, z.ZodLiteral<"active">]>>;
     connectNulls: z.ZodOptional<z.ZodBoolean>;
     chrome: z.ZodOptional<z.ZodEnum<["full", "none"]>>;
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
-        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -9781,43 +7994,37 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }>, "many">>;
     showValueLabels: z.ZodOptional<z.ZodBoolean>;
     comparePrevious: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | "active" | undefined;
-    strokeWidth?: number | undefined;
-    showValueLabels?: boolean | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }[] | undefined;
+    showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
     chrome?: "none" | "full" | undefined;
 }, {
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | "active" | undefined;
-    strokeWidth?: number | undefined;
-    showValueLabels?: boolean | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }[] | undefined;
+    showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
     chrome?: "none" | "full" | undefined;
@@ -9982,12 +8189,18 @@ export declare const OrderSpecSchema: z.ZodUnion<[z.ZodRecord<z.ZodString, z.Zod
 export declare function pickCanonicalLayout(layout: Layout, allLayouts: Partial<Record<string, Layout>>): Layout;
 
 /**
- * `pie` — covers pie + donut (donut = innerRadiusPct > 0); per-slice color comes
- * from the DATA ROW via <Cell> (a Recharts-3 requirement), cycling chart-1..5.
- * `maxSlices` keeps the top-N and folds the remainder into an "Other" slice.
- * See docs/02-chart-options.md §2.4. Pie plots `categories` × the FIRST series.
+ * `pie` — covers pie + donut (donut = innerRadiusPct > 0) on TanStack polar
+ * marks: the eager `pie()` transform allocates angles (gapAngle ⇐ padAngle),
+ * `radialArc` renders the slices, `radialText` draws slice labels and the donut
+ * center label. `maxSlices` keeps the top-N and folds the remainder into an
+ * "Other" slice. Pie plots `categories` × the FIRST series
+ * (docs/02-chart-options.md §2.4).
+ *
+ * Slice color: the arc's `color` channel is the category label, and the chart
+ * color scale gets an explicit domain (labels) + range (ramp token vars) so the
+ * built-in legend renders one swatch per slice.
  */
-export declare function PieChartFamily({ data, options, format, editing }: ChartComponentProps): React_2.ReactElement;
+export declare function PieChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 export declare const pieChartFamily: ChartFamilyDescriptor;
 
@@ -9995,9 +8208,6 @@ export declare type PieFamilyOptions = z.infer<typeof PieFamilyOptionsSchema>;
 
 export declare const PieFamilyOptionsSchema: z.ZodObject<{
     innerRadiusPct: z.ZodOptional<z.ZodNumber>;
-    outerRadiusPct: z.ZodOptional<z.ZodNumber>;
-    padAngle: z.ZodOptional<z.ZodNumber>;
-    cornerRadius: z.ZodOptional<z.ZodNumber>;
     showLabels: z.ZodOptional<z.ZodEnum<["none", "value", "percent", "name"]>>;
     centerLabel: z.ZodOptional<z.ZodObject<{
         value: z.ZodOptional<z.ZodString>;
@@ -10011,27 +8221,21 @@ export declare const PieFamilyOptionsSchema: z.ZodObject<{
     }>>;
     maxSlices: z.ZodOptional<z.ZodNumber>;
 }, "strict", z.ZodTypeAny, {
+    maxSlices?: number | undefined;
     innerRadiusPct?: number | undefined;
-    outerRadiusPct?: number | undefined;
-    padAngle?: number | undefined;
-    cornerRadius?: number | undefined;
     showLabels?: "value" | "percent" | "none" | "name" | undefined;
     centerLabel?: {
         value?: string | undefined;
         label?: string | undefined;
     } | undefined;
-    maxSlices?: number | undefined;
 }, {
+    maxSlices?: number | undefined;
     innerRadiusPct?: number | undefined;
-    outerRadiusPct?: number | undefined;
-    padAngle?: number | undefined;
-    cornerRadius?: number | undefined;
     showLabels?: "value" | "percent" | "none" | "name" | undefined;
     centerLabel?: {
         value?: string | undefined;
         label?: string | undefined;
     } | undefined;
-    maxSlices?: number | undefined;
 }>;
 
 /**
@@ -10041,6 +8245,20 @@ export declare const PieFamilyOptionsSchema: z.ZodObject<{
  * no initial overlap regardless of compaction direction.
  */
 export declare function placeNewItem(existing: LayoutItem[], id: string, type: WidgetSpec["type"], cols?: number): LayoutItem;
+
+export declare type PointSelectHandler = (selection: PointSelection | null) => void;
+
+/** A clicked datum, reported as the dimension member + value it stands for. */
+export declare interface PointSelection {
+    /** The widget the selection came from. */
+    widgetId?: string;
+    /** The Cube dimension member the value belongs to (category or colour split). */
+    member: string;
+    /** The RAW member value — what a host puts in a Cube `equals` filter. */
+    value: string | number;
+    /** The rendered display label for that value (already formatted). */
+    label: string;
+}
 
 /**
  * A human label for an axis-consistency message. Prefers the quantity
@@ -10062,13 +8280,53 @@ export declare interface QueryState {
     error?: Error;
 }
 
+export declare type RangeSelectHandler = (selection: RangeSelection | null) => void;
+
+/**
+ * The SEMANTIC interaction seam (drill / cross-filter). cube-viz never hands a
+ * host pixels, scene coordinates, or renderer points: a chart reports what the
+ * reader pointed AT in Cube terms — a member plus either an ISO time range or a
+ * dimension value — and the host decides what that means (drill into a window,
+ * cross-filter the other widgets, navigate…).
+ *
+ * Two levels supply the handlers, innermost wins:
+ *  - dashboard/app-wide: `<CubeVizProvider interactions={…}>` or
+ *    `<Dashboard onRangeSelect onPointSelect>` — one pair for every widget;
+ *    `widgetId` on the emitted selection names the source widget.
+ *  - per chart: `<CubeChart onRangeSelect onPointSelect>` / `<ChartView …>` —
+ *    overrides the ambient handler for that chart only.
+ *
+ * Handlers are OPTIONAL end to end. With none supplied `rangeEnabled` /
+ * `pointEnabled` stay false: no brush is mounted and no `onSelect` is attached,
+ * so an existing embed renders and behaves exactly as before.
+ *
+ * **Identity discipline.** A chart definition is memoized and its identity is the
+ * update boundary, so this context value must NOT change when a host passes a
+ * fresh inline arrow every render. The handlers are therefore held in a ref and
+ * reached through the two STABLE emitters below; the context value's identity
+ * only changes when a capability flag, the widget id, or the semantic target
+ * changes.
+ */
+/** A committed time-range brush, in the mapped time dimension's own terms. */
+export declare interface RangeSelection {
+    /** The widget the selection came from (dashboard-wide handlers disambiguate with it). */
+    widgetId?: string;
+    /** The Cube time-dimension member the range applies to (e.g. `trips.start_time`). */
+    member: string;
+    /** The bucket granularity of that member, when the annotation carries one. */
+    granularity?: Granularity;
+    /** Inclusive ISO start — the first selected bucket, exactly as Cube emitted it. */
+    from: string;
+    /** Inclusive ISO end — the last selected bucket, exactly as Cube emitted it. */
+    to: string;
+}
+
 export declare type ReferenceLineOpt = z.infer<typeof ReferenceLineOptSchema>;
 
-/** A reference line on the x or y axis (bar/line/area/scatter/combo). */
+/** A reference line on the x or y axis (bar/line/area/scatter). */
 export declare const ReferenceLineOptSchema: z.ZodObject<{
     axis: z.ZodEnum<["x", "y"]>;
     value: z.ZodNumber;
-    side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
     label: z.ZodOptional<z.ZodString>;
     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
 }, "strict", z.ZodTypeAny, {
@@ -10076,19 +8334,17 @@ export declare const ReferenceLineOptSchema: z.ZodObject<{
     axis: "x" | "y";
     label?: string | undefined;
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-    side?: "left" | "right" | undefined;
 }, {
     value: number;
     axis: "x" | "y";
     label?: string | undefined;
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-    side?: "left" | "right" | undefined;
 }>;
 
 /** A dashboard spec with one widget (+ its layout item) removed. Pure. */
 export declare function removeWidget(spec: DashboardSpec, id: string): DashboardSpec;
 
-export declare function RenderWidget({ widget, dragHandleProps, editable }: RenderWidgetProps): ReactElement;
+export declare function RenderWidget({ widget, dragHandleProps, editable, onRangeSelect, onPointSelect, }: RenderWidgetProps): ReactElement;
 
 /**
  * Dispatch a {@link WidgetSpec} by `type` (chart / text / input) to its renderer,
@@ -10099,7 +8355,7 @@ export declare function RenderWidget({ widget, dragHandleProps, editable }: Rend
  * `dragHandleProps` come from the Dashboard's grid item and are spread onto the
  * chrome header so the title bar is the RGL drag handle in edit mode.
  */
-export declare interface RenderWidgetProps {
+export declare interface RenderWidgetProps extends ChartInteractionHandlers {
     /** The widget to render. */
     widget: WidgetSpec;
     /** Spread onto the chrome header so it acts as the RGL drag handle. */
@@ -10168,7 +8424,19 @@ export declare interface ResolvedTheme {
     chartRamp: ChartColorToken[];
     /** Forced color mode; "system" defers to the host's existing dark selector. */
     mode: "light" | "dark" | "system";
+    /**
+     * Resolved mark geometry, host overrides already merged over the defaults. Charts
+     * receive this whole — see charts/theme.ts for why it lives here and not in a spec.
+     */
+    marks: ChartMarkTheme;
 }
+
+/**
+ * Fill in whatever the host left out. Called at the render boundary (ChartRenderer),
+ * so a family always receives a COMPLETE theme and never has to write `?? 4` — the
+ * fallback lives in exactly one place, which is the point of moving these at all.
+ */
+export declare function resolveMarkTheme(theme?: Partial<ChartMarkTheme>): ChartMarkTheme;
 
 /**
  * Resolve a chart's options against ITS family's defaults — the public free function,
@@ -10237,13 +8505,7 @@ export declare type Scalar = z.infer<typeof ScalarSchema>;
 
 export declare const ScalarSchema: z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>;
 
-/**
- * `scatter` — covers scatter + bubble (docs/02-chart-options.md §2.5). Its
- * mapping does NOT reduce to category+series: it consumes `raw.rows` and projects
- * {x,y,z} per point from members named in familyOptions. `size` ⇒ <ZAxis> bubble;
- * `groupBy` ⇒ one <Scatter> series per distinct value, each colored from the ramp.
- */
-export declare function ScatterChartFamily({ data, options, format, editing }: ChartComponentProps): React_2.ReactElement;
+export declare function ScatterChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 export declare const scatterChartFamily: ChartFamilyDescriptor;
 
@@ -10253,13 +8515,10 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
     x: z.ZodString;
     y: z.ZodString;
     size: z.ZodOptional<z.ZodString>;
-    sizeRange: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
     groupBy: z.ZodOptional<z.ZodString>;
-    shape: z.ZodOptional<z.ZodEnum<["circle", "square", "triangle", "diamond"]>>;
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
         value: z.ZodNumber;
-        side: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
         label: z.ZodOptional<z.ZodString>;
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
     }, "strict", z.ZodTypeAny, {
@@ -10267,42 +8526,34 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }, {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }>, "many">>;
 }, "strict", z.ZodTypeAny, {
     x: string;
     y: string;
-    shape?: "circle" | "square" | "triangle" | "diamond" | undefined;
-    size?: string | undefined;
-    groupBy?: string | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }[] | undefined;
-    sizeRange?: [number, number] | undefined;
+    size?: string | undefined;
+    groupBy?: string | undefined;
 }, {
     x: string;
     y: string;
-    shape?: "circle" | "square" | "triangle" | "diamond" | undefined;
-    size?: string | undefined;
-    groupBy?: string | undefined;
     referenceLines?: {
         value: number;
         axis: "x" | "y";
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        side?: "left" | "right" | undefined;
     }[] | undefined;
-    sizeRange?: [number, number] | undefined;
+    size?: string | undefined;
+    groupBy?: string | undefined;
 }>;
 
 /**
@@ -10312,7 +8563,7 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
  *
  * See docs/01-spec-schema.md for the full rationale.
  */
-export declare const SCHEMA_VERSION: 1;
+export declare const SCHEMA_VERSION: 4;
 
 export declare type SeriesMapping = z.infer<typeof SeriesMappingSchema>;
 
@@ -10330,75 +8581,25 @@ export declare const SeriesMappingSchema: z.ZodObject<{
         meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+            /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+             *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
             stackId: z.ZodOptional<z.ZodString>;
-            axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             /** Per-series line shape (line/area) — overrides the family default. */
             curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
             /** Per-series point markers (line/area) — overrides the family default. */
             dots: z.ZodOptional<z.ZodBoolean>;
-            format: z.ZodOptional<z.ZodObject<{
-                kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                decimals: z.ZodOptional<z.ZodNumber>;
-                abbreviate: z.ZodOptional<z.ZodBoolean>;
-                prefix: z.ZodOptional<z.ZodString>;
-                suffix: z.ZodOptional<z.ZodString>;
-                unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                dateFormat: z.ZodOptional<z.ZodString>;
-                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                currency: z.ZodOptional<z.ZodString>;
-            }, "strict", z.ZodTypeAny, {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            }, {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            }>>;
         }, "strict", z.ZodTypeAny, {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }, {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }>>>;
     }, "strict", z.ZodTypeAny, {
         mode: "measures";
@@ -10407,19 +8608,8 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }> | undefined;
     }, {
         mode: "measures";
@@ -10428,19 +8618,8 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }> | undefined;
     }>, z.ZodObject<{
         mode: z.ZodLiteral<"pivot">;
@@ -10452,81 +8631,30 @@ export declare const SeriesMappingSchema: z.ZodObject<{
          *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
         values: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         pivot: z.ZodString;
-        /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-         *  each measure's series sit on, so a multi-measure color split can be
-         *  dual-axis (each axis one unit). */
+        /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+         *  each split measure's series. */
         meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
             label: z.ZodOptional<z.ZodString>;
             colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+            /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+             *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
             stackId: z.ZodOptional<z.ZodString>;
-            axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
             /** Per-series line shape (line/area) — overrides the family default. */
             curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
             /** Per-series point markers (line/area) — overrides the family default. */
             dots: z.ZodOptional<z.ZodBoolean>;
-            format: z.ZodOptional<z.ZodObject<{
-                kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                decimals: z.ZodOptional<z.ZodNumber>;
-                abbreviate: z.ZodOptional<z.ZodBoolean>;
-                prefix: z.ZodOptional<z.ZodString>;
-                suffix: z.ZodOptional<z.ZodString>;
-                unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                dateFormat: z.ZodOptional<z.ZodString>;
-                /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                currency: z.ZodOptional<z.ZodString>;
-            }, "strict", z.ZodTypeAny, {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            }, {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            }>>;
         }, "strict", z.ZodTypeAny, {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }, {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }>>>;
     }, "strict", z.ZodTypeAny, {
         value: string;
@@ -10537,19 +8665,8 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }> | undefined;
     }, {
         value: string;
@@ -10560,19 +8677,8 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }> | undefined;
     }>]>;
 }, "strict", z.ZodTypeAny, {
@@ -10586,19 +8692,8 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }> | undefined;
     } | {
         value: string;
@@ -10609,19 +8704,8 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }> | undefined;
     };
 }, {
@@ -10635,19 +8719,8 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }> | undefined;
     } | {
         value: string;
@@ -10658,19 +8731,8 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            axis?: "left" | "right" | undefined;
             curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
         }> | undefined;
     };
 }>;
@@ -10680,75 +8742,25 @@ export declare type SeriesMeta = z.infer<typeof SeriesMetaSchema>;
 export declare const SeriesMetaSchema: z.ZodObject<{
     label: z.ZodOptional<z.ZodString>;
     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
     stackId: z.ZodOptional<z.ZodString>;
-    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
     /** Per-series line shape (line/area) — overrides the family default. */
     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
     /** Per-series point markers (line/area) — overrides the family default. */
     dots: z.ZodOptional<z.ZodBoolean>;
-    format: z.ZodOptional<z.ZodObject<{
-        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-        decimals: z.ZodOptional<z.ZodNumber>;
-        abbreviate: z.ZodOptional<z.ZodBoolean>;
-        prefix: z.ZodOptional<z.ZodString>;
-        suffix: z.ZodOptional<z.ZodString>;
-        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-        dateFormat: z.ZodOptional<z.ZodString>;
-        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-        currency: z.ZodOptional<z.ZodString>;
-    }, "strict", z.ZodTypeAny, {
-        currency?: string | undefined;
-        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-        decimals?: number | undefined;
-        abbreviate?: boolean | undefined;
-        prefix?: string | undefined;
-        suffix?: string | undefined;
-        unitSystem?: "metric" | "imperial" | undefined;
-        dateFormat?: string | undefined;
-    }, {
-        currency?: string | undefined;
-        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-        decimals?: number | undefined;
-        abbreviate?: boolean | undefined;
-        prefix?: string | undefined;
-        suffix?: string | undefined;
-        unitSystem?: "metric" | "imperial" | undefined;
-        dateFormat?: string | undefined;
-    }>>;
 }, "strict", z.ZodTypeAny, {
     label?: string | undefined;
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     stackId?: string | undefined;
-    axis?: "left" | "right" | undefined;
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
-    format?: {
-        currency?: string | undefined;
-        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-        decimals?: number | undefined;
-        abbreviate?: boolean | undefined;
-        prefix?: string | undefined;
-        suffix?: string | undefined;
-        unitSystem?: "metric" | "imperial" | undefined;
-        dateFormat?: string | undefined;
-    } | undefined;
 }, {
     label?: string | undefined;
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     stackId?: string | undefined;
-    axis?: "left" | "right" | undefined;
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
-    format?: {
-        currency?: string | undefined;
-        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-        decimals?: number | undefined;
-        abbreviate?: boolean | undefined;
-        prefix?: string | undefined;
-        suffix?: string | undefined;
-        unitSystem?: "metric" | "imperial" | undefined;
-        dateFormat?: string | undefined;
-    } | undefined;
 }>;
 
 /**
@@ -10762,7 +8774,6 @@ export declare interface SeriesValueMeta {
     unit?: string;
     quantity?: string;
     convert?: boolean;
-    axis?: "left" | "right";
     stackId?: string;
     /** Per-series line shape (line/area) carried from the spec's SeriesMeta. */
     curve?: "linear" | "monotone" | "step" | "natural";
@@ -10889,7 +8900,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     }>>;
     chart: z.ZodObject<{
         family: z.ZodString;
-        /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+        /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
             category: z.ZodObject<{
@@ -10905,75 +8916,25 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
-                    format: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
                 mode: "measures";
@@ -10982,19 +8943,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }, {
                 mode: "measures";
@@ -11003,19 +8953,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }>, z.ZodObject<{
                 mode: z.ZodLiteral<"pivot">;
@@ -11027,81 +8966,30 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                  *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
                 values: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
                 pivot: z.ZodString;
-                /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-                 *  each measure's series sit on, so a multi-measure color split can be
-                 *  dual-axis (each axis one unit). */
+                /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+                 *  each split measure's series. */
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
-                    format: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
                 value: string;
@@ -11112,19 +9000,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }, {
                 value: string;
@@ -11135,19 +9012,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }>]>;
         }, "strict", z.ZodTypeAny, {
@@ -11161,19 +9027,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -11184,19 +9039,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         }, {
@@ -11210,19 +9054,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -11233,19 +9066,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         }>>;
@@ -11253,13 +9075,16 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
         legend: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
-            position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
+            /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+             *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+             *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+            position: z.ZodOptional<z.ZodEnum<["top", "bottom"]>>;
         }, "strict", z.ZodTypeAny, {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         }, {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         }>>;
         tooltip: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
@@ -11276,12 +9101,21 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }>>;
         axes: z.ZodOptional<z.ZodObject<{
             x: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                 *  either takes a configured domain verbatim or infers both ends from the data, so
+                 *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -11313,10 +9147,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11329,10 +9162,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11345,12 +9177,21 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
             }>>;
             y: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                 *  either takes a configured domain verbatim or infers both ends from the data, so
+                 *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -11382,10 +9223,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11398,79 +9238,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            }>>;
-            y2: z.ZodOptional<z.ZodObject<{
-                label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
-                hide: z.ZodOptional<z.ZodBoolean>;
-                scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
-                tickFormat: z.ZodOptional<z.ZodObject<{
-                    kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                    decimals: z.ZodOptional<z.ZodNumber>;
-                    abbreviate: z.ZodOptional<z.ZodBoolean>;
-                    prefix: z.ZodOptional<z.ZodString>;
-                    suffix: z.ZodOptional<z.ZodString>;
-                    unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                    dateFormat: z.ZodOptional<z.ZodString>;
-                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                    currency: z.ZodOptional<z.ZodString>;
-                }, "strict", z.ZodTypeAny, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }>>;
-            }, "strict", z.ZodTypeAny, {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            }, {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11485,10 +9255,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }, "strict", z.ZodTypeAny, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11502,27 +9271,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11537,10 +9288,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11554,27 +9304,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11626,20 +9358,30 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }>>;
+        /**
+         * Presentation-only reshaping of the normalized series (rolling average /
+         * running total / share of category total). Purely additive + optional, so it
+         * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
+         */
+        transform: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+            /**
+             * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+             * (ignored by cumulative / percentOfTotal); defaults to
+             * {@link DEFAULT_TRANSFORM_WINDOW}.
+             */
+            window: z.ZodOptional<z.ZodNumber>;
+        }, "strict", z.ZodTypeAny, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }>>;
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -11651,19 +9393,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -11674,19 +9405,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -11694,7 +9414,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -11704,10 +9424,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11721,27 +9440,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11757,20 +9458,24 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -11782,19 +9487,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -11805,19 +9499,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -11825,7 +9508,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -11835,10 +9518,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11852,27 +9534,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11889,9 +9553,23 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
-    schemaVersion: z.ZodLiteral<1>;
+    schemaVersion: z.ZodLiteral<4>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -11901,16 +9579,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     kind: "chart";
     chart: {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -11922,19 +9590,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -11945,19 +9602,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -11965,7 +9611,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -11975,10 +9621,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -11992,27 +9637,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -12028,6 +9655,20 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -12057,7 +9698,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         timezone?: string | undefined;
     };
     id: string;
-    schemaVersion: 1;
+    schemaVersion: 4;
     name?: string | undefined;
     description?: string | undefined;
     createdAt?: string | undefined;
@@ -12066,16 +9707,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
     kind: "chart";
     chart: {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -12087,19 +9718,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -12110,19 +9730,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -12130,7 +9739,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -12140,10 +9749,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -12157,27 +9765,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -12194,10 +9784,24 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
         } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
     id: string;
-    schemaVersion: 1;
+    schemaVersion: 4;
     query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
@@ -12359,7 +9963,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }>>;
         chart: z.ZodObject<{
             family: z.ZodString;
-            /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+            /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
              carry their own mapping inside familyOptions, so this is optional at the envelope. */
             mapping: z.ZodOptional<z.ZodObject<{
                 category: z.ZodObject<{
@@ -12375,75 +9979,25 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
                         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                        /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                         *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
-                        axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                         /** Per-series line shape (line/area) — overrides the family default. */
                         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
-                        format: z.ZodOptional<z.ZodObject<{
-                            kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                            decimals: z.ZodOptional<z.ZodNumber>;
-                            abbreviate: z.ZodOptional<z.ZodBoolean>;
-                            prefix: z.ZodOptional<z.ZodString>;
-                            suffix: z.ZodOptional<z.ZodString>;
-                            unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                            dateFormat: z.ZodOptional<z.ZodString>;
-                            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                            currency: z.ZodOptional<z.ZodString>;
-                        }, "strict", z.ZodTypeAny, {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        }, {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        }>>;
                     }, "strict", z.ZodTypeAny, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }>>>;
                 }, "strict", z.ZodTypeAny, {
                     mode: "measures";
@@ -12452,19 +10006,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 }, {
                     mode: "measures";
@@ -12473,19 +10016,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 }>, z.ZodObject<{
                     mode: z.ZodLiteral<"pivot">;
@@ -12497,81 +10029,30 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                      *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
                     values: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
                     pivot: z.ZodString;
-                    /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-                     *  each measure's series sit on, so a multi-measure color split can be
-                     *  dual-axis (each axis one unit). */
+                    /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+                     *  each split measure's series. */
                     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
                         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                        /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                         *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
-                        axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                         /** Per-series line shape (line/area) — overrides the family default. */
                         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
-                        format: z.ZodOptional<z.ZodObject<{
-                            kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                            decimals: z.ZodOptional<z.ZodNumber>;
-                            abbreviate: z.ZodOptional<z.ZodBoolean>;
-                            prefix: z.ZodOptional<z.ZodString>;
-                            suffix: z.ZodOptional<z.ZodString>;
-                            unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                            dateFormat: z.ZodOptional<z.ZodString>;
-                            /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                            currency: z.ZodOptional<z.ZodString>;
-                        }, "strict", z.ZodTypeAny, {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        }, {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        }>>;
                     }, "strict", z.ZodTypeAny, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }>>>;
                 }, "strict", z.ZodTypeAny, {
                     value: string;
@@ -12582,19 +10063,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 }, {
                     value: string;
@@ -12605,19 +10075,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 }>]>;
             }, "strict", z.ZodTypeAny, {
@@ -12631,19 +10090,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -12654,19 +10102,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             }, {
@@ -12680,19 +10117,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -12703,19 +10129,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             }>>;
@@ -12723,13 +10138,16 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
             legend: z.ZodOptional<z.ZodObject<{
                 show: z.ZodOptional<z.ZodBoolean>;
-                position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
+                /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+                 *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+                 *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+                position: z.ZodOptional<z.ZodEnum<["top", "bottom"]>>;
             }, "strict", z.ZodTypeAny, {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             }, {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             }>>;
             tooltip: z.ZodOptional<z.ZodObject<{
                 show: z.ZodOptional<z.ZodBoolean>;
@@ -12746,12 +10164,21 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             }>>;
             axes: z.ZodOptional<z.ZodObject<{
                 x: z.ZodOptional<z.ZodObject<{
+                    /**
+                     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                     * (the ticks and line stay). There is no separate hide flag: the editor's title
+                     * field IS the control, and clearing it is how you remove the title. (v4)
+                     */
                     label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
+                    /** Hide the whole axis — ticks, line and title. */
                     hide: z.ZodOptional<z.ZodBoolean>;
+                    /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                    domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                    /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                     *  either takes a configured domain verbatim or infers both ends from the data, so
+                     *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                    domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                     tickFormat: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -12783,10 +10210,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -12799,10 +10225,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     } | undefined;
                 }, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -12815,12 +10240,21 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     } | undefined;
                 }>>;
                 y: z.ZodOptional<z.ZodObject<{
+                    /**
+                     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                     * (the ticks and line stay). There is no separate hide flag: the editor's title
+                     * field IS the control, and clearing it is how you remove the title. (v4)
+                     */
                     label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
+                    /** Hide the whole axis — ticks, line and title. */
                     hide: z.ZodOptional<z.ZodBoolean>;
+                    /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                    domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                    /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                     *  either takes a configured domain verbatim or infers both ends from the data, so
+                     *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                    domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                    /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                     tickFormat: z.ZodOptional<z.ZodObject<{
                         kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                         decimals: z.ZodOptional<z.ZodNumber>;
@@ -12852,10 +10286,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -12868,79 +10301,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     } | undefined;
                 }, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                }>>;
-                y2: z.ZodOptional<z.ZodObject<{
-                    label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
-                    hide: z.ZodOptional<z.ZodBoolean>;
-                    scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                    domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
-                    tickFormat: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
-                }, "strict", z.ZodTypeAny, {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                }, {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -12955,10 +10318,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             }, "strict", z.ZodTypeAny, {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -12972,27 +10334,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13007,10 +10351,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             }, {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13024,27 +10367,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13096,20 +10421,30 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 unitSystem?: "metric" | "imperial" | undefined;
                 dateFormat?: string | undefined;
             }>>;
+            /**
+             * Presentation-only reshaping of the normalized series (rolling average /
+             * running total / share of category total). Purely additive + optional, so it
+             * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
+             */
+            transform: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+                /**
+                 * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+                 * (ignored by cumulative / percentOfTotal); defaults to
+                 * {@link DEFAULT_TRANSFORM_WINDOW}.
+                 */
+                window: z.ZodOptional<z.ZodNumber>;
+            }, "strict", z.ZodTypeAny, {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            }, {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
+            }>>;
             /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
             familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         }, "strict", z.ZodTypeAny, {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -13121,19 +10456,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -13144,19 +10468,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -13164,7 +10477,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -13174,10 +10487,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13191,27 +10503,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13227,20 +10521,24 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }, {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -13252,19 +10550,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -13275,19 +10562,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -13295,7 +10571,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -13305,10 +10581,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13322,27 +10597,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13358,6 +10615,20 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         }>;
@@ -13367,16 +10638,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         type: "chart";
         chart: {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -13388,19 +10649,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -13411,19 +10661,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -13431,7 +10670,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -13441,10 +10680,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13458,27 +10696,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13494,6 +10714,20 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -13528,16 +10762,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         type: "chart";
         chart: {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -13549,19 +10773,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -13572,19 +10785,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -13592,7 +10794,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -13602,10 +10804,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13619,27 +10820,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -13655,6 +10838,20 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -13997,7 +11194,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         margin?: [number, number] | undefined;
         containerPadding?: [number, number] | undefined;
     }>>;
-    schemaVersion: z.ZodLiteral<1>;
+    schemaVersion: z.ZodLiteral<4>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -14006,7 +11203,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 1;
+    schemaVersion: 4;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -14018,16 +11215,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         type: "chart";
         chart: {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -14039,19 +11226,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -14062,19 +11238,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -14082,7 +11247,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -14092,10 +11257,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -14109,27 +11273,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -14145,6 +11291,20 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -14244,7 +11404,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 1;
+    schemaVersion: 4;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -14256,16 +11416,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         type: "chart";
         chart: {
             family: string;
-            format?: {
-                currency?: string | undefined;
-                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                decimals?: number | undefined;
-                abbreviate?: boolean | undefined;
-                prefix?: string | undefined;
-                suffix?: string | undefined;
-                unitSystem?: "metric" | "imperial" | undefined;
-                dateFormat?: string | undefined;
-            } | undefined;
             mapping?: {
                 category: {
                     member: string;
@@ -14277,19 +11427,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 } | {
                     value: string;
@@ -14300,19 +11439,8 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        axis?: "left" | "right" | undefined;
                         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
-                        format?: {
-                            currency?: string | undefined;
-                            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                            decimals?: number | undefined;
-                            abbreviate?: boolean | undefined;
-                            prefix?: string | undefined;
-                            suffix?: string | undefined;
-                            unitSystem?: "metric" | "imperial" | undefined;
-                            dateFormat?: string | undefined;
-                        } | undefined;
                     }> | undefined;
                 };
             } | undefined;
@@ -14320,7 +11448,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
             legend?: {
                 show?: boolean | undefined;
-                position?: "left" | "right" | "top" | "bottom" | undefined;
+                position?: "top" | "bottom" | undefined;
             } | undefined;
             tooltip?: {
                 show?: boolean | undefined;
@@ -14330,10 +11458,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -14347,27 +11474,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
-                    tickFormat?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
-                } | undefined;
-                y2?: {
-                    label?: string | undefined;
-                    labelHide?: boolean | undefined;
-                    hide?: boolean | undefined;
-                    scale?: "linear" | "log" | undefined;
-                    domain?: [number | "auto", number | "auto"] | undefined;
+                    domain?: [number, number] | undefined;
                     tickFormat?: {
                         currency?: string | undefined;
                         kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -14383,6 +11492,20 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             colors?: {
                 byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
                 ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+            } | undefined;
+            format?: {
+                currency?: string | undefined;
+                kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+                decimals?: number | undefined;
+                abbreviate?: boolean | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+                unitSystem?: "metric" | "imperial" | undefined;
+                dateFormat?: string | undefined;
+            } | undefined;
+            transform?: {
+                kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+                window?: number | undefined;
             } | undefined;
             familyOptions?: Record<string, unknown> | undefined;
         };
@@ -14556,8 +11679,8 @@ export declare const TableColumnOptSchema: z.ZodObject<{
         dateFormat?: string | undefined;
     } | undefined;
     hidden?: boolean | undefined;
-    width?: number | undefined;
     align?: "left" | "right" | "center" | undefined;
+    width?: number | undefined;
 }, {
     member: string;
     label?: string | undefined;
@@ -14572,8 +11695,8 @@ export declare const TableColumnOptSchema: z.ZodObject<{
         dateFormat?: string | undefined;
     } | undefined;
     hidden?: boolean | undefined;
-    width?: number | undefined;
     align?: "left" | "right" | "center" | undefined;
+    width?: number | undefined;
 }>;
 
 /**
@@ -14635,8 +11758,8 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
             dateFormat?: string | undefined;
         } | undefined;
         hidden?: boolean | undefined;
-        width?: number | undefined;
         align?: "left" | "right" | "center" | undefined;
+        width?: number | undefined;
     }, {
         member: string;
         label?: string | undefined;
@@ -14651,14 +11774,10 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
             dateFormat?: string | undefined;
         } | undefined;
         hidden?: boolean | undefined;
-        width?: number | undefined;
         align?: "left" | "right" | "center" | undefined;
+        width?: number | undefined;
     }>, "many">>;
     pageSize: z.ZodOptional<z.ZodNumber>;
-    sortable: z.ZodOptional<z.ZodBoolean>;
-    stickyHeader: z.ZodOptional<z.ZodBoolean>;
-    rowHeight: z.ZodOptional<z.ZodEnum<["compact", "default"]>>;
-    showRowNumbers: z.ZodOptional<z.ZodBoolean>;
     conditionalFormat: z.ZodOptional<z.ZodArray<z.ZodObject<{
         member: z.ZodString;
         when: z.ZodObject<{
@@ -14688,7 +11807,6 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }>, "many">>;
 }, "strict", z.ZodTypeAny, {
-    rowHeight?: "default" | "compact" | undefined;
     columns?: {
         member: string;
         label?: string | undefined;
@@ -14703,13 +11821,10 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
             dateFormat?: string | undefined;
         } | undefined;
         hidden?: boolean | undefined;
-        width?: number | undefined;
         align?: "left" | "right" | "center" | undefined;
+        width?: number | undefined;
     }[] | undefined;
     pageSize?: number | undefined;
-    sortable?: boolean | undefined;
-    stickyHeader?: boolean | undefined;
-    showRowNumbers?: boolean | undefined;
     conditionalFormat?: {
         member: string;
         when: {
@@ -14719,7 +11834,6 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
 }, {
-    rowHeight?: "default" | "compact" | undefined;
     columns?: {
         member: string;
         label?: string | undefined;
@@ -14734,13 +11848,10 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
             dateFormat?: string | undefined;
         } | undefined;
         hidden?: boolean | undefined;
-        width?: number | undefined;
         align?: "left" | "right" | "center" | undefined;
+        width?: number | undefined;
     }[] | undefined;
     pageSize?: number | undefined;
-    sortable?: boolean | undefined;
-    stickyHeader?: boolean | undefined;
-    showRowNumbers?: boolean | undefined;
     conditionalFormat?: {
         member: string;
         when: {
@@ -14818,11 +11929,6 @@ export declare interface TextWidgetViewProps {
 }
 
 export declare type ThemeMode = "light" | "dark";
-
-declare const THEMES: {
-    readonly light: "";
-    readonly dark: ".dark";
-};
 
 export declare interface ThemeState {
     mode: ThemeMode;
@@ -14923,6 +12029,10 @@ export declare function toResultAnnotation(raw: {
     }>;
 }): ResultAnnotation;
 
+export declare type TransformKind = z.infer<typeof TransformKindSchema>;
+
+export declare const TransformKindSchema: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+
 export declare interface Transport {
     init(): Promise<TransportInit>;
     onSpec(cb: (spec: Spec) => void): () => void;
@@ -14989,6 +12099,13 @@ export declare interface UseChartEditorStateOptions {
     /** Debounce for `onChange` (ms). Default 250. */
     debounceMs?: number;
 }
+
+/**
+ * Read the ambient interaction seam. Outside any provider this returns a FROZEN
+ * module-level value, so a standalone family (or a preview harness) mounts with
+ * no brush, no select handler, and no re-render churn.
+ */
+export declare function useChartInteractions(): ChartInteractions;
 
 /**
  * Measure the **container** width of the attached element via `ResizeObserver`
@@ -15233,7 +12350,7 @@ export declare const VarRefSchema: z.ZodObject<{
     var: string;
 }>;
 
-/** A typed slot in the builder. `kinds` gates which fields may be dropped/clicked in. */
+/** A typed slot in the builder. `kinds` gates which fields may be dropped in. */
 export declare interface WellDef {
     id: string;
     label: string;
@@ -15242,7 +12359,38 @@ export declare interface WellDef {
     kinds: FieldKind[];
     /** Optional wells render a muted "(optional)" affordance. */
     optional?: boolean;
+    /**
+     * Where this well's field(s) live in the spec. ABSENT ⇒ host-managed: the
+     * descriptor's own `readWells`/`placeField`/`removeField` own it.
+     */
+    target?: WellTarget;
+    /** The visual channel this well feeds. Absent ⇒ excluded from unification. */
+    channel?: Channel;
 }
+
+/**
+ * Where a well's field(s) live in the spec.
+ *
+ *  - `category` → `mapping.category.member` (+ the query dimension/timeDimension)
+ *  - `measures` → the mapped measure list (`series.members`, or `series.values`
+ *    in pivot mode) + `query.measures`
+ *  - `pivot`    → `mapping.series.pivot`, the dimension that splits the measures
+ *  - `option`   → `familyOptions[key] = member` (scatter's x/y/size, kpi's measure)
+ *  - `optionList` → `familyOptions[key] = [{ member }, …]` (table columns)
+ */
+export declare type WellTarget = {
+    kind: "category";
+} | {
+    kind: "measures";
+} | {
+    kind: "pivot";
+} | {
+    kind: "option";
+    key: string;
+} | {
+    kind: "optionList";
+    key: string;
+};
 
 export declare function WidgetChrome(props: WidgetChromeProps): ReactElement;
 
@@ -15420,7 +12568,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
     }>>;
     chart: z.ZodObject<{
         family: z.ZodString;
-        /** Generic data→visual mapping. Used by bar/line/area/pie/combo; scatter/kpi/table
+        /** Generic data→visual mapping. Used by bar/line/area/pie/heatmap; scatter/kpi/table
          carry their own mapping inside familyOptions, so this is optional at the envelope. */
         mapping: z.ZodOptional<z.ZodObject<{
             category: z.ZodObject<{
@@ -15436,75 +12584,25 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
-                    format: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
                 mode: "measures";
@@ -15513,19 +12611,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }, {
                 mode: "measures";
@@ -15534,19 +12621,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }>, z.ZodObject<{
                 mode: z.ZodLiteral<"pivot">;
@@ -15558,81 +12634,30 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                  *  `values[0]`. Absent ⇒ single-measure pivot (the common case). */
                 values: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
                 pivot: z.ZodString;
-                /** Per-MEASURE meta (keyed by measure). Carries the value-axis (left/right)
-                 *  each measure's series sit on, so a multi-measure color split can be
-                 *  dual-axis (each axis one unit). */
+                /** Per-MEASURE meta (keyed by measure): label/color/format overrides for
+                 *  each split measure's series. */
                 meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                     label: z.ZodOptional<z.ZodString>;
                     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
+                    /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
+                     *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    axis: z.ZodOptional<z.ZodEnum<["left", "right"]>>;
                     /** Per-series line shape (line/area) — overrides the family default. */
                     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
-                    format: z.ZodOptional<z.ZodObject<{
-                        kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                        decimals: z.ZodOptional<z.ZodNumber>;
-                        abbreviate: z.ZodOptional<z.ZodBoolean>;
-                        prefix: z.ZodOptional<z.ZodString>;
-                        suffix: z.ZodOptional<z.ZodString>;
-                        unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                        dateFormat: z.ZodOptional<z.ZodString>;
-                        /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                        currency: z.ZodOptional<z.ZodString>;
-                    }, "strict", z.ZodTypeAny, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }, {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
                 value: string;
@@ -15643,19 +12668,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }, {
                 value: string;
@@ -15666,19 +12680,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             }>]>;
         }, "strict", z.ZodTypeAny, {
@@ -15692,19 +12695,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -15715,19 +12707,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         }, {
@@ -15741,19 +12722,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -15764,19 +12734,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         }>>;
@@ -15784,13 +12743,16 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         stackMode: z.ZodOptional<z.ZodEnum<["none", "stacked", "grouped", "percent"]>>;
         legend: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
-            position: z.ZodOptional<z.ZodEnum<["top", "right", "bottom", "left"]>>;
+            /** Top or bottom only. A SIDE legend competes with the plot for width — the thing
+             *  a dashboard tile has least of — so the renderer never had one and `left`/`right`
+             *  silently became `bottom`. Removed from the enum in v3 (migrated to `bottom`). */
+            position: z.ZodOptional<z.ZodEnum<["top", "bottom"]>>;
         }, "strict", z.ZodTypeAny, {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         }, {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         }>>;
         tooltip: z.ZodOptional<z.ZodObject<{
             show: z.ZodOptional<z.ZodBoolean>;
@@ -15807,12 +12769,21 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         }>>;
         axes: z.ZodOptional<z.ZodObject<{
             x: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                 *  either takes a configured domain verbatim or infers both ends from the data, so
+                 *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -15844,10 +12815,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -15860,10 +12830,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -15876,12 +12845,21 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 } | undefined;
             }>>;
             y: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
+                /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
+                /** A FIXED value-axis window, both ends. There is no half-open form: the renderer
+                 *  either takes a configured domain verbatim or infers both ends from the data, so
+                 *  `[0, "auto"]` used to parse and then do nothing. Omit for auto. (v3) */
+                domain: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
+                /** FormatOptions for THIS axis' ticks, merged over the chart-level `format`. */
                 tickFormat: z.ZodOptional<z.ZodObject<{
                     kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
                     decimals: z.ZodOptional<z.ZodNumber>;
@@ -15913,10 +12891,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -15929,79 +12906,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            }>>;
-            y2: z.ZodOptional<z.ZodObject<{
-                label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
-                hide: z.ZodOptional<z.ZodBoolean>;
-                scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
-                domain: z.ZodOptional<z.ZodTuple<[z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>, z.ZodUnion<[z.ZodNumber, z.ZodLiteral<"auto">]>], null>>;
-                tickFormat: z.ZodOptional<z.ZodObject<{
-                    kind: z.ZodOptional<z.ZodEnum<["number", "percent", "currency", "duration", "date", "auto"]>>;
-                    decimals: z.ZodOptional<z.ZodNumber>;
-                    abbreviate: z.ZodOptional<z.ZodBoolean>;
-                    prefix: z.ZodOptional<z.ZodString>;
-                    suffix: z.ZodOptional<z.ZodString>;
-                    unitSystem: z.ZodOptional<z.ZodEnum<["metric", "imperial"]>>;
-                    dateFormat: z.ZodOptional<z.ZodString>;
-                    /** ISO 4217 currency code for `kind:"currency"` (e.g. "EUR"); defaults to USD. */
-                    currency: z.ZodOptional<z.ZodString>;
-                }, "strict", z.ZodTypeAny, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }, {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                }>>;
-            }, "strict", z.ZodTypeAny, {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            }, {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16016,10 +12923,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         }, "strict", z.ZodTypeAny, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16033,27 +12939,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16068,10 +12956,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         }, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16085,27 +12972,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16157,20 +13026,30 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             unitSystem?: "metric" | "imperial" | undefined;
             dateFormat?: string | undefined;
         }>>;
+        /**
+         * Presentation-only reshaping of the normalized series (rolling average /
+         * running total / share of category total). Purely additive + optional, so it
+         * did NOT bump {@link SCHEMA_VERSION} when it landed — every v2 spec stayed valid.
+         */
+        transform: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["rollingAvg", "cumulative", "percentOfTotal"]>;
+            /**
+             * Trailing window length in CATEGORIES. Only meaningful for `kind:"rollingAvg"`
+             * (ignored by cumulative / percentOfTotal); defaults to
+             * {@link DEFAULT_TRANSFORM_WINDOW}.
+             */
+            window: z.ZodOptional<z.ZodNumber>;
+        }, "strict", z.ZodTypeAny, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }, {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
+        }>>;
         /** Per-family escape hatch, validated by a family-specific schema after default-merge. */
         familyOptions: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     }, "strict", z.ZodTypeAny, {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -16182,19 +13061,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -16205,19 +13073,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -16225,7 +13082,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -16235,10 +13092,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16252,27 +13108,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16288,20 +13126,24 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }, {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -16313,19 +13155,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -16336,19 +13167,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -16356,7 +13176,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -16366,10 +13186,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16383,27 +13202,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16419,6 +13220,20 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
@@ -16428,16 +13243,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
     type: "chart";
     chart: {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -16449,19 +13254,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -16472,19 +13266,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -16492,7 +13275,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -16502,10 +13285,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16519,27 +13301,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16555,6 +13319,20 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };
@@ -16589,16 +13367,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
     type: "chart";
     chart: {
         family: string;
-        format?: {
-            currency?: string | undefined;
-            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-            decimals?: number | undefined;
-            abbreviate?: boolean | undefined;
-            prefix?: string | undefined;
-            suffix?: string | undefined;
-            unitSystem?: "metric" | "imperial" | undefined;
-            dateFormat?: string | undefined;
-        } | undefined;
         mapping?: {
             category: {
                 member: string;
@@ -16610,19 +13378,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             } | {
                 value: string;
@@ -16633,19 +13390,8 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    axis?: "left" | "right" | undefined;
                     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
-                    format?: {
-                        currency?: string | undefined;
-                        kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                        decimals?: number | undefined;
-                        abbreviate?: boolean | undefined;
-                        prefix?: string | undefined;
-                        suffix?: string | undefined;
-                        unitSystem?: "metric" | "imperial" | undefined;
-                        dateFormat?: string | undefined;
-                    } | undefined;
                 }> | undefined;
             };
         } | undefined;
@@ -16653,7 +13399,7 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         stackMode?: "percent" | "none" | "stacked" | "grouped" | undefined;
         legend?: {
             show?: boolean | undefined;
-            position?: "left" | "right" | "top" | "bottom" | undefined;
+            position?: "top" | "bottom" | undefined;
         } | undefined;
         tooltip?: {
             show?: boolean | undefined;
@@ -16663,10 +13409,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16680,27 +13425,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
-                tickFormat?: {
-                    currency?: string | undefined;
-                    kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
-                    decimals?: number | undefined;
-                    abbreviate?: boolean | undefined;
-                    prefix?: string | undefined;
-                    suffix?: string | undefined;
-                    unitSystem?: "metric" | "imperial" | undefined;
-                    dateFormat?: string | undefined;
-                } | undefined;
-            } | undefined;
-            y2?: {
-                label?: string | undefined;
-                labelHide?: boolean | undefined;
-                hide?: boolean | undefined;
-                scale?: "linear" | "log" | undefined;
-                domain?: [number | "auto", number | "auto"] | undefined;
+                domain?: [number, number] | undefined;
                 tickFormat?: {
                     currency?: string | undefined;
                     kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
@@ -16716,6 +13443,20 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         colors?: {
             byKey?: Record<string, "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5"> | undefined;
             ramp?: ("chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5")[] | undefined;
+        } | undefined;
+        format?: {
+            currency?: string | undefined;
+            kind?: "number" | "date" | "percent" | "currency" | "duration" | "auto" | undefined;
+            decimals?: number | undefined;
+            abbreviate?: boolean | undefined;
+            prefix?: string | undefined;
+            suffix?: string | undefined;
+            unitSystem?: "metric" | "imperial" | undefined;
+            dateFormat?: string | undefined;
+        } | undefined;
+        transform?: {
+            kind: "rollingAvg" | "cumulative" | "percentOfTotal";
+            window?: number | undefined;
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     };

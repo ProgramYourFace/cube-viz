@@ -9,6 +9,7 @@ import {
 } from "@/spec";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/components/ui/utils";
 import {
   Select,
   SelectContent,
@@ -93,17 +94,17 @@ export function VariablesPanel({
       }
     >
       {variables.length === 0 ? (
-        <div className="cv:rounded-md cv:border cv:border-dashed cv:border-border cv:p-4 cv:text-center">
-          <p className="cv:text-sm cv:font-medium">No variables yet</p>
-          <p className="cv:mt-0.5 cv:text-xs cv:text-muted-foreground">
+        <div className="cv-variables-empty">
+          <p className="cv-variables-empty-title">No variables yet</p>
+          <p className="cv-variables-empty-hint">
             Variables bind input controls and resolve {"{var}"} tokens in queries.
           </p>
-          <Button variant="outline" size="sm" className="cv:mt-3" onClick={add}>
+          <Button variant="outline" size="sm" className="cv-variables-empty-add" onClick={add}>
             <Plus /> Add variable
           </Button>
         </div>
       ) : (
-        <div className="cv:flex cv:flex-col cv:gap-2">
+        <div className="cv-variables-list">
           {variables.map((v, i) => (
             <VariableRow
               key={i}
@@ -153,20 +154,23 @@ function VariableRow({
 }): React.ReactElement {
   const [open, setOpen] = React.useState(true);
   const nameError = decl.name === "" ? "Name required" : duplicate ? "Duplicate name" : undefined;
+  // FieldRow renders its caption as a `<label htmlFor>`, so the text field below is
+  // NAMED by the caption the user reads (a caption with no `for` names nothing).
+  const labelId = React.useId();
 
   return (
     <div
       data-slot="variable-row"
-      className="cv:overflow-hidden cv:rounded-md cv:border cv:border-border cv:bg-card/40"
+      className="cv-variable-row"
     >
       {/* Header: collapse toggle · name · type badge · reorder · remove. */}
-      <div className="cv:flex cv:items-center cv:gap-1.5 cv:px-2 cv:py-1.5">
+      <div className="cv-variable-row-header">
         <button
           type="button"
           aria-label={open ? "Collapse variable" : "Expand variable"}
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
-          className="cv:flex cv:size-6 cv:shrink-0 cv:items-center cv:justify-center cv:rounded cv:text-muted-foreground cv:hover:bg-accent cv:hover:text-foreground cv:[&_svg]:size-4"
+          className="cv-variable-row-toggle"
         >
           {open ? <ChevronDown /> : <ChevronRight />}
         </button>
@@ -176,16 +180,16 @@ function VariableRow({
           aria-label="Variable name"
           aria-invalid={nameError ? true : undefined}
           onChange={(e) => onChange({ name: e.target.value })}
-          className="cv:h-7 cv:min-w-0 cv:flex-1 cv:font-mono cv:text-xs"
+          className="cv-variable-row-name"
         />
-        <span className="cv:hidden cv:shrink-0 cv:rounded cv:bg-muted cv:px-1.5 cv:py-0.5 cv:text-[10px] cv:font-medium cv:text-muted-foreground cv:sm:inline">
+        <span className="cv-variable-row-type">
           {TYPE_LABELS[decl.type]}
         </span>
-        <div className="cv:flex cv:shrink-0 cv:items-center">
+        <div className="cv-variable-row-actions">
           <Button
             variant="ghost"
             size="icon"
-            className="cv:size-7 cv:text-muted-foreground"
+            className={cn("cv-ed-btn-7", "cv-ed-muted")}
             aria-label="Move variable up"
             disabled={index === 0}
             onClick={() => onMove(-1)}
@@ -195,7 +199,7 @@ function VariableRow({
           <Button
             variant="ghost"
             size="icon"
-            className="cv:size-7 cv:text-muted-foreground"
+            className={cn("cv-ed-btn-7", "cv-ed-muted")}
             aria-label="Move variable down"
             disabled={index === total - 1}
             onClick={() => onMove(1)}
@@ -205,7 +209,7 @@ function VariableRow({
           <Button
             variant="ghost"
             size="icon"
-            className="cv:size-7 cv:text-muted-foreground cv:hover:text-destructive"
+            className={cn("cv-ed-btn-7", "cv-ed-muted", "cv-ed-hover-danger")}
             aria-label="Remove variable"
             onClick={onRemove}
           >
@@ -214,13 +218,13 @@ function VariableRow({
         </div>
       </div>
       {nameError ? (
-        <p className="cv:px-2 cv:pb-1.5 cv:text-[11px] cv:text-destructive">{nameError}</p>
+        <p className="cv-variable-row-error">{nameError}</p>
       ) : null}
 
       {/* Body: the variable's full configuration (collapsible to manage long lists). */}
       {open ? (
-        <div className="cv:flex cv:flex-col cv:gap-1 cv:border-t cv:border-border/60 cv:p-2.5">
-          <FieldRow label="Type" className="cv:py-1">
+        <div className="cv-variable-row-body">
+          <FieldRow label="Type" className="cv-ed-row-tight">
             <Select value={decl.type} onValueChange={(t) => onChange({ type: t as VariableType })}>
               <SelectTrigger>
                 <SelectValue />
@@ -235,8 +239,14 @@ function VariableRow({
             </Select>
           </FieldRow>
 
-          <FieldRow label="Label" hint="Optional human label for controls." className="cv:py-1">
+          <FieldRow
+            label="Label"
+            htmlFor={labelId}
+            hint="Optional human label for controls."
+            className="cv-ed-row-tight"
+          >
             <Input
+              id={labelId}
               value={decl.label ?? ""}
               placeholder={decl.name}
               onChange={(e) => onChange({ label: e.target.value })}
@@ -266,6 +276,8 @@ function DefaultField({
   decl: VariableDecl;
   onChange: (value: VariableValue | undefined) => void;
 }): React.ReactElement {
+  // One id for whichever editor this type renders, paired with the FieldRow caption.
+  const defaultId = React.useId();
   // Boolean default → a switch. Everything else → a text/number input. Date-range
   // and time accept relative strings ("This month", "today"), so they're text too.
   if (decl.type === "boolean") {
@@ -280,8 +292,9 @@ function DefaultField({
 
   if (decl.type === "number" && !decl.array) {
     return (
-      <FieldRow label="Default" className="cv:py-1">
+      <FieldRow label="Default" htmlFor={defaultId} className="cv-ed-row-tight">
         <Input
+          id={defaultId}
           type="number"
           value={typeof decl.default === "number" ? decl.default : ""}
           onChange={(e) => {
@@ -304,8 +317,9 @@ function DefaultField({
     Array.isArray(decl.default) ? decl.default.join(", ") : stringifyScalar(decl.default);
 
   return (
-    <FieldRow label="Default" hint={hint} className="cv:py-1">
+    <FieldRow label="Default" htmlFor={defaultId} hint={hint} className="cv-ed-row-tight">
       <Input
+        id={defaultId}
         value={display}
         placeholder={defaultPlaceholder(decl.type)}
         onChange={(e) => {

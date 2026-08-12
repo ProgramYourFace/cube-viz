@@ -33,13 +33,13 @@ export interface MemberPickerProps {
 export function memberTypeIcon(type: MemberOption["type"]): React.ReactElement {
   switch (type) {
     case "time":
-      return <Calendar className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
+      return <Calendar className="cv-member-type-icon" />;
     case "number":
-      return <Hash className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
+      return <Hash className="cv-member-type-icon" />;
     case "geoPoint":
-      return <MapPin className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
+      return <MapPin className="cv-member-type-icon" />;
     default:
-      return <Type className="cv:size-3.5 cv:shrink-0 cv:text-muted-foreground" />;
+      return <Type className="cv-member-type-icon" />;
   }
 }
 
@@ -96,9 +96,9 @@ export function MemberPicker({
       <SelectTrigger id={id} className={className}>
         <SelectValue placeholder={isLoading ? "Loading…" : placeholder}>
           {selected ? (
-            <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
+            <span className="cv-member-option">
               {memberTypeIcon(selected.type)}
-              <span className="cv:truncate">{selected.label}</span>
+              <span className="cv-ed-truncate">{selected.label}</span>
             </span>
           ) : undefined}
         </SelectValue>
@@ -109,9 +109,9 @@ export function MemberPicker({
             {showLabels && section.label ? <SelectLabel>{section.label}</SelectLabel> : null}
             {section.items.map((m) => (
               <SelectItem key={m.name} value={m.name}>
-                <span className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
+                <span className="cv-member-option">
                   {memberTypeIcon(m.type)}
-                  <span className="cv:truncate">{m.label}</span>
+                  <span className="cv-ed-truncate">{m.label}</span>
                 </span>
               </SelectItem>
             ))}

@@ -1,8 +1,8 @@
 import {
   AreaChart,
   BarChart3,
-  BarChart4,
   Gauge,
+  Grid3X3,
   LineChart,
   PieChart,
   ScatterChart,
@@ -14,8 +14,10 @@ import type { z } from "zod";
 
 import type { BuiltinChartFamily, ChartFamily, ChartSpec } from "@/spec";
 // Type-only import — keeps this registry a runtime leaf w.r.t. the editor (so
-// `wells.ts` can read its well shapes from here without a module cycle).
-import type { WellDef, FieldKind } from "@/editor/chart/builder/wells";
+// `wells.ts` can read its well shapes from here without a module cycle). The well
+// SHAPE (with its channel/target binding) lives in the builder's channel model;
+// `wells.ts` re-exports both types for existing import sites.
+import type { WellDef, FieldKind } from "@/editor/chart/builder/channels";
 
 import type { ChartComponent } from "./types";
 import type { FamilyDefault } from "./defaults";
@@ -28,26 +30,30 @@ import { LineChartFamily } from "./line";
 import { AreaChartFamily } from "./area";
 import { PieChartFamily } from "./pie";
 import { ScatterChartFamily } from "./scatter";
+import { HeatmapChartFamily } from "./heatmap";
 import { KpiFamily } from "./kpi";
 import { TableFamily } from "./table";
-import { ComboChartFamily } from "./combo";
 
 /**
  * The SINGLE SOURCE OF TRUTH for per-chart-family behaviour.
  *
  * Before this registry, each family's identity was smeared across ~10 scattered
  * tables/switches/Sets (icon + label in the picker, component in the dispatcher,
- * option schema + defaults in `defaults.ts`, wells + zones + dual-axis + legend in
+ * option schema + defaults in `defaults.ts`, wells + zones + legend in
  * the editor overlay, customize-options Set, mapping/cartesian/measure-only/compare
  * booleans, axis-enforcement). A {@link ChartFamilyDescriptor} centralizes all of
  * that DATA + dispatch so adding a family later is "write one descriptor (+ its
  * procedural field writers)" rather than editing every table.
  *
- * What is INTENTIONALLY NOT absorbed (Phase 1): the procedural per-family bodies —
- * `placeField`/`removeField` impls (`wells.ts`), `migrateToFamily`, the
- * `CustomizeSection` per-family control JSX, the chip-binding patch writers, and
- * `readWells`. Those READ descriptor flags but their bodies stay; the DATA/dispatch
- * is what centralizes here.
+ * Field placement is DATA here too: each well declares its `target` (where its member
+ * lives in the spec) + `channel` (which visual role it feeds), and the generic
+ * interpreter in `editor/chart/builder/channels.ts` reads/writes every builtin family
+ * from those two facts. The per-family `placeField`/`removeField`/`readWells`/
+ * `migrateToFamily` switches are GONE.
+ *
+ * What is still INTENTIONALLY NOT absorbed: the `CustomizeSection` per-family control
+ * JSX and the chip-binding patch writers. Those READ descriptor flags but their bodies
+ * stay; the DATA/dispatch is what centralizes here.
  */
 export interface ChartFamilyDescriptor {
   /** The family key (the discriminator). */
@@ -71,8 +77,6 @@ export interface ChartFamilyDescriptor {
   /** Which wells anchor LEFT (value axis) vs BOTTOM (category + splits) in the overlay. */
   zones: { left: string[]; bottom: string[] };
 
-  /** Has TWO renderer-supported value axes (left + right). */
-  dualAxisY: boolean;
   /** Consumes the generic `mapping` envelope (vs. storing fields in `familyOptions`). */
   supportsMapping: boolean;
   /** Exposes the cross-family display envelope (orientation/stack/axes). */
@@ -121,7 +125,7 @@ export interface ChartFamilyDescriptor {
    * A well id the editor AUTO-FILLS with the cube's canonical time dimension (member
    * meta `canonicalTime: true`) when a field is placed and this well is still empty —
    * so time-oriented families come up chronological without the user picking "the"
-   * time axis. Builtins: `line`/`area`/`combo` → `"x"`; `bar` deliberately unset (its
+   * time axis. Builtins: `line`/`area` → `"x"`; `bar` deliberately unset (its
    * default axis is categorical). A host family points this at its own time well
    * (e.g. the map's `"time"` path-order well). The auto-fill is a plain placement —
    * one tap removes it.
@@ -132,9 +136,11 @@ export interface ChartFamilyDescriptor {
    *
    * A HOST-registered family is self-contained: it supplies its own field-placement
    * logic and customize UI here, so the editor never needs a builtin `switch` arm for
-   * it. Builtin families leave these undefined and keep their procedural bodies in
-   * `wells.ts` / `CustomizeSection.tsx`; the editor dispatches to the descriptor hook
-   * when present, else falls back to the builtin switch. */
+   * it. Builtins leave these undefined — their wells carry a {@link WellDef.target}
+   * instead, and the generic channel interpreter services them. The editor dispatches
+   * to the descriptor hook when present, else to the interpreter. A host family may
+   * mix both: declare targets on the wells the interpreter can handle and a partial
+   * `readWells` for the rest (its output wins for the wells it returns). */
 
   /** The type-level "Options" panel for this family (rendered in the type picker). */
   Customize?: React.ComponentType<{ spec: ChartSpec; update: (next: ChartSpec) => void }>;
@@ -144,15 +150,6 @@ export interface ChartFamilyDescriptor {
   removeField?: (spec: ChartSpec, wellId: string, member: string) => ChartSpec;
   /** Derive each well's current member name(s) from the spec (inverse of place/remove). */
   readWells?: (spec: ChartSpec) => Record<string, string[]>;
-  /**
-   * Assign `member` to a value axis (`"left"`/`"right"`) for a `dualAxisY` family,
-   * returning a FULL next spec. The editor calls this after `placeField` on a
-   * dual-axis family so the axis lands in the SAME shape the host's own
-   * placeField/readWells read. Builtins leave this unset and the editor falls back to
-   * the builtin `withSeriesAxis` (combo / cartesian `mapping.series` meta) — so a host
-   * with its own field storage must supply this to control dual-axis assignment.
-   */
-  assignSeriesAxis?: (spec: ChartSpec, member: string, side: "left" | "right") => ChartSpec;
 }
 
 /* ─────────────────────────── per-family icons + order ─────────────────────── */
@@ -160,20 +157,50 @@ export interface ChartFamilyDescriptor {
 // The label/icon/order were previously inlined in CenterTypePicker + helpers; the
 // descriptor is now the home and those modules re-derive their maps from here.
 
-const SIDEBAR_DEFAULT = "cv:w-40";
-const SIDEBAR_WIDE = "cv:w-56";
+const SIDEBAR_DEFAULT = "cv-sidebar--default";
+const SIDEBAR_WIDE = "cv-sidebar--wide";
 
 /* ─────────────────────────── per-family well sets ─────────────────────────── */
 //
 // The typed wells (top→bottom) — the editor's PURE shape, reading nothing from the
 // spec. These were previously the `getWells()` switch in `wells.ts`; the descriptor
 // is now their home and `getWells()` reads them back from here.
+//
+// Every BUILTIN well declares two extra bindings (docs/05 §2), which is what lets the
+// ONE generic interpreter in `builder/channels.ts` service them all — no per-family
+// place/remove/read switch:
+//
+//  - `target`  — WHERE the member lives in the spec (mapping category / mapped
+//                measures / mapping pivot / a `familyOptions` key / a key holding a
+//                `{member}` list).
+//  - `channel` — WHICH visual role it feeds (x / y / color / size / row / detail).
+//                Two families that expose the same channel mean the same thing by it,
+//                so switching type is a channel-preserving re-place (`unifyChannels`).
+//
+// HOST families declare neither: a well with no `target` is host-managed and the
+// editor falls back to the descriptor's own `readWells`/`placeField`/`removeField`.
 
 const X_AXIS_HINT = "a date or category";
 
 const CARTESIAN_WELLS: WellDef[] = [
-  { id: "y", label: "Values", hint: "the numbers to show", cardinality: "many", kinds: ["number"] },
-  { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
+  {
+    id: "y",
+    label: "Values",
+    hint: "the numbers to show",
+    cardinality: "many",
+    kinds: ["number"],
+    target: { kind: "measures" },
+    channel: "y",
+  },
+  {
+    id: "x",
+    label: "Category",
+    hint: X_AXIS_HINT,
+    cardinality: "one",
+    kinds: ["time", "category"],
+    target: { kind: "category" },
+    channel: "x",
+  },
   {
     id: "color",
     label: "Split by",
@@ -181,28 +208,116 @@ const CARTESIAN_WELLS: WellDef[] = [
     cardinality: "one",
     kinds: ["category"],
     optional: true,
+    // A split IS the mapping's pivot dimension (series = measure × value).
+    target: { kind: "pivot" },
+    channel: "color",
   },
 ];
 
-const COMBO_WELLS: WellDef[] = [
-  { id: "x", label: "Category", hint: X_AXIS_HINT, cardinality: "one", kinds: ["time", "category"] },
-  { id: "y", label: "Values", hint: "the numbers to show", cardinality: "many", kinds: ["number"] },
+const HEATMAP_WELLS: WellDef[] = [
+  {
+    id: "value",
+    label: "Value",
+    hint: "the number that colors each cell",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "measures" },
+    channel: "y",
+  },
+  {
+    id: "hy",
+    label: "Rows",
+    hint: "a category (one row each)",
+    cardinality: "one",
+    kinds: ["category"],
+    // Rows are stored exactly like a split (the mapping's pivot) but read as a
+    // POSITION channel by the mark — hence `row`, not `color`.
+    target: { kind: "pivot" },
+    channel: "row",
+  },
+  {
+    id: "hx",
+    label: "Columns",
+    hint: X_AXIS_HINT,
+    cardinality: "one",
+    kinds: ["time", "category"],
+    target: { kind: "category" },
+    channel: "x",
+  },
 ];
 
 const PIE_WELLS: WellDef[] = [
-  { id: "slices", label: "Slices", hint: "one slice per value", cardinality: "one", kinds: ["category", "time"] },
-  { id: "size", label: "Size", hint: "size of each slice", cardinality: "one", kinds: ["number"] },
+  {
+    id: "slices",
+    label: "Slices",
+    hint: "one slice per value",
+    cardinality: "one",
+    kinds: ["category", "time"],
+    target: { kind: "category" },
+    channel: "x",
+  },
+  {
+    id: "size",
+    label: "Size",
+    hint: "size of each slice",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "measures" },
+    channel: "y",
+  },
 ];
 
 const SCATTER_WELLS: WellDef[] = [
-  { id: "sx", label: "Horizontal axis", hint: "a number", cardinality: "one", kinds: ["number"] },
-  { id: "sy", label: "Vertical axis", hint: "a number", cardinality: "one", kinds: ["number"] },
-  { id: "size", label: "Bubble size", hint: "a number", cardinality: "one", kinds: ["number"], optional: true },
-  { id: "color", label: "Split by", hint: "color points by category", cardinality: "one", kinds: ["category"], optional: true },
+  {
+    id: "sx",
+    label: "Horizontal axis",
+    hint: "a number",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "option", key: "x" },
+    channel: "x",
+  },
+  {
+    id: "sy",
+    label: "Vertical axis",
+    hint: "a number",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "option", key: "y" },
+    channel: "y",
+  },
+  {
+    id: "size",
+    label: "Bubble size",
+    hint: "a number",
+    cardinality: "one",
+    kinds: ["number"],
+    optional: true,
+    target: { kind: "option", key: "size" },
+    channel: "size",
+  },
+  {
+    id: "color",
+    label: "Split by",
+    hint: "color points by category",
+    cardinality: "one",
+    kinds: ["category"],
+    optional: true,
+    target: { kind: "option", key: "groupBy" },
+    channel: "color",
+  },
 ];
 
 const KPI_WELLS: WellDef[] = [
-  { id: "value", label: "Value", hint: "the number to show", cardinality: "one", kinds: ["number"] },
+  {
+    id: "value",
+    label: "Value",
+    hint: "the number to show",
+    cardinality: "one",
+    kinds: ["number"],
+    target: { kind: "option", key: "measure" },
+    channel: "y",
+  },
 ];
 
 const TABLE_WELLS: WellDef[] = [
@@ -212,6 +327,10 @@ const TABLE_WELLS: WellDef[] = [
     hint: "any field, in order",
     cardinality: "many",
     kinds: ["number", "category", "time"],
+    target: { kind: "optionList", key: "columns" },
+    // A table column is pure DETAIL — no position/paint role — so a table's fields
+    // only survive a type switch into another detail-bearing family.
+    channel: "detail",
   },
 ];
 
@@ -222,7 +341,7 @@ const TABLE_WELLS: WellDef[] = [
  * The ordered builtin array + per-family named exports live in `./familyRegistry`
  * (which imports this record), keeping this module a pure data leaf.
  */
-const ORDER: BuiltinChartFamily[] = ["bar", "line", "area", "pie", "scatter", "kpi", "table", "combo"];
+const ORDER: BuiltinChartFamily[] = ["bar", "line", "area", "pie", "scatter", "heatmap", "kpi", "table"];
 const orderOf = (family: BuiltinChartFamily): number => ORDER.indexOf(family);
 
 export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDescriptor> = {
@@ -236,7 +355,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.bar,
     wells: CARTESIAN_WELLS,
     zones: { left: ["y"], bottom: ["x", "color"] },
-    dualAxisY: false,
     supportsMapping: true,
     supportsCartesianAxes: true,
     enforcesAxisUnit: true,
@@ -258,7 +376,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.line,
     wells: CARTESIAN_WELLS,
     zones: { left: ["y"], bottom: ["x", "color"] },
-    dualAxisY: true,
     supportsMapping: true,
     supportsCartesianAxes: true,
     enforcesAxisUnit: true,
@@ -280,7 +397,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.area,
     wells: CARTESIAN_WELLS,
     zones: { left: ["y"], bottom: ["x", "color"] },
-    dualAxisY: false,
     supportsMapping: true,
     supportsCartesianAxes: true,
     enforcesAxisUnit: true,
@@ -301,7 +417,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.pie,
     wells: PIE_WELLS,
     zones: { left: ["size"], bottom: ["slices"] },
-    dualAxisY: false,
     supportsMapping: true,
     supportsCartesianAxes: false,
     enforcesAxisUnit: false,
@@ -321,7 +436,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.scatter,
     wells: SCATTER_WELLS,
     zones: { left: ["sy"], bottom: ["sx", "size", "color"] },
-    dualAxisY: false,
     supportsMapping: false,
     supportsCartesianAxes: false,
     enforcesAxisUnit: false,
@@ -341,7 +455,6 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.kpi,
     wells: KPI_WELLS,
     zones: { left: ["value"], bottom: [] },
-    dualAxisY: false,
     supportsMapping: false,
     supportsCartesianAxes: false,
     enforcesAxisUnit: false,
@@ -362,35 +475,37 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     defaults: BUILTIN_DEFAULTS.table,
     wells: TABLE_WELLS,
     zones: { left: ["columns"], bottom: [] },
-    dualAxisY: false,
     supportsMapping: false,
     supportsCartesianAxes: false,
     enforcesAxisUnit: false,
     measureOnly: false,
     hasLegend: false,
-    hasCustomizeOptions: true,
+    hasCustomizeOptions: false,
     supportsComparePrevious: false,
     sidebarWidthClass: SIDEBAR_DEFAULT,
   },
-  combo: {
-    family: "combo",
-    canonicalTimeWell: "x",
-    label: "Combo",
-    icon: BarChart4,
-    order: orderOf("combo"),
-    component: ComboChartFamily,
-    optionsSchema: BUILTIN_FAMILY_OPTION_SCHEMAS.combo,
-    defaults: BUILTIN_DEFAULTS.combo,
-    wells: COMBO_WELLS,
-    zones: { left: ["y"], bottom: ["x"] },
-    dualAxisY: true,
+  heatmap: {
+    family: "heatmap",
+    label: "Heatmap",
+    icon: Grid3X3,
+    order: orderOf("heatmap"),
+    component: HeatmapChartFamily,
+    optionsSchema: BUILTIN_FAMILY_OPTION_SCHEMAS.heatmap,
+    defaults: BUILTIN_DEFAULTS.heatmap,
+    wells: HEATMAP_WELLS,
+    zones: { left: ["value", "hy"], bottom: ["hx"] },
+    // Roles live in the generic mapping envelope: category = x, pivot = y, value = measure.
     supportsMapping: true,
-    supportsCartesianAxes: true,
-    enforcesAxisUnit: false, // combo is the dual-axis "mix" chart — exempt by design.
+    // No cartesian display envelope: both axes are band (category) axes and color is the
+    // value — orientation/stacking/axis-scale options don't apply, so the editor shows no
+    // axis chrome for the heatmap (coherent with pie/scatter).
+    supportsCartesianAxes: false,
+    enforcesAxisUnit: false, // single measure — nothing to keep consistent
     measureOnly: false,
-    hasLegend: true,
-    hasCustomizeOptions: false,
+    hasLegend: false, // the color ramp IS the value encoding; no series legend
+    hasCustomizeOptions: false, // nothing to customize — the grid decides its own labels
     supportsComparePrevious: false,
+    requiresMeasure: true,
     sidebarWidthClass: SIDEBAR_DEFAULT,
   },
 };

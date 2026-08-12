@@ -331,7 +331,7 @@ export function DashboardEditor({
       // clipped by an outer host padding; the edge padding belongs here, matching
       // the inter-widget gap).
       style={{ paddingInline: draft.grid?.margin?.[0] ?? 12 }}
-      className={cn("cv:flex cv:h-full cv:flex-col cv:gap-2", className)}
+      className={cn("cv-dashboard-editor", className)}
     >
       <EditorToolbar
         name={draft.name ?? ""}
@@ -346,10 +346,10 @@ export function DashboardEditor({
         discardDisabled={!dirty}
         onSave={onSave ? handleSave : undefined}
         saveDisabled={!validation.success || !dirty}
-        className="cv:shrink-0"
+        className="cv-dashboard-editor-toolbar"
       />
       {!validation.success ? (
-        <p className="cv:shrink-0 cv:text-xs cv:text-destructive">
+        <p className="cv-dashboard-editor-validation">
           {validation.error.issues.length} validation issue
           {validation.error.issues.length === 1 ? "" : "s"} — fix before saving.
         </p>
@@ -357,7 +357,7 @@ export function DashboardEditor({
 
       {/* The canvas scrolls — widgets below the fold are reachable (was clipped to
           the viewport, so you couldn't scroll to edit lower charts). */}
-      <div className="cv:min-h-0 cv:flex-1 cv:overflow-y-auto cv:pb-4">
+      <div className="cv-dashboard-editor-scroll">
         {/* While a full-screen editor is open the canvas is fully occluded, so we
             UNMOUNT it — otherwise every debounced chart-edit draft re-renders +
             reconciles dozens of background CubeCharts the user can't see. */}
@@ -384,20 +384,20 @@ export function DashboardEditor({
           role="dialog"
           aria-modal="true"
           aria-label={overlayTitle}
-          className="cv:fixed cv:inset-0 cv:z-50 cv:flex cv:flex-col cv:bg-background"
+          className="cv-dashboard-editor-fullscreen"
         >
-          <header className="cv:flex cv:shrink-0 cv:items-center cv:justify-between cv:gap-3 cv:border-b cv:border-border cv:px-4 cv:py-2.5">
-            <div className="cv:flex cv:min-w-0 cv:items-center cv:gap-2">
+          <header className="cv-dashboard-editor-fullscreen-header">
+            <div className="cv-dashboard-editor-fullscreen-heading">
               <Button variant="ghost" size="sm" onClick={closeEditor}>
                 <ChevronLeft /> Done
               </Button>
-              <span className="cv:truncate cv:text-sm cv:font-medium">{overlayTitle}</span>
+              <span className="cv-dashboard-editor-fullscreen-title">{overlayTitle}</span>
             </div>
             {editingWidget ? (
               <Button
                 variant="ghost"
                 size="sm"
-                className="cv:text-destructive cv:hover:text-destructive"
+                className="cv-ed-danger"
                 onClick={() => handleDelete(editingWidget.id)}
               >
                 <Trash2 /> Delete
@@ -405,9 +405,9 @@ export function DashboardEditor({
             ) : null}
           </header>
 
-          <div className="cv:min-h-0 cv:flex-1 cv:overflow-hidden cv:p-4">
+          <div className="cv-dashboard-editor-fullscreen-body">
             {editing.kind === "variables" ? (
-              <div className="cv:mx-auto cv:h-full cv:max-w-3xl cv:overflow-y-auto">
+              <div className="cv-dashboard-editor-fullscreen-column">
                 <VariablesPanel variables={draft.variables} onChange={handleVariablesChange} />
               </div>
             ) : editingWidget?.type === "chart" ? (
@@ -419,7 +419,7 @@ export function DashboardEditor({
                 onVariablesChange={handleVariablesChange}
               />
             ) : editingWidget ? (
-              <div className="cv:mx-auto cv:h-full cv:max-w-3xl cv:overflow-y-auto">
+              <div className="cv-dashboard-editor-fullscreen-column">
                 <WidgetEditPanel
                   widget={editingWidget}
                   variables={draft.variables}

@@ -1,197 +1,180 @@
-import type * as React from "react";
-import {
-  CartesianGrid,
-  LabelList,
-  Line,
-  LineChart,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
-
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+import * as React from "react";
+import { defineChart, lineY, type ChartMark } from "@tanstack/charts";
+import { crosshair } from "@tanstack/charts/crosshair";
 
 import type { ChartComponentProps } from "./types";
 import type { LineFamilyOptions } from "./defaults";
 import {
-  axisDomain,
-  axisScale,
-  buildRows,
-  legendAlign,
+  annotationToAxis,
+  axisFormat,
+  buildSeriesRows,
+  categoryChannel,
+  categoryLabeler,
+  categoryScale,
+  chartCurve,
+  cubeTooltip,
+  CvChart,
   legendDisplay,
-  legendLayout,
-  legendVerticalAlign,
-  memberByKey,
+  legendPlacement,
+  referenceLineMarks,
   resolvedAxisLabels,
+  seriesColor,
   seriesColorVar,
-  seriesMember,
-  tooltipValueFormatter,
-} from "./_shared";
+  seriesCurve,
+  seriesDots,
+  seriesLabel,
+  useTemporalBrush,
+  valueAnchor,
+  valueLabelMarks,
+  valueScale,
+  type CurveName,
+} from "./tanstack";
 
 /**
  * `line` — absorbs Line/Grouped/Multi/Sparkline (docs/02-chart-options.md §2.2).
- * Multi-series = `series.length`; sparkline = `chrome:"none"` (no axes/grid/
- * legend/tooltip); dual-axis = a series with `meta.axis:"right"`. Line ignores
- * orientation/stackMode (stacked lines use the `area` family).
+ * Multi-series = one lineY mark per series; sparkline = `chrome:"none"` (no
+ * axes/grid/legend/tooltip). Line ignores orientation/stackMode (stacked lines
+ * use the `area` family). Dual-axis was removed with the combo family.
+ *
+ * A TIME-DIMENSION category axis renders on a real `scaleUtc` (see
+ * {@link annotationToAxis}): buckets sit at their true elapsed distance, so a
+ * missing day now draws as a gap instead of collapsing into the next bucket.
  */
 export function LineChartFamily({
   data,
   options,
-  config,
   format,
-  editing,
+  theme,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as LineFamilyOptions;
   const sparkline = fo.chrome === "none";
 
-  const rows = buildRows(data);
-  const catFmt = (v: string | number) => format.category(v);
+  // A sparkline is a shape, not an axis: it has no ticks and no room for a brush,
+  // so it stays on the compact point scale.
+  const temporal = React.useMemo(
+    () => (sparkline ? null : annotationToAxis(data, options)),
+    [data, options, sparkline],
+  );
+  const catLabel = React.useMemo(() => categoryLabeler(temporal, format), [temporal, format]);
+  // Axis TICKS may carry their own FormatOptions (`axes.x.tickFormat`); the tooltip /
+  // crosshair / brush keep the chart-level category format.
+  const xAxis = options.axes?.x;
+  const catTick = React.useMemo(
+    () => (xAxis?.tickFormat ? categoryLabeler(temporal, axisFormat(format, xAxis)) : catLabel),
+    [temporal, format, xAxis, catLabel],
+  );
+  const controls = useTemporalBrush(temporal, {
+    label: catLabel,
+    ariaLabel: "Time range",
+  });
 
-  const hasRight = data.series.some((s) => s.meta?.axis === "right");
-  const curve = fo.curve ?? "monotone";
-  // Representative SOURCE measure per axis so ticks render that axis's unit. In a color
-  // split a series' own key is a pivot value (no unit); `meta.measure` is the real measure.
-  const keyToMember = memberByKey(data);
-  const leftMember = seriesMember(data.series.find((s) => s.meta?.axis !== "right"));
-  const rightMember = seriesMember(data.series.find((s) => s.meta?.axis === "right"));
-  const axl = resolvedAxisLabels(data, options);
+  const definition = React.useMemo(() => {
+    const xField = categoryChannel(temporal);
+    const connectNulls = fo.connectNulls ?? false;
+    const curveName = (fo.curve ?? "monotone") as CurveName;
+    const axl = resolvedAxisLabels(data, options);
+    const y = valueScale(options.axes?.y);
+    // A single data point has no line segment; force a visible dot so the
+    // chart degrades gracefully instead of rendering nothing.
+    const singlePoint = data.categories.length <= 1;
 
-  // Visible points only when explicitly enabled; the hover dot stays on (for tooltips)
-  // unless this is a chrome-less sparkline.
-  // A single data point has no line segment to draw; without a dot it would be
-  // invisible. Force a visible point in that case (graceful degradation), while
-  // leaving the normal multi-point default (dots only when explicitly enabled).
-  const singlePoint = rows.length <= 1;
-  const dotProp = !sparkline && (fo.dots === true || singlePoint);
-  const activeDotProp = !sparkline;
+    const marks: ChartMark[] = data.series.map((s) => {
+      const rows = buildSeriesRows(data, { series: [s], skipNull: connectNulls, temporal });
+      return lineY(rows, {
+        id: `cv-line-${s.key}`,
+        x: xField,
+        y: "value",
+        z: "label",
+        color: "label",
+        key: "i",
+        // Per-series shape wins over the family default: the shape picker on a
+        // field pill writes `meta.curve`, and reading only `fo.curve` here made
+        // that control do nothing.
+        curve: chartCurve(seriesCurve(s, curveName)),
+        strokeWidth: theme.lineWidth,
+        strokeDasharray: s.meta?.companion ? "5 4" : undefined,
+        strokeOpacity: s.meta?.companion ? 0.55 : undefined,
+        stroke: seriesColorVar(s),
+        points: !sparkline && !s.meta?.companion && (seriesDots(s, fo.dots) || singlePoint),
+      });
+    });
 
+    if (!sparkline) {
+      marks.push(
+        ...referenceLineMarks(fo.referenceLines, temporal?.dates ?? data.categories, {
+          valueAnchor: valueAnchor(data),
+        }),
+        ...valueLabelMarks(
+          fo.showValueLabels ? buildSeriesRows(data, { skipNull: true, temporal }) : [],
+          format,
+          { temporal },
+        ),
+      );
+      // `dots` also decides the HOVER point (Recharts' `activeDot`): the crosshair's
+      // marker is the TanStack equivalent, and without it `dots:"active"` — the
+      // family DEFAULT — drew nothing at all. `false` opts out of both.
+      marks.push(crosshair({ x: {}, y: false, marker: fo.dots !== false }));
+    }
+
+    return defineChart({
+      marks,
+      x: {
+        scale: categoryScale(temporal),
+        axis: sparkline || options.axes?.x?.hide
+          ? false
+          : {
+              label: axl.x,
+              ticks: { format: catTick },
+            },
+      },
+      y: {
+        scale: y.scale,
+        nice: y.nice,
+        grid: !sparkline,
+        axis: sparkline || options.axes?.y?.hide
+          ? false
+          : {
+              label: axl.y,
+              ticks: {
+                // `axes.y.tickFormat` re-binds the formatter for the value ticks only.
+                format: (v: number) =>
+                  axisFormat(format, options.axes?.y).value(
+                    v,
+                    data.series[0]?.meta?.measure ?? data.series[0]?.key,
+                    "axis",
+                  ),
+              },
+            },
+      },
+      guides: !sparkline,
+      color: seriesColor(data, {
+        legend: !sparkline && legendDisplay(options) && data.series.length > 1,
+        legendPlacement: legendPlacement(options.legend?.position),
+      }),
+      focus: "group-x",
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      tooltip:
+        sparkline || options.tooltip?.show === false
+          ? undefined
+          : cubeTooltip({
+              format,
+              category: catLabel,
+              indicator: options.tooltip?.indicator,
+              showTotal: options.tooltip?.showTotal,
+            }),
+      margin: sparkline ? 4 : undefined,
+      keyboard: !sparkline,
+      controls,
+    });
+  }, [data, options, format, fo, theme, sparkline, temporal, catLabel, catTick, controls]);
+
+  const label = data.series.map(seriesLabel).join(", ") || "Line chart";
   return (
-    <ChartContainer
-      config={config}
-      className={sparkline ? "cv:aspect-[5/1] cv:w-full" : "cv:h-full cv:w-full cv:min-h-[200px]"}
-    >
-      <LineChart accessibilityLayer data={rows} margin={sparkline ? { top: 4, bottom: 4, left: 4, right: 4 } : undefined}>
-        {!sparkline && <CartesianGrid vertical={false} />}
-        <XAxis
-          type="category"
-          dataKey="__cat"
-          hide={sparkline || options.axes?.x?.hide}
-          tickFormatter={catFmt}
-          label={!sparkline && axl.x ? { value: axl.x, position: "insideBottom", offset: -2 } : undefined}
-        />
-        <YAxis
-          yAxisId="left"
-          type="number"
-          hide={sparkline || options.axes?.y?.hide}
-          scale={axisScale(options.axes?.y)}
-          domain={axisDomain(options.axes?.y)}
-          tickFormatter={(v: number) => format.value(v, leftMember, "axis")}
-          label={
-            !sparkline && axl.left
-              ? { value: axl.left, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }
-              : undefined
-          }
-        />
-        {hasRight && (
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            type="number"
-            hide={sparkline || options.axes?.y2?.hide}
-            scale={axisScale(options.axes?.y2)}
-            domain={axisDomain(options.axes?.y2)}
-            tickFormatter={(v: number) => format.value(v, rightMember, "axis")}
-            label={
-              !sparkline && axl.right
-                ? { value: axl.right, angle: 90, position: "insideRight", style: { textAnchor: "middle" } }
-                : undefined
-            }
-          />
-        )}
-        {!sparkline && options.tooltip?.show !== false && (
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(label) => format.category(label as string | number)}
-                indicator={options.tooltip?.indicator ?? "line"}
-                valueFormatter={tooltipValueFormatter(format, undefined, keyToMember)}
-              />
-            }
-          />
-        )}
-        {!sparkline && legendDisplay(options, editing).show && (
-          <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
-            verticalAlign={legendVerticalAlign(options.legend?.position)}
-            layout={legendLayout(options.legend?.position)}
-            align={legendAlign(options.legend?.position)}
-          />
-        )}
-        {data.series.map((s) => (
-          <Line
-            key={s.key}
-            yAxisId={hasRight && s.meta?.axis === "right" ? "right" : "left"}
-            type={s.meta?.curve ?? curve}
-            dataKey={s.key}
-            name={s.label}
-            stroke={seriesColorVar(s)}
-            strokeWidth={fo.strokeWidth ?? 2}
-            strokeDasharray={s.meta?.companion ? "5 4" : undefined}
-            strokeOpacity={s.meta?.companion ? 0.55 : undefined}
-            dot={sparkline || s.meta?.companion ? false : (s.meta?.dots ?? dotProp)}
-            activeDot={activeDotProp}
-            connectNulls={fo.connectNulls ?? false}
-            isAnimationActive={!sparkline}
-          >
-            {!sparkline && fo.showValueLabels && (
-              <LabelList
-                dataKey={s.key}
-                position="top"
-                className="cv:fill-foreground cv:text-[10px]"
-                formatter={(v: string | number | boolean | null | undefined) =>
-                  format.value(typeof v === "boolean" ? Number(v) : v, seriesMember(s), "label")
-                }
-              />
-            )}
-          </Line>
-        ))}
-        {!sparkline &&
-          fo.referenceLines?.map((r, k) => {
-            // The x axis is a CATEGORY (band) scale keyed by string buckets, so a numeric
-            // x value never matches a band and the line silently drops. Reproject a numeric
-            // x to the rendered category at that INDEX; skip when out of range.
-            if (r.axis === "x") {
-              const xVal = rows[r.value]?.__cat;
-              if (xVal === undefined || xVal === null) return null;
-              return (
-                <ReferenceLine
-                  key={k}
-                  yAxisId="left"
-                  x={xVal}
-                  label={r.label}
-                  stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-                  strokeDasharray="4 4"
-                />
-              );
-            }
-            return (
-              <ReferenceLine
-                key={k}
-                yAxisId="left"
-                y={r.value}
-                label={r.label}
-                stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-                strokeDasharray="4 4"
-              />
-            );
-          })}
-      </LineChart>
-    </ChartContainer>
+    <CvChart
+      definition={definition}
+      ariaLabel={label}
+      sparkline={sparkline}
+      className={sparkline ? undefined : "cv-chart--fill"}
+    />
   );
 }

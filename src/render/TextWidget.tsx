@@ -66,7 +66,7 @@ export function TextWidget({ doc }: TextWidgetProps): ReactElement {
 
   if (!renderable) {
     return (
-      <div className="cv:text-sm cv:text-muted-foreground">Unsupported text content</div>
+      <div className="cv-widget-note">Unsupported text content</div>
     );
   }
 

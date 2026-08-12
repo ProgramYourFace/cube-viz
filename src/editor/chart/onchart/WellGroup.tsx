@@ -5,6 +5,7 @@ import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartSpec } from "@/spec";
 
 import type { MemberOption } from "../../primitives/meta-helpers";
+import { placementBlockReason, wellAccepts } from "../builder/channels";
 import type { FieldKind, WellDef } from "../builder/wells";
 import { reorderWell } from "./chip-bindings";
 import { FieldPickerPopover } from "./FieldPickerPopover";
@@ -86,10 +87,29 @@ export function WellGroup({
   const vertical = orientation === "vertical";
   const groupLabel = label ?? well.label;
 
+  // What this slot takes, in the SAME words the picker uses to refuse a field
+  // ("Category takes a date or category"), so the add button and the greyed-out rows
+  // inside it never disagree. A well that takes everything (a table column) has
+  // nothing to refuse, so it falls back to its own hint.
+  const takesHint =
+    (["number", "category", "time"] as FieldKind[])
+      .filter((k) => !wellAccepts(well, k))
+      .map((k) => placementBlockReason(well, k, placed))
+      .find((r): r is string => r !== undefined) ?? well.hint;
+
+  // Nothing on the chart yet: name the ONE move that gets the user started, in the
+  // strip they are looking at. Anchored to the required value slot (the measure is
+  // what every family needs first), so it appears exactly once.
+  const startHint =
+    allPlaced.length === 0 && !well.optional && wellAccepts(well, "number")
+      ? "Add a measure to start"
+      : undefined;
+
   const addSlot = (
     <FieldPickerPopover
       well={well}
       placed={allPlaced}
+      inWell={placed}
       scope={scope}
       blockReason={blockReason}
       onSelect={onAdd}
@@ -98,12 +118,13 @@ export function WellGroup({
     >
       <button
         type="button"
+        title={takesHint}
         className={cn(
-          "cv:flex cv:items-center cv:justify-center cv:gap-1 cv:rounded-md cv:border cv:border-dashed cv:border-input cv:bg-background/60 cv:px-2 cv:py-1 cv:text-xs cv:text-muted-foreground cv:transition-colors cv:hover:border-ring cv:hover:text-foreground",
-          vertical && "cv:w-full",
+          "cv-well-add",
+          vertical && "cv-well-add--full",
         )}
       >
-        <Plus className="cv:size-3.5" />
+        <Plus className="cv-ec-icon" />
         {placed.length === 0 ? groupLabel : "Add"}
       </button>
     </FieldPickerPopover>
@@ -112,23 +133,23 @@ export function WellGroup({
   return (
     <div
       data-slot="well-group"
-      className={cn("cv:flex cv:flex-col cv:gap-1", !vertical && "cv:min-w-0")}
+      className={cn("cv-well-group", !vertical && "cv-well-group--h")}
     >
-      <div className="cv:flex cv:items-center cv:gap-1.5 cv:px-0.5 cv:text-[10px] cv:font-medium cv:uppercase cv:tracking-wide cv:text-muted-foreground">
-        <span className="cv:truncate">{groupLabel}</span>
+      <div className="cv-well-header">
+        <span className="cv-ec-truncate">{groupLabel}</span>
         {badge ? (
-          <span className="cv:truncate cv:rounded-sm cv:bg-muted cv:px-1 cv:py-px cv:text-[9px] cv:normal-case cv:text-muted-foreground">
+          <span className="cv-well-badge">
             {badge}
           </span>
         ) : null}
         {well.optional && placed.length === 0 ? (
-          <span className="cv:normal-case cv:text-muted-foreground/70">(optional)</span>
+          <span className="cv-well-optional">(optional)</span>
         ) : null}
       </div>
 
-      {control ? <div className="cv:pb-0.5">{control}</div> : null}
+      {control ? <div className="cv-well-control">{control}</div> : null}
 
-      <div className={cn("cv:flex cv:gap-1", vertical ? "cv:flex-col" : "cv:flex-row cv:flex-wrap cv:items-center")}>
+      <div className={cn("cv-well-fields", vertical ? "cv-well-fields--v" : "cv-well-fields--h")}>
         {placed.map((member, i) => (
           <FieldPill
             key={member}
@@ -138,7 +159,7 @@ export function WellGroup({
             member={member}
             option={optionFor(member)}
             resolvedColor={colorFor(member)}
-            className={vertical ? "cv:w-full" : undefined}
+            className={vertical ? "cv-field-pill--full" : undefined}
             reorder={
               many && total > 1 && !disableReorder
                 ? {
@@ -154,8 +175,10 @@ export function WellGroup({
         {showAdd ? addSlot : null}
       </div>
 
+      {startHint ? <p className="cv-ec-hint cv-well-start-hint">{startHint}</p> : null}
+
       {note ? (
-        <p className="cv:px-0.5 cv:text-[10px] cv:leading-tight cv:text-muted-foreground/80">{note}</p>
+        <p className="cv-ec-hint cv-well-note">{note}</p>
       ) : null}
     </div>
   );

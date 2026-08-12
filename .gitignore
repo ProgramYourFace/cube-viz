@@ -5,3 +5,8 @@ node_modules
 .env.*
 !.env.example
 .vite
+dist-playground/
+preview-*.png
+
+# Screenshot artifacts produced by `bun run shots` (uploaded by CI, never committed).
+screenshots/

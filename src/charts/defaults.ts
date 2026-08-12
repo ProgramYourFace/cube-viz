@@ -23,12 +23,11 @@ import {
 
 /* ─────────────────────── shared familyOptions sub-schemas ────────────────── */
 
-/** A reference line on the x or y axis (bar/line/area/scatter/combo). */
+/** A reference line on the x or y axis (bar/line/area/scatter). */
 export const ReferenceLineOptSchema = z
   .object({
     axis: z.enum(["x", "y"]),
     value: z.number(),
-    side: z.enum(["left", "right"]).optional(), // combo dual-axis: which y-scale
     label: z.string().optional(),
     colorToken: ChartColorTokenSchema.optional(),
   })
@@ -42,10 +41,6 @@ const ComparePreviousSchema = z.boolean().optional();
 
 export const BarFamilyOptionsSchema = z
   .object({
-    barRadius: z.number().optional(),
-    barCategoryGap: z.union([z.number(), z.string()]).optional(),
-    barGap: z.union([z.number(), z.string()]).optional(),
-    maxBarSize: z.number().optional(),
     showValueLabels: z.boolean().optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
     comparePrevious: ComparePreviousSchema,
@@ -58,7 +53,6 @@ const CurveSchema = z.enum(["linear", "monotone", "step", "natural"]);
 export const LineFamilyOptionsSchema = z
   .object({
     curve: CurveSchema.optional(),
-    strokeWidth: z.number().optional(),
     dots: z.union([z.boolean(), z.literal("active")]).optional(),
     connectNulls: z.boolean().optional(),
     chrome: z.enum(["full", "none"]).optional(),
@@ -72,8 +66,6 @@ export type LineFamilyOptions = z.infer<typeof LineFamilyOptionsSchema>;
 export const AreaFamilyOptionsSchema = z
   .object({
     curve: CurveSchema.optional(),
-    fillOpacity: z.number().optional(),
-    strokeWidth: z.number().optional(),
     connectNulls: z.boolean().optional(),
     dots: z.boolean().optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
@@ -85,9 +77,6 @@ export type AreaFamilyOptions = z.infer<typeof AreaFamilyOptionsSchema>;
 export const PieFamilyOptionsSchema = z
   .object({
     innerRadiusPct: z.number().optional(),
-    outerRadiusPct: z.number().optional(),
-    padAngle: z.number().optional(),
-    cornerRadius: z.number().optional(),
     showLabels: z.enum(["none", "value", "percent", "name"]).optional(),
     centerLabel: z
       .object({ value: z.string().optional(), label: z.string().optional() })
@@ -103,9 +92,7 @@ export const ScatterFamilyOptionsSchema = z
     x: MemberSchema,
     y: MemberSchema,
     size: MemberSchema.optional(),
-    sizeRange: z.tuple([z.number(), z.number()]).optional(),
     groupBy: MemberSchema.optional(),
-    shape: z.enum(["circle", "square", "triangle", "diamond"]).optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
   })
   .strict();
@@ -150,7 +137,6 @@ export const KpiFamilyOptionsSchema = z
       })
       .strict()
       .optional(),
-    icon: z.string().optional(),
   })
   .strict();
 export type KpiFamilyOptions = z.infer<typeof KpiFamilyOptionsSchema>;
@@ -185,44 +171,28 @@ export const TableFamilyOptionsSchema = z
   .object({
     columns: z.array(TableColumnOptSchema).optional(),
     pageSize: z.number().optional(),
-    sortable: z.boolean().optional(),
-    stickyHeader: z.boolean().optional(),
-    rowHeight: z.enum(["compact", "default"]).optional(),
-    showRowNumbers: z.boolean().optional(),
     conditionalFormat: z.array(CondFormatRuleSchema).optional(),
+    // REMOVED in v4 — `sortable`, `stickyHeader`, `showRowNumbers` and `rowHeight`.
+    // Sorting and a pinned header are what makes a table a table, so they are always
+    // on; density follows the row count; row numbers say nothing about the data.
   })
   .strict();
 export type TableFamilyOptions = z.infer<typeof TableFamilyOptionsSchema>;
 
-export const ComboSeriesOptSchema = z
+/**
+ * `heatmap` options — deliberately minimal (simplicity over knobs). The grid's
+ * members (x dimension, y dimension, value measure) live in the generic `mapping`
+ * envelope (category = x, pivot = y, value = measure), NOT here.
+ */
+export const HeatmapFamilyOptionsSchema = z
   .object({
-    member: MemberSchema,
-    render: z.enum(["bar", "line", "area"]),
-    axis: z.enum(["left", "right"]).optional(),
+    /** The single-hue ramp token; cells shade light→dark within this hue. */
     colorToken: ChartColorTokenSchema.optional(),
-    stackId: z.string().optional(),
-    curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
-    dots: z.boolean().optional(),
-    label: z.string().optional(),
+    // REMOVED in v4 — `showValues`. The renderer prints in-cell numbers when the grid
+    // is small enough to read them (≤100 cells), which is the answer every time.
   })
   .strict();
-export type ComboSeriesOpt = z.infer<typeof ComboSeriesOptSchema>;
-
-export const ComboFamilyOptionsSchema = z
-  .object({
-    series: z.array(ComboSeriesOptSchema),
-    referenceLines: z.array(ReferenceLineOptSchema).optional(),
-    // Global render options applied per render-type (line/area get curve+dots+connectNulls
-    // +strokeWidth; area gets fillOpacity) — so combo isn't stuck on hard-coded defaults.
-    curve: CurveSchema.optional(),
-    dots: z.boolean().optional(),
-    connectNulls: z.boolean().optional(),
-    strokeWidth: z.number().optional(),
-    fillOpacity: z.number().optional(),
-    barRadius: z.number().optional(),
-  })
-  .strict();
-export type ComboFamilyOptions = z.infer<typeof ComboFamilyOptionsSchema>;
+export type HeatmapFamilyOptions = z.infer<typeof HeatmapFamilyOptionsSchema>;
 
 /**
  * The builtin family → `familyOptions` zod schemas (validated AFTER default-merge).
@@ -237,9 +207,9 @@ export const BUILTIN_FAMILY_OPTION_SCHEMAS = {
   area: AreaFamilyOptionsSchema,
   pie: PieFamilyOptionsSchema,
   scatter: ScatterFamilyOptionsSchema,
+  heatmap: HeatmapFamilyOptionsSchema,
   kpi: KpiFamilyOptionsSchema,
   table: TableFamilyOptionsSchema,
-  combo: ComboFamilyOptionsSchema,
 } satisfies Record<BuiltinChartFamily, z.ZodTypeAny>;
 
 /* ──────────────────────────────── defaults ───────────────────────────────── */
@@ -264,8 +234,6 @@ export const BUILTIN_DEFAULTS = {
       format: { kind: "auto" },
     },
     familyOptions: {
-      barRadius: 4,
-      maxBarSize: 64,
       showValueLabels: false,
     } satisfies BarFamilyOptions,
   },
@@ -277,7 +245,6 @@ export const BUILTIN_DEFAULTS = {
     },
     familyOptions: {
       curve: "monotone",
-      strokeWidth: 2,
       dots: "active",
       connectNulls: false,
       chrome: "full",
@@ -294,20 +261,18 @@ export const BUILTIN_DEFAULTS = {
     },
     familyOptions: {
       curve: "monotone",
-      fillOpacity: 0.4,
-      strokeWidth: 2,
       connectNulls: false,
     } satisfies AreaFamilyOptions,
   },
   pie: {
     envelope: {
-      legend: { show: true, position: "right" },
+      // Was `"right"`, which the renderer has always drawn at the bottom.
+      legend: { show: true, position: "bottom" },
       tooltip: { show: true, indicator: "dot" },
       format: { kind: "auto" },
     },
     familyOptions: {
       innerRadiusPct: 0,
-      outerRadiusPct: 80,
       showLabels: "percent",
       maxSlices: 8,
     } satisfies PieFamilyOptions,
@@ -319,33 +284,28 @@ export const BUILTIN_DEFAULTS = {
       format: { kind: "auto" },
     },
     // x/y are required from the spec, so they are absent from the default skeleton.
-    familyOptions: {
-      shape: "circle",
-      sizeRange: [40, 400],
-    } as Record<string, unknown>,
+    familyOptions: {} as Record<string, unknown>,
   },
   kpi: {
     envelope: { format: { kind: "auto" } },
     // measure is required from the spec.
     familyOptions: { display: "number" } as Record<string, unknown>,
   },
+  heatmap: {
+    // No legend envelope: the heatmap has no series legend (color encodes value).
+    envelope: {
+      tooltip: { show: true, indicator: "dot" },
+      format: { kind: "auto" },
+    },
+    familyOptions: {
+      colorToken: "chart-1",
+    } satisfies HeatmapFamilyOptions,
+  },
   table: {
     envelope: {},
     familyOptions: {
       pageSize: 25,
-      sortable: true,
-      stickyHeader: true,
-      rowHeight: "default",
     } satisfies TableFamilyOptions,
-  },
-  combo: {
-    envelope: {
-      legend: { show: true, position: "bottom" },
-      tooltip: { show: true, indicator: "dot" },
-      format: { kind: "auto" },
-    },
-    // series is required from the spec; an empty combo renders the empty state.
-    familyOptions: { series: [] } satisfies ComboFamilyOptions,
   },
 } satisfies Record<BuiltinChartFamily, FamilyDefault>;
 

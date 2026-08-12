@@ -1,33 +1,36 @@
-import type * as React from "react";
-import { useId } from "react";
-import { Area, AreaChart, PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
+import * as React from "react";
+import { areaY, defineChart, lineY } from "@tanstack/charts";
+import { polar, radialArc } from "@tanstack/charts/polar";
 import { ArrowDown, ArrowUp, CalendarRange, Minus } from "lucide-react";
 
-import { cn } from "@/components/ui/utils";
-import { ChartContainer } from "@/components/ui/chart";
-
-import type { ChartConfig } from "@/components/ui/chart";
 import type { CubeQuery } from "@/spec";
-import type { NormalizedSeries } from "@/adapter/types";
+import type { NormalizedChartData, NormalizedSeries } from "@/adapter/types";
 import type { ChartComponentProps } from "./types";
 import type { KpiFamilyOptions } from "./defaults";
+import { buildSeriesRows, chartCurve, CvChart, pointScale, valueScale } from "./tanstack";
 
-/** Tailwind text-color class for a change direction, shared by the delta chip + the
- *  sparkline area (via `currentColor`) so the number and trend always agree. */
+/** Direction kind for a change, shared by the delta chip + the sparkline area
+ *  (via `currentColor`) so the number and trend always agree. */
 type DirKind = "good" | "bad" | "flat";
 function directionKind(diff: number, goodDirection: "up" | "down"): DirKind {
   if (!Number.isFinite(diff) || diff === 0) return "flat";
   return diff > 0 === (goodDirection === "up") ? "good" : "bad";
 }
-function directionClass(kind: DirKind): string {
-  return kind === "flat" ? "text-muted-foreground" : kind === "good" ? "text-emerald-600" : "text-destructive";
+/** CSS trend-color modifier (sets `color:`; marks paint with `currentColor`). */
+function trendClass(kind: DirKind): string {
+  return `cv-kpi-trend--${kind}`;
 }
 
 /**
  * `kpi` — covers KPI/Number/Comparison + the folded-in radial gauge
- * (docs/02-chart-options.md §2.6). `display:"number"` is a styled card (NOT
- * Recharts) with an optional comparison delta chip; `display:"gauge"` is a
- * Recharts RadialBarChart. `sparkline` reuses the line family with chrome:"none".
+ * (docs/02-chart-options.md §2.6). `display:"number"` is a styled card (NOT a
+ * chart) with an optional comparison delta chip; `display:"gauge"` is a TanStack
+ * polar radialArc composition. `sparkline` is a chrome-less inline areaY chart.
+ *
+ * There is no `icon` option: painting an arbitrary lucide icon NAME would mean
+ * bundling lucide's entire icon map into every consumer. A host that wants one puts
+ * it in its own widget chrome. (Removed from the schema in v3 — it had never been
+ * rendered by any version of this library; docs/02-chart-options.md §7.8.)
  */
 export function KpiFamily(props: ChartComponentProps): React.ReactElement {
   const { data, options, format } = props;
@@ -86,22 +89,17 @@ function NumberKpi({
   // The trend area is colored by the SAME good/bad direction as the delta: prefer the
   // comparison change, else the sparkline's own net movement across the range.
   const trendDiff = delta ? delta.diff : spark ? netChange(spark) : 0;
-  const dirClass = directionClass(directionKind(trendDiff, goodDirection));
+  const dirClass = trendClass(directionKind(trendDiff, goodDirection));
 
   // The widget chrome already frames the KPI + supplies the title, so this is just the
   // big number, the comparison chip, and an optional trend footer — CENTERED and sized to
-  // the cell. `container-type: size` lets the headline scale via container-query units so
-  // it fills whatever cell the KPI lands in (small tile → small number, big tile → big).
+  // the cell. `container-type: size` (in .cv-kpi) lets the headline scale via
+  // container-query units so it fills whatever cell the KPI lands in (small tile →
+  // small number, big tile → big).
   return (
-    <div className="cv:flex cv:h-full cv:w-full cv:flex-col" style={{ containerType: "size" }}>
-      <div className="cv:flex cv:min-h-0 cv:flex-1 cv:flex-col cv:items-center cv:justify-center cv:gap-1.5 cv:overflow-hidden cv:px-3 cv:text-center">
-        <span
-          className={cn(
-            "cv:max-w-full cv:font-bold cv:leading-none cv:tabular-nums",
-            value === null ? "cv:text-muted-foreground" : "cv:text-foreground",
-          )}
-          style={{ fontSize: "clamp(1.25rem, min(16cqw, 30cqh), 3.5rem)", whiteSpace: "nowrap" }}
-        >
+    <div className="cv-kpi">
+      <div className="cv-kpi-body">
+        <span className={value === null ? "cv-kpi-value cv-kpi-value--empty" : "cv-kpi-value"}>
           {value === null ? "—" : fmt(value)}
         </span>
         {comparisonOn &&
@@ -114,8 +112,8 @@ function NumberKpi({
           ))}
       </div>
       {hasSpark && (
-        <div className="cv:shrink-0 cv:px-1 cv:pb-1">
-          <KpiSparkline series={spark} categories={data.categories} colorClass={dirClass} />
+        <div className="cv-kpi-sparkline-wrap">
+          <KpiSparkline data={data} series={spark} colorClass={dirClass} />
         </div>
       )}
     </div>
@@ -145,11 +143,11 @@ function comparisonNeedsDateRange(query: CubeQuery, fo: KpiFamilyOptions): boole
 function ComparisonSetupHint(): React.ReactElement {
   return (
     <span
-      className="cv:inline-flex cv:max-w-full cv:items-center cv:gap-1 cv:rounded-full cv:bg-amber-500/10 cv:px-2 cv:py-0.5 cv:text-xs cv:font-medium cv:text-amber-600"
+      className="cv-kpi-chip cv-kpi-hint"
       title="Comparison needs a date range. Open “Time, range & display” on the value and set a Date range so the prior period can be computed."
     >
-      <CalendarRange className="cv:size-3 cv:shrink-0" />
-      <span className="cv:truncate">set a date range to compare</span>
+      <CalendarRange />
+      <span className="cv-kpi-chip-label">set a date range to compare</span>
     </span>
   );
 }
@@ -161,53 +159,73 @@ function ComparisonSetupHint(): React.ReactElement {
  */
 function NoComparison(): React.ReactElement {
   return (
-    <span
-      className="cv:inline-flex cv:max-w-full cv:items-center cv:gap-1 cv:rounded-full cv:bg-muted cv:px-2 cv:py-0.5 cv:text-xs cv:font-medium cv:text-muted-foreground"
-      title="No data in the comparison period"
-    >
-      <Minus className="cv:size-3 cv:shrink-0" />
-      <span className="cv:truncate">no prior data</span>
+    <span className="cv-kpi-chip cv-kpi-nodata" title="No data in the comparison period">
+      <Minus />
+      <span className="cv-kpi-chip-label">no prior data</span>
     </span>
   );
 }
 
-/** The inline area trend footer. Stroke + a vertical fade fill inherit `currentColor` from
- *  `colorClass`, so the trend always matches the delta's good/bad color. The gradient id is
- *  per-instance (useId) so multiple KPIs on a board don't collide on a shared <defs> id. */
+/**
+ * The inline area trend footer: a chrome-less areaY + boundary stroke painted with
+ * `currentColor`, so the trend always matches the delta's good/bad color (set by
+ * `colorClass` on the chart container). No axes/guides/tooltip/keyboard — it's a
+ * decoration, not an explorable chart — and no entrance animation (live tiles).
+ */
 function KpiSparkline({
+  data,
   series,
-  categories,
   colorClass,
 }: {
+  data: NormalizedChartData;
   series: NormalizedSeries;
-  categories: (string | number)[];
   colorClass: string;
 }): React.ReactElement {
-  const gradId = useId();
-  const rows = categories.map((c, i) => ({ x: typeof c === "number" ? c : String(c), v: series.data[i] ?? null }));
+  const definition = React.useMemo(() => {
+    // connectNulls (the old sparkline behavior): drop null rows so the path bridges gaps.
+    const rows = buildSeriesRows(data, { series: [series], skipNull: true });
+    const y = valueScale(undefined);
+    return defineChart({
+      marks: [
+        // The area's own stroke outlines the WHOLE closed path (baseline and
+        // sides included) — a boxed look. Fill-only area + a lineY overlay
+        // strokes just the top edge, matching the old sparkline.
+        areaY(rows, {
+          id: "cv-kpi-spark",
+          x: "cat",
+          y2: "value",
+          y1: 0,
+          key: "i",
+          curve: chartCurve("monotone"),
+          fill: "currentColor",
+          fillOpacity: 0.15,
+        }),
+        lineY(rows, {
+          id: "cv-kpi-spark-line",
+          x: "cat",
+          y: "value",
+          key: "i",
+          curve: chartCurve("monotone"),
+          stroke: "currentColor",
+          strokeWidth: 1.75,
+        }),
+      ],
+      x: { scale: pointScale, axis: false },
+      y: { scale: y.scale, nice: y.nice, axis: false },
+      guides: false,
+      margin: { top: 3, right: 0, bottom: 0, left: 0 },
+      keyboard: false,
+    });
+  }, [data, series]);
+
   return (
-    <div className={cn("cv:h-12 cv:w-full", colorClass)}>
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={rows} margin={{ top: 3, right: 0, bottom: 0, left: 0 }}>
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="currentColor" stopOpacity={0.28} />
-              <stop offset="100%" stopColor="currentColor" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <Area
-            dataKey="v"
-            type="monotone"
-            stroke="currentColor"
-            strokeWidth={1.75}
-            fill={`url(#${gradId})`}
-            dot={false}
-            isAnimationActive={false}
-            connectNulls
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
+    <CvChart
+      definition={definition}
+      ariaLabel={`${series.label || series.key} trend`}
+      sparkline
+      animateInitial={false}
+      className={`cv-kpi-sparkline ${colorClass}`}
+    />
   );
 }
 
@@ -243,26 +261,32 @@ function DeltaChip({
     fo.comparison?.showAsPercent && delta.pct !== null
       ? `${delta.pct > 0 ? "+" : ""}${(delta.pct * 100).toFixed(1)}%`
       : `${delta.diff > 0 ? "+" : ""}${fmt(delta.diff)}`;
+  const mod = flat ? "cv-kpi-delta--flat" : isGood ? "cv-kpi-delta--good" : "cv-kpi-delta--bad";
 
   return (
     <span
-      className={cn(
-        "cv:inline-flex cv:max-w-full cv:items-center cv:gap-1 cv:rounded-full cv:px-2 cv:py-0.5 cv:text-sm cv:font-semibold cv:leading-none cv:tabular-nums",
-        flat
-          ? "cv:bg-muted cv:text-muted-foreground"
-          : isGood
-            ? "cv:bg-emerald-500/10 cv:text-emerald-600"
-            : "cv:bg-destructive/10 cv:text-destructive",
-      )}
+      className={`cv-kpi-chip cv-kpi-delta ${mod}`}
       title={`vs prior period: ${delta.diff > 0 ? "+" : ""}${fmt(delta.diff)}`}
     >
-      <Icon className="cv:size-3.5 cv:shrink-0" />
-      <span className="cv:truncate">{text}</span>
+      <Icon />
+      <span className="cv-kpi-chip-label">{text}</span>
     </span>
   );
 }
 
 /* ───────────────────────────────── gauge ─────────────────────────────────── */
+
+/**
+ * Gauge sweep geometry — mirrors the old Recharts RadialBarChart exactly.
+ * Recharts used startAngle=210° → endAngle=-30° (degrees, 0° at 3 o'clock,
+ * counter-clockwise positive): a 240° clockwise sweep from lower-left, over the
+ * top, to lower-right, leaving a 120° opening at the bottom. In TanStack's polar
+ * convention (radians, 0 at 12 o'clock, clockwise positive) the same arc is
+ * -120° → +120°, i.e. -2π/3 → +2π/3.
+ */
+const GAUGE_START = -(2 * Math.PI) / 3;
+const GAUGE_END = (2 * Math.PI) / 3;
+const GAUGE_SWEEP = GAUGE_END - GAUGE_START; // 240° in radians
 
 function GaugeKpi({
   value,
@@ -286,33 +310,64 @@ function GaugeKpi({
   const clamped = value === null ? min : Math.max(min, Math.min(max, value));
   const colorToken = (value === null ? undefined : thresholdColor(value, fo)) ?? "chart-1";
 
-  const chartData = [{ name: label, value: clamped, fill: `var(--${colorToken})` }];
-  const config: ChartConfig = { value: { label, color: `var(--${colorToken})` } };
+  const definition = React.useMemo(() => {
+    // value → angle: linear fraction of [min, max] mapped onto the 240° sweep.
+    const fraction = (clamped - min) / (max - min);
+    const valueEnd = GAUGE_START + fraction * GAUGE_SWEEP;
+    // The ring occupies 70%→100% of the layout radius (the old innerRadius/outerRadius),
+    // with rounded arc ends like the old cornerRadius={8}.
+    const innerRadius = ({ radius }: { radius: number }) => radius * 0.7;
+    const track = radialArc([{ startAngle: GAUGE_START, endAngle: GAUGE_END }], {
+      id: "cv-gauge-track",
+      innerRadius,
+      cornerRadius: 8,
+      fill: "var(--muted)",
+    });
+    const marks =
+      fraction > 0
+        ? [
+            track,
+            radialArc([{ startAngle: GAUGE_START, endAngle: valueEnd }], {
+              id: "cv-gauge-value",
+              innerRadius,
+              cornerRadius: 8,
+              fill: `var(--${colorToken})`,
+            }),
+          ]
+        : [track];
+    return defineChart({
+      marks: [
+        polar({
+          id: "cv-gauge",
+          startAngle: GAUGE_START,
+          endAngle: GAUGE_END,
+          marks,
+        }),
+      ],
+      guides: false,
+      margin: 0,
+      keyboard: false,
+    });
+  }, [min, max, clamped, colorToken]);
 
   return (
-    <div className="cv:relative cv:flex cv:h-full cv:w-full cv:flex-col cv:items-center cv:justify-center">
-      <ChartContainer config={config} className="cv:aspect-square cv:min-h-[180px] cv:w-full">
-        <RadialBarChart
-          data={chartData}
-          startAngle={210}
-          endAngle={-30}
-          innerRadius="70%"
-          outerRadius="100%"
-        >
-          <PolarAngleAxis type="number" domain={[min, max]} tick={false} axisLine={false} />
-          <RadialBar dataKey="value" background cornerRadius={8} isAnimationActive={false} />
-        </RadialBarChart>
-      </ChartContainer>
-      <div className="cv:pointer-events-none cv:absolute cv:inset-0 cv:flex cv:flex-col cv:items-center cv:justify-center">
+    <div className="cv-kpi-gauge">
+      <CvChart
+        definition={definition}
+        ariaLabel={label}
+        animateInitial={false}
+        minHeight={180}
+        className="cv-kpi-gauge-chart"
+      />
+      <div className="cv-kpi-gauge-center">
         <span
-          className={cn(
-            "cv:text-2xl cv:font-bold cv:tabular-nums",
-            value === null ? "cv:text-muted-foreground" : "cv:text-foreground",
-          )}
+          className={
+            value === null ? "cv-kpi-gauge-value cv-kpi-gauge-value--empty" : "cv-kpi-gauge-value"
+          }
         >
           {value === null ? "—" : fmt(value)}
         </span>
-        <span className="cv:text-xs cv:text-muted-foreground">{label}</span>
+        <span className="cv-kpi-gauge-label">{label}</span>
       </div>
     </div>
   );

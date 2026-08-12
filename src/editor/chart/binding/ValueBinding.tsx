@@ -14,6 +14,12 @@ export interface ValueBindingProps<T> {
   onChange: (next: T | VarRef | undefined) => void;
   /** Render the FIXED-value editor (a calendar, granularity select, text input…). */
   renderFixed: (value: T | undefined, set: (v: T | undefined) => void) => React.ReactNode;
+  /**
+   * Id of the caption that names this value (e.g. the row's "Value" / "Date range"
+   * label). Set it and the whole Value|Variable cluster becomes a NAMED group, so the
+   * mode buttons are not announced as three unrelated controls.
+   */
+  labelId?: string;
 }
 
 /**
@@ -22,7 +28,13 @@ export interface ValueBindingProps<T> {
  * supplied fixed editor. Switching to "Variable" keeps the current literal live until
  * a variable is picked (so the preview never blanks mid-bind).
  */
-export function ValueBinding<T>({ kind, value, onChange, renderFixed }: ValueBindingProps<T>): React.ReactElement {
+export function ValueBinding<T>({
+  kind,
+  value,
+  onChange,
+  renderFixed,
+  labelId,
+}: ValueBindingProps<T>): React.ReactElement {
   const bound = isVarRef(value);
   const [mode, setMode] = React.useState<"fixed" | "var">(bound ? "var" : "fixed");
 
@@ -32,14 +44,11 @@ export function ValueBinding<T>({ kind, value, onChange, renderFixed }: ValueBin
   }, [bound]);
 
   const seg = (active: boolean): string =>
-    cn(
-      "cv:flex-1 cv:rounded-sm cv:px-2 cv:py-1 cv:text-center cv:transition-colors",
-      active ? "cv:bg-background cv:font-medium cv:shadow-sm" : "cv:text-muted-foreground cv:hover:text-foreground",
-    );
+    cn("cv-bind-seg", active && "cv-bind-seg--active");
 
   return (
-    <div className="cv:flex cv:flex-col cv:gap-1.5">
-      <div className="cv:flex cv:rounded-md cv:bg-muted cv:p-0.5 cv:text-[11px]">
+    <div className="cv-bind" {...(labelId ? { role: "group", "aria-labelledby": labelId } : {})}>
+      <div className="cv-bind-toggle">
         <button
           type="button"
           className={seg(mode === "fixed")}

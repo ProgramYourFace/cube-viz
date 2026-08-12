@@ -1,193 +1,330 @@
-import type * as React from "react";
+import * as React from "react";
 import {
-  CartesianGrid,
-  Cell,
-  ReferenceLine,
-  Scatter,
-  ScatterChart,
-  XAxis,
-  YAxis,
-  ZAxis,
-} from "recharts";
+  colorLegend,
+  defineChart,
+  dot,
+  ruleX,
+  ruleY,
+  text,
+  type ChartColorOptions,
+  type ChartMark,
+  type ChartPoint,
+  type ChartTooltipContent,
+  type ChartValue,
+  type DotOptions,
+} from "@tanstack/charts";
+import { tooltip } from "@tanstack/charts/tooltip";
+import { scaleSqrt } from "d3-scale";
 
 import { DEFAULT_COLOR_RAMP } from "@/adapter";
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-
-import type { ChartConfig } from "@/components/ui/chart";
+import type { PointSelection } from "@/provider/interactions";
 import type { ChartComponentProps } from "./types";
 import type { ScatterFamilyOptions } from "./defaults";
-import { axisDomain, axisScale, legendAlign, legendDisplay, legendLayout, legendVerticalAlign } from "./_shared";
-
-type Point = { x: number | null; y: number | null; z?: number | null };
+import {
+  axisFormat,
+  axisTitle,
+  CvChart,
+  legendDisplay,
+  legendPlacement,
+  tooltipClassName,
+  valueScale,
+} from "./tanstack";
 
 /**
  * `scatter` — covers scatter + bubble (docs/02-chart-options.md §2.5). Its
- * mapping does NOT reduce to category+series: it consumes `raw.rows` and projects
- * {x,y,z} per point from members named in familyOptions. `size` ⇒ <ZAxis> bubble;
- * `groupBy` ⇒ one <Scatter> series per distinct value, each colored from the ramp.
+ * mapping does NOT reduce to category+series: it consumes `raw.rows` and
+ * projects {x,y,size} per point from members named in familyOptions. Both axes
+ * are QUANTITATIVE (valueScale), unlike the cartesian families' category axis.
+ * `size` ⇒ an `r` channel + sqrt radius scale (bubble); `groupBy` ⇒ the dot's
+ * z/color channel with a fixed domain→ramp-token mapping (first-seen order,
+ * mirroring the old per-group <Scatter> coloring).
+ *
+ * There is no point-SHAPE option: the `dot` mark draws one symbol, so groups are
+ * distinguished by color (and size, when bound). Bubble area range is app-level
+ * geometry from the theme, never a per-chart knob.
  */
-export function ScatterChartFamily({ data, options, format, editing }: ChartComponentProps): React.ReactElement {
+
+/** One valid raw observation projected to mark-ready form. */
+interface ScatterRow {
+  x: number;
+  y: number;
+  /** Bubble size value (null when the size member is unset/invalid for the row). */
+  size: number | null;
+  /** groupBy member value (undefined when ungrouped). */
+  group?: string;
+  /** Original raw-row index — stable scene/interaction identity. */
+  i: number;
+}
+
+export function ScatterChartFamily({
+  data,
+  options,
+  format,
+  theme,
+}: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as ScatterFamilyOptions;
   const ann = data.raw.annotation;
-  const rows = data.raw.rows;
 
-  // Without an x/y member every point projects to {x:null,y:null} and the chart
-  // mounts axes with zero plotted marks (rows are present, so the renderer's
-  // "No data" never fires). Guard with the shared muted empty-state chrome.
-  if (!fo.x || !fo.y) {
-    return (
-      <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
-        No data
-      </div>
-    );
+  // Axis/tooltip labels from the member annotation shortTitles (old-file logic).
+  const memberLabel = (m: string): string =>
+    ann?.measures[m]?.shortTitle ?? ann?.dimensions[m]?.shortTitle ?? m;
+  const xLabel = fo.x ? memberLabel(fo.x) : "x";
+  const yLabel = fo.y ? memberLabel(fo.y) : "y";
+  const sizeLabel = fo.size ? memberLabel(fo.size) : undefined;
+
+  const definition = React.useMemo(() => {
+    // Without x/y members every point is unprojectable; with members set but null
+    // for every row nothing survives the filter. Both cases fall through to the
+    // shared muted empty state below (rows exist, so the renderer's aggregate
+    // "No data" never fires — same guards as the Recharts version).
+    if (!fo.x || !fo.y) return null;
+    const rows = buildScatterRows(data.raw.rows, fo);
+    if (rows.length === 0) return null;
+
+    const grouped = Boolean(fo.groupBy);
+    // Distinct group values in first-seen order → ramp tokens, mirroring the old
+    // per-group series coloring (i-th group gets DEFAULT_COLOR_RAMP[i % 5]).
+    const groupValues: string[] = [];
+    if (grouped) {
+      for (const r of rows) {
+        if (r.group !== undefined && !groupValues.includes(r.group)) groupValues.push(r.group);
+      }
+    }
+
+    // Recharts' ZAxis range is symbol AREA (px²); the dot mark's rScale maps the
+    // raw size to a pixel RADIUS. Convert the configured area range to radii and
+    // let the factory infer the [0, max] domain from the r channel (sqrt keeps
+    // bubble AREA proportional to the value).
+    const [areaMin, areaMax] = theme.bubbleAreaRange;
+    const rMin = Math.sqrt(Math.max(areaMin, 0) / Math.PI);
+    const rMax = Math.sqrt(Math.max(areaMax, 0) / Math.PI);
+
+    const dotOptions: DotOptions<ScatterRow> = {
+      id: "cv-scatter",
+      x: "x",
+      y: "y",
+      key: "i",
+    };
+    // The envelope's `colors.ramp` orders the group palette (a scatter's "series" are
+    // its groupBy values). `colors.byKey` is keyed by SERIES key — scatter has no
+    // normalized series — so it does not apply (docs/02-chart-options.md §7.6).
+    const ramp = options.colors?.ramp?.length ? options.colors.ramp : DEFAULT_COLOR_RAMP;
+    if (grouped) {
+      dotOptions.z = "group";
+      dotOptions.color = "group";
+    } else {
+      dotOptions.fill = `var(--${ramp[0]})`;
+    }
+    // No point SHAPE knob: the `dot` mark draws one symbol. Groups are told apart by
+    // color (and size, when bound) — `shape` was removed from the schema in v3 because
+    // every value it accepted rendered as a circle anyway (docs/02-chart-options.md §7.7).
+    if (fo.size) {
+      // Null sizes map to the raw 0 → the minimum radius, so a row without a
+      // size still plots (Recharts rendered those at the range minimum too).
+      dotOptions.r = (d: ScatterRow) => d.size ?? 0;
+      dotOptions.rScale = { scale: () => scaleSqrt().range([rMin, rMax]) };
+    } else {
+      dotOptions.r = 4;
+    }
+
+    const marks: ChartMark[] = [dot(rows, dotOptions)];
+
+    // Reference lines: both axes are numeric here, so plain ruleX/ruleY at the
+    // value — no category reprojection (that convention belongs to the
+    // band/point category axes of the cartesian families).
+    fo.referenceLines?.forEach((r, k) => {
+      const stroke = `var(--${r.colorToken ?? "muted-foreground"})`;
+      const style = { stroke, strokeWidth: 1.25, strokeDasharray: "4 4" } as const;
+      if (r.axis === "y") {
+        marks.push(ruleY([r.value], { id: `cv-ref-${k}`, ...style }));
+        if (r.label) {
+          marks.push(
+            text([{ v: r.value, label: r.label }], {
+              id: `cv-ref-label-${k}`,
+              y: "v",
+              text: "label",
+              fill: stroke,
+              fontSize: 10,
+              dy: -6,
+              anchor: "start",
+            }),
+          );
+        }
+      } else {
+        marks.push(ruleX([r.value], { id: `cv-ref-${k}`, ...style }));
+        if (r.label) {
+          marks.push(
+            text([{ v: r.value, label: r.label }], {
+              id: `cv-ref-label-${k}`,
+              x: "v",
+              text: "label",
+              fill: stroke,
+              fontSize: 10,
+              dy: 8,
+              anchor: "start",
+            }),
+          );
+        }
+      }
+    });
+
+    // Fixed domain→range color mapping (never inferred), so a filtered group
+    // never repaints the survivors — same rule as the seam's seriesColor.
+    let color: ChartColorOptions | undefined;
+    if (grouped) {
+      color = {
+        domain: groupValues,
+        range: groupValues.map((_, i) => `var(--${ramp[i % ramp.length]})`),
+      };
+      if (legendDisplay(options)) {
+        color.legend = colorLegend({ placement: legendPlacement(options.legend?.position) });
+      }
+    }
+
+    const xTitle = axisTitle(options.axes?.x, xLabel);
+    const yTitle = axisTitle(options.axes?.y, yLabel);
+    const xs = valueScale(options.axes?.x);
+    const ys = valueScale(options.axes?.y);
+    const xMember = fo.x;
+    const yMember = fo.y;
+    const sizeMember = fo.size;
+
+    return defineChart({
+      marks,
+      x: {
+        scale: xs.scale,
+        nice: xs.nice,
+        grid: true,
+        axis: options.axes?.x?.hide
+          ? false
+          : {
+              label: xTitle,
+              // Both scatter axes are quantitative, so each honors its own
+              // `tickFormat` FormatOptions override.
+              ticks: {
+                format: (v: number) => axisFormat(format, options.axes?.x).value(v, xMember, "axis"),
+              },
+            },
+      },
+      y: {
+        scale: ys.scale,
+        nice: ys.nice,
+        grid: true,
+        axis: options.axes?.y?.hide
+          ? false
+          : {
+              label: yTitle,
+              ticks: {
+                format: (v: number) => axisFormat(format, options.axes?.y).value(v, yMember, "axis"),
+              },
+            },
+      },
+      color,
+      // focus: default nearest-point (no mode override) with the default finite
+      // maxFocusDistance — a scatter tooltip should track the pointer's dot, not
+      // snap across the whole plot like the group-x cartesian families.
+      tooltip:
+        options.tooltip?.show === false
+          ? undefined
+          : {
+              use: tooltip,
+              className: tooltipClassName(options.tooltip?.indicator),
+              // Structured content like cubeTooltip, but written inline: the
+              // focused rows here are raw ScatterRows, not SeriesRows — title is
+              // the group value (omitted when ungrouped), one row per member.
+              content: (
+                untypedPoints: readonly ChartPoint<unknown, ChartValue, ChartValue>[],
+              ): ChartTooltipContent => {
+                const points = untypedPoints as readonly ChartPoint<
+                  ScatterRow,
+                  ChartValue,
+                  ChartValue
+                >[];
+                const p = points[0];
+                if (!p) return { rows: [] };
+                const d = p.datum;
+                const tooltipRows = [
+                  { label: xLabel, value: format.value(d.x, xMember, "tooltip") },
+                  { label: yLabel, value: format.value(d.y, yMember, "tooltip") },
+                ];
+                if (sizeMember) {
+                  tooltipRows.push({
+                    label: sizeLabel ?? sizeMember,
+                    value: format.value(d.size, sizeMember, "tooltip"),
+                  });
+                }
+                return { title: d.group, color: p.color, rows: tooltipRows };
+              },
+            },
+      keyboard: true,
+    });
+  }, [data, options, format, fo, theme, xLabel, yLabel, sizeLabel]);
+
+  // Scatter has NO category axis, so the shared SeriesRow click contract does not
+  // apply: the only dimension a point stands for is its `groupBy` value. Ungrouped
+  // bubbles carry no member at all and report nothing (a blank click still clears).
+  const groupBy = fo.groupBy;
+  const resolveSelection = (
+    point: ChartPoint<unknown, ChartValue, ChartValue> | null,
+  ): PointSelection | null => {
+    if (!point || !groupBy) return null;
+    const group = (point.datum as ScatterRow | undefined)?.group;
+    return group === undefined ? null : { member: groupBy, value: group, label: group };
+  };
+
+  if (!definition) {
+    return <div style={EMPTY_STYLE}>No data</div>;
   }
-
-  // The scatter point keys (x/y/z) map back to their Cube members for formatting.
-  const memberForKey: Record<string, string | undefined> = { x: fo.x, y: fo.y, z: fo.size };
-
-  const xLabel = ann?.measures[fo.x]?.shortTitle ?? ann?.dimensions[fo.x]?.shortTitle ?? fo.x;
-  const yLabel = ann?.measures[fo.y]?.shortTitle ?? ann?.dimensions[fo.y]?.shortTitle ?? fo.y;
-
-  // Axis titles: an explicit override (typed on the chart) wins, else the auto member
-  // label; `labelHide` blanks it. Mirrors resolvedAxisLabels for the cartesian families.
-  const xTitle = options.axes?.x?.labelHide ? undefined : (options.axes?.x?.label ?? xLabel);
-  const yTitle = options.axes?.y?.labelHide ? undefined : (options.axes?.y?.label ?? yLabel);
-
-  // Build one or many series depending on groupBy.
-  const groups = groupRows(rows, fo);
-
-  // With x/y members SET but pointing at measures that are null for every row, every
-  // point projects to {x:null,y:null}; Recharts drops null-coordinate marks and mounts
-  // an axes-only blank. Rows exist, so ChartRenderer's "No data" never fires — guard
-  // here with the shared muted empty-state chrome (mirrors pie's local guard).
-  if (!groups.some((g) => g.points.some((p) => Number.isFinite(p.x) && Number.isFinite(p.y)))) {
-    return (
-      <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
-        No data
-      </div>
-    );
-  }
-
-  const config: ChartConfig = {};
-  groups.forEach((g, i) => {
-    config[g.key] = { label: g.label, color: `var(--${DEFAULT_COLOR_RAMP[i % DEFAULT_COLOR_RAMP.length]})` };
-  });
 
   return (
-    <ChartContainer config={config} className="cv:h-full cv:w-full cv:min-h-[200px]">
-      <ScatterChart accessibilityLayer margin={{ top: 12, right: 16, bottom: 24, left: 12 }}>
-        <CartesianGrid />
-        <XAxis
-          type="number"
-          dataKey="x"
-          name={xLabel}
-          hide={options.axes?.x?.hide}
-          scale={axisScale(options.axes?.x)}
-          domain={axisDomain(options.axes?.x)}
-          tickFormatter={(v: number) => format.value(v, fo.x, "axis")}
-          label={xTitle ? { value: xTitle, position: "insideBottom", offset: -12 } : undefined}
-        />
-        <YAxis
-          type="number"
-          dataKey="y"
-          name={yLabel}
-          hide={options.axes?.y?.hide}
-          scale={axisScale(options.axes?.y)}
-          domain={axisDomain(options.axes?.y)}
-          tickFormatter={(v: number) => format.value(v, fo.y, "axis")}
-          label={yTitle ? { value: yTitle, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } } : undefined}
-        />
-        {fo.size && <ZAxis type="number" dataKey="z" range={fo.sizeRange ?? [40, 400]} name={fo.size} />}
-        {options.tooltip?.show !== false && (
-          <ChartTooltip
-            cursor={{ strokeDasharray: "3 3" }}
-            content={
-              <ChartTooltipContent
-                indicator={options.tooltip?.indicator ?? "dot"}
-                valueFormatter={(value, item) => {
-                  const dk = item?.dataKey;
-                  const member =
-                    typeof dk === "string" ? memberForKey[dk] : undefined;
-                  return format.value(value as number | string | null | undefined, member, "tooltip");
-                }}
-              />
-            }
-          />
-        )}
-        {legendDisplay(options, editing).show && groups.length > 1 && (
-          <ChartLegend
-            content={<ChartLegendContent className={legendDisplay(options, editing).greyed ? "cv:opacity-40" : undefined} />}
-            verticalAlign={legendVerticalAlign(options.legend?.position)}
-            layout={legendLayout(options.legend?.position)}
-            align={legendAlign(options.legend?.position)}
-          />
-        )}
-        {groups.map((g, i) => (
-          <Scatter
-            key={g.key}
-            name={g.label}
-            data={g.points}
-            shape={fo.shape ?? "circle"}
-            fill={`var(--color-${g.key})`}
-          >
-            {groups.length === 1 &&
-              g.points.map((_, pi) => (
-                <Cell key={pi} fill={`var(--${DEFAULT_COLOR_RAMP[i % DEFAULT_COLOR_RAMP.length]})`} />
-              ))}
-          </Scatter>
-        ))}
-        {fo.referenceLines?.map((r, k) => (
-          <ReferenceLine
-            key={k}
-            {...(r.axis === "y" ? { y: r.value } : { x: r.value })}
-            label={r.label}
-            stroke={`var(--${r.colorToken ?? "muted-foreground"})`}
-            strokeDasharray="4 4"
-          />
-        ))}
-      </ScatterChart>
-    </ChartContainer>
+    <CvChart
+      definition={definition}
+      ariaLabel={`${xLabel} vs ${yLabel} scatter chart`}
+      className="cv-chart--fill"
+      resolveSelection={resolveSelection}
+    />
   );
 }
 
-interface PointGroup {
-  key: string;
-  label: string;
-  points: Point[];
-}
+/** Shared muted empty-state chrome (plain CSS — no Tailwind in the chart layer). */
+const EMPTY_STYLE: React.CSSProperties = {
+  display: "flex",
+  height: "100%",
+  width: "100%",
+  minHeight: 200,
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "0.875rem",
+  color: "var(--muted-foreground)",
+};
 
-/** Project rows → {x,y,z} points, split into series by `groupBy` when present. */
-function groupRows(rows: Record<string, unknown>[], fo: ScatterFamilyOptions): PointGroup[] {
-  const toPoint = (row: Record<string, unknown>): Point => ({
-    x: num(row[fo.x]),
-    y: num(row[fo.y]),
-    ...(fo.size ? { z: num(row[fo.size]) } : {}),
+/**
+ * Project raw rows → {x,y,size,group} points, coercing numerics and DROPPING
+ * rows whose x or y is missing/non-numeric (the dot mark would skip them
+ * anyway; filtering first keeps the rScale domain and color domain honest).
+ */
+function buildScatterRows(
+  rows: Record<string, unknown>[],
+  fo: ScatterFamilyOptions,
+): ScatterRow[] {
+  const out: ScatterRow[] = [];
+  rows.forEach((row, i) => {
+    const x = num(row[fo.x]);
+    const y = num(row[fo.y]);
+    if (x === null || y === null) return;
+    out.push({
+      x,
+      y,
+      size: fo.size ? num(row[fo.size]) : null,
+      // "—" mirrors the old grouping of rows whose groupBy value is null.
+      group: fo.groupBy ? String(row[fo.groupBy] ?? "—") : undefined,
+      i,
+    });
   });
-
-  if (!fo.groupBy) {
-    return [{ key: "series-0", label: "Points", points: rows.map(toPoint) }];
-  }
-
-  const byGroup = new Map<string, Point[]>();
-  for (const row of rows) {
-    const g = String(row[fo.groupBy] ?? "—");
-    const list = byGroup.get(g) ?? [];
-    list.push(toPoint(row));
-    byGroup.set(g, list);
-  }
-  return [...byGroup.entries()].map(([label, points], i) => ({
-    key: `series-${i}`,
-    label,
-    points,
-  }));
+  return out;
 }
 
+/** Coerce a raw cell to a finite number, else null. */
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);

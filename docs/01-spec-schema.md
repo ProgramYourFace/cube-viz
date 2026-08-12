@@ -2,7 +2,13 @@ This is a design/writing task with no code dependencies, and the grounded resear
 
 # cube-viz Spec Schema & Variable Binding Model
 
-> **Status:** Stable contract proposal, v1. This is the library-agnostic source of truth that every other cube-viz layer (renderer, editor, adapter, preview server) builds on. Library-specific concerns (Recharts, react-grid-layout, TipTap) never leak into the spec.
+> **Status:** Stable contract, **`SCHEMA_VERSION` 4** (2026-08). This is the library-agnostic source of truth that every other cube-viz layer (renderer, editor, adapter, preview server) builds on. Library-specific concerns (the chart renderer — `@tanstack/charts` since 2026-08, formerly Recharts — react-grid-layout, TipTap) never leak into the spec.
+>
+> **v3 → v4 (breaking):** the spec stopped carrying APPEARANCE. Ten mark-geometry options — `barRadius`, `barCategoryGap`, `barGap`, `maxBarSize`, `fillOpacity`, `strokeWidth` (line + area), `padAngle`, `cornerRadius`, `outerRadiusPct`, `sizeRange` — moved to the host's `CubeVizProvider` theme as `theme.marks` (see `src/charts/theme.ts`), and `pie.maxSlices`, `table.{sortable,stickyHeader,rowHeight,showRowNumbers}` and `heatmap.showValues` became fixed behavior or data-driven defaults. `axes.*.labelHide` is gone too: an axis title is now said entirely by `label`, where `""` means no title. **This migration is not pixel-preserving** — a spec that had customized its geometry adopts the app default, which is the point: appearance is a property of the product, set once, and every one of these was a question with no wrong answer put in front of someone trying to ask something about their data.
+>
+> **v2 → v3 (breaking):** five options that the schema accepted but no renderer ever drew were removed, after the 2026-08 option audit (chart-options §6.1): per-series `mapping.series.meta.format`; the `left`/`right` values of `legend.position`; the `"auto"` bound of `axes.{x,y}.domain` (now `[number, number]`); `scatter.shape`; and `kpi.icon`. Every one of them **parsed and then did nothing**, so the v2 → v3 migration is pixel-preserving: side legends become `"bottom"` (where they already drew), half-`"auto"` domains are dropped (the axis was already inferring both ends), and the three dead keys are deleted. A schema that promises what the renderer cannot do is worse than one that is honest about its surface — see chart-options §7.4–§7.8 for the per-option reasoning.
+>
+> **v1 → v2 (breaking):** the `combo` family and all dual-axis support were removed, and `heatmap` was added. Gone from the shape: `axes.y2`, per-series `SeriesMeta.axis: "left"|"right"`, and the combo-only reference-line `side`. `loadSpec` (`src/spec/migrate.ts`) migrates v1 specs forward automatically: a combo widget becomes `bar` when any of its series rendered bars, else `line` (per-series `colorToken`s are preserved via `mapping.series.meta` where representable; the rest of the combo `familyOptions` collapses to `{}`), and all axis metadata (`y2`, `meta.axis`, reference-line `side`) is stripped.
 
 ---
 
@@ -13,7 +19,7 @@ These constrain every decision below:
 1. **The spec is data, not code.** A spec is a plain JSON object that round-trips losslessly through `JSON.parse(JSON.stringify(spec))`. No functions, no class instances, no `var()` strings baked into stored specs (theme resolution happens at render).
 2. **One configurable component per chart *family*.** Orientation, stacking, and series count are *inputs*, not distinct kinds — inverting Embeddable's six-Bar-component explosion (`BarChartStackedPro`, `BarChartGroupedHorizontalPro`, …) into one `family: "bar"` with `orientation` + `stackMode` options.
 3. **Three stable seams** mirror Embeddable's proven override trio, expressed as data: the **Cube query** (what data), the **option envelope** (how it looks), the **variable bindings** (what's reactive).
-4. **The resultSet→series adapter is the abstraction boundary.** Chart components consume a normalized `{ categories, series, raw }` shape, never a Cube `ResultSet`. Swapping Recharts for anything else touches only the renderer, never the spec or the adapter.
+4. **The resultSet→series adapter is the abstraction boundary.** Chart components consume a normalized `{ categories, series, raw }` shape, never a Cube `ResultSet`. Swapping the chart library touches only the renderer, never the spec or the adapter — proven when Recharts was replaced by `@tanstack/charts` with zero spec changes.
 5. **Fail safe, fail closed.** A missing variable drops its predicate (`noFilter`), never widens scope. RLS/tenancy is *not* in the spec — it lives in the JWT `securityContext` the host forwards. A spec author can never widen tenant scope by editing a widget.
 
 ---
@@ -23,7 +29,9 @@ These constrain every decision below:
 cube-viz has exactly **three persistable top-level kinds**, discriminated by a `kind` literal. `WidgetSpec` is itself a nested discriminated union of three widget types.
 
 ```ts
-type SpecVersion = 1; // integer, bumped only on breaking shape changes
+type SpecVersion = 4; // integer, bumped only on breaking shape changes. 2 = combo/dual-axis
+                      // removal + heatmap; 3 = never-rendered options removed;
+                      // 4 = appearance left the spec for the host theme
 
 interface SpecMeta {
   schemaVersion: SpecVersion;   // REQUIRED on every persisted top-level spec
@@ -101,6 +109,15 @@ interface InputWidget extends WidgetBase {
   ```
 
   Migrations run *before* zod parsing so old shapes are repaired, then proven valid against the current schema. A spec with `schemaVersion > CURRENT_VERSION` is rejected (the host is older than the file). This keeps stored specs immutable on disk until re-saved, but always loadable.
+
+  Two migrations are registered (`src/spec/migrate.ts`), and `loadSpec` walks them in
+  order — a v1 spec runs through **both**, which is what `migrate.test.ts` pins:
+
+  - **v1 → v2**: combo widgets are rewritten to `bar`/`line` (bar when any combo series rendered bars; per-series `colorToken`s carried onto measures-mode `mapping.series.meta` where representable; the rest of the combo `familyOptions` dropped so the new family's defaults win), and the dual-axis remnants — `axes.y2`, `mapping.series.meta[member].axis`, reference-line `side` — are stripped wherever a chart-options object lives.
+  - **v3 → v4**: the mark-geometry keys are deleted per family (`GEOMETRY_BY_FAMILY`), along with the table/heatmap switches that became fixed behavior, and `axes.*.labelHide: true` is rewritten to `label: ""`. Stored geometry values are DISCARDED rather than promoted into the theme — the theme is app-wide, so honoring one chart's `barRadius: 12` would restyle every other chart on the dashboard.
+  - **v2 → v3**: the five never-rendered options are removed — `mapping.series.meta[member].format` and `familyOptions.{shape (scatter), icon (kpi)}` are deleted, `legend.position: left|right` becomes `"bottom"`, and a half-`"auto"` `axes.{x,y}.domain` is dropped (an emptied `axes` object goes with it). Nothing here changes what a chart draws — each rewrite states what the renderer was already doing.
+
+  Note what makes a removal safe: the schemas are `.strict()`, so an option that is deleted without a migration turns every stored spec still carrying it into a **parse error** — a saved dashboard becomes an error screen. The migration is not politeness, it is the thing that keeps old boards loading.
 
 ---
 
@@ -209,21 +226,25 @@ interface ChartOptions {
   axes?: AxesOptions;           // x/y axis envelope (label, hide, scale, domain)
   colors?: ColorAssignment;     // → chart tokens (§3.4)
   format?: FormatOptions;       // number/date formatting (§3.3)
+  transform?: ChartTransform;   // presentation-only reshaping of the series (§3.6)
 
   // ── per-family escape hatch ──
   familyOptions?: Record<string, unknown>;     // OWNED BY the chart-options agent;
                                                // validated by a family-specific zod schema.
 }
 
-type ChartFamily =
-  | "bar" | "line" | "area" | "pie" | "scatter" | "radial" | "composed" | "kpi" | "table";
+// The family discriminator is an OPEN string (a host can register new families);
+// the builtins shipped in-box (BUILTIN_CHART_FAMILIES, v2) are:
+type BuiltinChartFamily =
+  | "bar" | "line" | "area" | "pie" | "scatter" | "heatmap" | "kpi" | "table";
+type ChartFamily = string;
 ```
 
-> One `family` value maps to exactly one renderer component. `orientation` + `stackMode` collapse what Embeddable shipped as six separate Bar components and the split Line variants into props. `kpi` and `table` are families too (a KPI is a single-value chart; a table is `resultSet.tablePivot`).
+> One `family` value maps to exactly one renderer component. `orientation` + `stackMode` collapse what Embeddable shipped as six separate Bar components and the split Line variants into props. `kpi` and `table` are families too (a KPI is a single-value chart; a table is `resultSet.tablePivot`). `combo` was a v1 builtin and was **removed in v2** (v1 combo specs migrate to `bar`/`line`); `heatmap` was added in v2.
 
 ### 3.1 Series / category mapping — the generic seam
 
-This is the heart of the option layer: a **library-agnostic description of which query members become categories vs series**, expressed once and interpreted by every family. It is deliberately *not* Recharts-shaped.
+This is the heart of the option layer: a **library-agnostic description of which query members become categories vs series**, expressed once and interpreted by every family. It is deliberately *not* renderer-shaped.
 
 ```ts
 interface SeriesMapping {
@@ -255,15 +276,19 @@ interface SeriesMeta {
   label?: string;               // overrides annotation().shortTitle
   colorToken?: ChartColorToken; // "chart-1".."chart-5" (§3.4)
   stackId?: string;             // same id ⇒ stacked together (only when stackMode demands)
-  axis?: "left" | "right";      // dual-axis (composed/line)
-  format?: FormatOptions;       // per-series override of number formatting
+  curve?: "linear" | "monotone" | "step" | "natural"; // per-series line shape (line/area)
+  dots?: boolean;               // per-series point markers (line/area)
+  // (v1 had `axis?: "left" | "right"` for dual-axis; removed in v2 — the migration strips it)
+  // (v2 had `format?: FormatOptions`; removed in v3 — nothing read it, and series on one
+  //  value axis share that axis' unit. Format per AXIS or per COLUMN instead.)
 }
 ```
 
 - **Mode (a) `measures`** answers "plot `total_distance` and `total_idle_duration` as two bars/lines per day." Series identity = measure name; labels/colors come from `meta` or fall through to `annotation()`.
 - **Mode (b) `pivot`** answers "one line per `device_id`." Series identity = distinct pivot value; the adapter (§6) produces one series per value and the color ramp assigns tokens round-robin. This maps directly onto Cube's `pivot`/`chartPivot` with `y: [pivotMember, "measures"]`.
+- **The `heatmap` family (v2)** reuses this same envelope for its grid roles: `category.member` = the column (x) dimension, `series.pivot` = the row (y) dimension, `series.value` = the measure that colors each cell.
 
-This single mapping object is what makes "swap Recharts later" cheap: the renderer reads `mapping` + the normalized series (§6), never the raw query.
+This single mapping object is what made "swap Recharts later" cheap (and it was swapped, for `@tanstack/charts`): the renderer reads `mapping` + the normalized series (§6), never the raw query.
 
 ### 3.2 Legend / tooltip / axes envelope
 
@@ -277,10 +302,11 @@ interface TooltipOptions {
 interface AxesOptions {
   x?: AxisOptions;
   y?: AxisOptions;
-  y2?: AxisOptions;            // secondary axis when SeriesMeta.axis === "right"
+  // v1 had `y2?: AxisOptions` (secondary right axis); removed in v2 with dual-axis support.
 }
 interface AxisOptions {
   label?: string;
+  labelHide?: boolean;        // hide the axis title only (ticks/line stay)
   hide?: boolean;
   scale?: "linear" | "log";   // log ↔ Cube/Embeddable showLogarithmicScale
   domain?: [number | "auto", number | "auto"];
@@ -288,7 +314,7 @@ interface AxisOptions {
 }
 ```
 
-These are deliberately *abstract* (no `XAxis`/`YAxis` Recharts names). The renderer translates `orientation: "horizontal"` into Recharts' `layout="vertical"` + swapped axis types; the spec stays declarative.
+These are deliberately *abstract* (no renderer axis names). The renderer translates `orientation: "horizontal"` into a transposed mark (`barX` instead of `barY`) with swapped axis channels; the spec stays declarative.
 
 ### 3.3 Number / date formatting (`FormatOptions`) — behavior on the theme, defaults in the spec
 
@@ -324,12 +350,39 @@ interface ColorAssignment {
 }
 ```
 
-At render the token resolves to `var(--chart-N)` (Recharts 3 form, **not** `hsl(var(--chart-N))`). The canonical OKLCH values come from `global.css`; the renderer derives shadcn's `ChartConfig` (`{ label, color: "var(--chart-N)" }`) from `mapping` + `colors` so colors/labels flow through shadcn's `--color-<key>` mechanism automatically. The numbered ramp mirrors Embeddable's `--em-sem-chart-color--1..10`; cube-viz uses the 5-token shadcn set already defined in `global.css`.
+At render the token resolves to `var(--chart-N)` (a bare `var()`, **not** the legacy `hsl(var(--chart-N))` wrapping). The canonical OKLCH values come from the theme tokens (`cube-viz/theme.css`); the renderer builds the chart color scale's `domain` (series labels) + `range` (`var(--chart-N)` references) from `mapping` + `colors`, so colors/labels flow to marks, legend, and tooltip together. The numbered ramp mirrors Embeddable's `--em-sem-chart-color--1..10`; cube-viz uses the 5-token shadcn-style set.
 
 ### 3.5 Text & Input widget payloads (for completeness)
 
 - **`TextWidget.doc`** is **ProseMirror JSON** straight from `editor.getJSON()` (TipTap StarterKit schema, v3). It renders read-only via the *same* StarterKit + `editable:false`. The registered extension set is pinned to the schemaVersion so stored docs never hit unknown node types.
 - **`InputWidget.control`** is defined in §5 (it's a *write* surface for a variable, so it belongs to the binding model).
+
+### 3.6 `chart.transform` — presentation transforms (additive; shipped without a version bump)
+
+Cube owns *aggregation*; the view layer owns *presentation*. Without a seam for the second, "7-day rolling average", "running total" and "% of total" each force a **new Cube measure** for what is purely a display choice. `chart.transform` is that seam — one optional envelope key, defined in `src/spec/schema.ts` alongside the rest of `ChartOptions`:
+
+```ts
+type TransformKind = "rollingAvg" | "cumulative" | "percentOfTotal";
+
+interface ChartTransform {
+  kind: TransformKind;
+  window?: number;   // int 2…90; trailing window length in CATEGORIES.
+                     // Only meaningful for kind:"rollingAvg" (ignored by the other two);
+                     // defaults to DEFAULT_TRANSFORM_WINDOW = 7.
+}
+```
+
+`ChartTransformSchema` is `.strict()`, so an unknown key is a validation error rather than silently-carried data.
+
+**Why it is envelope-level, not per-family.** A transform reshapes the *generic* `{ categories, series[].data }` shape (spec §6), not any one family's option surface. Putting it in the envelope means every cartesian family gets it without a single `familyOptions` schema growing a knob, and it is applied once — in `ChartRenderer`, before the family component sees the data (`src/charts/transforms.ts`; behavior and null semantics in docs/02 §2.9).
+
+**Why it does NOT bump the schema version.** The addition is **purely additive and optional**:
+
+- `ChartOptionsSchema.transform` is `.optional()`, so every existing v2 spec validates unchanged — a spec that omits the key parses exactly as before, and nothing in the loader has to fill it in.
+- It reads nothing and rewrites nothing that already existed; a renderer or host that ignores `transform` renders the untransformed series, which is the pre-existing behavior.
+- No stored field changes shape, so `src/spec/migrate.ts` gains no migration step (§1 "Validation, versioning & migration": a version bump is reserved for changes that make an older spec *invalid* or *differently-meaning*, which is what v1 → v2's combo/dual-axis removal was).
+
+So `chart.transform` did **not** move `SCHEMA_VERSION` (it landed on v2 and every v2 spec stayed valid; the version reached 3 later, for the option *removals*). The compatibility that a version bump protects is **old spec → new build**, and that direction is total here. The reverse (a spec written *with* `transform`, loaded by a build predating the key) is not a schema-version question: `ChartOptionsSchema` is `.strict()`, so an older build rejects the unknown key the same way it rejects any typo — which is why the envelope only ever grows in a release that ships the reader for it.
 
 ---
 
@@ -463,7 +516,7 @@ The rule is **strictly narrowing-or-neutral**: an unset variable can only *remov
 
 ## 6. The resultSet → normalized-series adapter contract
 
-The adapter is the **single abstraction boundary** between Cube and the renderer. Chart components consume `NormalizedChartData`; they never see a Cube `ResultSet`. Swapping Recharts (or adding a second renderer) touches only code downstream of this type.
+The adapter is the **single abstraction boundary** between Cube and the renderer. Chart components consume `NormalizedChartData`; they never see a Cube `ResultSet`. Swapping the chart library (or adding a second renderer) touches only code downstream of this type — the Recharts → `@tanstack/charts` migration changed nothing here.
 
 ```ts
 interface NormalizedSeries {
@@ -474,8 +527,9 @@ interface NormalizedSeries {
   meta?: {                      // formatting hints, sourced from Cube annotation + member meta
     format: FormatOptions;      // resolved (auto from quantity/unit, then spec overrides)
     unit?: string; quantity?: string; convert?: boolean;
-    axis?: "left" | "right";
     stackId?: string;
+    companion?: boolean;        // previous-period companion series (comparePrevious)
+    // (v1 carried axis?: "left" | "right" here; removed in v2 with dual-axis)
   };
 }
 
@@ -504,7 +558,7 @@ interface NormalizedChartData {
 5. **Align series to a shared `categories` axis** (one index space; `null` for gaps). Honor `pivotConfig.fillMissingDates` — default `true`, but expose it so sparse data can opt out.
 6. **Set `empty:true`** when the resolved query was emptied by `noFilter` or returned zero rows, so the renderer shows an empty state rather than a broken chart.
 
-> The renderer's job shrinks to: map `family` → Recharts container, map `mapping`/`stackMode`/`orientation` → stackId/layout/axis props, and bind `NormalizedSeries.colorToken` → `var(--chart-N)` through shadcn `ChartConfig`. Everything semantic already happened in the adapter.
+> The renderer's job shrinks to: map `family` → its family component, map `mapping`/`stackMode`/`orientation` → mark type + layout (`barY`/`barX`, `group()`/`stack()`) + axis options, and bind `NormalizedSeries.colorToken` → `var(--chart-N)` through the chart color scale's domain/range. Everything semantic already happened in the adapter.
 
 ---
 
@@ -516,7 +570,7 @@ Two measures plotted side-by-side per day, vertical grouped bars, real member na
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 4,
   "kind": "chart",
   "id": "chart_trips_by_day",
   "name": "Distance vs Idle by Day",
@@ -563,7 +617,7 @@ A date-range Input writes the `dateRange` variable; both charts read it via `{va
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 4,
   "kind": "dashboard",
   "id": "dash_fleet_utilization",
   "name": "Fleet Utilization",
@@ -664,10 +718,11 @@ A date-range Input writes the `dateRange` variable; both charts read it via `{va
 | Query | Cube `Query` passthrough + `{var}` token extension; verbatim `cube.member` names | Zero translation to `cube().load()`; future-proof |
 | Chart family | one `family` + `orientation`/`stackMode` props | Inverts Embeddable's per-variant component explosion |
 | Mapping | `SeriesMapping` (`mode:"measures"` \| `"pivot"`) | Library-agnostic data→visual seam |
+| Transform | optional `chart.transform` (`rollingAvg`/`cumulative`/`percentOfTotal`) | Presentation reshaping without modelling a new Cube measure (§3.6) |
 | Colors | `chart-1..chart-5` tokens → `var(--chart-N)` | Theme/dark-mode swap with no spec edits |
 | Layout | ONE canonical (widest) layout, `minW/minH` only | Reflow auto-derives all widths via RGL |
 | Variables | declare in dashboard; WRITE via Input, READ via `{var}`, `noFilter` on empty | Fail-safe reactive contract; can't widen RLS |
-| Adapter | `{ categories, series:[{key,label,data,colorToken,meta}], raw, empty }` | Single boundary; swapping Recharts touches only the renderer |
+| Adapter | `{ categories, series:[{key,label,data,colorToken,meta}], raw, empty }` | Single boundary; swapping the chart library touches only the renderer |
 | RLS | **not in the spec** — JWT `securityContext.{systemIds,roles}` | Authors can never widen tenant scope |
 
-This is the stable v1 contract. The chart-options agent fills `familyOptions` per family; the renderer maps `NormalizedChartData` + `ChartOptions` onto Recharts; the editor and preview server author and validate `Spec` objects. None of those layers can alter the shape above without a `schemaVersion` bump.
+This is the stable contract, at `SCHEMA_VERSION` 4. The chart-options layer fills `familyOptions` per family; the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks; the editor and preview server author and validate `Spec` objects. None of those layers can alter the shape above without a `schemaVersion` bump — v2 (combo/dual-axis), v3 (never-rendered options) and v4 (appearance → host theme) are the precedents, and all three are *removals*. **Optional additions are not alterations:** `chart.transform` (§3.6) joined the envelope after v2 shipped and left every stored v2 spec valid, so the version did not move for it.

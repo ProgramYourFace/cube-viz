@@ -1,20 +1,14 @@
-/* Playground chrome (the gallery/editor host UI) keeps its OWN unprefixed
-   Tailwind pass — exactly like the aa-app host's uniwind utilities.
-   `source(none)` + an explicit playground-only `@source` keeps this pass from
-   scanning cube-viz's `src/` (the aa-app host can't and doesn't scan cube-viz's
-   bundle either). Without this, Tailwind's scanner would surface the BARE
-   utility of every `cv:`-prefixed token in src (e.g. `cv:w-72` -> a stray
-   `.w-72` rule) into the playground sheet — harmless (cube-viz only ever uses
-   the `cv:`-prefixed form) but un-host-like. Scoping it makes the playground a
-   faithful analog: cube-viz renders SOLELY from its own cv-prefixed dist. */
-@import "tailwindcss" source(none);
-@source "./**/*.{ts,tsx,html}";
+/* NOTE: all @import statements must be the FIRST rules in this file — CSS
+   silently drops any @import that appears after other rules. */
+
+/* Shared theme tokens (light/dark palettes: --background, --card, --border, …). */
 @import "../src/theme/tokens.css";
 
-/* cube-viz's OWN self-contained, cv-prefixed stylesheet — imported from the
-   BUILT dist artifact so the playground renders cube-viz precisely as the
-   aa-app host does (`import 'cube-viz/styles.css'`). Run `bun run build` after
-   editing components so this reflects the latest cv-prefixed utilities. */
+/* cube-viz's OWN self-contained stylesheet — the library ships hand-authored
+   semantic `cv-` classes (no Tailwind toolchain), imported from the BUILT dist
+   artifact so the playground renders cube-viz precisely as the aa-app host does
+   (`import 'cube-viz/styles.css'`). Run `bun run build` after editing
+   components so this reflects the latest styles. */
 @import "../dist/cube-viz.css";
 
 html,
@@ -27,4 +21,166 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ── Playground chrome (`pg-` prefix) ──────────────────────────────────────
+   Hand-authored semantic classes for the gallery/editor host UI. Each rule is
+   a literal translation of the Tailwind utilities this chrome used before the
+   toolchain was removed (spacing ×0.25rem, sm = 640px, md = 768px). */
+
+/* Page shell: mx-auto max-w-7xl space-y-6 p-6 */
+.pg-shell {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1.5rem;
+}
+.pg-shell > * + * {
+  margin-top: 1.5rem;
+}
+
+/* Header row: flex flex-wrap items-center justify-between gap-3 */
+.pg-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* text-2xl font-bold */
+.pg-title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+}
+
+/* text-sm text-muted-foreground */
+.pg-subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+}
+
+/* flex items-center gap-2 */
+.pg-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Gallery/Edit toggle: flex rounded-md border border-border p-0.5 */
+.pg-mode-switch {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.125rem;
+}
+
+/* Shared card chrome: rounded-xl border border-border bg-card p-4 shadow-sm */
+.pg-tile,
+.pg-settings,
+.pg-controls,
+.pg-editor {
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  background: var(--card);
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1);
+  padding: 1rem;
+}
+/* Editor wrapper is tighter: p-2 */
+.pg-editor {
+  padding: 0.5rem;
+}
+
+/* Example tile header: mb-3 flex items-baseline justify-between */
+.pg-tile-head {
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+/* text-sm font-medium text-card-foreground */
+.pg-tile-title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--card-foreground);
+}
+
+/* text-xs text-muted-foreground */
+.pg-tile-note {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}
+
+/* Chart viewport: h-[300px] */
+.pg-tile-body {
+  height: 300px;
+}
+
+/* Settings panel: grid grid-cols-1 gap-4 … md:grid-cols-3 */
+.pg-settings {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+/* Form field: space-y-1.5 */
+.pg-field > * + * {
+  margin-top: 0.375rem;
+}
+
+/* text-xs text-muted-foreground */
+.pg-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}
+
+/* Dashboard controls card: grid grid-cols-1 gap-4 … sm:grid-cols-2 md:max-w-2xl */
+.pg-controls {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+/* Example gallery grid: grid grid-cols-1 gap-4 md:grid-cols-2 */
+.pg-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+/* sm: breakpoint (640px) */
+@media (min-width: 640px) {
+  .pg-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* md: breakpoint (768px) */
+@media (min-width: 768px) {
+  .pg-tile--wide {
+    grid-column: span 2 / span 2;
+  }
+  .pg-settings {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .pg-field--wide {
+    grid-column: span 2 / span 2;
+  }
+  .pg-controls {
+    max-width: 42rem;
+  }
+  .pg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

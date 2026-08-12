@@ -7,10 +7,27 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ChartFamily } from "@/spec";
 import type { ChartFormat } from "@/format";
 import { defaultFormatter, makeChartFormat } from "@/format";
+import type { NormalizedChartData } from "@/adapter/types";
 import type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
 import { resolveOptions, builtinFamilyRegistry, type FamilyRegistry } from "./familyRegistry";
-import { configFromSeries } from "./_shared";
 import { builtinFamilyDescriptors } from "./familyDescriptors";
+import { resolveMarkTheme, type ChartMarkTheme } from "./theme";
+import { applyTransform, familySupportsTransform, transformedChartFormat } from "./transforms";
+
+/**
+ * Build a {@link ChartConfig} from normalized series (key → label + color).
+ *
+ * `ChartConfig` is part of {@link ChartComponentProps}, so it survives for HOST
+ * families that want a ready-made label/color table; the builtin families read their
+ * paint from the chart-level color scale instead (see charts/tanstack.tsx).
+ */
+function configFromSeries(data: NormalizedChartData): ChartConfig {
+  const cfg: ChartConfig = {};
+  for (const s of data.series) {
+    cfg[s.key] = { label: s.label, color: `var(--${s.colorToken ?? "chart-1"})` };
+  }
+  return cfg;
+}
 
 /**
  * The pure family dispatcher (docs/02-chart-options.md §2.0, §3). It:
@@ -35,7 +52,14 @@ export const builtinCharts: Record<string, ChartComponent> = Object.fromEntries(
   Object.entries(builtinFamilyDescriptors).map(([family, d]) => [family, d.component]),
 );
 
-export interface ChartRendererProps extends Omit<ChartComponentProps, "format"> {
+export interface ChartRendererProps extends Omit<ChartComponentProps, "format" | "theme"> {
+  /**
+   * Mark geometry overrides (bar radius, area fill opacity, pie gap…). Optional and
+   * PARTIAL: whatever the host omits falls back to {@link DEFAULT_MARK_THEME}, and the
+   * families receive the resolved whole. `CubeChart` passes the provider's
+   * `theme.marks`. Deliberately not a spec option — see charts/theme.ts.
+   */
+  theme?: Partial<ChartMarkTheme>;
   /**
    * The bound value formatter. Optional here: when absent the renderer builds a
    * default from `data.raw.annotation` + the resolved options + the minimal
@@ -62,23 +86,36 @@ export function ChartRenderer({
   editing,
   updateFamilyOptions,
   registry = builtinFamilyRegistry,
+  theme,
 }: ChartRendererProps): ReactElement {
   const resolved = useMemo(() => resolveOptions(options, registry), [options, registry]);
+  const markTheme = useMemo(() => resolveMarkTheme(theme), [theme]);
+  const descriptor = registry.get(resolved.family);
 
   // A QUERY-LESS family (e.g. a host AI-summary tile) draws its own content from its own
   // state, not a Cube query — so the data-driven loading/error/empty chrome below does
   // not apply (its `data` is an empty placeholder). Render the component directly.
-  const queryless = registry.get(resolved.family)?.queryless ?? false;
+  const queryless = descriptor?.queryless ?? false;
+
+  // The PRESENTATION transform (rolling average / running total / % of total) is applied
+  // ONCE, here, on the normalized `{categories, series[].data}` shape — BEFORE dispatch —
+  // so every cartesian family benefits and no family component knows it exists.
+  // `familySupportsTransform` reads the descriptor flags: only mapping-driven CARTESIAN
+  // families (bar/line/area + host equivalents) get it; kpi/table/pie/scatter/heatmap and
+  // query-less families (map/ai) are excluded. `applyTransform` is a no-op (identity) for
+  // empty data or no transform, so the untransformed path pays nothing.
+  const transform = familySupportsTransform(descriptor) ? resolved.transform : undefined;
+  const view = useMemo(() => applyTransform(data, transform), [data, transform]);
 
   // 1) loading — Skeleton sized to the container height; no Recharts mount yet.
   if (!queryless && state?.loading) {
-    return <Skeleton className="cv:h-full cv:w-full cv:min-h-[200px]" />;
+    return <Skeleton className="cv-chart-skeleton" />;
   }
 
   // 2) error — destructive Alert; never leaks tenant data (message only).
   if (!queryless && state?.error) {
     return (
-      <Alert variant="destructive" className="cv:w-full">
+      <Alert variant="destructive" className="cv-chart-error">
         <AlertCircle />
         <AlertTitle>Failed to load chart</AlertTitle>
         <AlertDescription>{state.error.message}</AlertDescription>
@@ -89,20 +126,23 @@ export function ChartRenderer({
   // 3) empty — centered muted "No data"; Recharts not mounted (avoids 0-row glitches).
   if (!queryless && data.empty) {
     return (
-      <div className="cv:flex cv:h-full cv:w-full cv:min-h-[200px] cv:items-center cv:justify-center cv:text-sm cv:text-muted-foreground">
-        No data
-      </div>
+      <div className="cv-chart-empty">No data</div>
     );
   }
 
-  // 2b) ChartConfig is DERIVED from the normalized series when not supplied.
+  // 2b) ChartConfig is DERIVED from the normalized series when not supplied. (Series
+  // identity is preserved by the transform, so the config is the same either way.)
   const chartConfig: ChartConfig =
-    config && Object.keys(config).length > 0 ? config : configFromSeries(data);
+    config && Object.keys(config).length > 0 ? config : configFromSeries(view);
 
   // 2c) The bound formatter — supplied by CubeChart (context-resolved), else a
-  // minimal default from the annotation + resolved options.
-  const chartFormat: ChartFormat =
-    format ?? makeChartFormat(data.raw.annotation, resolved, defaultFormatter);
+  // minimal default from the annotation + resolved options. `transformedChartFormat`
+  // then keeps the UNIT honest: a `percentOfTotal` chart no longer carries the
+  // measure's unit, so every value surface formats as a percent (identity otherwise).
+  const chartFormat: ChartFormat = transformedChartFormat(
+    format ?? makeChartFormat(data.raw.annotation, resolved, defaultFormatter),
+    transform,
+  );
 
   // 4) dispatch: a per-slot override wins; else the family's registered component
   // (builtin OR host family) from the registry. `registry.require` throws (with an
@@ -111,10 +151,11 @@ export function ChartRenderer({
   const Family = components?.[resolved.family] ?? registry.require(resolved.family).component;
   return (
     <Family
-      data={data}
+      data={view}
       options={resolved}
       config={chartConfig}
       format={chartFormat}
+      theme={markTheme}
       state={state}
       editing={editing}
       updateFamilyOptions={updateFamilyOptions}

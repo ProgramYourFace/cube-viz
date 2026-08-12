@@ -8,7 +8,6 @@
  * complete, working default. The library only ever READS these variables.
  */
 
-@custom-variant dark (&:is(.dark *));
 
 /* `.cube-viz-light` re-asserts the light token set so an explicit theme.mode="light"
  * embed forces light even under a host ancestor that carries `.dark`. */

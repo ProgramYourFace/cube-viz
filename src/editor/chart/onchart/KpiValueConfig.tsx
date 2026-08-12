@@ -37,17 +37,17 @@ export function KpiSectionPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="cv:flex cv:w-full cv:items-center cv:justify-between cv:gap-2 cv:rounded-md cv:border cv:border-border cv:bg-background cv:px-2.5 cv:py-1.5 cv:text-xs cv:font-medium cv:shadow-sm cv:transition-colors cv:hover:bg-accent"
+          className="cv-kpi-section-trigger"
           title={label}
         >
-          <span className="cv:truncate">{label}</span>
-          <span className="cv:flex cv:shrink-0 cv:items-center cv:gap-1 cv:text-muted-foreground">
-            {summary ? <span className="cv:text-[11px]">{summary}</span> : null}
-            <ChevronDown className="cv:size-3.5" />
+          <span className="cv-ec-truncate">{label}</span>
+          <span className="cv-kpi-section-state">
+            {summary ? <span className="cv-kpi-section-summary">{summary}</span> : null}
+            <ChevronDown className="cv-ec-icon" />
           </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="cv:max-h-[72vh] cv:w-64 cv:overflow-y-auto cv:p-3">
+      <PopoverContent align="start" className="cv-kpi-section-popover">
         {children}
       </PopoverContent>
     </Popover>
@@ -74,6 +74,11 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
   const td = spec.query.timeDimensions?.[0];
   const display = (fo.display as "number" | "gauge" | undefined) ?? "number";
   const gauge = fo.gauge as { min?: number; max?: number } | undefined;
+  // Which direction is GOOD is a property of the measure, not of the comparison or the
+  // sparkline — both color by it. It used to be rendered in each of those blocks, with
+  // a `!comparing` guard so the one setting never showed up as two switches at once.
+  // Owning it here deletes the guard and the possibility of the bug it was avoiding.
+  const goodDirection = (fo.goodDirection as "up" | "down" | undefined) ?? "up";
 
   // The KPI MAIN query stays granularity-LESS (the headline is an aggregate; the
   // sparkline adds its own bucket). A var-bound range rides through untouched.
@@ -92,25 +97,31 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
   };
 
   return (
-    <div className="cv:flex cv:flex-col cv:gap-2">
+    <div className="cv-kpi-fields">
       <Field label="Time field">
-        <MemberPicker
-          cube={cube}
-          kind="time"
-          value={td?.dimension}
-          onChange={(m) => setTimeDim({ dimension: m })}
-          placeholder="All time"
-          className="cv:h-8"
-        />
+        {({ id }) => (
+          <MemberPicker
+            id={id}
+            cube={cube}
+            kind="time"
+            value={td?.dimension}
+            onChange={(m) => setTimeDim({ dimension: m })}
+            placeholder="All time"
+            className="cv-ec-h8"
+          />
+        )}
       </Field>
       {td?.dimension ? (
         <Field label="Date range">
-          <ValueBinding
-            kind="dateRange"
-            value={td.dateRange}
-            onChange={(r) => setTimeDim({ dateRange: r as DateRange | VarRef | undefined })}
-            renderFixed={(r, set) => <DateRangeValueEditor value={r} onChange={set} />}
-          />
+          {({ labelId }) => (
+            <ValueBinding
+              labelId={labelId}
+              kind="dateRange"
+              value={td.dateRange}
+              onChange={(r) => setTimeDim({ dateRange: r as DateRange | VarRef | undefined })}
+              renderFixed={(r, set) => <DateRangeValueEditor value={r} onChange={set} />}
+            />
+          )}
         </Field>
       ) : null}
       <FieldRow label="Display">
@@ -125,18 +136,27 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
           onChange={(v) => setFO({ display: v })}
         />
       </FieldRow>
+      <SwitchRow
+        label="Higher is better"
+        hint="Off = a decrease is good — inverts the comparison and trend colors."
+        checked={goodDirection !== "down"}
+        onChange={(on) => setFO({ goodDirection: on ? "up" : "down" })}
+      />
       {display === "gauge" ? (
         <Field label="Gauge max">
-          <Input
-            type="number"
-            className="cv:h-8"
-            value={gauge?.max ?? ""}
-            placeholder="Auto"
-            onChange={(e) => {
-              const n = parseFloat(e.target.value);
-              setFO({ gauge: Number.isFinite(n) ? { ...(gauge ?? {}), max: n } : undefined });
-            }}
-          />
+          {({ id }) => (
+            <Input
+              id={id}
+              type="number"
+              className="cv-ec-h8"
+              value={gauge?.max ?? ""}
+              placeholder="Auto"
+              onChange={(e) => {
+                const n = parseFloat(e.target.value);
+                setFO({ gauge: Number.isFinite(n) ? { ...(gauge ?? {}), max: n } : undefined });
+              }}
+            />
+          )}
         </Field>
       ) : null}
     </div>
@@ -145,7 +165,7 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
 
 /* ──────────────────────────────── comparison ────────────────────────────── */
 
-/** The Comparison component: a header switch to enable, then its own config. */
+/** What the number is measured AGAINST. One picker: nothing / prior period / a fixed number. */
 export function KpiComparison({ spec, update }: Props): React.ReactElement {
   const { fo, setFO } = useKpi(spec, update);
   const comparison = fo.comparison as Record<string, unknown> | undefined;
@@ -153,54 +173,61 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
   const last = React.useRef<Record<string, unknown> | undefined>(undefined);
   if (comparison) last.current = comparison;
   const td = spec.query.timeDimensions?.[0];
-  const goodDirection =
-    (fo.goodDirection as "up" | "down" | undefined) ??
-    (comparison?.goodDirection as "up" | "down" | undefined) ??
-    "up";
+
+  // ONE control, three states. It was a "Show comparison" switch that revealed an
+  // "Against" picker — but "off" is just a third thing to compare against (nothing),
+  // and splitting it made the user operate two controls to express one choice.
+  const against: "none" | "previousPeriod" | "value" = !comparing
+    ? "none"
+    : ((comparison?.mode as "previousPeriod" | "value" | undefined) ?? "previousPeriod");
 
   return (
-    <div className="cv:flex cv:flex-col cv:gap-1.5">
-      <SwitchRow
-        label="Show comparison"
-        checked={comparing}
-        onChange={(on) =>
-          setFO({
-            comparison: on ? (last.current ?? { mode: "previousPeriod", showAsPercent: true }) : undefined,
-          })
-        }
-      />
+    <div className="cv-kpi-options">
+      <FieldRow label="Compare to">
+        <SegmentedControl<"none" | "previousPeriod" | "value">
+          aria-label="Compare to"
+          size="sm"
+          options={[
+            { value: "none", label: "Nothing" },
+            { value: "previousPeriod", label: "Prev period" },
+            { value: "value", label: "Fixed value" },
+          ]}
+          value={against}
+          onChange={(v) =>
+            setFO({
+              comparison:
+                v === "none"
+                  ? undefined
+                  : // Re-entering restores the config the user last had, so toggling
+                    // through "Nothing" is not destructive.
+                    { ...(last.current ?? { showAsPercent: true }), mode: v },
+            })
+          }
+        />
+      </FieldRow>
       {comparing ? (
         <>
-          <FieldRow label="Against">
-            <SegmentedControl<"previousPeriod" | "value">
-              aria-label="Compare against"
-              size="sm"
-              options={[
-                { value: "previousPeriod", label: "Prev period" },
-                { value: "value", label: "Fixed value" },
-              ]}
-              value={(comparison?.mode as "previousPeriod" | "value") ?? "previousPeriod"}
-              onChange={(m) => setFO({ comparison: { ...comparison, mode: m } })}
-            />
-          </FieldRow>
           {comparison?.mode === "value" ? (
             <Field label="Baseline value">
-              <Input
-                type="number"
-                className="cv:h-8"
-                value={(comparison?.value as number | undefined) ?? ""}
-                onChange={(e) => {
-                  const n = parseFloat(e.target.value);
-                  setFO({ comparison: { ...comparison, value: Number.isFinite(n) ? n : undefined } });
-                }}
-              />
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="number"
+                  className="cv-ec-h8"
+                  value={(comparison?.value as number | undefined) ?? ""}
+                  onChange={(e) => {
+                    const n = parseFloat(e.target.value);
+                    setFO({ comparison: { ...comparison, value: Number.isFinite(n) ? n : undefined } });
+                  }}
+                />
+              )}
             </Field>
           ) : null}
           {comparison?.mode === "previousPeriod" && !td?.dateRange ? (
-            <div className="cv:flex cv:items-start cv:gap-1.5 cv:rounded-md cv:border cv:border-amber-500/30 cv:bg-amber-500/10 cv:px-2 cv:py-1.5 cv:text-[11px] cv:leading-snug cv:text-amber-700">
-              <CalendarRange className="cv:mt-px cv:size-3.5 cv:shrink-0" />
+            <div className="cv-kpi-warn">
+              <CalendarRange className="cv-kpi-warn-icon" />
               <span>
-                <strong className="cv:font-semibold">A date range is required.</strong> Set one under
+                <strong>A date range is required.</strong> Set one under
                 “Time, range &amp; display” on the value so the prior period can be computed — without
                 it the comparison shows “set a date range”.
               </span>
@@ -211,12 +238,8 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
             checked={(comparison?.showAsPercent ?? true) !== false}
             onChange={(on) => setFO({ comparison: { ...comparison, showAsPercent: on } })}
           />
-          <SwitchRow
-            label="Higher is better"
-            hint="Off = a decrease is good (inverts the up/down colors)."
-            checked={goodDirection !== "down"}
-            onChange={(on) => setFO({ goodDirection: on ? "up" : "down" })}
-          />
+          {/* "Higher is better" is NOT here — it belongs to the measure, and the
+              sparkline colors by it too. It lives once, on the value block. */}
         </>
       ) : null}
     </div>
@@ -225,43 +248,49 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
 
 /* ──────────────────────────────── sparkline ─────────────────────────────── */
 
-/** The Sparkline component: a header switch to enable, then its own config. */
+/** The inline trend under the headline. Its BUCKET is the whole control — "No trend" is off. */
 export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement {
   const { fo, setFO } = useKpi(spec, update);
   const sparkline = fo.sparkline as { granularity?: Granularity | VarRef } | undefined;
   const sparkOn = sparkline !== undefined;
-  // "Higher is better" is shared with Comparison; show it here only when comparison is off
-  // (so the single underlying setting never appears as two toggles at once).
-  const comparing = fo.comparison !== undefined;
-  const goodDirection = (fo.goodDirection as "up" | "down" | undefined) ?? "up";
   const granularity = sparkline?.granularity;
 
+  /**
+   * The bucket picker IS the on/off switch: no bucket, no trend. A separate "Show
+   * sparkline" toggle above a "Trend granularity" select made two controls out of one
+   * question, and left a nonsense state available (on, but bucketed by nothing).
+   */
   return (
-    <div className="cv:flex cv:flex-col cv:gap-1.5">
-      <SwitchRow
-        label="Show sparkline"
-        checked={sparkOn}
-        onChange={(on) => setFO({ sparkline: on ? { granularity: granularity ?? "day" } : undefined })}
-      />
+    <div className="cv-kpi-options">
+      <Field label="Trend">
+        {({ id, labelId }) => (
+          <ValueBinding
+            labelId={labelId}
+            kind="granularity"
+            value={granularity}
+            onChange={(g) =>
+              setFO({
+                sparkline:
+                  g === undefined ? undefined : { ...sparkline, granularity: g as Granularity | VarRef },
+              })
+            }
+            renderFixed={(g, set) => (
+              <GranularityPicker
+                id={id}
+                value={g}
+                onChange={set}
+                allowNone
+                noneLabel="No trend"
+                className="cv-ec-h8 cv-ec-full"
+              />
+            )}
+          />
+        )}
+      </Field>
       {sparkOn ? (
-        <>
-          <Field label="Trend granularity">
-            <ValueBinding
-              kind="granularity"
-              value={granularity}
-              onChange={(g) => setFO({ sparkline: { ...sparkline, granularity: g as Granularity | VarRef } })}
-              renderFixed={(g, set) => <GranularityPicker value={g} onChange={set} className="cv:h-8 cv:w-full" />}
-            />
-          </Field>
-          {!comparing ? (
-            <SwitchRow
-              label="Higher is better"
-              hint="Off = a decrease is good (inverts the trend color)."
-              checked={goodDirection !== "down"}
-              onChange={(on) => setFO({ goodDirection: on ? "up" : "down" })}
-            />
-          ) : null}
-        </>
+        <p className="cv-ec-hint">
+          Colored by the direction set on the value.
+        </p>
       ) : null}
     </div>
   );
@@ -269,12 +298,27 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
 
 /* ───────────────────────────────── helpers ──────────────────────────────── */
 
-/** A vertical labeled field (caption above the control). */
-function Field({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
+/**
+ * A vertical labeled field (caption above the control). The caption is a real
+ * `<label>` and hands its generated ids to the control, so whatever sits below is
+ * NAMED: `id` for a native field (`<label htmlFor>`), `labelId` for a cluster of
+ * buttons (a Select trigger / the Value|Variable group) that a `for` cannot target.
+ */
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: (ids: { id: string; labelId: string }) => React.ReactNode;
+}): React.ReactElement {
+  const id = React.useId();
+  const labelId = React.useId();
   return (
-    <div className="cv:flex cv:flex-col cv:gap-1">
-      <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">{label}</span>
-      {children}
+    <div className="cv-ec-field">
+      <label id={labelId} htmlFor={id} className="cv-ec-label">
+        {label}
+      </label>
+      {children({ id, labelId })}
     </div>
   );
 }

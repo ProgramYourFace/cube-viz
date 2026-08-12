@@ -1,15 +1,14 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 import dts from "vite-plugin-dts";
 import { resolve } from "node:path";
 
-// Library build config: emits an ESM bundle + types. React/Recharts/RGL/etc.
-// stay external so the host app dedupes them. The host owns its own bundler.
+// Library build config: emits an ESM bundle + types. React/TanStack-Charts/RGL
+// etc. stay external so the host app dedupes them. The host owns its own
+// bundler. CSS is plain hand-authored semantic CSS (no Tailwind toolchain).
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(),
     dts({ rollupTypes: true, tsconfigPath: "./tsconfig.json", include: ["src"] }),
   ],
   resolve: {
@@ -26,7 +25,9 @@ export default defineConfig({
         "react-dom",
         "react/jsx-runtime",
         /^react-dom\//,
-        "recharts",
+        /^@tanstack\/charts/,
+        "d3-scale",
+        "d3-shape",
         "react-grid-layout",
         "@cubejs-client/core",
         /^@tiptap\//,
@@ -37,7 +38,6 @@ export default defineConfig({
         "react-day-picker",
         "class-variance-authority",
         "clsx",
-        "tailwind-merge",
       ],
       output: {
         entryFileNames: "[name].js",

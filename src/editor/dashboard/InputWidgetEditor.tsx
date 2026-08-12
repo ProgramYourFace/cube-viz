@@ -94,7 +94,7 @@ export function InputWidgetEditor({
   };
 
   return (
-    <div className="cv:flex cv:flex-col">
+    <div className="cv-input-widget-editor">
       <FieldRow
         label="Variable"
         hint={
@@ -227,13 +227,13 @@ function PresetMultiSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="cv:w-full cv:justify-between cv:font-normal">
-          <span className="cv:truncate">{summary}</span>
-          <ChevronDown className="cv:size-4 cv:shrink-0 cv:opacity-50" />
+        <Button variant="outline" className="cv-preset-select-trigger">
+          <span className="cv-ed-truncate">{summary}</span>
+          <ChevronDown className="cv-preset-select-caret" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="cv:w-64 cv:p-1" align="start">
-        <div className="cv:max-h-72 cv:overflow-y-auto">
+      <PopoverContent className="cv-preset-select-popover" align="start">
+        <div className="cv-preset-select-list">
           {DATE_RANGE_PRESETS.map((p) => {
             const on = chosen.has(p.value);
             return (
@@ -242,15 +242,12 @@ function PresetMultiSelect({
                 type="button"
                 aria-pressed={on}
                 onClick={() => toggle(p.value)}
-                className="cv:flex cv:w-full cv:items-center cv:gap-2 cv:rounded-sm cv:px-2 cv:py-1.5 cv:text-left cv:text-sm cv:text-foreground cv:hover:bg-accent"
+                className="cv-preset-select-item"
               >
                 <span
-                  className={cn(
-                    "cv:flex cv:size-4 cv:shrink-0 cv:items-center cv:justify-center cv:rounded cv:border",
-                    on ? "cv:border-primary cv:bg-primary cv:text-primary-foreground" : "cv:border-input",
-                  )}
+                  className={cn("cv-preset-select-check", on && "cv-preset-select-check--checked")}
                 >
-                  {on ? <Check className="cv:size-3" /> : null}
+                  {on ? <Check className="cv-ed-icon-xs" /> : null}
                 </span>
                 {p.label}
               </button>
@@ -306,7 +303,7 @@ function GranularityOptions({
         </Select>
       </FieldRow>
       <FieldRow label="Granularities" hint="Leave all off to offer every granularity (or the proportioned set).">
-        <div className="cv:flex cv:flex-wrap cv:gap-1.5">
+        <div className="cv-granularity-chips">
           {GranularitySchema.options.map((g) => {
             const on = selected.has(g);
             return (
@@ -315,12 +312,7 @@ function GranularityOptions({
                 type="button"
                 aria-pressed={on}
                 onClick={() => toggle(g)}
-                className={
-                  "cv:rounded-md cv:border cv:px-2 cv:py-1 cv:text-xs cv:capitalize cv:transition-colors" +
-                  (on
-                    ? "cv:border-primary cv:bg-primary/10 cv:text-foreground"
-                    : "cv:border-border cv:text-muted-foreground cv:hover:text-foreground")
-                }
+                className={cn("cv-granularity-chip", on && "cv-granularity-chip--on")}
               >
                 {g}
               </button>
@@ -366,20 +358,24 @@ function SelectOptions({
           </Button>
         }
       >
-        <div className="cv:flex cv:flex-col cv:gap-1.5">
+        <div className="cv-select-options-list">
           {control.options.length === 0 ? (
-            <p className="cv:text-xs cv:text-muted-foreground">No options yet.</p>
+            <p className="cv-ed-hint">No options yet.</p>
           ) : (
             control.options.map((opt, i) => (
-              <div key={i} className="cv:flex cv:items-center cv:gap-1.5">
+              <div key={i} className="cv-select-option-row">
                 <Input
-                  className="cv:flex-1"
+                  className="cv-ed-grow"
+                  // Repeated per option row, so the name is per-field (the visible
+                  // cue is the placeholder) rather than a shared caption.
+                  aria-label={`Option ${i + 1} label`}
                   placeholder="Label"
                   value={opt.label}
                   onChange={(e) => setOption(i, { label: e.target.value })}
                 />
                 <Input
-                  className="cv:flex-1"
+                  className="cv-ed-grow"
+                  aria-label={`Option ${i + 1} value`}
                   placeholder="Value"
                   value={String(opt.value)}
                   onChange={(e) => setOption(i, { value: e.target.value })}
@@ -387,7 +383,7 @@ function SelectOptions({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="cv:size-8 cv:shrink-0 cv:text-muted-foreground"
+                  className={cn("cv-ed-btn-8", "cv-ed-muted")}
                   aria-label="Remove option"
                   onClick={() => removeOption(i)}
                 >
@@ -436,7 +432,7 @@ function MemberSelectOptions({
             <Button
               variant="ghost"
               size="sm"
-              className="cv:h-6 cv:px-1.5 cv:text-xs cv:text-muted-foreground"
+              className="cv-ed-clear-btn"
               onClick={() => onChange({ ...control, cube: undefined })}
             >
               Clear
@@ -460,9 +456,11 @@ function TextOptions({
   control: ControlOf<"text">;
   onChange: (next: Control) => void;
 }): React.ReactElement {
+  const id = React.useId();
   return (
-    <FieldRow label="Placeholder">
+    <FieldRow label="Placeholder" htmlFor={id}>
       <Input
+        id={id}
         value={control.placeholder ?? ""}
         onChange={(e) => onChange({ ...control, placeholder: e.target.value || undefined })}
       />
@@ -477,9 +475,12 @@ function NumberOptions({
   control: ControlOf<"number">;
   onChange: (next: Control) => void;
 }): React.ReactElement {
+  // One base per editor; each of the three rows derives its own id from the key.
+  const idBase = React.useId();
   const numField = (key: "min" | "max" | "step", label: string): React.ReactElement => (
-    <FieldRow label={label}>
+    <FieldRow label={label} htmlFor={`${idBase}-${key}`}>
       <Input
+        id={`${idBase}-${key}`}
         type="number"
         value={control[key] ?? ""}
         onChange={(e) => {

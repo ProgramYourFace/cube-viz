@@ -78,20 +78,25 @@ export function WidgetEditPanel({
   onVariablesChange,
   fill = false,
 }: WidgetEditPanelProps): React.ReactElement {
+  // The FieldRow caption is a real `<label htmlFor>` over this id, so the title field
+  // has an accessible name (a caption rendered as a sibling label names nothing).
+  const titleId = React.useId();
   // Inline variable creation from the chart editor's binding controls.
   const createVariable = onVariablesChange
     ? (decl: VariableDecl): void => onVariablesChange([...variables, decl])
     : undefined;
 
   return (
-    <div data-slot="widget-edit-panel" className={cn("cv:flex cv:flex-col cv:gap-2", fill && "cv:h-full")}>
+    <div data-slot="widget-edit-panel" className={cn("cv-widget-panel", fill && "cv-widget-panel--fill")}>
       {/* A title for charts; the field label for inputs. Text carries its own headings. */}
       {widget.type !== "text" ? (
         <FieldRow
           label="Title"
+          htmlFor={titleId}
           hint={widget.type === "input" ? "Used as the field label." : "Shown in the widget header."}
         >
           <Input
+            id={titleId}
             value={widget.title ?? ""}
             placeholder="Untitled"
             onChange={(e) =>
@@ -108,7 +113,7 @@ export function WidgetEditPanel({
         // Cube and 400s ("granularity must be a string").
         <DashboardProvider spec={previewDashboard(variables)}>
           <VariableAdminProvider createVariable={createVariable}>
-            <div className={cn(fill && "cv:min-h-0 cv:flex-1")}>
+            <div className={cn(fill && "cv-widget-panel-chart-fill")}>
               <ChartEditor
                 fill={fill}
                 spec={widgetToChartSpec(widget)}

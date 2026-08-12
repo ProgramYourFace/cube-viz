@@ -1,0 +1,1763 @@
+/*
+ * Editor (chart) styles — the on-chart chart editor under src/editor/chart/:
+ * overlay layout, wells strips, field pills, the field/type/source/filter
+ * popovers, the KPI config strip, the filter builder, and value/variable
+ * binding. Plain CSS — cube-viz no longer ships Tailwind utilities. Class
+ * prefix: `cv-` (semantic, hand-authored), matching charts.css conventions.
+ *
+ * Theme tokens (--background, --foreground, --muted, --border, --accent,
+ * --primary, --destructive, --ring, --radius, …) come from theme.css and flip
+ * automatically in dark mode; opacity tints use color-mix. The two fixed
+ * accents (the KPI comparison warning) use the old Tailwind amber values.
+ *
+ * Shared `.cv-ec-*` helpers cover the handful of patterns repeated across the
+ * editor (field label stacks, control heights, icon sizes, menu rows).
+ */
+
+/* ───────────────────────────── shared helpers ───────────────────────────── */
+
+/* A vertical label + control stack (caption above the control). */
+.cv-ec-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cv-ec-field--loose {
+  gap: 0.375rem;
+}
+
+/* The small muted field caption. */
+.cv-ec-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+/* Fine-print helper text under a control. */
+.cv-ec-hint {
+  font-size: 10px;
+  line-height: 1.25;
+  color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
+}
+
+/* A label ↔ control space-between row (switch rows). */
+.cv-ec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* Control heights (compact editor inputs/buttons). */
+.cv-ec-h7 {
+  height: 1.75rem;
+}
+
+.cv-ec-h8 {
+  height: 2rem;
+}
+
+.cv-ec-full {
+  width: 100%;
+}
+
+.cv-ec-flex1 {
+  flex: 1 1 0%;
+}
+
+.cv-ec-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-ec-medium {
+  font-weight: 500;
+}
+
+/* Icon sizes (lucide icons; flex:none so rows never squash them). */
+.cv-ec-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+}
+
+.cv-ec-icon--sm {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+}
+
+.cv-ec-icon--lg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.cv-ec-icon--muted {
+  color: var(--muted-foreground);
+}
+
+/* Ghost remove (×/trash) button: muted until hover, then destructive. */
+.cv-ec-remove {
+  flex: none;
+  color: var(--muted-foreground);
+}
+
+.cv-ec-remove:hover {
+  color: var(--destructive);
+}
+
+.cv-ec-remove--6 {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.cv-ec-remove--7 {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.cv-ec-remove--8 {
+  width: 2rem;
+  height: 2rem;
+}
+
+/* Popover menu rows (source items, variable options, browse menus). */
+.cv-ec-menu-heading {
+  padding: 0.375rem 0.5rem 0.125rem;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--muted-foreground);
+}
+
+.cv-ec-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: none;
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.cv-ec-menu-item:hover {
+  background: var(--accent);
+}
+
+.cv-ec-menu-item--active {
+  background: color-mix(in oklab, var(--accent) 60%, transparent);
+}
+
+.cv-ec-menu-icon {
+  color: var(--muted-foreground);
+}
+
+.cv-ec-menu-label {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─────────────────────── overlay layout (ChartEditOverlay) ─────────────────
+ * Left sidebar widths — referenced by familyDescriptors.sidebarWidthClass
+ * (SIDEBAR_DEFAULT / SIDEBAR_WIDE) and applied on .cv-edit-sidebar. */
+
+.cv-sidebar--default {
+  width: 10rem;
+}
+
+.cv-sidebar--wide {
+  width: 14rem;
+}
+
+.cv-edit-overlay {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cv-edit-overlay-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cv-edit-overlay-toolbar {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0%;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cv-edit-overlay-actions {
+  display: flex;
+  flex: 1 1 0%;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+
+.cv-edit-overlay-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+  gap: 0.5rem;
+}
+
+/* The left Y-axis strip of well groups (width from .cv-sidebar--*). */
+.cv-edit-sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+/* The KPI Value block (well + its "Time, range & display" entry). */
+.cv-edit-kpi-value {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cv-edit-overlay-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* The live-preview cell the CenterTypePicker overlays. */
+.cv-edit-overlay-canvas {
+  position: relative;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+/* The bottom X / split wells row (+ legend toggle). */
+.cv-edit-overlay-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: 1.25rem;
+  row-gap: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+/* ───────────────────── chart chrome (axis titles, legend) ────────────────── */
+
+.cv-axis-chrome {
+  display: flex;
+  width: 100%;
+  min-width: 8rem;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding: 0.25rem 0.375rem;
+  transition: opacity 0.15s ease;
+}
+
+.cv-axis-chrome--hidden {
+  opacity: 0.5;
+}
+
+.cv-axis-chrome-label {
+  flex: none;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--muted-foreground);
+}
+
+.cv-axis-chrome-input {
+  height: 1.5rem;
+  min-width: 0;
+  flex: 1 1 0%;
+  border: 1px solid var(--input);
+  border-radius: 0.25rem;
+  background: var(--background);
+  padding-inline: 0.375rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.cv-axis-chrome-input:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-axis-chrome-input:disabled {
+  cursor: not-allowed;
+}
+
+/* The show/hide eye toggle (axis title / legend). */
+.cv-chrome-eye {
+  border: 0;
+  border-radius: 0.25rem;
+  background: none;
+  padding: 0.125rem;
+  color: var(--muted-foreground);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.cv-chrome-eye:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.cv-legend-chrome {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: opacity 0.15s ease;
+}
+
+.cv-legend-chrome--hidden {
+  opacity: 0.5;
+}
+
+.cv-legend-chrome-label {
+  padding-inline: 0.125rem;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--muted-foreground);
+}
+
+.cv-legend-chrome-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.cv-legend-chrome-toggle:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+/* ─────────────── chart-type picker (CenterTypePicker + pill) ─────────────── */
+
+/* The empty-state chooser overlay, centered over the placeholder. */
+.cv-type-chooser {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.cv-type-chooser-card {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 24rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  background: color-mix(in oklab, var(--background) 95%, transparent);
+  padding: 1rem;
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.cv-type-chooser-title {
+  padding-bottom: 0.125rem;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.cv-type-chooser-sub {
+  padding-bottom: 0.75rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* The toolbar chart-type pill (built charts). */
+.cv-type-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--background);
+  padding: 0.25rem 0.75rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: inherit;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition: background-color 0.15s ease;
+}
+
+.cv-type-pill:hover {
+  background: var(--accent);
+}
+
+.cv-type-popover {
+  display: flex;
+  max-height: 70vh;
+  width: 18rem;
+  flex-direction: column;
+  gap: 0.625rem;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.cv-type-popover-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.cv-type-popover-section--divided {
+  border-top: 1px solid var(--border);
+  padding-top: 0.625rem;
+}
+
+.cv-type-popover-heading {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--muted-foreground);
+}
+
+/* The 4-column family tile grid. */
+.cv-type-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.cv-type-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  background: none;
+  padding: 0.5rem 0.25rem;
+  font: inherit;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.cv-type-tile:hover {
+  background: color-mix(in oklab, var(--accent) 50%, transparent);
+  color: var(--foreground);
+}
+
+.cv-type-tile--active,
+.cv-type-tile--active:hover {
+  border-color: var(--ring);
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+/* ─────────────────────────── wells (WellGroup) ───────────────────────────── */
+
+.cv-well-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cv-well-group--h {
+  min-width: 0;
+}
+
+.cv-well-header {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding-inline: 0.125rem;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--muted-foreground);
+}
+
+/* The axis-unit badge ("Distance (mi)"). */
+.cv-well-badge {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--muted);
+  padding: 1px 0.25rem;
+  font-size: 9px;
+  text-transform: none;
+  color: var(--muted-foreground);
+}
+
+.cv-well-optional {
+  text-transform: none;
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+}
+
+/* In-context control (axis-title box) slotted above the fields. */
+.cv-well-control {
+  padding-bottom: 0.125rem;
+}
+
+.cv-well-fields {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.cv-well-fields--v {
+  flex-direction: column;
+}
+
+.cv-well-fields--h {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Explanatory note under the fields (pairs with .cv-ec-hint). */
+.cv-well-note {
+  padding-inline: 0.125rem;
+}
+
+/* The dashed "add field" slot. */
+.cv-well-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 1px dashed var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in oklab, var(--background) 60%, transparent);
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.cv-well-add:hover {
+  border-color: var(--ring);
+  color: var(--foreground);
+}
+
+.cv-well-add--full {
+  width: 100%;
+}
+
+/* ─────────────────────── field pills (FieldPill) ─────────────────────────── */
+
+.cv-field-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding: 0.25rem 0.25rem 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.cv-field-pill--full {
+  width: 100%;
+}
+
+/* The resolved series-colour swatch. */
+.cv-field-pill-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-radius: 9999px;
+}
+
+.cv-field-pill-name {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The pill body (label + swatch/icon) — static span or popover trigger. */
+.cv-field-pill-body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0%;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.cv-field-pill-trigger {
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  outline: none;
+}
+
+.cv-field-pill-trigger:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-field-pill-popover {
+  width: 15rem;
+  padding: 0.75rem;
+}
+
+.cv-field-pill-config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* The category Sort <select>. */
+.cv-field-pill-select {
+  height: 2rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding-inline: 0.5rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.cv-field-pill-select:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+/* Line-shape chooser (2-col grid of small options). */
+.cv-line-shape-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.cv-line-shape-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  background: none;
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: inherit;
+}
+
+.cv-line-shape-option:hover {
+  background: color-mix(in oklab, var(--accent) 50%, transparent);
+}
+
+.cv-line-shape-option--active,
+.cv-line-shape-option--active:hover {
+  border-color: var(--ring);
+  background: var(--accent);
+}
+
+/* Up/Down reorder button pair. */
+.cv-field-pill-reorder {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* The popover's full-width destructive Remove entry. */
+.cv-field-pill-remove {
+  height: 2rem;
+  justify-content: flex-start;
+  color: var(--destructive);
+}
+
+.cv-field-pill-remove:hover {
+  color: var(--destructive);
+}
+
+/* ──────────────── field picker popover (FieldPickerPopover) ──────────────── */
+
+.cv-picker {
+  width: 20rem;
+  padding: 0.5rem;
+}
+
+/* Search + the two icon controls (compatibility toggle, data source) on ONE row; the
+   rule under it replaces the divider the old checkbox row used to draw. */
+.cv-picker-header {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  padding-bottom: 0.375rem;
+}
+
+.cv-picker-search {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0%;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding-inline: 0.5rem;
+}
+
+.cv-picker-search-input {
+  height: 2rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.cv-picker-search-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* The two header icon buttons: "Only compatible fields" (the opt-in that hides every
+   row this slot cannot take — wrong kind, wrong quantity for the axis, wrong dataset)
+   and the data-source menu. Both are quiet, square, and sit inline at the end of the
+   search row; the old labelled checkbox row cost a whole line of a 20rem popover. */
+.cv-picker-compat,
+.cv-picker-source-trigger {
+  display: flex;
+  height: 2rem;
+  min-width: 2rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1875rem;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
+  background: none;
+  padding-inline: 0.3125rem;
+  font: inherit;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.cv-picker-compat:hover,
+.cv-picker-source-trigger:hover {
+  background: color-mix(in oklab, var(--accent) 60%, transparent);
+  color: var(--foreground);
+}
+
+.cv-picker-compat:focus-visible,
+.cv-picker-source-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* Pressed. Filled with the accent tint used by every other active affordance here, so
+   the state reads without hover and without the label the toggle no longer has. */
+.cv-picker-compat--on {
+  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.cv-picker-compat--on:hover {
+  background: color-mix(in oklab, var(--primary) 20%, transparent);
+  color: var(--primary);
+}
+
+/* How many rows the toggle is hiding right now — the receipt the text label used to
+   carry. Rendered only while it is on AND something is actually hidden. */
+.cv-picker-compat-count {
+  display: flex;
+  height: 0.9375rem;
+  min-width: 0.9375rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--primary);
+  padding-inline: 0.1875rem;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--primary-foreground);
+}
+
+.cv-picker-list {
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.cv-picker-empty {
+  padding: 1.5rem 0.25rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* The way back when the switch emptied the list. */
+.cv-picker-show-all {
+  border: 0;
+  background: none;
+  margin-top: 0.5rem;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cv-picker-related-heading {
+  padding: 0.5rem 0.25rem 0.25rem;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+}
+
+/* A table section header (collapse toggle row). */
+.cv-picker-table {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.375rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: none;
+  padding: 0.25rem;
+  text-align: left;
+  font: inherit;
+  color: var(--foreground);
+}
+
+.cv-picker-table:hover {
+  background: color-mix(in oklab, var(--accent) 50%, transparent);
+}
+
+.cv-picker-table-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Small uppercase tag chips ("Main table" / "dataset"). */
+.cv-picker-tag {
+  border-radius: calc(var(--radius) - 4px);
+  padding: 1px 0.25rem;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.cv-picker-tag--primary {
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  color: var(--primary);
+}
+
+.cv-picker-tag--muted {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.cv-picker-count {
+  margin-left: auto;
+  flex: none;
+  padding-right: 0.25rem;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+}
+
+/* A group of member rows within a table section. */
+.cv-picker-group {
+  padding-bottom: 0.125rem;
+  padding-left: 1rem;
+}
+
+.cv-picker-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem 0.125rem;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+}
+
+/* One pickable member row. */
+.cv-picker-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.375rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: none;
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.cv-picker-row:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* Disabled-with-reason row (still focusable so the hint is reachable). */
+.cv-picker-row--disabled {
+  display: flex;
+  cursor: not-allowed;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  font-size: 0.875rem;
+  opacity: 0.45;
+  outline: none;
+}
+
+.cv-picker-row--disabled:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-picker-row-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.cv-picker-row-reason {
+  flex: none;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.cv-picker-row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Trailing "default" chip on the canonical time axis. */
+.cv-picker-badge {
+  margin-left: auto;
+  flex: none;
+  border-radius: calc(var(--radius) - 4px);
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  padding: 1px 0.25rem;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+/* The data-source (browse) selector's menu. Its trigger is styled with the compat
+   toggle above so the two icon buttons match. */
+.cv-picker-source-menu {
+  width: 15rem;
+  padding: 0.25rem;
+}
+
+/* ─────────────────── KPI config strip (KpiValueConfig) ───────────────────── */
+
+/* A config-strip entry (label + state summary) opening its options popover. */
+.cv-kpi-section-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding: 0.375rem 0.625rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: inherit;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition: background-color 0.15s ease;
+}
+
+.cv-kpi-section-trigger:hover {
+  background: var(--accent);
+}
+
+.cv-kpi-section-state {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--muted-foreground);
+}
+
+.cv-kpi-section-summary {
+  font-size: 11px;
+}
+
+.cv-kpi-section-popover {
+  max-height: 72vh;
+  width: 16rem;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+/* Popover bodies: the Value fields stack and Comparison/Sparkline stacks. */
+.cv-kpi-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cv-kpi-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* "A date range is required" callout (fixed amber accent, both themes). */
+.cv-kpi-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  border: 1px solid color-mix(in oklab, #f59e0b 30%, transparent);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in oklab, #f59e0b 10%, transparent);
+  padding: 0.375rem 0.5rem;
+  font-size: 11px;
+  line-height: 1.375;
+  color: #b45309;
+}
+
+.cv-kpi-warn strong {
+  font-weight: 600;
+}
+
+.cv-kpi-warn-icon {
+  margin-top: 1px;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+}
+
+/* ───────────────── filters popover (ChartFiltersPopover) ─────────────────── */
+
+.cv-filters-trigger {
+  display: flex;
+  height: 2rem;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in oklab, var(--background) 90%, transparent);
+  padding-inline: 0.625rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  backdrop-filter: blur(8px);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.cv-filters-trigger:hover {
+  background: var(--accent);
+}
+
+.cv-filters-trigger--active {
+  color: var(--foreground);
+}
+
+/* Active-filter count bubble. */
+.cv-filters-count {
+  margin-left: 0.125rem;
+  display: flex;
+  height: 1rem;
+  min-width: 1rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--primary);
+  padding-inline: 0.25rem;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary-foreground);
+}
+
+.cv-filters-popover {
+  display: flex;
+  max-height: 72vh;
+  width: 24rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.cv-filters-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.cv-filters-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.cv-filters-desc {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* Segment toggle chips. */
+.cv-filter-segments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.cv-filter-segments-heading {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--muted-foreground);
+}
+
+.cv-filter-segments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.cv-segment-chip {
+  border: 1px solid var(--input);
+  border-radius: 9999px;
+  background: none;
+  padding: 0.25rem 0.625rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.cv-segment-chip:hover {
+  background: color-mix(in oklab, var(--accent) 50%, transparent);
+  color: var(--foreground);
+}
+
+.cv-segment-chip--active,
+.cv-segment-chip--active:hover {
+  border-color: var(--ring);
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+/* ───────────────── source popover (ChartSourcePopover) ───────────────────── */
+
+.cv-source-trigger {
+  display: flex;
+  height: 2rem;
+  max-width: 12rem;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in oklab, var(--background) 90%, transparent);
+  padding-inline: 0.625rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--foreground);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  backdrop-filter: blur(8px);
+  transition: background-color 0.15s ease;
+}
+
+.cv-source-trigger:hover {
+  background: var(--accent);
+}
+
+.cv-source-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-source-trigger-label--placeholder {
+  color: var(--muted-foreground);
+}
+
+.cv-source-popover {
+  width: 16rem;
+  padding: 0.25rem;
+}
+
+/* The switch-source confirm step. */
+.cv-source-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.cv-source-confirm-title {
+  font-size: 0.875rem;
+}
+
+.cv-source-confirm-note {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.cv-source-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+
+.cv-source-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ─────────────────────── filter builder (FilterBuilder) ──────────────────── */
+
+.cv-filter-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cv-filter-empty {
+  padding: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* "Match [All|Any] of these" row. */
+.cv-filter-match {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* A collapsed filter (sentence + remove). */
+.cv-filter-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+}
+
+.cv-filter-summary-text {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.cv-filter-groups-note {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.cv-filter-add {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* The expanded filter editor card. */
+.cv-filter-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  border: 1px solid color-mix(in oklab, var(--ring) 50%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--muted) 30%, transparent);
+  padding: 0.75rem;
+}
+
+.cv-filter-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cv-filter-edit-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: var(--muted-foreground);
+}
+
+.cv-filter-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.cv-filter-done {
+  height: 1.75rem;
+  gap: 0.25rem;
+  padding-inline: 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* The Field selector trigger (opens the rich FieldPickerPopover). */
+.cv-filter-field-trigger {
+  display: flex;
+  height: 2.25rem;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding-inline: 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.cv-filter-field-trigger:focus-visible {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.cv-filter-field-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cv-filter-field-value {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cv-filter-field-placeholder {
+  color: var(--muted-foreground);
+}
+
+/* ─────────────────── value binding (ValueBinding toggle) ─────────────────── */
+
+.cv-bind {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* The Value | Variable segmented toggle. */
+.cv-bind-toggle {
+  display: flex;
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--muted);
+  padding: 0.125rem;
+  font-size: 11px;
+}
+
+.cv-bind-seg {
+  flex: 1 1 0%;
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: none;
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+  font: inherit;
+  color: var(--muted-foreground);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.cv-bind-seg:not(.cv-bind-seg--active):hover {
+  color: var(--foreground);
+}
+
+.cv-bind-seg--active {
+  background: var(--background);
+  font-weight: 500;
+  color: var(--foreground);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/* ───────────────────── variable picker (VariablePicker) ──────────────────── */
+
+.cv-var-trigger {
+  height: 2rem;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 0.375rem;
+}
+
+.cv-var-trigger-label {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.cv-var-trigger-label--placeholder {
+  color: var(--muted-foreground);
+}
+
+.cv-var-popover {
+  width: 15rem;
+  padding: 0.25rem;
+}
+
+/* Trailing variable-type tag on an option row. */
+.cv-var-type {
+  flex: none;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.cv-var-empty {
+  padding: 0.375rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* The inline "New variable" section. */
+.cv-var-new {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.25rem;
+}
+
+.cv-var-new-form {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+}
+
+.cv-var-new-input {
+  height: 1.75rem;
+  font-size: 0.875rem;
+}
+
+.cv-var-new-add {
+  height: 1.75rem;
+  flex: none;
+}
+
+/* Muted menu-item variant (pairs with .cv-ec-menu-item). */
+.cv-var-new-trigger {
+  color: var(--muted-foreground);
+}
+
+.cv-var-new-trigger:hover {
+  color: var(--foreground);
+}
+
+/* ─────────────── date range editor (DateRangeValueEditor) ────────────────── */
+
+.cv-daterange-trigger {
+  height: 2rem;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 0.375rem;
+  font-weight: 400;
+}
+
+.cv-daterange-label {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.cv-daterange-label--placeholder {
+  color: var(--muted-foreground);
+}
+
+.cv-daterange-popover {
+  display: flex;
+  width: auto;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.cv-daterange-presets {
+  display: flex;
+  width: 8rem;
+  flex-direction: column;
+  gap: 0.125rem;
+  border-right: 1px solid var(--border);
+  padding-right: 0.5rem;
+}
+
+.cv-daterange-preset {
+  justify-content: flex-start;
+  font-weight: 400;
+}
+
+.cv-daterange-preset--active {
+  background: var(--accent);
+}
+
+.cv-daterange-preset--muted {
+  color: var(--muted-foreground);
+}
+
+/* ─────────────────── customize section (CustomizeSection) ────────────────── */
+
+.cv-customize {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Stack-mode explainer (pairs with .cv-ec-hint). */
+.cv-customize-hint {
+  padding: 0.25rem 0.125rem 0;
+}
+
+/* A labeled option field with breathing room between rows. */
+.cv-customize-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-block: 0.25rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Guided builder: live type previews, fit suggestions, forgiving drop targets.
+   Appended block — every rule below either introduces a new class or refines an
+   earlier one (same specificity, later in the sheet, so it wins).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ───────────────── the type picker: suggestions + preview tiles ───────────── */
+
+/* The tiles are miniature CHARTS now, not icons, so the popover needs the width
+   for a three-across grid. */
+.cv-type-popover--preview {
+  width: 25rem;
+}
+
+.cv-type-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+/* Fixed tile columns: the miniature inside is drawn at 3× and scaled down, so its
+   box must not be fluid or the scale would stop matching. Keep in sync with
+   --cv-tile-w / --cv-tile-h below. */
+.cv-type-grid--preview {
+  --cv-tile-w: 108px;
+  --cv-tile-h: 68px;
+  grid-template-columns: repeat(3, var(--cv-tile-w));
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* One tile. Reuses .cv-type-tile for the frame (border, hover, --active) and turns
+   it into a card: figure on top, caption underneath, one transparent hit target
+   covering both. */
+.cv-type-tile--card {
+  position: relative;
+  width: var(--cv-tile-w);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cv-type-tile-figure {
+  position: relative;
+  display: grid;
+  height: var(--cv-tile-h);
+  place-items: center;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+}
+
+/* The miniature is decoration: no pointer, no hit testing, no text selection. */
+.cv-type-tile-preview {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Drawn at 3× and scaled: the chart shell enforces a 200px minimum height, so a
+   68px-tall chart would otherwise be all margin and no marks. */
+.cv-type-tile-canvas {
+  width: calc(var(--cv-tile-w) * 3);
+  height: calc(var(--cv-tile-h) * 3);
+  transform: scale(0.33333);
+  transform-origin: top left;
+}
+
+.cv-type-tile-canvas .cv-chart--fill,
+.cv-type-tile-canvas .cv-chart {
+  min-height: 0;
+}
+
+.cv-type-tile-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0.25rem 0.25rem 0.3125rem;
+  text-align: center;
+}
+
+.cv-type-tile-label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* The one-line "why this type" under a suggested tile. */
+.cv-type-tile-reason {
+  font-size: 9px;
+  line-height: 1.25;
+  color: var(--muted-foreground);
+}
+
+.cv-type-tile--active .cv-type-tile-reason {
+  color: color-mix(in oklab, var(--foreground) 70%, transparent);
+}
+
+/* The whole tile is one tab stop; the chart underneath never is. */
+.cv-type-tile-hit {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.cv-type-tile-hit:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* ─────────────── forgiving drop targets (wells + field picker) ────────────── */
+
+/* "Add a measure to start" — the one move that gets an empty chart going. */
+.cv-well-start-hint {
+  padding-top: 0.125rem;
+  font-style: italic;
+}
+
+/* A whole data-type bucket this slot cannot take: still listed (so searching finds
+   it) but visibly secondary, under a "not for this slot" header. */
+.cv-picker-group--rejected {
+  border-top: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+}
+
+.cv-picker-group-note {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 400;
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--muted-foreground);
+}
+
+/* The reason now shows INLINE (a WebView has no hover, so a title-only hint is
+   invisible on touch) — bound its width so a long one cannot push the field name out. */
+.cv-picker-row-reason {
+  flex: 0 1 auto;
+  max-width: 52%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A blocked row is muted, not illegible: 0.45 opacity hid the reason we just
+   started showing. */
+.cv-picker-row--disabled {
+  opacity: 1;
+  color: var(--muted-foreground);
+}

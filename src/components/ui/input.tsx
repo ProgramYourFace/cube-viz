@@ -6,18 +6,23 @@ import { cn } from "@/components/ui/utils";
  * shadcn "new-york" Input. Plain `<input>` (no Radix) — the editor primitives
  * (FieldRow, FilterBuilder, MemberPicker search) build on this for all free-text
  * and numeric entry. Styling mirrors the SelectTrigger so controls line up.
+ *
+ * Every instance always carries an `id`: an explicit one when the caller pairs the
+ * field with a `<label htmlFor>`, otherwise a stable {@link React.useId} fallback, so
+ * no rendered field is ever anonymous (Chrome reports id-less fields as an issue and
+ * cannot autofill them). The fallback is NOT a substitute for a label — callers still
+ * own the `<label htmlFor>` / `aria-label` that names the field.
  */
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, id, ...props }, ref) => {
+    const fallbackId = React.useId();
     return (
       <input
         ref={ref}
         type={type}
+        id={id ?? fallbackId}
         data-slot="input"
-        className={cn(
-          "cv:flex cv:h-9 cv:w-full cv:rounded-md cv:border cv:border-input cv:bg-background cv:px-3 cv:py-1 cv:text-sm cv:text-foreground cv:shadow-sm cv:transition-colors cv:file:border-0 cv:file:bg-transparent cv:file:text-sm cv:file:font-medium cv:placeholder:text-muted-foreground cv:focus-visible:outline-none cv:focus-visible:ring-1 cv:focus-visible:ring-ring cv:disabled:cursor-not-allowed cv:disabled:opacity-50",
-          className,
-        )}
+        className={cn("cv-input", className)}
         {...props}
       />
     );

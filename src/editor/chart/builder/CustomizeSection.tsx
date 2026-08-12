@@ -1,9 +1,17 @@
 import * as React from "react";
 
 import type { FamilyRegistry } from "@/charts";
+import { familySupportsTransform } from "@/charts/transforms";
 import { useFamilyRegistry } from "@/provider";
-import type { ChartOptions, ChartSpec } from "@/spec";
+import { DEFAULT_TRANSFORM_WINDOW, type ChartOptions, type ChartSpec, type TransformKind } from "@/spec";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { FieldRow } from "../../primitives/FieldRow";
 import { SegmentedControl } from "../../primitives/SegmentedControl";
@@ -15,6 +23,23 @@ export interface CustomizeSectionProps {
 }
 
 type StackChoice = "none" | "stacked" | "percent";
+
+/** The "Compare" select's options — the three presentation transforms, plus off. */
+type TransformChoice = "none" | TransformKind;
+
+const TRANSFORM_LABELS: Record<TransformChoice, string> = {
+  none: "None",
+  rollingAvg: "Rolling average",
+  cumulative: "Running total",
+  percentOfTotal: "% of total",
+};
+
+const TRANSFORM_CHOICES: TransformChoice[] = [
+  "none",
+  "rollingAvg",
+  "cumulative",
+  "percentOfTotal",
+];
 
 /**
  * The per-family option set — ONLY the meaning-changing knobs for each chart type
@@ -54,6 +79,72 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     "none";
   const stackValue: StackChoice =
     effectiveStack === "stacked" ? "stacked" : effectiveStack === "percent" ? "percent" : "none";
+
+  /**
+   * The single PRESENTATION-transform control (spec: `chart.transform`). One select
+   * covers rolling average / running total / % of total — the three questions that
+   * would otherwise each need a new Cube measure. The window input is revealed ONLY
+   * for a rolling average (it is meaningless for the other two), keeping the default
+   * surface at exactly one knob. Shown only where the transform actually applies
+   * (cartesian, mapping-driven families — see `familySupportsTransform`).
+   */
+  const transformKind: TransformChoice = chart.transform?.kind ?? "none";
+  const TransformControl = familySupportsTransform(descriptor) ? (
+    <>
+      <FieldRow
+        label="Compare"
+        hint={
+          transformKind === "percentOfTotal"
+            ? "Each value as a share of its category total."
+            : undefined
+        }
+      >
+        <Select
+          value={transformKind}
+          onValueChange={(v) =>
+            setEnvelope({
+              transform:
+                v === "none"
+                  ? undefined
+                  : v === "rollingAvg"
+                    ? { kind: "rollingAvg", window: chart.transform?.window ?? DEFAULT_TRANSFORM_WINDOW }
+                    : { kind: v as Exclude<TransformKind, "rollingAvg"> },
+            })
+          }
+        >
+          <SelectTrigger aria-label="Compare" className="cv-ec-h8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TRANSFORM_CHOICES.map((c) => (
+              <SelectItem key={c} value={c}>
+                {TRANSFORM_LABELS[c]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldRow>
+      {transformKind === "rollingAvg" ? (
+        <KField label="Window (points)">
+          {(id) => (
+            <Input
+              id={id}
+              type="number"
+              min={2}
+              max={90}
+              className="cv-ec-h8 cv-transform-window"
+              value={chart.transform?.window ?? DEFAULT_TRANSFORM_WINDOW}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                const window = Number.isFinite(n) ? Math.min(90, Math.max(2, n)) : DEFAULT_TRANSFORM_WINDOW;
+                setEnvelope({ transform: { kind: "rollingAvg", window } });
+              }}
+            />
+          )}
+        </KField>
+      ) : null}
+    </>
+  ) : null;
 
   const StackControl = (
     <FieldRow label="Stacked">
@@ -96,7 +187,7 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           <>
             {StackControl}
             {chart.stackMode === undefined ? (
-              <p className="cv:px-0.5 cv:pt-1 cv:text-[10px] cv:leading-tight cv:text-muted-foreground/80">
+              <p className="cv-ec-hint cv-customize-hint">
                 {chart.mapping?.series?.mode === "pivot"
                   ? "Color-split areas stack into a whole by default — set this to change it."
                   : "Separate measures overlap by default; stacking adds them into one band."}
@@ -127,19 +218,8 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
                 onChange={(v) => setFamilyOptions({ showLabels: v })}
               />
             </FieldRow>
-            <KField label="Max slices">
-              <Input
-                type="number"
-                min={1}
-                className="cv:h-8"
-                value={(fo.maxSlices as number | undefined) ?? ""}
-                placeholder="8"
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
-                  setFamilyOptions({ maxSlices: Number.isFinite(n) && n > 0 ? n : undefined });
-                }}
-              />
-            </KField>
+            {/* No "Max slices": the rollup to 8 + "Other" is what keeps a pie readable,
+                and a number nobody tunes does not need a field. */}
           </>
         );
 
@@ -149,35 +229,13 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
       case "kpi":
         return null;
 
+      // Table and heatmap have NO options. Sorting and a pinned header are what makes a
+      // table usable, so they are always on; row density follows the row count, and the
+      // heatmap prints in-cell numbers whenever the grid is small enough to read them.
+      // Each of those was a switch whose every setting was defensible — which is the
+      // definition of a question not worth asking.
       case "table":
-        return (
-          <>
-            <SwitchRow
-              label="Compact rows"
-              checked={fo.rowHeight === "compact"}
-              onChange={(on) => setFamilyOptions({ rowHeight: on ? "compact" : "default" })}
-            />
-            <SwitchRow
-              label="Sortable columns"
-              checked={fo.sortable !== false}
-              onChange={(on) => setFamilyOptions({ sortable: on })}
-            />
-            <SwitchRow
-              label="Sticky header"
-              checked={fo.stickyHeader !== false}
-              onChange={(on) => setFamilyOptions({ stickyHeader: on })}
-            />
-            <SwitchRow
-              label="Row numbers"
-              checked={fo.showRowNumbers === true}
-              onChange={(on) => setFamilyOptions({ showRowNumbers: on })}
-            />
-          </>
-        );
-
-      // Combo is configured entirely per-measure (render type, line shape, points,
-      // axis, color) on each Values field — no type-level options.
-      case "combo":
+      case "heatmap":
         return null;
 
       case "scatter":
@@ -188,32 +246,60 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     }
   })();
 
-  return <div className="cv:flex cv:flex-col">{body}</div>;
+  // The transform is an ENVELOPE option, not a family knob, so it renders once after
+  // the per-family body (and is `null` for families it doesn't apply to).
+  return (
+    <div className="cv-customize">
+      {body}
+      {TransformControl}
+    </div>
+  );
 }
 
 /**
  * Whether the type picker should show an "Options" section for this family. For a
- * builtin it's the descriptor flag (line / combo / scatter / kpi are fully edited in
+ * builtin it's the descriptor flag (line / scatter / kpi are fully edited in
  * context — per-measure pills + on-chart chrome / the KPI strip — so they have none).
  * A HOST family that supplies its own `descriptor.Customize` panel ALWAYS shows it,
  * regardless of the builtin-options flag — the two are independent, and a self-contained
  * host that sets `hasCustomizeOptions: false` would otherwise have its panel suppressed
  * (CenterTypePicker short-circuits before CustomizeSection's host dispatch runs).
+ *
+ * A family that supports the envelope-level PRESENTATION transform also shows the
+ * section even when it has no family knobs of its own (that's `line`: fully edited in
+ * context otherwise, but the "Compare" select still needs somewhere to live).
  */
 export function hasCustomizeOptions(
   family: ChartSpec["chart"]["family"],
   families: FamilyRegistry,
 ): boolean {
   const descriptor = families.require(family);
-  return descriptor.hasCustomizeOptions || descriptor.Customize !== undefined;
+  return (
+    descriptor.hasCustomizeOptions ||
+    descriptor.Customize !== undefined ||
+    familySupportsTransform(descriptor)
+  );
 }
 
-/** A vertical labeled field (caption above the control) for the option pickers. */
-function KField({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
+/**
+ * A vertical labeled field (caption above the control) for the option pickers. The
+ * caption is a real `<label htmlFor>` over a generated id, which the control adopts —
+ * so these numeric knobs have accessible names instead of only a placeholder.
+ */
+function KField({
+  label,
+  children,
+}: {
+  label: string;
+  children: (id: string) => React.ReactNode;
+}): React.ReactElement {
+  const id = React.useId();
   return (
-    <div className="cv:flex cv:flex-col cv:gap-1 cv:py-1">
-      <span className="cv:text-[11px] cv:font-medium cv:text-muted-foreground">{label}</span>
-      {children}
+    <div className="cv-customize-field">
+      <label htmlFor={id} className="cv-ec-label">
+        {label}
+      </label>
+      {children(id)}
     </div>
   );
 }

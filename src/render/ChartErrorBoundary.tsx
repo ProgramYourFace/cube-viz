@@ -26,7 +26,7 @@ export class ChartErrorBoundary extends Component<Props, State> {
     const { error } = this.state;
     if (error) {
       return (
-        <Alert variant="destructive" className="cv:w-full">
+        <Alert variant="destructive" className="cv-chart-error">
           <AlertCircle />
           <AlertTitle>Failed to render chart</AlertTitle>
           <AlertDescription>{error.message}</AlertDescription>

@@ -3,14 +3,29 @@
 A focused React library that **renders** and **edits** JSON dashboard / chart specs backed by
 [Cube](https://cube.dev). You give it a spec (JSON); it fetches from Cube, normalizes the result,
 and draws charts, rich text, and input controls — or hands you an editor that mutates the same
-spec. Storage, retrieval, and templating stay the consuming app's concern. The UI is built on
-shadcn/ui (Recharts) + Tailwind, with a self-contained `cv:`-prefixed utility stylesheet so it
-drops into any host without a Tailwind setup. Web-first; on mobile it embeds into a React
+spec. Storage, retrieval, and templating stay the consuming app's concern. Charts render on
+[@tanstack/charts](https://tanstack.com/charts) (grammar-of-graphics marks); the UI ships
+hand-authored **semantic `cv-`-prefixed CSS** plus theme tokens — no utility framework, no
+Tailwind toolchain — so it drops into any host. Web-first; on mobile it embeds into a React
 Native / Expo host through a WebView — the entire renderer and editor run inside the WebView.
 
 The spec contract (`@/spec`, exported from the root) is the stable, library-agnostic boundary.
-Charts consume a normalized adapter shape, never Cube or Recharts directly, and **chart families
-are host-extensible** (see [Extending chart families](#extending-chart-families)).
+Charts consume a normalized adapter shape, never Cube or TanStack Charts directly, and **chart
+families are host-extensible** (see [Extending chart families](#extending-chart-families)).
+
+Three things follow from that boundary and are worth knowing up front:
+
+- **Interaction is semantic, never pixel-shaped.** A brushed range or a clicked mark is reported
+  as a Cube member plus an ISO range or a raw dimension value — never scene coordinates. Inside a
+  dashboard it also resolves *locally*, against the board's own variables. See
+  [Drill & cross-filter](#drill--cross-filter).
+- **Presentation transforms live in the view layer.** `chart.transform` gives you a rolling
+  average, running total, or % of total without modelling a new Cube measure. See
+  [Presentation transforms](#presentation-transforms-charttransform).
+- **The editor's field slots are typed by visual channel.** Every builtin well declares *where*
+  its field lives in the spec and *which* channel it feeds, which is what makes switching chart
+  type lossless and lets the type picker rank and preview families. See
+  [The `ChartFamilyDescriptor` contract](#the-chartfamilydescriptor-contract).
 
 ## Install
 
@@ -28,9 +43,11 @@ You supply React; everything else ships bundled.
 | `react` | `^18.2.0 || ^19.0.0` |
 | `react-dom` | `^18.2.0 || ^19.0.0` |
 
-`recharts`, `react-grid-layout`, `@tiptap/*`, `zod`, `@cubejs-client/core`, `lucide-react`,
-`date-fns`, and the Radix primitives are **bundled dependencies** (see `package.json`) — you do
-not install them yourself.
+`@tanstack/charts` (+ `@tanstack/charts-scales`), `d3-scale`/`d3-shape`, `react-grid-layout`,
+`@tiptap/*`, `zod`, `@cubejs-client/core`, `lucide-react`, `date-fns`, and the Radix primitives
+are **regular dependencies** (see `package.json`) — you do not install them yourself. They are
+kept **external** in the library's ESM build (see `vite.config.lib.ts`) so your bundler resolves
+and dedupes them from cube-viz's own dependency tree.
 
 ### Styles
 
@@ -38,7 +55,7 @@ The library ships two stylesheets. Import them once at your app entry:
 
 ```ts
 import "cube-viz/theme.css";   // CSS custom-property tokens (colors, chart ramp, dark mode)
-import "cube-viz/styles.css";  // the self-contained cv:-prefixed utility + component styles
+import "cube-viz/styles.css";  // self-contained semantic cv- component styles (no utility framework)
 ```
 
 ## Quick start
@@ -98,23 +115,151 @@ the component-override registry, and host chart families.
 | `maps` | `CubeVizMapsConfig` | `{ apiKey?: string; mapId?: string }`. **Forwarded to host map families** (cube-viz has no builtin map). Host-owned; read via `useCubeVizContext().maps`. Absent (or no `apiKey`) ⇒ a map family degrades to a placeholder. |
 | `registry` | `ComponentRegistry` | Per-slot component overrides; absent slots fall back to built-ins. See [Component overrides](#component-overrides). |
 | `families` | `ChartFamilyDescriptor[]` | Host chart families. Built into an **immutable** `FamilyRegistry` (builtins first, then these augment/override by `descriptor.family`) and carried through context, so they appear in the type picker, are editable, validate, and render. The registry is memoized by the families' **content** (the family keys), so a fresh array literal each render keeps a stable identity. See [Extending chart families](#extending-chart-families). |
+| `interactions` | `ChartInteractionHandlers` | App-wide `{ onRangeSelect?, onPointSelect? }`. The **outermost** level of the innermost-wins chain provider → `<Dashboard>` → `<CubeChart>`; every emitted selection names its source widget. Omit it and no chart mounts a brush or a click handler. See [Drill & cross-filter](#drill--cross-filter). |
 | `children` | `React.ReactNode` | **Required.** |
 
 ## Built-in chart families
 
 `BUILTIN_CHART_FAMILIES` (the picker order) ships eight families in-box:
 
-`bar` · `line` · `area` · `pie` · `scatter` · `kpi` · `table` · `combo`
+`bar` · `line` · `area` · `pie` · `scatter` · `heatmap` · `kpi` · `table`
 
 > **`map` is *not* built in.** It was removed from the library and is provided by the host as the
 > canonical extension example (see [Extending chart families](#extending-chart-families)).
+> **`combo` was removed** in spec v2 (with all dual-axis support); v1 combo specs are migrated to
+> `bar`/`line` automatically on load (see `src/spec/migrate.ts`). `heatmap` was added in v2.
 
 Each family is a pure component `(NormalizedChartData, ChartOptions, ChartConfig) → ReactElement`.
-Recharts is confined inside the family components; specs never carry a Recharts prop. The full
+TanStack Charts is confined inside the family components (via the shared seam in
+`src/charts/tanstack.tsx`); specs never carry a renderer prop. The full
 options surface per family lives in `BUILTIN_FAMILY_OPTION_SCHEMAS` / `BUILTIN_DEFAULTS`
 (exported from the root). `resolveOptions(chartOptions, registry?)` deep-merges a spec's options
 over its family defaults (objects recurse; arrays replace wholesale); pass the context registry
 (or rely on the builtin-only default) so a host family resolves exactly like a builtin.
+
+### Temporal axes (line / area)
+
+When a chart's mapped category **is** a time dimension and every bucket parses as a date, line and
+area render the x axis on a real d3 `scaleUtc` instead of an evenly-spaced point scale — so buckets
+sit at their true elapsed distance and a missing day draws as a **gap** rather than collapsing into
+the next bucket. Cube's zone-less bucket strings are anchored as UTC and tick labels are mapped
+back to the originating bucket, so labels are byte-identical to before in any viewer timezone —
+only the *spacing* changes. Bars and heatmaps keep band scales (a bar needs a bandwidth to be drawn
+in). Nothing in a spec turns this on or off; it is inferred from the result annotation. Details in
+[`docs/02`](./docs/02-chart-options.md) §2.2.
+
+## Presentation transforms (`chart.transform`)
+
+Cube owns aggregation; the view layer owns presentation. `chart.transform` lets "7-day rolling
+average", "running total" and "% of total" be a **display choice** instead of three new Cube
+measures:
+
+```ts
+chart.transform = { kind: "rollingAvg", window: 7 };  // window: int 2…90, default 7
+chart.transform = { kind: "cumulative" };             // window ignored
+chart.transform = { kind: "percentOfTotal" };         // window ignored
+```
+
+It is an **envelope** option, not a family one: it reshapes the generic
+`{ categories, series[].data }` shape and is applied once in `ChartRenderer`, before any family
+component sees the data — so every cartesian family gets it and no `familyOptions` schema grew a
+knob. It is **purely additive**, so `SCHEMA_VERSION` stays **2** and every existing spec is
+unaffected.
+
+- **Where it applies:** mapping-driven *cartesian* families — `bar` / `line` / `area`, plus any
+  host family declaring both `supportsMapping` and `supportsCartesianAxes` (and not `queryless`).
+  `kpi`, `table`, `pie`, `scatter` and `heatmap` are deliberately excluded — a transform reshapes
+  values *along* the category axis, and only means something where categories are an ordered,
+  shared axis.
+- **Gaps stay gaps.** A rolling window skips nulls in both the sum and the count (so a gap does not
+  drag the mean toward zero) but averages what exists at the leading edge; a running total keeps
+  the total correct across nulls while leaving the output null where the input was; a zero category
+  total yields `null` rather than a fake 0%.
+- **`percentOfTotal` keeps the unit honest.** Every value surface formats as a percent, and the
+  series' `unit`/`quantity`/`convert` meta is dropped (a "42%" suffixed with "km" is a lie). The
+  measure label is kept, so axis titles and tooltip labels stay correct.
+
+In the editor this is one **Compare** select in the chart type picker's Options panel, with a
+window input revealed only for the rolling average. Full semantics in
+[`docs/02`](./docs/02-chart-options.md) §2.9; the schema rationale in
+[`docs/01`](./docs/01-spec-schema.md) §3.6.
+
+## Drill & cross-filter
+
+Charts report **what the reader pointed at, in Cube terms** — a member plus either an ISO time
+range or a raw dimension value. Never pixels, never renderer points.
+
+```ts
+interface RangeSelection { widgetId?: string; member: string; granularity?: Granularity;
+                           from: string; to: string; }   // inclusive ISO bucket bounds
+interface PointSelection { widgetId?: string; member: string; value: string | number;
+                           label: string; }              // raw value + its formatted label
+
+interface ChartInteractionHandlers {
+  onRangeSelect?: (selection: RangeSelection | null) => void;  // null = brush cleared
+  onPointSelect?: (selection: PointSelection | null) => void;  // null = blank-surface click
+}
+```
+
+Handlers are optional at three levels and **innermost wins per channel** — a chart overriding only
+`onPointSelect` still inherits the dashboard's `onRangeSelect`:
+
+```tsx
+// App-wide fallbacks; anything set on <Dashboard> / <CubeChart> below wins per channel.
+<CubeVizProvider cube={cube} interactions={{ onPointSelect: trackEverywhere }}>
+  <Dashboard
+    spec={spec}
+    // Supplied here ⇒ this pair serves every widget on the board, and each selection
+    // carries the source `widgetId`. (onPointSelect here shadows `trackEverywhere`.)
+    onRangeSelect={(sel) => {
+      if (!sel) return console.log("range cleared");
+      // e.g. { widgetId: "w_trips", member: "trips.start_time",
+      //        granularity: "day", from: "2026-07-01", to: "2026-07-14" }
+      console.log(`${sel.member} narrowed to ${sel.from} → ${sel.to} (from ${sel.widgetId})`);
+    }}
+    onPointSelect={(sel) => {
+      if (!sel) return console.log("cross-filter cleared");
+      // e.g. { member: "trips.device_id", value: "dev-91", label: "Truck 91" }
+      console.log(`${sel.member} = ${sel.value} (${sel.label})`);
+    }}
+  />
+</CubeVizProvider>
+```
+
+Supply **nothing** and nothing interactive is mounted — no brush, no click handler — so an existing
+embed is untouched.
+
+**What emits what.** A chart with a temporal x axis mounts a controlled `brushX`; committing a drag
+emits the exact bucket strings Cube produced. Clicking a mark emits the category dimension and its
+raw value — or, when the series *are* a colour split, the **split** dimension and that series'
+value, because that is the more specific signal (a stacked bar segment, a heatmap cell, one line of
+a split chart). A click on the blank surface clears; a click on something the chart cannot name
+(a KPI gauge arc, an ungrouped bubble) is ignored rather than reported as a clear.
+
+> **Trade-off, by design:** enabling the brush hands plot pointer events to the D3 overlay, so
+> **hover-tooltip inspection gives way to drag-to-select** on that chart (keyboard focus and the
+> handles' slider role still work). This is why range selection is opt-in per chart.
+
+**Inside a `<Dashboard>` it also resolves locally.** Before your handler runs, the selection is
+written to the dashboard variable the affected widgets **already read**, discovered from the spec —
+never guessed:
+
+- brushing a widget whose `timeDimensions[0].dateRange` is `{var: "x"}` sets `x` to `[from, to]`;
+- clicking a mark whose member is compared against `{var: "y"}` anywhere in the board's filters
+  (the recursive and/or tree is walked in full) sets `y` to `[String(value)]` — the shape a Cube
+  `equals` filter wants. A dimension is normally filtered on one variable across a board, so the
+  first binding found for that member wins;
+- clearing restores the bound variables to their declared defaults.
+
+This happens in the library rather than in your handler because of the mobile embed: the Expo
+`'use dom'` host boundary is **async and marshalled**, so routing a drill out to the host and back
+would re-filter a frame or more late. Resolving against the local variable store keeps brushing
+immediate — and **your handler still fires afterwards**, for persistence, navigation, or telemetry.
+A board with no matching binding and no host handler advertises no handler at all, so it never
+mounts a brush that would silently do nothing.
+
+`ChartInteractionProvider`, `useChartInteractions`, and all of the types above are exported from the
+root; `Dashboard`, `ChartView`, and `CubeChart` each accept the handler pair directly.
 
 ## Component overrides
 
@@ -201,7 +346,7 @@ All exported from the root:
 | `buildFamilyRegistry(defaults, host?)` | Build an immutable `FamilyRegistry` (seed `defaults`, then `host` augments/overrides by key). |
 | `builtinFamilyRegistry` | A pre-built registry over the builtins only (the back-compat default). |
 | `defaultChartFamilies` | The ordered builtin descriptor array — the picker's default order. |
-| `barChartFamily` … `comboChartFamily` | One named export per builtin, to compose a custom `families` list. |
+| `barChartFamily` … `tableChartFamily` | One named export per builtin (incl. `heatmapChartFamily`), to compose a custom `families` list. |
 | `useFamilyRegistry()` | The context registry (builtins + the provider's `families`), for component call sites. |
 | `resolveOptions(options, registry?)` | Deep-merge a chart's options over its family's defaults (defaults to builtin-only). |
 
@@ -217,6 +362,11 @@ behaviour flags. A host-registered family is **self-contained** — it supplies 
 field-placement logic and customize UI through the optional hooks, so the editor never needs a
 builtin `switch` arm for it.
 
+**Field placement is data too.** Every builtin well declares a `target` (where its member lives in
+the spec) and a `channel` (which visual role it feeds); one generic interpreter
+(`src/editor/chart/builder/channels.ts`) reads and writes every builtin family from those two
+facts. A host family may do the same and skip the hooks entirely.
+
 ```ts
 interface ChartFamilyDescriptor {
   // ── identity / picker ──────────────────────────────────────────────
@@ -231,37 +381,78 @@ interface ChartFamilyDescriptor {
   defaults: FamilyDefault;       // { envelope: Partial<ChartOptions>; familyOptions: Record<string, unknown> }
 
   // ── editor wells ──────────────────────────────────────────────────
-  wells: WellDef[];              // typed field slots (top→bottom): { id, label, hint?, cardinality, kinds, optional? }
+  wells: WellDef[];              // typed field slots, top→bottom (see WellDef below)
   zones: { left: string[]; bottom: string[] };  // which wells anchor LEFT (value) vs BOTTOM (category) in the overlay
 
   // ── behaviour flags ───────────────────────────────────────────────
-  dualAxisY: boolean;               // has two renderer value axes (left + right)
   supportsMapping: boolean;         // consumes the generic `mapping` envelope (vs. storing fields in familyOptions)
   supportsCartesianAxes: boolean;   // exposes the cross-family display envelope (orientation/stack/axes)
   enforcesAxisUnit: boolean;        // enforces per-axis unit consistency on the multi-number "y" well
   measureOnly: boolean;             // still renders from a category-less (measure-only) query
-  hasLegend: boolean;               // has a chart legend (everything except kpi/table)
+  hasLegend: boolean;               // has a chart legend (everything except kpi/table/heatmap)
   hasCustomizeOptions: boolean;     // shows a type-level "Options" section in the picker
   supportsComparePrevious: boolean; // supports previous-period comparison
   comparePreviousMode?: "series" | "kpiRow"; // HOW prior data merges; undefined ⇔ supportsComparePrevious === false
-  sidebarWidthClass: string;        // editor left-strip width class (e.g. "cv:w-40"; KPI uses "cv:w-56")
+  sidebarWidthClass: string;        // editor left-strip width class ("cv-sidebar--default"; KPI uses "cv-sidebar--wide")
   requiresMeasure?: boolean;        // false for dimension-only families such as a point map
   canonicalTimeWell?: string;       // well auto-filled with the cube's canonical time dim (meta `canonicalTime: true`)
-                                    // when empty and a field lands (builtins: line/area/combo → "x")
+                                    // when empty and a field lands (builtins: line/area → "x")
 
   // ── host-extensibility hooks (OPTIONAL; builtins leave these unset) ──
   Customize?: React.ComponentType<{ spec: ChartSpec; update: (next: ChartSpec) => void }>;
   placeField?: (spec: ChartSpec, wellId: string, member: string, kind: FieldKind) => ChartSpec;
   removeField?: (spec: ChartSpec, wellId: string, member: string) => ChartSpec;
   readWells?: (spec: ChartSpec) => Record<string, string[]>;
-  assignSeriesAxis?: (spec: ChartSpec, member: string, side: "left" | "right") => ChartSpec;
 }
 ```
 
-**The host hooks** (all optional). Builtin families leave these unset and keep their procedural
-bodies inside the library (`wells.ts` / `CustomizeSection.tsx`); the editor dispatches to a
-descriptor hook **when present, else falls back to its builtin switch**. A host family with its
-own field storage must supply them so the editor never needs a builtin arm:
+#### `WellDef` — a typed field slot
+
+```ts
+type FieldKind = "number" | "category" | "time" | "numberDimension" | "geoPoint";
+type Channel   = "x" | "y" | "color" | "size" | "row" | "detail";
+
+type WellTarget =
+  | { kind: "category" }                 // mapping.category.member (+ the query dim/timeDim)
+  | { kind: "measures" }                 // the mapped measure list + query.measures
+  | { kind: "pivot" }                    // mapping.series.pivot — the splitting dimension
+  | { kind: "option"; key: string }      // familyOptions[key] = member
+  | { kind: "optionList"; key: string }; // familyOptions[key] = [{ member }, …]
+
+interface WellDef {
+  id: string;
+  label: string;
+  hint?: string;
+  cardinality: "one" | "many";
+  kinds: FieldKind[];      // which field kinds may be dropped here
+  optional?: boolean;      // renders a muted "(optional)" affordance
+  target?: WellTarget;     // WHERE the member lives. ABSENT ⇒ host-managed (hooks below)
+  channel?: Channel;       // WHICH visual role it feeds. Absent ⇒ excluded from type switching
+}
+```
+
+`WellDef`, `FieldKind`, `WellTarget` and `Channel` are exported from the root.
+
+**Why the two extra fields matter.** Declaring both opts a well into the generic interpreter, and
+the family gets, for free:
+
+- **read / place / remove** — no `readWells`/`placeField`/`removeField` hook needed;
+- **lossless type switching** — swapping chart type re-places fields by matching **channel**
+  (x→x, y→y, colour→colour), so a field keeps its meaning across families rather than being
+  re-derived from the raw query;
+- **fit ranking + live tile previews** — the type picker scores each family's channel signature
+  against the fields already placed, and previews each tile with the user's own data.
+
+Builtin examples: bar/line/area share `y` (`{kind:"measures"}`, channel `y`), `x`
+(`{kind:"category"}`, channel `x`) and `color` (`{kind:"pivot"}`, channel `color`); scatter's axes
+are `{kind:"option", key:"x"|"y"}`; a table's columns are
+`{kind:"optionList", key:"columns"}` on the `detail` channel. The full family → well →
+target/channel table is in [`docs/05`](./docs/05-chart-builder-design.md) §2.3.
+
+**The host hooks** (all optional). A well with **no `target`** is host-managed: the editor
+dispatches to the descriptor hook when present, else to the channel interpreter. A family may
+**mix** the two — declare targets on the wells the interpreter can service and a *partial*
+`readWells` for the rest (the host's output wins for the wells it returns):
 
 - **`Customize`** — the type-level "Options" panel rendered in the type picker (only consulted
   when `hasCustomizeOptions` is `true`). Receives `{ spec, update }`; call `update(nextSpec)` with
@@ -272,10 +463,6 @@ own field storage must supply them so the editor never needs a builtin arm:
   next spec. The inverse of `placeField`.
 - **`readWells(spec)`** — derive each well's current member name(s) from the spec
   (`Record<wellId, string[]>`); the inverse that lets the overlay show what's bound.
-- **`assignSeriesAxis(spec, member, side)`** — for a `dualAxisY` family, assign `member` to the
-  `"left"`/`"right"` value axis (called after `placeField`). Builtins leave this unset and the
-  editor falls back to the builtin `withSeriesAxis` (combo / cartesian `mapping.series` meta), so a
-  host with its own field storage must supply it to control dual-axis assignment.
 
 ### The `ChartComponentProps` a family component receives
 
@@ -326,7 +513,7 @@ export const MapFamilyOptionsSchema = z
   .strict();
 export type MapFamilyOptions = z.infer<typeof MapFamilyOptionsSchema>;
 
-// No Recharts envelope; lat/lng are user-picked, so only `mode` is seeded.
+// No cartesian envelope; lat/lng are user-picked, so only `mode` is seeded.
 export const MAP_FAMILY_DEFAULT: FamilyDefault = {
   envelope: {},
   familyOptions: { mode: "points" } satisfies MapFamilyOptions,
@@ -358,6 +545,11 @@ import type { ChartSpec, FieldKind, WellDef } from "cube-viz";
 
 // `geoPoint` offers one synthetic field for a model-authored latitude/longitude pair.
 // The editor fans it out to the hidden lat/lng wells, preserving the stored shape.
+//
+// These wells declare NO `target`, so they are host-managed: the place/remove/read hooks
+// below own them. A host whose fields map cleanly onto the spec could instead declare
+// `target` + `channel` per well (e.g. `{ target: { kind: "option", key: "weight" },
+// channel: "size" }`) and drop the three hooks entirely — see the WellDef section above.
 export const MAP_WELLS: WellDef[] = [
   { id: "location", label: "Location", cardinality: "one", kinds: ["geoPoint"] },
   { id: "lat", label: "Latitude", cardinality: "one", kinds: ["numberDimension"] }, // internal
@@ -425,7 +617,6 @@ export const mapDescriptor: ChartFamilyDescriptor = {
   wells: MAP_WELLS,
   zones: MAP_ZONES,
 
-  dualAxisY: false,
   supportsMapping: false,         // bindings live in familyOptions, not the `mapping` envelope
   supportsCartesianAxes: false,
   enforcesAxisUnit: false,
@@ -433,7 +624,7 @@ export const mapDescriptor: ChartFamilyDescriptor = {
   hasLegend: false,
   hasCustomizeOptions: true,
   supportsComparePrevious: false,
-  sidebarWidthClass: "cv:w-40",
+  sidebarWidthClass: "cv-sidebar--default",
 
   // Host hooks — the editor dispatches to these for the map family:
   Customize: MapCustomize,
@@ -490,6 +681,22 @@ from the picker entirely while keeping them available for joins and row-level se
 
 ## Breaking changes
 
+### Spec v2 + TanStack Charts renderer (semver-major)
+
+- **Recharts was replaced by `@tanstack/charts` 0.9.** The `(NormalizedChartData, ChartOptions)`
+  family seam is unchanged; specs are renderer-agnostic as designed. Legend, tooltip, and motion
+  now come from TanStack built-ins: legend placement is **top/bottom only** (`left`/`right`
+  degrade to `bottom` — and pie now renders its legend correctly), tooltips are interactive and
+  **pinnable via click**, and charts animate with spring motion. Brush/zoom becomes possible
+  future work on this stack.
+- **The `combo` family and all dual-axis support were removed** in `SCHEMA_VERSION` 2:
+  `axes.y2`, per-series `meta.axis: "left"|"right"`, reference-line `side`, and the descriptor's
+  `dualAxisY`/`assignSeriesAxis` are gone. `loadSpec` migrates v1 specs automatically — a combo
+  widget becomes `bar` (if any series rendered bars) or `line`, and axis metadata is stripped.
+- **A new `heatmap` family was added** (two dimensions × one measure; see the family list above).
+- **The Tailwind toolchain and the `cv:` utility stylesheet were removed.** `cube-viz/styles.css`
+  is now hand-authored semantic `cv-` CSS; hosts bring their own CSS setup — nothing to configure.
+
 ### Immutable, injected family registry (semver-major)
 
 The module-global chart-family registry was replaced by an **immutable `FamilyRegistry`** built by
@@ -500,7 +707,7 @@ surface:
   `getFamilyDescriptor`, `listFamilyDescriptors`, `chartFamilies`, `familyDefaults`,
   `familyOptionsSchema`. There is no module-global `Map` to mutate.
 - **Replaced by:** `buildFamilyRegistry(defaults, host?)`, `builtinFamilyRegistry`,
-  `defaultChartFamilies`, the per-family named exports (`barChartFamily` … `comboChartFamily`),
+  `defaultChartFamilies`, the per-family named exports (`barChartFamily` … `tableChartFamily`),
   `useFamilyRegistry()`, and the `FamilyRegistry` value's methods
   (`get`/`require`/`list`/`families`/`defaults`/`optionsSchema`/`resolveOptions`).
 - **Migration:** drop any `registerChartFamily(...)` call — pass `families={[...]}` to
@@ -526,10 +733,14 @@ surface:
 The full design record lives in [`docs/`](./docs):
 
 1. [`01-spec-schema.md`](./docs/01-spec-schema.md) — the spec contract + variable binding
-2. [`02-chart-options.md`](./docs/02-chart-options.md) — the chart-options surface
+   (`chart.transform` in §3.6)
+2. [`02-chart-options.md`](./docs/02-chart-options.md) — the chart-options surface: presentation
+   transforms (§2.9), temporal axes (§2.2), the semantic interaction seam (§3.1), and the
+   **open questions / known gaps** (§7)
 3. [`03-override-theme-preview.md`](./docs/03-override-theme-preview.md) — theme, overrides, preview
 4. [`04-webview-bridge.md`](./docs/04-webview-bridge.md) — the Expo/WebView embed bridge
-5. [`05`](./docs) — Chart Builder v3 (the on-chart editing surface)
+5. [`05-chart-builder-design.md`](./docs/05-chart-builder-design.md) — Chart Builder **v4**: the
+   on-chart editing surface and the channel-typed well model
 
 ## Develop
 

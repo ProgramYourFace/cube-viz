@@ -14,10 +14,7 @@ const Label = React.forwardRef<HTMLLabelElement, React.ComponentProps<"label">>(
       <label
         ref={ref}
         data-slot="label"
-        className={cn(
-          "cv:flex cv:items-center cv:gap-2 cv:text-sm cv:font-medium cv:leading-none cv:select-none cv:peer-disabled:cursor-not-allowed cv:peer-disabled:opacity-70",
-          className,
-        )}
+        className={cn("cv-label", className)}
         {...props}
       />
     );

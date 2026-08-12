@@ -1,0 +1,17 @@
+/* Minimal preflight surrogate — the host's reset already exists in the WebView
+ * document; these are the two rules cube-viz components rely on beyond it. */
+
+:where(.cube-viz-root, .cube-viz-root *),
+*,
+::before,
+::after {
+  box-sizing: border-box;
+}
+
+/* Tailwind v4 dropped Preflight's `button { cursor: pointer }`; the host's v4
+   reset leaves buttons on the default arrow. Enabled interactive elements get
+   the pointer (later component rules — e.g. the canvas's move cursor — win). */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
