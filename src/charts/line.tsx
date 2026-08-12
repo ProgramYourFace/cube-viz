@@ -75,7 +75,10 @@ export function LineChartFamily({
         z: "label",
         color: "label",
         key: "i",
-        curve,
+        // Per-series shape wins over the family default: the shape picker on a
+        // field pill writes `meta.curve`, and reading only `fo.curve` here made
+        // that control do nothing.
+        curve: s.meta?.curve ? chartCurve(s.meta.curve as CurveName) : curve,
         strokeWidth: fo.strokeWidth ?? 2,
         strokeDasharray: s.meta?.companion ? "5 4" : undefined,
         strokeOpacity: s.meta?.companion ? 0.55 : undefined,
