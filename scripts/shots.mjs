@@ -184,6 +184,30 @@ async function shot(
  */
 const PICKER_ROWS = ".cv-picker-row, .cv-picker-row--disabled";
 
+/**
+ * Every control in the open picker must have an accessible name. The header is now
+ * icon-only (compatibility toggle, data source), so a dropped `aria-label` would leave
+ * a button announced as nothing at all — invisible to a screen reader and untargetable
+ * by `getByRole`. Approximates the accname algorithm: aria-label, then aria-labelledby,
+ * then text content, then title.
+ */
+async function assertNamedControls(page, where) {
+  const unnamed = await page.$$eval(".cv-picker button", (nodes) =>
+    nodes
+      .filter((el) => {
+        const ids = (el.getAttribute("aria-labelledby") ?? "").split(/\s+/).filter(Boolean);
+        const labelled = ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
+        return ![el.getAttribute("aria-label"), labelled, el.textContent, el.getAttribute("title")].some(
+          (s) => (s ?? "").trim().length > 0,
+        );
+      })
+      .map((el) => `<button class="${el.className}">`),
+  );
+  if (unnamed.length > 0) {
+    failures.push(`${where}: ${unnamed.length} unnamed button(s) — ${unnamed.join(", ")}`);
+  }
+}
+
 async function openPickerFor(page, name) {
   const add = page.getByRole("button", { name }).first();
   await add.waitFor({ state: "visible", timeout: 15_000 });
@@ -201,23 +225,34 @@ async function openPickerFor(page, name) {
 /** The Values slot: every candidate is blocked, each with its reason shown. */
 async function openFieldPicker(page) {
   await openPickerFor(page, /^add$/i);
+  await assertNamedControls(page, "field-picker");
 }
 
 /**
- * The Split-by slot with the switch ON — chosen over Values because it NARROWS
+ * The Split-by slot with the toggle ON — chosen over Values because it NARROWS
  * (categories survive, measures do not) rather than emptying, so the shot shows the
  * filtered list and the hidden count together.
+ *
+ * The toggle is an icon-only button now, so the shot has to prove the state some other
+ * way than reading a label: the row count must DROP, the button must report
+ * `aria-pressed="true"`, and the numeric badge (what it took away) must be on screen.
  */
 async function openFieldPickerFiltered(page) {
   await openPickerFor(page, /split by/i);
   const before = await page.locator(PICKER_ROWS).count();
-  await page.locator(".cv-picker-filter-box").click();
+  await page.locator(".cv-picker-compat").click();
   await page.waitForFunction(
     ({ sel, n }) => document.querySelectorAll(sel).length < n,
     { sel: PICKER_ROWS, n: before },
     { timeout: 15_000 },
   );
-  await page.getByText(/\d+ hidden/i).waitFor({ state: "visible", timeout: 15_000 });
+  await page
+    .locator('.cv-picker-compat[aria-pressed="true"]')
+    .waitFor({ state: "visible", timeout: 15_000 });
+  await page
+    .locator(".cv-picker-compat-count")
+    .waitFor({ state: "visible", timeout: 15_000 });
+  await assertNamedControls(page, "field-picker-compatible-only");
 }
 
 async function openTypePicker(page) {

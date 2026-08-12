@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Calendar, Check, ChevronDown, ChevronRight, Database, Hash, Layers, MapPin, Search, Table2, Type } from "lucide-react";
+import { Calendar, Check, ChevronDown, ChevronRight, Database, Hash, Layers, ListFilter, MapPin, Search, Table2, Type } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
@@ -88,12 +88,14 @@ interface PickGroup {
  * read the same way, so the user can only build queries Cube will actually resolve —
  * and always knows which slot to try instead.
  *
- * The header's "Only compatible fields" switch is the OPT-IN to the older, narrower
+ * The header's "Only compatible fields" toggle is the OPT-IN to the older, narrower
  * list: it hides every row that cannot be added for ANY reason (see
  * {@link candidateReason}), so with a distance measure on the value axis only
- * distance measures remain listed. Because hiding costs discoverability, the switch
- * always states how many rows it took away, and an emptied list offers to show them
- * back. The choice persists (localStorage, guarded) and defaults to OFF.
+ * distance measures remain listed. It is an icon toggle button inline in the search
+ * row (`aria-pressed` + a filled pressed state, since a WebView has no hover to lean
+ * on). Because hiding costs discoverability, it still states how many rows it took
+ * away — a numeric badge on the icon plus the tooltip — and an emptied list offers to
+ * show them back. The choice persists (localStorage, guarded) and defaults to OFF.
  */
 export function FieldPickerPopover({
   well,
@@ -117,7 +119,6 @@ export function FieldPickerPopover({
     writeOnlyCompatible(on);
   }, []);
   const searchId = React.useId();
-  const toggleId = React.useId();
   // Which source we're browsing: the raw table graph, or a specific view.
   const [browse, setBrowse] = React.useState<string>(scope.viewLocked ?? "tables");
   // Per-table collapse overrides (related tables default collapsed; search forces open).
@@ -251,6 +252,21 @@ export function FieldPickerPopover({
       ? "All related tables"
       : (scope.views.find((v) => v.name === browse)?.title ?? findCube(meta, browse)?.title ?? browse);
 
+  // The saved datasets the source menu can offer BESIDES "All related tables" — today
+  // only the locked view of a view-bound chart (an unlocked chart browses the table
+  // graph, so `scope.views` is not offered as an alternative there).
+  const sourceViews = scope.viewLocked
+    ? scope.views.filter((v) => v.name === scope.viewLocked)
+    : [];
+
+  // The toggle is icon-only, so its name has to carry the whole story: what it does
+  // when off, and what it is currently taking away when on.
+  const compatLabel = !onlyCompatible
+    ? "Show only fields that can go in this slot"
+    : hiddenCount > 0
+      ? `Only compatible fields — ${hiddenCount} hidden`
+      : "Only compatible fields — none hidden";
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
@@ -268,32 +284,34 @@ export function FieldPickerPopover({
               className="cv-picker-search-input"
             />
           </div>
-          <SourceMenu
-            browse={browse}
-            label={browseLabel}
-            views={scope.viewLocked ? scope.views.filter((v) => v.name === scope.viewLocked) : []}
-            onBrowse={setBrowse}
-          />
-        </div>
-
-        {/* The compatibility switch. A plain checkbox (no Radix Switch in this package)
-            so it is keyboard- and WebView-native; the count is the discoverability
-            receipt for everything it removed. */}
-        <div className="cv-picker-filter">
-          <input
-            type="checkbox"
-            id={toggleId}
-            className="cv-picker-filter-box"
-            checked={onlyCompatible}
-            onChange={(e) => setOnlyCompatible(e.target.checked)}
-          />
-          <label htmlFor={toggleId} className="cv-picker-filter-label">
-            Only compatible fields
-          </label>
-          {onlyCompatible ? (
-            <span className="cv-picker-filter-count">
-              {hiddenCount === 0 ? "none hidden" : `${hiddenCount} hidden`}
-            </span>
+          {/* The compatibility toggle. A plain button (no Radix Switch in this package)
+              so it is keyboard- and WebView-native; `aria-pressed` + the filled state
+              carry the meaning, and the badge is the discoverability receipt for
+              everything it removed — the tooltip repeats it for the sighted-hover case. */}
+          <button
+            type="button"
+            aria-pressed={onlyCompatible}
+            aria-label={compatLabel}
+            title={compatLabel}
+            onClick={() => setOnlyCompatible(!onlyCompatible)}
+            className={cn("cv-picker-compat", onlyCompatible && "cv-picker-compat--on")}
+          >
+            <ListFilter className="cv-ec-icon" />
+            {onlyCompatible && hiddenCount > 0 ? (
+              <span className="cv-picker-compat-count">{hiddenCount}</span>
+            ) : null}
+          </button>
+          {/* The source menu's only entries are "All related tables" plus the saved
+              datasets; with none of the latter it is a one-item menu that can change
+              nothing, so it is not rendered at all. `browse` keeps its "tables" default
+              (seeded from `scope.viewLocked`) either way, so the list is unchanged. */}
+          {sourceViews.length > 0 ? (
+            <SourceMenu
+              browse={browse}
+              label={browseLabel}
+              views={sourceViews}
+              onBrowse={setBrowse}
+            />
           ) : null}
         </div>
 
@@ -409,21 +427,26 @@ interface SourceMenuProps {
   onBrowse: (browse: string) => void;
 }
 
-/** The "data source" selector: all related tables, or a curated view. */
+/**
+ * The "data source" selector: all related tables, or a curated view. A quiet icon
+ * button — the current source is already stated by the list's own table headings, so
+ * the label only competed with the search box. The name lives in `aria-label`/`title`.
+ */
 function SourceMenu({ browse, label, views, onBrowse }: SourceMenuProps): React.ReactElement {
   const [open, setOpen] = React.useState(false);
   const choose = (v: string): void => {
     onBrowse(v);
     setOpen(false);
   };
+  const name = `Data source: ${label}`;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className="cv-picker-source-trigger"
-        title={`Data source: ${label}`}
+        aria-label={name}
+        title={name}
       >
-        <Database className="cv-ec-icon cv-ec-icon--muted" />
-        <span className="cv-ec-truncate">{label}</span>
+        <Database className="cv-ec-icon" />
       </PopoverTrigger>
       <PopoverContent align="end" className="cv-picker-source-menu">
         <MenuItem active={browse === "tables"} icon={<Table2 className="cv-ec-icon" />} onClick={() => choose("tables")}>

@@ -399,21 +399,25 @@ two categories"*, *"Every field, row by row"* — and never in grammar (*channel
 ### 6.1 "Only compatible fields" — hiding, as an explicit choice
 
 Listing the blocked fields is the default, but a user who knows what they want does not need the
-lesson every time. The picker header therefore carries one switch that hides every row that cannot
-be added **for any reason** (`src/editor/chart/onchart/picker-filter.ts`):
+lesson every time. The picker header therefore carries one icon toggle button, inline at the end of the
+search row, that hides every row that cannot be added **for any reason** (`src/editor/chart/onchart/picker-filter.ts`):
 
 - `candidateReason(well, kind, inWell, option, contextReason)` is the single availability verdict:
   the slot's own rule (`placementBlockReason`) first, then the chart-level context reason
   `ChartEditOverlay` supplies — cross-dataset, second measure source, or the **axis unit/quantity**
   block (`axisUnitBlockReason`, applied on the value well of the families that declare
-  `enforcesAxisUnit`). One value drives both the muted row's inline hint and whether the switch
+  `enforcesAxisUnit`). One value drives both the muted row's inline hint and whether the toggle
   hides it, so the two can never disagree.
 - Consequence, and the reason it was asked for: with a **Distance** measure on the value axis, the
-  switch leaves only distance-compatible measures listed — litres and km/h are `unavailable` and
+  toggle leaves only distance-compatible measures listed — litres and km/h are `unavailable` and
   disappear along with the wrong kinds.
-- Hiding costs discoverability, so it is always paid for: the header shows **"n hidden"** next to
-  the switch, the table counts drop to what is visible, and a list emptied *only* by the switch says
-  so and offers **"Show all fields"** instead of reading as "this field does not exist".
+- Hiding costs discoverability, so it is always paid for: the pressed button carries a **count
+  badge** of what it is hiding (and says so in its tooltip / `aria-label`), the table counts drop to
+  what is visible, and a list emptied *only* by the toggle says so and offers **"Show all fields"**
+  instead of reading as "this field does not exist".
+- The data-source control beside it (all related tables vs a saved Cube view) renders **only when it
+  has more than one option** — with no views published, or a chart already anchored to one, the menu
+  could change nothing, so it is not drawn at all.
 - The choice persists under `localStorage["cube-viz:field-picker:only-compatible"]`, read through a
   guard that tolerates no storage at all (SSR) and a `localStorage` access that *throws* (hardened
   WebView / blocked cookies). **Default OFF** — the option was the request, not a behavior change.
