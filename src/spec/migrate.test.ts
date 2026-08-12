@@ -132,11 +132,9 @@ describe("v2 → v3 — options that parsed but never rendered", () => {
       }),
     );
 
-    expect(chart.familyOptions).toEqual({
-      x: "Trips.distance",
-      y: "Trips.duration",
-      sizeRange: [40, 400],
-    });
+    // `sizeRange` goes too — but at the NEXT step (v3 → v4, mark geometry), which is
+    // why this asserts the end state of the whole ladder rather than v3's alone.
+    expect(chart.familyOptions).toEqual({ x: "Trips.distance", y: "Trips.duration" });
   });
 
   it("drops kpi.icon", () => {
@@ -158,6 +156,98 @@ describe("v2 → v3 — options that parsed but never rendered", () => {
     );
 
     expect(chart.familyOptions).toEqual({ shape: "hex", lat: "Trips.lat" });
+  });
+});
+
+describe("v3 → v4 — mark geometry moved to the host theme", () => {
+  it("strips every bar geometry key and keeps the meaning-bearing ones", () => {
+    const chart = loadChart(
+      chartSpec(3, {
+        family: "bar",
+        mapping: mapping(),
+        familyOptions: {
+          barRadius: 12,
+          barGap: 0.3,
+          barCategoryGap: "40%",
+          maxBarSize: 120,
+          showValueLabels: true,
+          comparePrevious: true,
+        },
+      }),
+    );
+
+    expect(chart.familyOptions).toEqual({ showValueLabels: true, comparePrevious: true });
+  });
+
+  it.each([
+    ["line", { strokeWidth: 6, curve: "step" }, { curve: "step" }],
+    ["area", { fillOpacity: 0.9, strokeWidth: 4, dots: true }, { dots: true }],
+    ["scatter", { x: "a", y: "b", sizeRange: [1, 2] }, { x: "a", y: "b" }],
+  ] as const)("strips %s geometry", (family, familyOptions, expected) => {
+    const chart = loadChart(chartSpec(3, { family, mapping: mapping(), familyOptions }));
+
+    expect(chart.familyOptions).toEqual(expected);
+  });
+
+  it("strips pie paint but KEEPS innerRadiusPct — the donut switch is not geometry", () => {
+    // innerRadiusPct decides whether the chart is a pie or a donut, which is a question
+    // about the chart. padAngle/cornerRadius/outerRadiusPct only decide how it is painted.
+    const chart = loadChart(
+      chartSpec(3, {
+        family: "pie",
+        mapping: mapping(),
+        familyOptions: {
+          innerRadiusPct: 55,
+          outerRadiusPct: 92,
+          padAngle: 3,
+          cornerRadius: 6,
+          showLabels: "percent",
+        },
+      }),
+    );
+
+    expect(chart.familyOptions).toEqual({ innerRadiusPct: 55, showLabels: "percent" });
+  });
+
+  it.each([
+    ["table", { pageSize: 50, sortable: false, stickyHeader: false, rowHeight: "compact", showRowNumbers: true }, { pageSize: 50 }],
+    ["heatmap", { colorToken: "chart-3", showValues: true }, { colorToken: "chart-3" }],
+  ] as const)("drops the %s switches that became fixed behavior", (family, familyOptions, expected) => {
+    const chart = loadChart(chartSpec(3, { family, mapping: mapping(), familyOptions }));
+
+    expect(chart.familyOptions).toEqual(expected);
+  });
+
+  it("turns a hidden axis title into an empty one", () => {
+    const chart = loadChart(
+      chartSpec(3, { family: "line", mapping: mapping(), axes: { y: { labelHide: true } } }),
+    );
+
+    // "" is how "no title" is said now — the flag is gone, the field carries the state.
+    expect(chart.axes).toEqual({ y: { label: "" } });
+  });
+
+  it("a hidden title beats the override text it was hiding", () => {
+    const chart = loadChart(
+      chartSpec(3, {
+        family: "line",
+        mapping: mapping(),
+        axes: { x: { label: "Week", labelHide: true }, y: { label: "Trips" } },
+      }),
+    );
+
+    // The x title was invisible, so it stays invisible; y is untouched.
+    expect(chart.axes).toEqual({ x: { label: "" }, y: { label: "Trips" } });
+  });
+
+  it("leaves a host family's familyOptions completely alone", () => {
+    // The moved keys are per-BUILTIN-family. A host family (aa-app ships `map`) owns its
+    // own option bag and may legitimately use a name like `strokeWidth`.
+    const chart = loadChart(
+      chartSpec(3, { family: "map", familyOptions: { strokeWidth: 3, lat: "Trips.lat" } }),
+    );
+
+    expect(chart.familyOptions).toEqual({ strokeWidth: 3, lat: "Trips.lat" });
   });
 });
 

@@ -44,6 +44,7 @@ export function LineChartFamily({
   data,
   options,
   format,
+  theme,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as LineFamilyOptions;
   const sparkline = fo.chrome === "none";
@@ -90,7 +91,7 @@ export function LineChartFamily({
         // field pill writes `meta.curve`, and reading only `fo.curve` here made
         // that control do nothing.
         curve: chartCurve(seriesCurve(s, curveName)),
-        strokeWidth: fo.strokeWidth ?? 2,
+        strokeWidth: theme.lineWidth,
         strokeDasharray: s.meta?.companion ? "5 4" : undefined,
         strokeOpacity: s.meta?.companion ? 0.55 : undefined,
         stroke: seriesColorVar(s),
@@ -165,7 +166,7 @@ export function LineChartFamily({
       keyboard: !sparkline,
       controls,
     });
-  }, [data, options, format, fo, sparkline, temporal, catLabel, catTick, controls]);
+  }, [data, options, format, fo, theme, sparkline, temporal, catLabel, catTick, controls]);
 
   const label = data.series.map(seriesLabel).join(", ") || "Line chart";
   return (

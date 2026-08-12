@@ -41,10 +41,6 @@ const ComparePreviousSchema = z.boolean().optional();
 
 export const BarFamilyOptionsSchema = z
   .object({
-    barRadius: z.number().optional(),
-    barCategoryGap: z.union([z.number(), z.string()]).optional(),
-    barGap: z.union([z.number(), z.string()]).optional(),
-    maxBarSize: z.number().optional(),
     showValueLabels: z.boolean().optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
     comparePrevious: ComparePreviousSchema,
@@ -57,7 +53,6 @@ const CurveSchema = z.enum(["linear", "monotone", "step", "natural"]);
 export const LineFamilyOptionsSchema = z
   .object({
     curve: CurveSchema.optional(),
-    strokeWidth: z.number().optional(),
     dots: z.union([z.boolean(), z.literal("active")]).optional(),
     connectNulls: z.boolean().optional(),
     chrome: z.enum(["full", "none"]).optional(),
@@ -71,8 +66,6 @@ export type LineFamilyOptions = z.infer<typeof LineFamilyOptionsSchema>;
 export const AreaFamilyOptionsSchema = z
   .object({
     curve: CurveSchema.optional(),
-    fillOpacity: z.number().optional(),
-    strokeWidth: z.number().optional(),
     connectNulls: z.boolean().optional(),
     dots: z.boolean().optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
@@ -84,9 +77,6 @@ export type AreaFamilyOptions = z.infer<typeof AreaFamilyOptionsSchema>;
 export const PieFamilyOptionsSchema = z
   .object({
     innerRadiusPct: z.number().optional(),
-    outerRadiusPct: z.number().optional(),
-    padAngle: z.number().optional(),
-    cornerRadius: z.number().optional(),
     showLabels: z.enum(["none", "value", "percent", "name"]).optional(),
     centerLabel: z
       .object({ value: z.string().optional(), label: z.string().optional() })
@@ -102,7 +92,6 @@ export const ScatterFamilyOptionsSchema = z
     x: MemberSchema,
     y: MemberSchema,
     size: MemberSchema.optional(),
-    sizeRange: z.tuple([z.number(), z.number()]).optional(),
     groupBy: MemberSchema.optional(),
     referenceLines: z.array(ReferenceLineOptSchema).optional(),
   })
@@ -182,11 +171,10 @@ export const TableFamilyOptionsSchema = z
   .object({
     columns: z.array(TableColumnOptSchema).optional(),
     pageSize: z.number().optional(),
-    sortable: z.boolean().optional(),
-    stickyHeader: z.boolean().optional(),
-    rowHeight: z.enum(["compact", "default"]).optional(),
-    showRowNumbers: z.boolean().optional(),
     conditionalFormat: z.array(CondFormatRuleSchema).optional(),
+    // REMOVED in v4 — `sortable`, `stickyHeader`, `showRowNumbers` and `rowHeight`.
+    // Sorting and a pinned header are what makes a table a table, so they are always
+    // on; density follows the row count; row numbers say nothing about the data.
   })
   .strict();
 export type TableFamilyOptions = z.infer<typeof TableFamilyOptionsSchema>;
@@ -200,8 +188,8 @@ export const HeatmapFamilyOptionsSchema = z
   .object({
     /** The single-hue ramp token; cells shade light→dark within this hue. */
     colorToken: ChartColorTokenSchema.optional(),
-    /** Print each cell's formatted value inside the cell. */
-    showValues: z.boolean().optional(),
+    // REMOVED in v4 — `showValues`. The renderer prints in-cell numbers when the grid
+    // is small enough to read them (≤100 cells), which is the answer every time.
   })
   .strict();
 export type HeatmapFamilyOptions = z.infer<typeof HeatmapFamilyOptionsSchema>;
@@ -246,8 +234,6 @@ export const BUILTIN_DEFAULTS = {
       format: { kind: "auto" },
     },
     familyOptions: {
-      barRadius: 4,
-      maxBarSize: 64,
       showValueLabels: false,
     } satisfies BarFamilyOptions,
   },
@@ -259,7 +245,6 @@ export const BUILTIN_DEFAULTS = {
     },
     familyOptions: {
       curve: "monotone",
-      strokeWidth: 2,
       dots: "active",
       connectNulls: false,
       chrome: "full",
@@ -276,8 +261,6 @@ export const BUILTIN_DEFAULTS = {
     },
     familyOptions: {
       curve: "monotone",
-      fillOpacity: 0.4,
-      strokeWidth: 2,
       connectNulls: false,
     } satisfies AreaFamilyOptions,
   },
@@ -290,7 +273,6 @@ export const BUILTIN_DEFAULTS = {
     },
     familyOptions: {
       innerRadiusPct: 0,
-      outerRadiusPct: 80,
       showLabels: "percent",
       maxSlices: 8,
     } satisfies PieFamilyOptions,
@@ -302,9 +284,7 @@ export const BUILTIN_DEFAULTS = {
       format: { kind: "auto" },
     },
     // x/y are required from the spec, so they are absent from the default skeleton.
-    familyOptions: {
-      sizeRange: [40, 400],
-    } as Record<string, unknown>,
+    familyOptions: {} as Record<string, unknown>,
   },
   kpi: {
     envelope: { format: { kind: "auto" } },
@@ -319,16 +299,12 @@ export const BUILTIN_DEFAULTS = {
     },
     familyOptions: {
       colorToken: "chart-1",
-      showValues: false,
     } satisfies HeatmapFamilyOptions,
   },
   table: {
     envelope: {},
     familyOptions: {
       pageSize: 25,
-      sortable: true,
-      stickyHeader: true,
-      rowHeight: "default",
     } satisfies TableFamilyOptions,
   },
 } satisfies Record<BuiltinChartFamily, FamilyDefault>;

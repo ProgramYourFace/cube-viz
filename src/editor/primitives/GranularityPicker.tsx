@@ -24,14 +24,26 @@ const GRANULARITY_LABELS: Record<Granularity, string> = {
 
 export interface GranularityPickerProps {
   value?: Granularity;
-  onChange: (granularity: Granularity) => void;
+  /**
+   * `undefined` is only ever emitted when {@link GranularityPickerProps.allowNone} is
+   * set — the "no bucket" choice, which is how a caller whose feature IS the bucket
+   * (the KPI trend) turns the feature off without a second control.
+   */
+  onChange: (granularity: Granularity | undefined) => void;
   /** Restrict the offered granularities (e.g. a time dimension's own list). */
   options?: Granularity[];
+  /** Offer an explicit "none" entry, so clearing the bucket is a first-class choice. */
+  allowNone?: boolean;
+  /** What to call the "none" entry (defaults to "None"). */
+  noneLabel?: string;
   placeholder?: string;
   disabled?: boolean;
   id?: string;
   className?: string;
 }
+
+/** Sentinel: Radix Select forbids an empty-string item value, so "none" needs a token. */
+const NONE = "__none__";
 
 /**
  * Standard time-bucket granularity dropdown (`second…year`). The option list can
@@ -41,6 +53,8 @@ export function GranularityPicker({
   value,
   onChange,
   options,
+  allowNone,
+  noneLabel = "None",
   placeholder = "Granularity…",
   disabled,
   id,
@@ -49,14 +63,15 @@ export function GranularityPicker({
   const list = options && options.length > 0 ? options : ALL_GRANULARITIES;
   return (
     <Select
-      value={value}
-      onValueChange={(v) => onChange(v as Granularity)}
+      value={value ?? (allowNone ? NONE : undefined)}
+      onValueChange={(v) => onChange(v === NONE ? undefined : (v as Granularity))}
       disabled={disabled}
     >
       <SelectTrigger id={id} className={className}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
+        {allowNone ? <SelectItem value={NONE}>{noneLabel}</SelectItem> : null}
         {list.map((g) => (
           <SelectItem key={g} value={g}>
             {GRANULARITY_LABELS[g]}

@@ -68,7 +68,7 @@ export function CubeChart({
   onRangeSelect,
   onPointSelect,
 }: CubeChartProps): ReactElement {
-  const { registry, locale } = useCubeVizContext();
+  const { registry, locale, theme } = useCubeVizContext();
   // The family registry (builtins + host families), read ONCE so resolveChart,
   // comparePreviousInput, and ChartRenderer all share one stable identity.
   const families = useFamilyRegistry();
@@ -282,6 +282,7 @@ export function CubeChart({
         state={queryless ? { loading: false } : { loading: isLoading && !data, error }}
         components={components}
         registry={families}
+        theme={theme.marks}
         editing={editing}
         updateFamilyOptions={updateFamilyOptions}
       />

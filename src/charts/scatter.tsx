@@ -22,6 +22,7 @@ import type { ChartComponentProps } from "./types";
 import type { ScatterFamilyOptions } from "./defaults";
 import {
   axisFormat,
+  axisTitle,
   CvChart,
   legendDisplay,
   legendPlacement,
@@ -38,9 +39,9 @@ import {
  * z/color channel with a fixed domain→ramp-token mapping (first-seen order,
  * mirroring the old per-group <Scatter> coloring).
  *
- * `shape` degrades to a circle: the TanStack `dot` mark draws one symbol, so
- * square/triangle/diamond render as dots (the option is kept in the schema for
- * spec compatibility).
+ * There is no point-SHAPE option: the `dot` mark draws one symbol, so groups are
+ * distinguished by color (and size, when bound). Bubble area range is app-level
+ * geometry from the theme, never a per-chart knob.
  */
 
 /** One valid raw observation projected to mark-ready form. */
@@ -55,7 +56,12 @@ interface ScatterRow {
   i: number;
 }
 
-export function ScatterChartFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
+export function ScatterChartFamily({
+  data,
+  options,
+  format,
+  theme,
+}: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as ScatterFamilyOptions;
   const ann = data.raw.annotation;
 
@@ -89,7 +95,7 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
     // raw size to a pixel RADIUS. Convert the configured area range to radii and
     // let the factory infer the [0, max] domain from the r channel (sqrt keeps
     // bubble AREA proportional to the value).
-    const [areaMin, areaMax] = fo.sizeRange ?? [40, 400];
+    const [areaMin, areaMax] = theme.bubbleAreaRange;
     const rMin = Math.sqrt(Math.max(areaMin, 0) / Math.PI);
     const rMax = Math.sqrt(Math.max(areaMax, 0) / Math.PI);
 
@@ -175,8 +181,8 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
       }
     }
 
-    const xTitle = options.axes?.x?.labelHide ? undefined : (options.axes?.x?.label ?? xLabel);
-    const yTitle = options.axes?.y?.labelHide ? undefined : (options.axes?.y?.label ?? yLabel);
+    const xTitle = axisTitle(options.axes?.x, xLabel);
+    const yTitle = axisTitle(options.axes?.y, yLabel);
     const xs = valueScale(options.axes?.x);
     const ys = valueScale(options.axes?.y);
     const xMember = fo.x;
@@ -252,7 +258,7 @@ export function ScatterChartFamily({ data, options, format }: ChartComponentProp
             },
       keyboard: true,
     });
-  }, [data, options, format, fo, xLabel, yLabel, sizeLabel]);
+  }, [data, options, format, fo, theme, xLabel, yLabel, sizeLabel]);
 
   // Scatter has NO category axis, so the shared SeriesRow click contract does not
   // apply: the only dimension a point stands for is its `groupBy` value. Ungrouped

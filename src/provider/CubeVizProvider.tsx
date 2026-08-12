@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { useMemo } from "react";
 
+import { resolveMarkTheme, type ChartMarkTheme } from "@/charts";
 import type { ChartColorToken } from "@/spec";
 import { createCubeClient, DEFAULT_COLOR_RAMP } from "@/adapter";
 import type { CubeClient, CubeConnection } from "@/adapter";
@@ -39,6 +40,17 @@ export interface CubeVizThemeConfig {
   chartRamp?: ChartColorToken[];
   /** Force a mode; "system" (default) defers to the host's existing dark selector. */
   mode?: "light" | "dark" | "system";
+  /**
+   * Mark GEOMETRY for every chart in the app — bar radius and thickness, area fill
+   * opacity, line width, pie gap/radius, bubble area range. Partial: anything omitted
+   * keeps {@link DEFAULT_MARK_THEME}.
+   *
+   * These are set HERE and nowhere else. They used to be per-chart `familyOptions`,
+   * which meant a person building a chart was asked how round its corners should be —
+   * a question about a rectangle, not about their data, and one with no wrong answer.
+   * Appearance is a property of the product, so it is configured once by the host.
+   */
+  marks?: Partial<ChartMarkTheme>;
 }
 
 /** Host-supplied locale / formatting config. */
@@ -139,8 +151,9 @@ export function CubeVizProvider({
     () => ({
       chartRamp: theme?.chartRamp?.length ? theme.chartRamp : DEFAULT_COLOR_RAMP,
       mode: theme?.mode ?? "system",
+      marks: resolveMarkTheme(theme?.marks),
     }),
-    [theme?.chartRamp, theme?.mode],
+    [theme?.chartRamp, theme?.mode, theme?.marks],
   );
 
   const resolvedLocale = useMemo<ResolvedLocale>(

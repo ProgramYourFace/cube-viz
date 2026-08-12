@@ -30,21 +30,6 @@ import {
 } from "./tanstack";
 
 /**
- * Recharts' bar gaps were percent-ish (`20` or `"20%"` of the band); TanStack
- * band/group padding is a 0..1 fraction. Numbers ≤ 1 pass through as fractions,
- * larger numbers and `"N%"` strings divide by 100; clamped to [0, 0.9] so a
- * wild value never produces zero-width bands.
- */
-function gapFraction(v: number | string | undefined, fallback: number): number {
-  let n: number;
-  if (v === undefined) n = fallback;
-  else if (typeof v === "string") n = Number.parseFloat(v) / 100;
-  else n = v > 1 ? v / 100 : v;
-  if (!Number.isFinite(n)) n = fallback;
-  return Math.min(0.9, Math.max(0, n));
-}
-
-/**
  * `bar` — absorbs all six Embeddable Bar Pros via `orientation` × `stackMode`
  * (docs/02-chart-options.md §2.1). orientation → barY/barX, stackMode → mark
  * layout (group()/implicit stack/stack({offset:"normalize"})) are translated
@@ -57,6 +42,7 @@ export function BarChartFamily({
   data,
   options,
   format,
+  theme,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as BarFamilyOptions;
 
@@ -98,7 +84,7 @@ export function BarChartFamily({
     const catAxisHidden = horizontal ? options.axes?.y?.hide : options.axes?.x?.hide;
     const valAxis = horizontal ? options.axes?.x : options.axes?.y;
     const val = valueScale(valAxis);
-    const catPadding = gapFraction(fo.barCategoryGap, 0.2);
+    const catPadding = theme.barCategoryGap;
     // Per-axis `tickFormat` overrides re-bind the formatter for THAT axis' ticks only
     // (the visual axes swap with `orientation`, so the category axis reads the
     // category-side options and the value axis the value-side ones).
@@ -124,9 +110,7 @@ export function BarChartFamily({
     // explicit side-by-side geometry. MULTI-STACK is the fourth case: the rows
     // carry their own [y1,y2] intervals (which opts the mark out of implicit
     // stacking, normalize included), so the layout groups the STACKS side by side.
-    const groupLayout = group(
-      fo.barGap === undefined ? {} : { padding: gapFraction(fo.barGap, 0.1) },
-    );
+    const groupLayout = group({ padding: theme.barGap });
     const layout = multiStack
       ? groupLayout
       : percent
@@ -144,8 +128,8 @@ export function BarChartFamily({
       // `i` repeats across series — composite key keeps scene identity stable.
       key: (r: SeriesRow) => `${r.label} ${r.i}`,
       layout,
-      radius: fo.barRadius,
-      maxThickness: fo.maxBarSize,
+      radius: theme.barRadius,
+      maxThickness: theme.maxBarSize,
       // Per-datum paint: companions get the old 40%-opacity look via color-mix;
       // everything else uses its palette token (matching the color scale, so
       // the legend swatches stay in sync).
@@ -266,7 +250,7 @@ export function BarChartFamily({
             }),
       keyboard: true,
     });
-  }, [data, options, format, fo]);
+  }, [data, options, format, fo, theme]);
 
   const label = data.series.map(seriesLabel).join(", ") || "Bar chart";
   return <CvChart definition={definition} ariaLabel={label} className="cv-chart--fill" />;

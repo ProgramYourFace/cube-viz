@@ -210,9 +210,92 @@ function migrateV2(raw: Record<string, unknown>): Record<string, unknown> {
   return next;
 }
 
+/* ─────────────── v3 → v4 (mark geometry became app-level theme) ─────────────── */
+
+/**
+ * What each family no longer accepts. The geometry entries moved to the host's
+ * `theme.marks` ({@link import("@/charts/theme").ChartMarkTheme}) — appearance, set once
+ * for the app; asking a chart author about them was never a question about their data.
+ * The rest became fixed behavior or a data-driven default.
+ *
+ * `pie.innerRadiusPct` is deliberately NOT here: it is the donut/pie switch, which
+ * changes what the chart IS rather than how it is painted.
+ */
+const GEOMETRY_BY_FAMILY: Record<string, readonly string[]> = {
+  bar: ["barRadius", "barCategoryGap", "barGap", "maxBarSize"],
+  line: ["strokeWidth"],
+  area: ["fillOpacity", "strokeWidth"],
+  pie: ["outerRadiusPct", "padAngle", "cornerRadius", "maxSlices"],
+  scatter: ["sizeRange"],
+  // Not geometry, same reasoning: settings whose every value was defensible, replaced
+  // by one right answer. Sorting and a pinned header are always on, row density follows
+  // the row count, row numbers are gone, and the heatmap prints in-cell values whenever
+  // the grid is small enough to read them.
+  table: ["sortable", "stickyHeader", "rowHeight", "showRowNumbers"],
+  heatmap: ["showValues"],
+};
+
+/**
+ * Drop the retired keys. A stored value is DISCARDED rather than promoted into the
+ * theme: the theme is app-wide, so honoring one chart's `barRadius: 12` would restyle
+ * every other chart on the dashboard. Any spec that had customized these shifts to the
+ * app default — the one step in this ladder that is not pixel-preserving, and the whole
+ * point of the change.
+ */
+function stripRetiredOptions(chart: Record<string, unknown>): void {
+  if (!isRecord(chart.familyOptions)) return;
+  const family = typeof chart.family === "string" ? chart.family : "";
+  const moved = GEOMETRY_BY_FAMILY[family];
+  if (!moved) return;
+  let fo = chart.familyOptions;
+  for (const key of moved) fo = without(fo, key) ?? {};
+  chart.familyOptions = fo;
+}
+
+/**
+ * `axes.*.labelHide: true` becomes `label: ""`. The separate flag is gone: an axis
+ * title is now said entirely by the title field, where empty means none. A hidden
+ * title that ALSO carried override text loses the text — it was invisible either way,
+ * and keeping it would resurrect a title the user had turned off.
+ */
+function migrateAxisLabelHide(chart: Record<string, unknown>): void {
+  if (!isRecord(chart.axes)) return;
+  for (const key of ["x", "y"]) {
+    const axis = chart.axes[key];
+    if (!isRecord(axis) || axis.labelHide !== true) continue;
+    const cleaned = without(axis, "labelHide") ?? {};
+    cleaned.label = "";
+    chart.axes[key] = cleaned;
+  }
+}
+
+/**
+ * v3 → v4: the ten mark-geometry options left the spec for the host theme, and the
+ * axis title absorbed its own hide flag. See charts/theme.ts, editor ChartChrome, and
+ * docs/02-chart-options.md §4.1.
+ */
+function migrateChartOptionsV3(chart: unknown): void {
+  if (!isRecord(chart)) return;
+  stripRetiredOptions(chart);
+  migrateAxisLabelHide(chart);
+}
+
+function migrateV3(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = structuredClone(raw);
+  if (next.kind === "chart") {
+    migrateChartOptionsV3(next.chart);
+  } else if (next.kind === "dashboard" && Array.isArray(next.widgets)) {
+    for (const w of next.widgets) {
+      if (isRecord(w) && w.type === "chart") migrateChartOptionsV3(w.chart);
+    }
+  }
+  return next;
+}
+
 const migrations: Record<number, Migration> = {
   1: migrateV1,
   2: migrateV2,
+  3: migrateV3,
 };
 
 /**

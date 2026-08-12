@@ -50,7 +50,7 @@ export declare function appendWidget(spec: DashboardSpec, widget: WidgetSpec, co
  * areaY mark's own `stroke` channel (no separate line layer needed).
  * orientation is ignored, as before. Dual-axis was removed with the combo family.
  */
-export declare function AreaChartFamily({ data, options, format, }: ChartComponentProps): React_2.ReactElement;
+export declare function AreaChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 export declare const areaChartFamily: ChartFamilyDescriptor;
 
@@ -58,8 +58,6 @@ export declare type AreaFamilyOptions = z.infer<typeof AreaFamilyOptionsSchema>;
 
 export declare const AreaFamilyOptionsSchema: z.ZodObject<{
     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-    fillOpacity: z.ZodOptional<z.ZodNumber>;
-    strokeWidth: z.ZodOptional<z.ZodNumber>;
     connectNulls: z.ZodOptional<z.ZodBoolean>;
     dots: z.ZodOptional<z.ZodBoolean>;
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -89,9 +87,7 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
-    strokeWidth?: number | undefined;
     connectNulls?: boolean | undefined;
-    fillOpacity?: number | undefined;
 }, {
     curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
@@ -102,9 +98,7 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
     comparePrevious?: boolean | undefined;
-    strokeWidth?: number | undefined;
     connectNulls?: boolean | undefined;
-    fillOpacity?: number | undefined;
 }>;
 
 /**
@@ -117,9 +111,13 @@ export declare type AxesOptions = z.infer<typeof AxesOptionsSchema>;
 
 export declare const AxesOptionsSchema: z.ZodObject<{
     x: z.ZodOptional<z.ZodObject<{
+        /**
+         * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+         * (the ticks and line stay). There is no separate hide flag: the editor's title
+         * field IS the control, and clearing it is how you remove the title. (v4)
+         */
         label: z.ZodOptional<z.ZodString>;
-        /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-        labelHide: z.ZodOptional<z.ZodBoolean>;
+        /** Hide the whole axis — ticks, line and title. */
         hide: z.ZodOptional<z.ZodBoolean>;
         /** Value-axis only: a category axis is band/point/utc and has no log form. */
         scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -159,7 +157,6 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         }>>;
     }, "strict", z.ZodTypeAny, {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
         domain?: [number, number] | undefined;
@@ -175,7 +172,6 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         } | undefined;
     }, {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
         domain?: [number, number] | undefined;
@@ -191,9 +187,13 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         } | undefined;
     }>>;
     y: z.ZodOptional<z.ZodObject<{
+        /**
+         * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+         * (the ticks and line stay). There is no separate hide flag: the editor's title
+         * field IS the control, and clearing it is how you remove the title. (v4)
+         */
         label: z.ZodOptional<z.ZodString>;
-        /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-        labelHide: z.ZodOptional<z.ZodBoolean>;
+        /** Hide the whole axis — ticks, line and title. */
         hide: z.ZodOptional<z.ZodBoolean>;
         /** Value-axis only: a category axis is band/point/utc and has no log form. */
         scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -233,7 +233,6 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         }>>;
     }, "strict", z.ZodTypeAny, {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
         domain?: [number, number] | undefined;
@@ -249,7 +248,6 @@ export declare const AxesOptionsSchema: z.ZodObject<{
         } | undefined;
     }, {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
         domain?: [number, number] | undefined;
@@ -267,7 +265,6 @@ export declare const AxesOptionsSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     x?: {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
         domain?: [number, number] | undefined;
@@ -284,7 +281,6 @@ export declare const AxesOptionsSchema: z.ZodObject<{
     } | undefined;
     y?: {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
         domain?: [number, number] | undefined;
@@ -302,7 +298,6 @@ export declare const AxesOptionsSchema: z.ZodObject<{
 }, {
     x?: {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
         domain?: [number, number] | undefined;
@@ -319,7 +314,6 @@ export declare const AxesOptionsSchema: z.ZodObject<{
     } | undefined;
     y?: {
         label?: string | undefined;
-        labelHide?: boolean | undefined;
         hide?: boolean | undefined;
         scale?: "linear" | "log" | undefined;
         domain?: [number, number] | undefined;
@@ -350,9 +344,13 @@ export declare function axisKey(meta: MemberMeta | undefined): string;
 export declare type AxisOptions = z.infer<typeof AxisOptionsSchema>;
 
 export declare const AxisOptionsSchema: z.ZodObject<{
+    /**
+     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+     * (the ticks and line stay). There is no separate hide flag: the editor's title
+     * field IS the control, and clearing it is how you remove the title. (v4)
+     */
     label: z.ZodOptional<z.ZodString>;
-    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-    labelHide: z.ZodOptional<z.ZodBoolean>;
+    /** Hide the whole axis — ticks, line and title. */
     hide: z.ZodOptional<z.ZodBoolean>;
     /** Value-axis only: a category axis is band/point/utc and has no log form. */
     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -392,7 +390,6 @@ export declare const AxisOptionsSchema: z.ZodObject<{
     }>>;
 }, "strict", z.ZodTypeAny, {
     label?: string | undefined;
-    labelHide?: boolean | undefined;
     hide?: boolean | undefined;
     scale?: "linear" | "log" | undefined;
     domain?: [number, number] | undefined;
@@ -408,7 +405,6 @@ export declare const AxisOptionsSchema: z.ZodObject<{
     } | undefined;
 }, {
     label?: string | undefined;
-    labelHide?: boolean | undefined;
     hide?: boolean | undefined;
     scale?: "linear" | "log" | undefined;
     domain?: [number, number] | undefined;
@@ -433,7 +429,7 @@ export declare const AxisOptionsSchema: z.ZodObject<{
  * paint comes from the chart-level color domain/range (seriesColor).
  * Dual-axis (`meta.axis === "right"`) was removed with the combo family.
  */
-export declare function BarChartFamily({ data, options, format, }: ChartComponentProps): React_2.ReactElement;
+export declare function BarChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 /**
  * The chart-family registry — an IMMUTABLE value (no module-mutable state). A
@@ -453,10 +449,6 @@ export declare const barChartFamily: ChartFamilyDescriptor;
 export declare type BarFamilyOptions = z.infer<typeof BarFamilyOptionsSchema>;
 
 export declare const BarFamilyOptionsSchema: z.ZodObject<{
-    barRadius: z.ZodOptional<z.ZodNumber>;
-    barCategoryGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
-    barGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
-    maxBarSize: z.ZodOptional<z.ZodNumber>;
     showValueLabels: z.ZodOptional<z.ZodBoolean>;
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
@@ -482,10 +474,6 @@ export declare const BarFamilyOptionsSchema: z.ZodObject<{
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
-    barRadius?: number | undefined;
-    barCategoryGap?: string | number | undefined;
-    barGap?: string | number | undefined;
-    maxBarSize?: number | undefined;
     showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
 }, {
@@ -495,10 +483,6 @@ export declare const BarFamilyOptionsSchema: z.ZodObject<{
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
-    barRadius?: number | undefined;
-    barCategoryGap?: string | number | undefined;
-    barGap?: string | number | undefined;
-    maxBarSize?: number | undefined;
     showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
 }>;
@@ -545,8 +529,6 @@ export declare const BUILTIN_DEFAULTS: {
             };
         };
         familyOptions: {
-            barRadius: number;
-            maxBarSize: number;
             showValueLabels: false;
         };
     };
@@ -566,7 +548,6 @@ export declare const BUILTIN_DEFAULTS: {
         };
         familyOptions: {
             curve: "monotone";
-            strokeWidth: number;
             dots: "active";
             connectNulls: false;
             chrome: "full";
@@ -588,8 +569,6 @@ export declare const BUILTIN_DEFAULTS: {
         };
         familyOptions: {
             curve: "monotone";
-            fillOpacity: number;
-            strokeWidth: number;
             connectNulls: false;
         };
     };
@@ -609,7 +588,6 @@ export declare const BUILTIN_DEFAULTS: {
         };
         familyOptions: {
             innerRadiusPct: number;
-            outerRadiusPct: number;
             showLabels: "percent";
             maxSlices: number;
         };
@@ -650,16 +628,12 @@ export declare const BUILTIN_DEFAULTS: {
         };
         familyOptions: {
             colorToken: "chart-1";
-            showValues: false;
         };
     };
     table: {
         envelope: {};
         familyOptions: {
             pageSize: number;
-            sortable: true;
-            stickyHeader: true;
-            rowHeight: "default";
         };
     };
 };
@@ -673,10 +647,6 @@ export declare const BUILTIN_DEFAULTS: {
  */
 export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
     bar: z.ZodObject<{
-        barRadius: z.ZodOptional<z.ZodNumber>;
-        barCategoryGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
-        barGap: z.ZodOptional<z.ZodUnion<[z.ZodNumber, z.ZodString]>>;
-        maxBarSize: z.ZodOptional<z.ZodNumber>;
         showValueLabels: z.ZodOptional<z.ZodBoolean>;
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
@@ -702,10 +672,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
-        barRadius?: number | undefined;
-        barCategoryGap?: string | number | undefined;
-        barGap?: string | number | undefined;
-        maxBarSize?: number | undefined;
         showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
     }, {
@@ -715,16 +681,11 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
-        barRadius?: number | undefined;
-        barCategoryGap?: string | number | undefined;
-        barGap?: string | number | undefined;
-        maxBarSize?: number | undefined;
         showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
     }>;
     line: z.ZodObject<{
         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-        strokeWidth: z.ZodOptional<z.ZodNumber>;
         dots: z.ZodOptional<z.ZodUnion<[z.ZodBoolean, z.ZodLiteral<"active">]>>;
         connectNulls: z.ZodOptional<z.ZodBoolean>;
         chrome: z.ZodOptional<z.ZodEnum<["full", "none"]>>;
@@ -757,7 +718,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         }[] | undefined;
         showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
-        strokeWidth?: number | undefined;
         connectNulls?: boolean | undefined;
         chrome?: "none" | "full" | undefined;
     }, {
@@ -771,14 +731,11 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         }[] | undefined;
         showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
-        strokeWidth?: number | undefined;
         connectNulls?: boolean | undefined;
         chrome?: "none" | "full" | undefined;
     }>;
     area: z.ZodObject<{
         curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-        fillOpacity: z.ZodOptional<z.ZodNumber>;
-        strokeWidth: z.ZodOptional<z.ZodNumber>;
         connectNulls: z.ZodOptional<z.ZodBoolean>;
         dots: z.ZodOptional<z.ZodBoolean>;
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -808,9 +765,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
-        strokeWidth?: number | undefined;
         connectNulls?: boolean | undefined;
-        fillOpacity?: number | undefined;
     }, {
         curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | undefined;
@@ -821,15 +776,10 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
         comparePrevious?: boolean | undefined;
-        strokeWidth?: number | undefined;
         connectNulls?: boolean | undefined;
-        fillOpacity?: number | undefined;
     }>;
     pie: z.ZodObject<{
         innerRadiusPct: z.ZodOptional<z.ZodNumber>;
-        outerRadiusPct: z.ZodOptional<z.ZodNumber>;
-        padAngle: z.ZodOptional<z.ZodNumber>;
-        cornerRadius: z.ZodOptional<z.ZodNumber>;
         showLabels: z.ZodOptional<z.ZodEnum<["none", "value", "percent", "name"]>>;
         centerLabel: z.ZodOptional<z.ZodObject<{
             value: z.ZodOptional<z.ZodString>;
@@ -843,33 +793,26 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         }>>;
         maxSlices: z.ZodOptional<z.ZodNumber>;
     }, "strict", z.ZodTypeAny, {
+        maxSlices?: number | undefined;
         innerRadiusPct?: number | undefined;
-        outerRadiusPct?: number | undefined;
-        padAngle?: number | undefined;
-        cornerRadius?: number | undefined;
         showLabels?: "value" | "percent" | "none" | "name" | undefined;
         centerLabel?: {
             value?: string | undefined;
             label?: string | undefined;
         } | undefined;
-        maxSlices?: number | undefined;
     }, {
+        maxSlices?: number | undefined;
         innerRadiusPct?: number | undefined;
-        outerRadiusPct?: number | undefined;
-        padAngle?: number | undefined;
-        cornerRadius?: number | undefined;
         showLabels?: "value" | "percent" | "none" | "name" | undefined;
         centerLabel?: {
             value?: string | undefined;
             label?: string | undefined;
         } | undefined;
-        maxSlices?: number | undefined;
     }>;
     scatter: z.ZodObject<{
         x: z.ZodString;
         y: z.ZodString;
         size: z.ZodOptional<z.ZodString>;
-        sizeRange: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
         groupBy: z.ZodOptional<z.ZodString>;
         referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
             axis: z.ZodEnum<["x", "y"]>;
@@ -897,7 +840,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
         size?: string | undefined;
-        sizeRange?: [number, number] | undefined;
         groupBy?: string | undefined;
     }, {
         x: string;
@@ -909,20 +851,15 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
         size?: string | undefined;
-        sizeRange?: [number, number] | undefined;
         groupBy?: string | undefined;
     }>;
     heatmap: z.ZodObject<{
         /** The single-hue ramp token; cells shade light→dark within this hue. */
         colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
-        /** Print each cell's formatted value inside the cell. */
-        showValues: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        showValues?: boolean | undefined;
     }, {
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-        showValues?: boolean | undefined;
     }>;
     kpi: z.ZodObject<{
         display: z.ZodOptional<z.ZodEnum<["number", "gauge"]>>;
@@ -1140,10 +1077,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             width?: number | undefined;
         }>, "many">>;
         pageSize: z.ZodOptional<z.ZodNumber>;
-        sortable: z.ZodOptional<z.ZodBoolean>;
-        stickyHeader: z.ZodOptional<z.ZodBoolean>;
-        rowHeight: z.ZodOptional<z.ZodEnum<["compact", "default"]>>;
-        showRowNumbers: z.ZodOptional<z.ZodBoolean>;
         conditionalFormat: z.ZodOptional<z.ZodArray<z.ZodObject<{
             member: z.ZodString;
             when: z.ZodObject<{
@@ -1173,7 +1106,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }>, "many">>;
     }, "strict", z.ZodTypeAny, {
-        rowHeight?: "default" | "compact" | undefined;
         columns?: {
             member: string;
             label?: string | undefined;
@@ -1192,9 +1124,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             width?: number | undefined;
         }[] | undefined;
         pageSize?: number | undefined;
-        sortable?: boolean | undefined;
-        stickyHeader?: boolean | undefined;
-        showRowNumbers?: boolean | undefined;
         conditionalFormat?: {
             member: string;
             when: {
@@ -1204,7 +1133,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
     }, {
-        rowHeight?: "default" | "compact" | undefined;
         columns?: {
             member: string;
             label?: string | undefined;
@@ -1223,9 +1151,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             width?: number | undefined;
         }[] | undefined;
         pageSize?: number | undefined;
-        sortable?: boolean | undefined;
-        stickyHeader?: boolean | undefined;
-        showRowNumbers?: boolean | undefined;
         conditionalFormat?: {
             member: string;
             when: {
@@ -1302,6 +1227,12 @@ export declare interface ChartComponentProps {
      * {@link ValueFormatter} + annotation + options.
      */
     format: ChartFormat;
+    /**
+     * Resolved mark geometry — bar radius, area fill opacity, pie gap and the rest.
+     * App-level appearance, NOT a spec option: it comes from the host's provider theme,
+     * already defaulted, so a family reads `theme.barRadius` with no fallback of its own.
+     */
+    theme: ChartMarkTheme;
     /** Optional fetch state; families render their own loading/error chrome from it. */
     state?: {
         loading?: boolean;
@@ -1618,6 +1549,51 @@ export declare interface ChartInteractionTarget {
     formatCategory?: (value: string | number) => string;
 }
 
+/**
+ * MARK GEOMETRY — the shape of the ink, set once for the app.
+ *
+ * These used to be per-chart `familyOptions`: `barRadius`, `padAngle`, `fillOpacity`
+ * and the rest. Every one of them was honored by the renderer, and every one of them
+ * was the wrong kind of question to put in front of someone building a chart. A person
+ * opens the editor to answer something about their fleet; "how round should the bar
+ * corners be" is not that, and no value they pick is wrong — which is exactly what
+ * makes the choice worthless. A knob whose every setting is defensible carries no
+ * information, it only carries a decision.
+ *
+ * So they moved here: ONE resolved geometry for the whole app, supplied by the host
+ * through `CubeVizProvider`'s `theme.marks` and defaulted to values that look right
+ * without anyone touching them. A saved chart can no longer carry a stale look, the
+ * editor has nothing to show for them, and restyling every chart at once is a one-line
+ * change instead of a migration.
+ *
+ * What stays a spec option is what changes MEANING: stacking, orientation, transforms,
+ * what each series is called. Appearance is a property of the product; meaning is a
+ * property of the chart.
+ */
+/** The resolved geometry every family renders with. All fields required — see {@link DEFAULT_MARK_THEME}. */
+export declare interface ChartMarkTheme {
+    /** Bar corner radius, px. */
+    barRadius: number;
+    /** Space BETWEEN the bars of one group, as a 0..1 fraction of the group's slot. */
+    barGap: number;
+    /** Space between CATEGORY bands, as a 0..1 fraction of the band. */
+    barCategoryGap: number;
+    /** Upper bound on bar thickness, px — keeps a 3-category chart from drawing slabs. */
+    maxBarSize: number;
+    /** Peak opacity of an area's gradient fill. */
+    areaFillOpacity: number;
+    /** Stroke width for line + area marks, px. */
+    lineWidth: number;
+    /** Gap between pie slices, DEGREES. */
+    pieGapAngle: number;
+    /** Pie/donut slice corner radius, px. */
+    pieCornerRadius: number;
+    /** Pie outer radius as a percentage of the available radius. */
+    pieRadiusPct: number;
+    /** Bubble AREA range [min, max] in px² — area, not radius, so size reads honestly. */
+    bubbleAreaRange: readonly [number, number];
+}
+
 export declare type ChartOptions = z.infer<typeof ChartOptionsSchema>;
 
 export declare const ChartOptionsSchema: z.ZodObject<{
@@ -1823,9 +1799,13 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     }>>;
     axes: z.ZodOptional<z.ZodObject<{
         x: z.ZodOptional<z.ZodObject<{
+            /**
+             * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+             * (the ticks and line stay). There is no separate hide flag: the editor's title
+             * field IS the control, and clearing it is how you remove the title. (v4)
+             */
             label: z.ZodOptional<z.ZodString>;
-            /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-            labelHide: z.ZodOptional<z.ZodBoolean>;
+            /** Hide the whole axis — ticks, line and title. */
             hide: z.ZodOptional<z.ZodBoolean>;
             /** Value-axis only: a category axis is band/point/utc and has no log form. */
             scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -1865,7 +1845,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             }>>;
         }, "strict", z.ZodTypeAny, {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -1881,7 +1860,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             } | undefined;
         }, {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -1897,9 +1875,13 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             } | undefined;
         }>>;
         y: z.ZodOptional<z.ZodObject<{
+            /**
+             * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+             * (the ticks and line stay). There is no separate hide flag: the editor's title
+             * field IS the control, and clearing it is how you remove the title. (v4)
+             */
             label: z.ZodOptional<z.ZodString>;
-            /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-            labelHide: z.ZodOptional<z.ZodBoolean>;
+            /** Hide the whole axis — ticks, line and title. */
             hide: z.ZodOptional<z.ZodBoolean>;
             /** Value-axis only: a category axis is band/point/utc and has no log form. */
             scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -1939,7 +1921,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             }>>;
         }, "strict", z.ZodTypeAny, {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -1955,7 +1936,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
             } | undefined;
         }, {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -1973,7 +1953,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         x?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -1990,7 +1969,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         } | undefined;
         y?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -2008,7 +1986,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     }, {
         x?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -2025,7 +2002,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         } | undefined;
         y?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -2146,7 +2122,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     axes?: {
         x?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -2163,7 +2138,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         } | undefined;
         y?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -2242,7 +2216,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     axes?: {
         x?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -2259,7 +2232,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
         } | undefined;
         y?: {
             label?: string | undefined;
-            labelHide?: boolean | undefined;
             hide?: boolean | undefined;
             scale?: "linear" | "log" | undefined;
             domain?: [number, number] | undefined;
@@ -2296,9 +2268,16 @@ export declare const ChartOptionsSchema: z.ZodObject<{
     familyOptions?: Record<string, unknown> | undefined;
 }>;
 
-export declare function ChartRenderer({ data, options, config, format, state, components, editing, updateFamilyOptions, registry, }: ChartRendererProps): ReactElement;
+export declare function ChartRenderer({ data, options, config, format, state, components, editing, updateFamilyOptions, registry, theme, }: ChartRendererProps): ReactElement;
 
-export declare interface ChartRendererProps extends Omit<ChartComponentProps, "format"> {
+export declare interface ChartRendererProps extends Omit<ChartComponentProps, "format" | "theme"> {
+    /**
+     * Mark geometry overrides (bar radius, area fill opacity, pie gap…). Optional and
+     * PARTIAL: whatever the host omits falls back to {@link DEFAULT_MARK_THEME}, and the
+     * families receive the resolved whole. `CubeChart` passes the provider's
+     * `theme.marks`. Deliberately not a spec option — see charts/theme.ts.
+     */
+    theme?: Partial<ChartMarkTheme>;
     /**
      * The bound value formatter. Optional here: when absent the renderer builds a
      * default from `data.raw.annotation` + the resolved options + the minimal
@@ -2629,9 +2608,13 @@ export declare const ChartSpecSchema: z.ZodObject<{
         }>>;
         axes: z.ZodOptional<z.ZodObject<{
             x: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
                 /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -2671,7 +2654,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2687,7 +2669,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2703,9 +2684,13 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 } | undefined;
             }>>;
             y: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
                 /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -2745,7 +2730,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2761,7 +2745,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2779,7 +2762,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
         }, "strict", z.ZodTypeAny, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2796,7 +2778,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2814,7 +2795,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
         }, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2831,7 +2811,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2952,7 +2931,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -2969,7 +2947,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3048,7 +3025,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3065,7 +3041,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3101,7 +3076,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
-    schemaVersion: z.ZodLiteral<3>;
+    schemaVersion: z.ZodLiteral<4>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -3153,7 +3128,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3170,7 +3144,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3232,7 +3205,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         timezone?: string | undefined;
     };
     id: string;
-    schemaVersion: 3;
+    schemaVersion: 4;
     name?: string | undefined;
     description?: string | undefined;
     createdAt?: string | undefined;
@@ -3283,7 +3256,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3300,7 +3272,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3337,7 +3308,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         familyOptions?: Record<string, unknown> | undefined;
     };
     id: string;
-    schemaVersion: 3;
+    schemaVersion: 4;
     query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
@@ -3729,9 +3700,13 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         }>>;
         axes: z.ZodOptional<z.ZodObject<{
             x: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
                 /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -3771,7 +3746,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3787,7 +3761,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3803,9 +3776,13 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 } | undefined;
             }>>;
             y: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
                 /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -3845,7 +3822,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3861,7 +3837,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3879,7 +3854,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         }, "strict", z.ZodTypeAny, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3896,7 +3870,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3914,7 +3887,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         }, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -3931,7 +3903,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4052,7 +4023,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4069,7 +4039,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4148,7 +4117,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4165,7 +4133,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4249,7 +4216,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4266,7 +4232,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4375,7 +4340,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4392,7 +4356,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -4881,6 +4844,17 @@ export declare interface CubeVizThemeConfig {
     chartRamp?: ChartColorToken[];
     /** Force a mode; "system" (default) defers to the host's existing dark selector. */
     mode?: "light" | "dark" | "system";
+    /**
+     * Mark GEOMETRY for every chart in the app — bar radius and thickness, area fill
+     * opacity, line width, pie gap/radius, bubble area range. Partial: anything omitted
+     * keeps {@link DEFAULT_MARK_THEME}.
+     *
+     * These are set HERE and nowhere else. They used to be per-chart `familyOptions`,
+     * which meant a person building a chart was asked how round its corners should be —
+     * a question about a rectangle, not about their data, and one with no wrong answer.
+     * Appearance is a property of the product, so it is configured once by the host.
+     */
+    marks?: Partial<ChartMarkTheme>;
 }
 
 /**
@@ -5372,9 +5346,13 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             }>>;
             axes: z.ZodOptional<z.ZodObject<{
                 x: z.ZodOptional<z.ZodObject<{
+                    /**
+                     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                     * (the ticks and line stay). There is no separate hide flag: the editor's title
+                     * field IS the control, and clearing it is how you remove the title. (v4)
+                     */
                     label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
+                    /** Hide the whole axis — ticks, line and title. */
                     hide: z.ZodOptional<z.ZodBoolean>;
                     /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -5414,7 +5392,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5430,7 +5407,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     } | undefined;
                 }, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5446,9 +5422,13 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     } | undefined;
                 }>>;
                 y: z.ZodOptional<z.ZodObject<{
+                    /**
+                     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                     * (the ticks and line stay). There is no separate hide flag: the editor's title
+                     * field IS the control, and clearing it is how you remove the title. (v4)
+                     */
                     label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
+                    /** Hide the whole axis — ticks, line and title. */
                     hide: z.ZodOptional<z.ZodBoolean>;
                     /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -5488,7 +5468,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5504,7 +5483,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                     } | undefined;
                 }, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5522,7 +5500,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             }, "strict", z.ZodTypeAny, {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5539,7 +5516,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5557,7 +5533,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             }, {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5574,7 +5549,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5695,7 +5669,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5712,7 +5685,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5791,7 +5763,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5808,7 +5779,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5892,7 +5862,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -5909,7 +5878,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -6018,7 +5986,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -6035,7 +6002,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -6410,7 +6376,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         margin?: [number, number] | undefined;
         containerPadding?: [number, number] | undefined;
     }>>;
-    schemaVersion: z.ZodLiteral<3>;
+    schemaVersion: z.ZodLiteral<4>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -6419,7 +6385,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 3;
+    schemaVersion: 4;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -6473,7 +6439,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -6490,7 +6455,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -6622,7 +6586,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
 }, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 3;
+    schemaVersion: 4;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -6676,7 +6640,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -6693,7 +6656,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -6846,6 +6808,13 @@ export declare const DEFAULT_COLOR_RAMP: ChartColorToken[];
 
 /** Mirror of {@link Dashboard}'s default grid column count (12). */
 export declare const DEFAULT_COLS = 12;
+
+/**
+ * The look cube-viz ships with. Chosen to read well in a dashboard TILE — the size
+ * every chart here actually renders at — which is why bars are capped and the area
+ * fill is light enough to stack two or three deep without turning to mud.
+ */
+export declare const DEFAULT_MARK_THEME: ChartMarkTheme;
 
 /** The default trailing window (in categories) for a `rollingAvg` transform. */
 export declare const DEFAULT_TRANSFORM_WINDOW = 7;
@@ -7220,14 +7189,10 @@ export declare type HeatmapFamilyOptions = z.infer<typeof HeatmapFamilyOptionsSc
 export declare const HeatmapFamilyOptionsSchema: z.ZodObject<{
     /** The single-hue ramp token; cells shade light→dark within this hue. */
     colorToken: z.ZodOptional<z.ZodEnum<["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]>>;
-    /** Print each cell's formatted value inside the cell. */
-    showValues: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-    showValues?: boolean | undefined;
 }, {
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
-    showValues?: boolean | undefined;
 }>;
 
 /**
@@ -8008,7 +7973,7 @@ export declare const LegendOptionsSchema: z.ZodObject<{
  * {@link annotationToAxis}): buckets sit at their true elapsed distance, so a
  * missing day now draws as a gap instead of collapsing into the next bucket.
  */
-export declare function LineChartFamily({ data, options, format, }: ChartComponentProps): React_2.ReactElement;
+export declare function LineChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 export declare const lineChartFamily: ChartFamilyDescriptor;
 
@@ -8016,7 +7981,6 @@ export declare type LineFamilyOptions = z.infer<typeof LineFamilyOptionsSchema>;
 
 export declare const LineFamilyOptionsSchema: z.ZodObject<{
     curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
-    strokeWidth: z.ZodOptional<z.ZodNumber>;
     dots: z.ZodOptional<z.ZodUnion<[z.ZodBoolean, z.ZodLiteral<"active">]>>;
     connectNulls: z.ZodOptional<z.ZodBoolean>;
     chrome: z.ZodOptional<z.ZodEnum<["full", "none"]>>;
@@ -8049,7 +8013,6 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
     }[] | undefined;
     showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
-    strokeWidth?: number | undefined;
     connectNulls?: boolean | undefined;
     chrome?: "none" | "full" | undefined;
 }, {
@@ -8063,7 +8026,6 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
     }[] | undefined;
     showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
-    strokeWidth?: number | undefined;
     connectNulls?: boolean | undefined;
     chrome?: "none" | "full" | undefined;
 }>;
@@ -8238,7 +8200,7 @@ export declare function pickCanonicalLayout(layout: Layout, allLayouts: Partial<
  * color scale gets an explicit domain (labels) + range (ramp token vars) so the
  * built-in legend renders one swatch per slice.
  */
-export declare function PieChartFamily({ data, options, format }: ChartComponentProps): React_2.ReactElement;
+export declare function PieChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 export declare const pieChartFamily: ChartFamilyDescriptor;
 
@@ -8246,9 +8208,6 @@ export declare type PieFamilyOptions = z.infer<typeof PieFamilyOptionsSchema>;
 
 export declare const PieFamilyOptionsSchema: z.ZodObject<{
     innerRadiusPct: z.ZodOptional<z.ZodNumber>;
-    outerRadiusPct: z.ZodOptional<z.ZodNumber>;
-    padAngle: z.ZodOptional<z.ZodNumber>;
-    cornerRadius: z.ZodOptional<z.ZodNumber>;
     showLabels: z.ZodOptional<z.ZodEnum<["none", "value", "percent", "name"]>>;
     centerLabel: z.ZodOptional<z.ZodObject<{
         value: z.ZodOptional<z.ZodString>;
@@ -8262,27 +8221,21 @@ export declare const PieFamilyOptionsSchema: z.ZodObject<{
     }>>;
     maxSlices: z.ZodOptional<z.ZodNumber>;
 }, "strict", z.ZodTypeAny, {
+    maxSlices?: number | undefined;
     innerRadiusPct?: number | undefined;
-    outerRadiusPct?: number | undefined;
-    padAngle?: number | undefined;
-    cornerRadius?: number | undefined;
     showLabels?: "value" | "percent" | "none" | "name" | undefined;
     centerLabel?: {
         value?: string | undefined;
         label?: string | undefined;
     } | undefined;
-    maxSlices?: number | undefined;
 }, {
+    maxSlices?: number | undefined;
     innerRadiusPct?: number | undefined;
-    outerRadiusPct?: number | undefined;
-    padAngle?: number | undefined;
-    cornerRadius?: number | undefined;
     showLabels?: "value" | "percent" | "none" | "name" | undefined;
     centerLabel?: {
         value?: string | undefined;
         label?: string | undefined;
     } | undefined;
-    maxSlices?: number | undefined;
 }>;
 
 /**
@@ -8471,7 +8424,19 @@ export declare interface ResolvedTheme {
     chartRamp: ChartColorToken[];
     /** Forced color mode; "system" defers to the host's existing dark selector. */
     mode: "light" | "dark" | "system";
+    /**
+     * Resolved mark geometry, host overrides already merged over the defaults. Charts
+     * receive this whole — see charts/theme.ts for why it lives here and not in a spec.
+     */
+    marks: ChartMarkTheme;
 }
+
+/**
+ * Fill in whatever the host left out. Called at the render boundary (ChartRenderer),
+ * so a family always receives a COMPLETE theme and never has to write `?? 4` — the
+ * fallback lives in exactly one place, which is the point of moving these at all.
+ */
+export declare function resolveMarkTheme(theme?: Partial<ChartMarkTheme>): ChartMarkTheme;
 
 /**
  * Resolve a chart's options against ITS family's defaults — the public free function,
@@ -8540,7 +8505,7 @@ export declare type Scalar = z.infer<typeof ScalarSchema>;
 
 export declare const ScalarSchema: z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>;
 
-export declare function ScatterChartFamily({ data, options, format }: ChartComponentProps): React_2.ReactElement;
+export declare function ScatterChartFamily({ data, options, format, theme, }: ChartComponentProps): React_2.ReactElement;
 
 export declare const scatterChartFamily: ChartFamilyDescriptor;
 
@@ -8550,7 +8515,6 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
     x: z.ZodString;
     y: z.ZodString;
     size: z.ZodOptional<z.ZodString>;
-    sizeRange: z.ZodOptional<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>>;
     groupBy: z.ZodOptional<z.ZodString>;
     referenceLines: z.ZodOptional<z.ZodArray<z.ZodObject<{
         axis: z.ZodEnum<["x", "y"]>;
@@ -8578,7 +8542,6 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
     size?: string | undefined;
-    sizeRange?: [number, number] | undefined;
     groupBy?: string | undefined;
 }, {
     x: string;
@@ -8590,7 +8553,6 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
     size?: string | undefined;
-    sizeRange?: [number, number] | undefined;
     groupBy?: string | undefined;
 }>;
 
@@ -8601,7 +8563,7 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
  *
  * See docs/01-spec-schema.md for the full rationale.
  */
-export declare const SCHEMA_VERSION: 3;
+export declare const SCHEMA_VERSION: 4;
 
 export declare type SeriesMapping = z.infer<typeof SeriesMappingSchema>;
 
@@ -9139,9 +9101,13 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }>>;
         axes: z.ZodOptional<z.ZodObject<{
             x: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
                 /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -9181,7 +9147,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9197,7 +9162,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9213,9 +9177,13 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
             }>>;
             y: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
                 /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -9255,7 +9223,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9271,7 +9238,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9289,7 +9255,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }, "strict", z.ZodTypeAny, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9306,7 +9271,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9324,7 +9288,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         }, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9341,7 +9304,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9462,7 +9424,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9479,7 +9440,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9558,7 +9518,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9575,7 +9534,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9611,7 +9569,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
-    schemaVersion: z.ZodLiteral<3>;
+    schemaVersion: z.ZodLiteral<4>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -9663,7 +9621,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9680,7 +9637,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9742,7 +9698,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         timezone?: string | undefined;
     };
     id: string;
-    schemaVersion: 3;
+    schemaVersion: 4;
     name?: string | undefined;
     description?: string | undefined;
     createdAt?: string | undefined;
@@ -9793,7 +9749,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9810,7 +9765,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -9847,7 +9801,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         familyOptions?: Record<string, unknown> | undefined;
     };
     id: string;
-    schemaVersion: 3;
+    schemaVersion: 4;
     query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
@@ -10210,9 +10164,13 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             }>>;
             axes: z.ZodOptional<z.ZodObject<{
                 x: z.ZodOptional<z.ZodObject<{
+                    /**
+                     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                     * (the ticks and line stay). There is no separate hide flag: the editor's title
+                     * field IS the control, and clearing it is how you remove the title. (v4)
+                     */
                     label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
+                    /** Hide the whole axis — ticks, line and title. */
                     hide: z.ZodOptional<z.ZodBoolean>;
                     /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -10252,7 +10210,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10268,7 +10225,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     } | undefined;
                 }, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10284,9 +10240,13 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     } | undefined;
                 }>>;
                 y: z.ZodOptional<z.ZodObject<{
+                    /**
+                     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                     * (the ticks and line stay). There is no separate hide flag: the editor's title
+                     * field IS the control, and clearing it is how you remove the title. (v4)
+                     */
                     label: z.ZodOptional<z.ZodString>;
-                    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                    labelHide: z.ZodOptional<z.ZodBoolean>;
+                    /** Hide the whole axis — ticks, line and title. */
                     hide: z.ZodOptional<z.ZodBoolean>;
                     /** Value-axis only: a category axis is band/point/utc and has no log form. */
                     scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -10326,7 +10286,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     }>>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10342,7 +10301,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     } | undefined;
                 }, {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10360,7 +10318,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             }, "strict", z.ZodTypeAny, {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10377,7 +10334,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10395,7 +10351,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             }, {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10412,7 +10367,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10533,7 +10487,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10550,7 +10503,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10629,7 +10581,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10646,7 +10597,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10730,7 +10680,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10747,7 +10696,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10856,7 +10804,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -10873,7 +10820,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -11248,7 +11194,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         margin?: [number, number] | undefined;
         containerPadding?: [number, number] | undefined;
     }>>;
-    schemaVersion: z.ZodLiteral<3>;
+    schemaVersion: z.ZodLiteral<4>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -11257,7 +11203,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 3;
+    schemaVersion: 4;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -11311,7 +11257,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -11328,7 +11273,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -11460,7 +11404,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 3;
+    schemaVersion: 4;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -11514,7 +11458,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
             axes?: {
                 x?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -11531,7 +11474,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 } | undefined;
                 y?: {
                     label?: string | undefined;
-                    labelHide?: boolean | undefined;
                     hide?: boolean | undefined;
                     scale?: "linear" | "log" | undefined;
                     domain?: [number, number] | undefined;
@@ -11836,10 +11778,6 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         width?: number | undefined;
     }>, "many">>;
     pageSize: z.ZodOptional<z.ZodNumber>;
-    sortable: z.ZodOptional<z.ZodBoolean>;
-    stickyHeader: z.ZodOptional<z.ZodBoolean>;
-    rowHeight: z.ZodOptional<z.ZodEnum<["compact", "default"]>>;
-    showRowNumbers: z.ZodOptional<z.ZodBoolean>;
     conditionalFormat: z.ZodOptional<z.ZodArray<z.ZodObject<{
         member: z.ZodString;
         when: z.ZodObject<{
@@ -11869,7 +11807,6 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }>, "many">>;
 }, "strict", z.ZodTypeAny, {
-    rowHeight?: "default" | "compact" | undefined;
     columns?: {
         member: string;
         label?: string | undefined;
@@ -11888,9 +11825,6 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         width?: number | undefined;
     }[] | undefined;
     pageSize?: number | undefined;
-    sortable?: boolean | undefined;
-    stickyHeader?: boolean | undefined;
-    showRowNumbers?: boolean | undefined;
     conditionalFormat?: {
         member: string;
         when: {
@@ -11900,7 +11834,6 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
 }, {
-    rowHeight?: "default" | "compact" | undefined;
     columns?: {
         member: string;
         label?: string | undefined;
@@ -11919,9 +11852,6 @@ export declare const TableFamilyOptionsSchema: z.ZodObject<{
         width?: number | undefined;
     }[] | undefined;
     pageSize?: number | undefined;
-    sortable?: boolean | undefined;
-    stickyHeader?: boolean | undefined;
-    showRowNumbers?: boolean | undefined;
     conditionalFormat?: {
         member: string;
         when: {
@@ -12839,9 +12769,13 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         }>>;
         axes: z.ZodOptional<z.ZodObject<{
             x: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
                 /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -12881,7 +12815,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -12897,7 +12830,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -12913,9 +12845,13 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 } | undefined;
             }>>;
             y: z.ZodOptional<z.ZodObject<{
+                /**
+                 * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+                 * (the ticks and line stay). There is no separate hide flag: the editor's title
+                 * field IS the control, and clearing it is how you remove the title. (v4)
+                 */
                 label: z.ZodOptional<z.ZodString>;
-                /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-                labelHide: z.ZodOptional<z.ZodBoolean>;
+                /** Hide the whole axis — ticks, line and title. */
                 hide: z.ZodOptional<z.ZodBoolean>;
                 /** Value-axis only: a category axis is band/point/utc and has no log form. */
                 scale: z.ZodOptional<z.ZodEnum<["linear", "log"]>>;
@@ -12955,7 +12891,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 }>>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -12971,7 +12906,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                 } | undefined;
             }, {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -12989,7 +12923,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         }, "strict", z.ZodTypeAny, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13006,7 +12939,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13024,7 +12956,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         }, {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13041,7 +12972,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13162,7 +13092,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13179,7 +13108,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13258,7 +13186,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13275,7 +13202,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13359,7 +13285,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13376,7 +13301,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13485,7 +13409,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         axes?: {
             x?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;
@@ -13502,7 +13425,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             } | undefined;
             y?: {
                 label?: string | undefined;
-                labelHide?: boolean | undefined;
                 hide?: boolean | undefined;
                 scale?: "linear" | "log" | undefined;
                 domain?: [number, number] | undefined;

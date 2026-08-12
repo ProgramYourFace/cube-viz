@@ -8,7 +8,7 @@ import { z } from "zod";
  * See docs/01-spec-schema.md for the full rationale.
  */
 
-export const SCHEMA_VERSION = 3 as const;
+export const SCHEMA_VERSION = 4 as const;
 
 /* ────────────────────────── variable reference token ────────────────────── */
 
@@ -261,9 +261,13 @@ export type TooltipOptions = z.infer<typeof TooltipOptionsSchema>;
 
 export const AxisOptionsSchema = z
   .object({
+    /**
+     * The axis title. UNSET ⇒ the mapped member's own name; EMPTY STRING ⇒ no title
+     * (the ticks and line stay). There is no separate hide flag: the editor's title
+     * field IS the control, and clearing it is how you remove the title. (v4)
+     */
     label: z.string().optional(),
-    /** Hide the axis title only (the ticks/line stay). `hide` hides the whole axis. */
-    labelHide: z.boolean().optional(),
+    /** Hide the whole axis — ticks, line and title. */
     hide: z.boolean().optional(),
     /** Value-axis only: a category axis is band/point/utc and has no log form. */
     scale: z.enum(["linear", "log"]).optional(),

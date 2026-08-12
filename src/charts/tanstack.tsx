@@ -689,6 +689,16 @@ export function chartCurve(curve?: CurveName): ReturnType<typeof d3Curve> | unde
 /* ------------------------------------------------------------ axis helpers */
 
 /**
+ * The title an axis should draw. `undefined` label ⇒ the member's own name (the
+ * default); an EMPTY label ⇒ no title at all — the user cleared the field, which is
+ * how "hide the title" is said now that there is no separate flag (v4).
+ */
+export function axisTitle(axis: AxisOptions | undefined, auto: string | undefined): string | undefined {
+  if (axis?.label === "") return undefined;
+  return axis?.label ?? auto;
+}
+
+/**
  * Auto axis labels from the spec/annotation — unchanged contract from the
  * Recharts seam: override wins, else the mapped member's shortTitle. Dual-axis
  * (y2/right) support was removed with the combo family; a series' `meta.axis`
@@ -715,10 +725,8 @@ export function resolvedAxisLabels(
   const axisLbl = (s?: NormalizedSeries): string | undefined =>
     s ? (s.meta?.measure ? lbl(s.meta.measure) : s.label) : undefined;
   return {
-    x: options.axes?.x?.labelHide
-      ? undefined
-      : (options.axes?.x?.label ?? lbl(options.mapping?.category?.member)),
-    y: options.axes?.y?.labelHide ? undefined : (options.axes?.y?.label ?? axisLbl(first)),
+    x: axisTitle(options.axes?.x, lbl(options.mapping?.category?.member)),
+    y: axisTitle(options.axes?.y, axisLbl(first)),
   };
 }
 

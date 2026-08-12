@@ -139,7 +139,7 @@ const EXAMPLES: Example[] = [
     chart: {
       family: "pie",
       mapping: { category: { member: DEVICE }, series: { mode: "measures", members: ["device_trips.count"] } },
-      familyOptions: { innerRadiusPct: 55, showLabels: "percent", maxSlices: 6 },
+      familyOptions: { innerRadiusPct: 55, showLabels: "percent" },
       legend: { show: true },
     },
   },

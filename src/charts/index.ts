@@ -50,6 +50,10 @@ export { TableFamily } from "./table";
 
 // Types.
 export type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
+// App-level mark geometry (bar radius, area fill, pie gap…) — the host sets it once
+// through CubeVizProvider's `theme.marks`; it is deliberately NOT a spec option.
+export { DEFAULT_MARK_THEME, resolveMarkTheme } from "./theme";
+export type { ChartMarkTheme } from "./theme";
 
 // Options framework: builtin defaults, default-merge, per-family zod schemas.
 export {

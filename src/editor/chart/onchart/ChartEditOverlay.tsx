@@ -300,10 +300,24 @@ export function ChartEditOverlay({
         </div>
         {hasValue ? (
           <>
-            <KpiSectionPopover label="Comparison" summary={kfo.comparison !== undefined ? "On" : "Off"}>
+            <KpiSectionPopover
+              label="Comparison"
+              summary={
+                kfo.comparison === undefined
+                  ? "None"
+                  : (kfo.comparison as { mode?: string }).mode === "value"
+                    ? "Fixed value"
+                    : "Prev period"
+              }
+            >
               <KpiComparison spec={spec} update={update} />
             </KpiSectionPopover>
-            <KpiSectionPopover label="Sparkline" summary={kfo.sparkline !== undefined ? "On" : "Off"}>
+            <KpiSectionPopover
+              label="Trend"
+              summary={
+                ((kfo.sparkline as { granularity?: unknown } | undefined)?.granularity as string) ?? "None"
+              }
+            >
               <KpiSparklineConfig spec={spec} update={update} />
             </KpiSectionPopover>
           </>

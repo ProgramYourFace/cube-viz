@@ -119,10 +119,41 @@ const SEED_EMPTY: ChartSpec = {
   },
 } as ChartSpec;
 
+/**
+ * A FOURTH seed, `?seed=kpi`: the KPI config strip, whose three popovers (Value /
+ * Comparison / Trend) are the densest cluster of controls in the editor and the ones
+ * most recently collapsed — "Compare to" absorbed its own on/off switch, the trend
+ * bucket absorbed its own, and "Higher is better" moved to the value block so it is
+ * stated once. A screenshot here is the standing check that those still render.
+ */
+const SEED_KPI: ChartSpec = {
+  schemaVersion: SCHEMA_VERSION,
+  kind: "chart",
+  id: "chart_fleet_kpi",
+  name: "Total distance",
+  query: {
+    measures: ["trips.total_distance"],
+    timeDimensions: [
+      { dimension: "trips.start_time", dateRange: ["2026-07-15", "2026-08-11"] },
+    ],
+  },
+  chart: {
+    family: "kpi",
+    familyOptions: {
+      measure: "trips.total_distance",
+      display: "number",
+      comparison: { mode: "previousPeriod", showAsPercent: true },
+      sparkline: { granularity: "day" },
+    },
+    format: { kind: "auto" },
+  },
+} as ChartSpec;
+
 const SEEDS: Record<string, ChartSpec> = {
   default: SEED_SPEC,
   measures: SEED_MEASURES,
   empty: SEED_EMPTY,
+  kpi: SEED_KPI,
 };
 
 function App(): React.ReactElement {

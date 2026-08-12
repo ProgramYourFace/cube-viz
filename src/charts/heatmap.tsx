@@ -5,6 +5,7 @@ import type { ChartComponentProps } from "./types";
 import type { HeatmapFamilyOptions } from "./defaults";
 import {
   axisFormat,
+  axisTitle,
   bandScale,
   cubeTooltip,
   CvChart,
@@ -129,12 +130,8 @@ export function HeatmapChartFamily({
       const a = ann?.dimensions[m] ?? ann?.timeDimensions[m] ?? ann?.measures[m];
       return a?.shortTitle ?? a?.title ?? m;
     };
-    const xLabel = options.axes?.x?.labelHide
-      ? undefined
-      : (options.axes?.x?.label ?? lbl(xMember));
-    const yLabel = options.axes?.y?.labelHide
-      ? undefined
-      : (options.axes?.y?.label ?? lbl(yMember));
+    const xLabel = axisTitle(options.axes?.x, lbl(xMember));
+    const yLabel = axisTitle(options.axes?.y, lbl(yMember));
 
     const marks: ChartMark[] = [
       cell(cells, {
@@ -148,7 +145,10 @@ export function HeatmapChartFamily({
       }),
     ];
 
-    if (fo.showValues) {
+    // In-cell numbers are legible up to roughly a 10×10 grid and turn to noise past it,
+    // and the renderer already knows the grid size — so it decides, and the editor does
+    // not ask. (`showValues` left the spec in v4.)
+    if (cells.length > 0 && cells.length <= 100) {
       marks.push(
         // Decorative: the in-cell number restates the cell's own value, so it must
         // not emit a second focus point (the tooltip would list the cell twice).

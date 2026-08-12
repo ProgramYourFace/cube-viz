@@ -4,6 +4,7 @@ import type { ChartOptions } from "@/spec";
 import type { NormalizedChartData } from "@/adapter/types";
 import type { ChartConfig } from "@/components/ui/chart";
 import type { ChartFormat } from "@/format";
+import type { ChartMarkTheme } from "./theme";
 
 /**
  * The chart-family seam (docs/02-chart-options.md §3): every family is a PURE
@@ -26,6 +27,12 @@ export interface ChartComponentProps {
    * {@link ValueFormatter} + annotation + options.
    */
   format: ChartFormat;
+  /**
+   * Resolved mark geometry — bar radius, area fill opacity, pie gap and the rest.
+   * App-level appearance, NOT a spec option: it comes from the host's provider theme,
+   * already defaulted, so a family reads `theme.barRadius` with no fallback of its own.
+   */
+  theme: ChartMarkTheme;
   /** Optional fetch state; families render their own loading/error chrome from it. */
   state?: { loading?: boolean; error?: Error };
   /**
@@ -47,4 +54,4 @@ export interface ChartComponentProps {
 /** A chart family is any component rendering {@link ChartComponentProps}. */
 export type ChartComponent = React.ComponentType<ChartComponentProps>;
 
-export type { ChartConfig, ChartFormat };
+export type { ChartConfig, ChartFormat, ChartMarkTheme };

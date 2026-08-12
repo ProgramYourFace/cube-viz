@@ -60,7 +60,12 @@ const emptyStyle: React.CSSProperties = {
  * color scale gets an explicit domain (labels) + range (ramp token vars) so the
  * built-in legend renders one swatch per slice.
  */
-export function PieChartFamily({ data, options, format }: ChartComponentProps): React.ReactElement {
+export function PieChartFamily({
+  data,
+  options,
+  format,
+  theme,
+}: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as PieFamilyOptions;
   const measure = data.series[0];
   const member = seriesMember(measure);
@@ -95,14 +100,14 @@ export function PieChartFamily({ data, options, format }: ChartComponentProps): 
     if (degenerate) return null;
 
     const inner = (fo.innerRadiusPct ?? 0) / 100;
-    const outer = (fo.outerRadiusPct ?? 80) / 100;
+    const outer = theme.pieRadiusPct / 100;
     const isDonut = inner > 0;
     const showLabels = fo.showLabels ?? "percent";
 
     // Recharts' paddingAngle was degrees; the pie transform's gapAngle is radians.
     const rows = pie(slices, {
       value: "value",
-      gapAngle: ((fo.padAngle ?? 0) * Math.PI) / 180,
+      gapAngle: (theme.pieGapAngle * Math.PI) / 180,
     });
 
     const arcs = radialArc(rows, {
@@ -111,7 +116,7 @@ export function PieChartFamily({ data, options, format }: ChartComponentProps): 
       color: "label",
       innerRadius: ({ radius }) => radius * inner,
       outerRadius: ({ radius }) => radius * outer,
-      cornerRadius: fo.cornerRadius,
+      cornerRadius: theme.pieCornerRadius,
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous
@@ -245,7 +250,7 @@ export function PieChartFamily({ data, options, format }: ChartComponentProps): 
             },
       keyboard: true,
     });
-  }, [degenerate, slices, total, options, format, fo, measure, member]);
+  }, [degenerate, slices, total, options, format, fo, theme, measure, member]);
 
   if (hasNegative) {
     return <div style={emptyStyle}>Pie charts can&apos;t show negative values</div>;

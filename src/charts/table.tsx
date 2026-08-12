@@ -37,7 +37,13 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
   const [sort, setSort] = React.useState<{ member: string; dir: "asc" | "desc" } | null>(null);
   const [page, setPage] = React.useState(0);
 
-  const sortable = fo.sortable !== false;
+  /**
+   * A table that cannot be sorted, or whose header scrolls away, is simply a worse
+   * table — so both are ALWAYS on, and neither is a question the editor asks. Row
+   * numbers stay off: they add a column that means nothing about the fleet.
+   * (`sortable`/`stickyHeader`/`showRowNumbers`/`rowHeight` left the spec in v4.)
+   */
+  const sortable = true;
   const pageSize = fo.pageSize ?? 25;
 
   const sorted = React.useMemo(() => {
@@ -63,15 +69,16 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
     setPage(0);
   };
 
-  const compact = fo.rowHeight === "compact";
+  // Density follows the DATA: a long table is worth compacting, a short one has the
+  // room to breathe. Nobody has to decide this per chart.
+  const compact = sorted.length > 12;
 
   return (
     <div className="cv-table">
-      <div className={cn("cv-table-scroll", fo.stickyHeader && "cv-table-scroll--sticky")}>
+      <div className="cv-table-scroll cv-table-scroll--sticky">
         <Table>
-          <TableHeader className={cn(fo.stickyHeader && "cv-table-header--sticky")}>
+          <TableHeader className="cv-table-header--sticky">
             <TableRow>
-              {fo.showRowNumbers && <TableHead className="cv-table-rownum">#</TableHead>}
               {columns.map((col) => (
                 <TableHead
                   key={col.member}
@@ -97,16 +104,6 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
           <TableBody>
             {pageRows.map((row, ri) => (
               <TableRow key={ri}>
-                {fo.showRowNumbers && (
-                  <TableCell
-                    className={cn(
-                      "cv-table-cell--right cv-table-cell--muted",
-                      compact && "cv-table-cell--compact",
-                    )}
-                  >
-                    {safePage * pageSize + ri + 1}
-                  </TableCell>
-                )}
                 {columns.map((col) => {
                   const tint = condTint(col.member, row[col.key], fo.conditionalFormat);
                   return (
@@ -124,7 +121,7 @@ export function TableFamily({ data, options, format }: ChartComponentProps): Rea
             {pageRows.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (fo.showRowNumbers ? 1 : 0)}
+                  colSpan={columns.length}
                   className="cv-table-empty"
                 >
                   No data

@@ -218,22 +218,8 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
                 onChange={(v) => setFamilyOptions({ showLabels: v })}
               />
             </FieldRow>
-            <KField label="Max slices">
-              {(id) => (
-                <Input
-                  id={id}
-                  type="number"
-                  min={1}
-                  className="cv-ec-h8"
-                  value={(fo.maxSlices as number | undefined) ?? ""}
-                  placeholder="8"
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value, 10);
-                    setFamilyOptions({ maxSlices: Number.isFinite(n) && n > 0 ? n : undefined });
-                  }}
-                />
-              )}
-            </KField>
+            {/* No "Max slices": the rollup to 8 + "Other" is what keeps a pie readable,
+                and a number nobody tunes does not need a field. */}
           </>
         );
 
@@ -243,40 +229,14 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
       case "kpi":
         return null;
 
+      // Table and heatmap have NO options. Sorting and a pinned header are what makes a
+      // table usable, so they are always on; row density follows the row count, and the
+      // heatmap prints in-cell numbers whenever the grid is small enough to read them.
+      // Each of those was a switch whose every setting was defensible — which is the
+      // definition of a question not worth asking.
       case "table":
-        return (
-          <>
-            <SwitchRow
-              label="Compact rows"
-              checked={fo.rowHeight === "compact"}
-              onChange={(on) => setFamilyOptions({ rowHeight: on ? "compact" : "default" })}
-            />
-            <SwitchRow
-              label="Sortable columns"
-              checked={fo.sortable !== false}
-              onChange={(on) => setFamilyOptions({ sortable: on })}
-            />
-            <SwitchRow
-              label="Sticky header"
-              checked={fo.stickyHeader !== false}
-              onChange={(on) => setFamilyOptions({ stickyHeader: on })}
-            />
-            <SwitchRow
-              label="Row numbers"
-              checked={fo.showRowNumbers === true}
-              onChange={(on) => setFamilyOptions({ showRowNumbers: on })}
-            />
-          </>
-        );
-
       case "heatmap":
-        return (
-          <SwitchRow
-            label="Show values"
-            checked={fo.showValues === true}
-            onChange={(on) => setFamilyOptions({ showValues: on || undefined })}
-          />
-        );
+        return null;
 
       case "scatter":
         return null;

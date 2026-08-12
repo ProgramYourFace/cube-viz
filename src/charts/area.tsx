@@ -52,6 +52,7 @@ export function AreaChartFamily({
   data,
   options,
   format,
+  theme,
 }: ChartComponentProps): React.ReactElement {
   const fo = (options.familyOptions ?? {}) as AreaFamilyOptions;
   // Shape-aware default: a color-split (pivot) area stacks (parts of a whole), but
@@ -80,8 +81,8 @@ export function AreaChartFamily({
     const connectNulls = fo.connectNulls ?? false;
     const curveName = (fo.curve ?? "monotone") as CurveName;
     const curve = chartCurve(curveName);
-    const fillOpacity = fo.fillOpacity ?? 0.4;
-    const strokeWidth = fo.strokeWidth ?? 2;
+    const fillOpacity = theme.areaFillOpacity;
+    const strokeWidth = theme.lineWidth;
     const axl = resolvedAxisLabels(data, options);
     const y = valueScale(options.axes?.y);
     // The value-axis unit comes from the series' SOURCE measure (a pivot series' own
@@ -281,7 +282,7 @@ export function AreaChartFamily({
       keyboard: true,
       controls,
     });
-  }, [data, options, format, fo, stacked, percent, temporal, catLabel, catTick, controls]);
+  }, [data, options, format, fo, theme, stacked, percent, temporal, catLabel, catTick, controls]);
 
   const label = data.series.map(seriesLabel).join(", ") || "Area chart";
   return <CvChart definition={definition} ariaLabel={label} className="cv-chart--fill" />;

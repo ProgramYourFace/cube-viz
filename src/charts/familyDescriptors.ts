@@ -480,7 +480,7 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     enforcesAxisUnit: false,
     measureOnly: false,
     hasLegend: false,
-    hasCustomizeOptions: true,
+    hasCustomizeOptions: false,
     supportsComparePrevious: false,
     sidebarWidthClass: SIDEBAR_DEFAULT,
   },
@@ -503,7 +503,7 @@ export const builtinFamilyDescriptors: Record<BuiltinChartFamily, ChartFamilyDes
     enforcesAxisUnit: false, // single measure — nothing to keep consistent
     measureOnly: false,
     hasLegend: false, // the color ramp IS the value encoding; no series legend
-    hasCustomizeOptions: true, // the "Show values" toggle
+    hasCustomizeOptions: false, // nothing to customize — the grid decides its own labels
     supportsComparePrevious: false,
     requiresMeasure: true,
     sidebarWidthClass: SIDEBAR_DEFAULT,

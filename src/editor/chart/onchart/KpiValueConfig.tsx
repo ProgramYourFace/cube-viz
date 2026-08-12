@@ -74,6 +74,11 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
   const td = spec.query.timeDimensions?.[0];
   const display = (fo.display as "number" | "gauge" | undefined) ?? "number";
   const gauge = fo.gauge as { min?: number; max?: number } | undefined;
+  // Which direction is GOOD is a property of the measure, not of the comparison or the
+  // sparkline — both color by it. It used to be rendered in each of those blocks, with
+  // a `!comparing` guard so the one setting never showed up as two switches at once.
+  // Owning it here deletes the guard and the possibility of the bug it was avoiding.
+  const goodDirection = (fo.goodDirection as "up" | "down" | undefined) ?? "up";
 
   // The KPI MAIN query stays granularity-LESS (the headline is an aggregate; the
   // sparkline adds its own bucket). A var-bound range rides through untouched.
@@ -131,6 +136,12 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
           onChange={(v) => setFO({ display: v })}
         />
       </FieldRow>
+      <SwitchRow
+        label="Higher is better"
+        hint="Off = a decrease is good — inverts the comparison and trend colors."
+        checked={goodDirection !== "down"}
+        onChange={(on) => setFO({ goodDirection: on ? "up" : "down" })}
+      />
       {display === "gauge" ? (
         <Field label="Gauge max">
           {({ id }) => (
@@ -154,7 +165,7 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
 
 /* ──────────────────────────────── comparison ────────────────────────────── */
 
-/** The Comparison component: a header switch to enable, then its own config. */
+/** What the number is measured AGAINST. One picker: nothing / prior period / a fixed number. */
 export function KpiComparison({ spec, update }: Props): React.ReactElement {
   const { fo, setFO } = useKpi(spec, update);
   const comparison = fo.comparison as Record<string, unknown> | undefined;
@@ -162,36 +173,40 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
   const last = React.useRef<Record<string, unknown> | undefined>(undefined);
   if (comparison) last.current = comparison;
   const td = spec.query.timeDimensions?.[0];
-  const goodDirection =
-    (fo.goodDirection as "up" | "down" | undefined) ??
-    (comparison?.goodDirection as "up" | "down" | undefined) ??
-    "up";
+
+  // ONE control, three states. It was a "Show comparison" switch that revealed an
+  // "Against" picker — but "off" is just a third thing to compare against (nothing),
+  // and splitting it made the user operate two controls to express one choice.
+  const against: "none" | "previousPeriod" | "value" = !comparing
+    ? "none"
+    : ((comparison?.mode as "previousPeriod" | "value" | undefined) ?? "previousPeriod");
 
   return (
     <div className="cv-kpi-options">
-      <SwitchRow
-        label="Show comparison"
-        checked={comparing}
-        onChange={(on) =>
-          setFO({
-            comparison: on ? (last.current ?? { mode: "previousPeriod", showAsPercent: true }) : undefined,
-          })
-        }
-      />
+      <FieldRow label="Compare to">
+        <SegmentedControl<"none" | "previousPeriod" | "value">
+          aria-label="Compare to"
+          size="sm"
+          options={[
+            { value: "none", label: "Nothing" },
+            { value: "previousPeriod", label: "Prev period" },
+            { value: "value", label: "Fixed value" },
+          ]}
+          value={against}
+          onChange={(v) =>
+            setFO({
+              comparison:
+                v === "none"
+                  ? undefined
+                  : // Re-entering restores the config the user last had, so toggling
+                    // through "Nothing" is not destructive.
+                    { ...(last.current ?? { showAsPercent: true }), mode: v },
+            })
+          }
+        />
+      </FieldRow>
       {comparing ? (
         <>
-          <FieldRow label="Against">
-            <SegmentedControl<"previousPeriod" | "value">
-              aria-label="Compare against"
-              size="sm"
-              options={[
-                { value: "previousPeriod", label: "Prev period" },
-                { value: "value", label: "Fixed value" },
-              ]}
-              value={(comparison?.mode as "previousPeriod" | "value") ?? "previousPeriod"}
-              onChange={(m) => setFO({ comparison: { ...comparison, mode: m } })}
-            />
-          </FieldRow>
           {comparison?.mode === "value" ? (
             <Field label="Baseline value">
               {({ id }) => (
@@ -223,12 +238,8 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
             checked={(comparison?.showAsPercent ?? true) !== false}
             onChange={(on) => setFO({ comparison: { ...comparison, showAsPercent: on } })}
           />
-          <SwitchRow
-            label="Higher is better"
-            hint="Off = a decrease is good (inverts the up/down colors)."
-            checked={goodDirection !== "down"}
-            onChange={(on) => setFO({ goodDirection: on ? "up" : "down" })}
-          />
+          {/* "Higher is better" is NOT here — it belongs to the measure, and the
+              sparkline colors by it too. It lives once, on the value block. */}
         </>
       ) : null}
     </div>
@@ -237,48 +248,49 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
 
 /* ──────────────────────────────── sparkline ─────────────────────────────── */
 
-/** The Sparkline component: a header switch to enable, then its own config. */
+/** The inline trend under the headline. Its BUCKET is the whole control — "No trend" is off. */
 export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement {
   const { fo, setFO } = useKpi(spec, update);
   const sparkline = fo.sparkline as { granularity?: Granularity | VarRef } | undefined;
   const sparkOn = sparkline !== undefined;
-  // "Higher is better" is shared with Comparison; show it here only when comparison is off
-  // (so the single underlying setting never appears as two toggles at once).
-  const comparing = fo.comparison !== undefined;
-  const goodDirection = (fo.goodDirection as "up" | "down" | undefined) ?? "up";
   const granularity = sparkline?.granularity;
 
+  /**
+   * The bucket picker IS the on/off switch: no bucket, no trend. A separate "Show
+   * sparkline" toggle above a "Trend granularity" select made two controls out of one
+   * question, and left a nonsense state available (on, but bucketed by nothing).
+   */
   return (
     <div className="cv-kpi-options">
-      <SwitchRow
-        label="Show sparkline"
-        checked={sparkOn}
-        onChange={(on) => setFO({ sparkline: on ? { granularity: granularity ?? "day" } : undefined })}
-      />
-      {sparkOn ? (
-        <>
-          <Field label="Trend granularity">
-            {({ id, labelId }) => (
-              <ValueBinding
-                labelId={labelId}
-                kind="granularity"
-                value={granularity}
-                onChange={(g) => setFO({ sparkline: { ...sparkline, granularity: g as Granularity | VarRef } })}
-                renderFixed={(g, set) => (
-                  <GranularityPicker id={id} value={g} onChange={set} className="cv-ec-h8 cv-ec-full" />
-                )}
+      <Field label="Trend">
+        {({ id, labelId }) => (
+          <ValueBinding
+            labelId={labelId}
+            kind="granularity"
+            value={granularity}
+            onChange={(g) =>
+              setFO({
+                sparkline:
+                  g === undefined ? undefined : { ...sparkline, granularity: g as Granularity | VarRef },
+              })
+            }
+            renderFixed={(g, set) => (
+              <GranularityPicker
+                id={id}
+                value={g}
+                onChange={set}
+                allowNone
+                noneLabel="No trend"
+                className="cv-ec-h8 cv-ec-full"
               />
             )}
-          </Field>
-          {!comparing ? (
-            <SwitchRow
-              label="Higher is better"
-              hint="Off = a decrease is good (inverts the trend color)."
-              checked={goodDirection !== "down"}
-              onChange={(on) => setFO({ goodDirection: on ? "up" : "down" })}
-            />
-          ) : null}
-        </>
+          />
+        )}
+      </Field>
+      {sparkOn ? (
+        <p className="cv-ec-hint">
+          Colored by the direction set on the value.
+        </p>
       ) : null}
     </div>
   );

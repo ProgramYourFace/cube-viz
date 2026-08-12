@@ -321,6 +321,18 @@ async function expandAllTables(page) {
 }
 
 /**
+ * Open the KPI strip's Comparison popover. The triggers are in strip order
+ * (Value / Comparison / Trend), so index 1 is the one that used to be a switch plus a
+ * picker and is now a single three-way choice.
+ */
+async function openKpiComparison(page) {
+  const triggers = page.locator(".cv-kpi-section-trigger");
+  await triggers.nth(1).click();
+  await page.locator('[role="dialog"]').first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(250);
+}
+
+/**
  * Drive the invariant over EVERY add-slot the editor offers (`?seed=empty` leaves them
  * all empty, so Values / Category / Split by are all reachable), turning the switch on
  * in one slot and then checking the others — the cross-slot case is the whole point.
@@ -513,6 +525,18 @@ try {
     forbid: EDITOR_FORBID,
     prepare: openFieldPickerFiltered,
     describe: 'field picker, "Only compatible fields" on, dark theme',
+  });
+
+  await shot(browser, baseUrl, {
+    // The KPI strip's three popovers carry the editor's densest control cluster, and
+    // each one recently lost a switch to the picker beside it. `prepare` opens the
+    // Comparison popover so the collapsed "Compare to" control is IN the frame.
+    name: "editor-kpi",
+    path: "/editor.html?seed=kpi",
+    waitFor: ".cv-kpi-section-trigger",
+    forbid: EDITOR_FORBID,
+    prepare: openKpiComparison,
+    describe: "KPI config strip with the Comparison popover open",
   });
 
   // Not a shot — the assertion a shot cannot make (see assertNoBlockedRows).

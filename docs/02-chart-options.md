@@ -2,9 +2,9 @@ I'll produce the chart-options surface design directly. This is a writing task g
 
 # cube-viz Chart-Options Surface — One Configurable Component per Chart Family
 
-> **Status:** Stable contract, updated for spec v3 (2026-08). This fills `ChartOptions.familyOptions` from the spec-schema design (§3) and defines the per-family option catalog. It is the chart-options agent's deliverable: the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks (Recharts was replaced in 2026-08); specs never carry a single renderer prop. Anything below the line `ChartOptions` → `NormalizedChartData` boundary is implementation; anything above is contract. **v2 changes:** the `combo` family and all dual-axis support were removed; a `heatmap` family was added; the renderer seam is now `src/charts/tanstack.tsx` (§3).
+> **Status:** Stable contract, updated for spec v4 (2026-08). This fills `ChartOptions.familyOptions` from the spec-schema design (§3) and defines the per-family option catalog. It is the chart-options agent's deliverable: the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks (Recharts was replaced in 2026-08); specs never carry a single renderer prop. Anything below the line `ChartOptions` → `NormalizedChartData` boundary is implementation; anything above is contract. **v2 changes:** the `combo` family and all dual-axis support were removed; a `heatmap` family was added; the renderer seam is now `src/charts/tanstack.tsx` (§3).
 >
-> **Audited 2026-08:** every schema option was checked against the code that reads it — see **§6.1 (option support matrix)**. The options the Recharts → TanStack rewrite had silently dropped are restored; the ones the grammar genuinely cannot express are listed in §7.4–§7.10 and commented at the point they are dropped. **v3 removed the five that could never be honored** (per-series `meta.format`, side legend positions, the `"auto"` domain bound, `scatter.shape`, `kpi.icon`) behind a pixel-preserving migration — an option that parses and does nothing is a promise the schema cannot keep.
+> **Audited 2026-08:** every schema option was checked against the code that reads it — see **§6.1 (option support matrix)**. The options the Recharts → TanStack rewrite had silently dropped are restored; the ones the grammar genuinely cannot express are listed in §7.4–§7.10 and commented at the point they are dropped. **v4 then removed everything that was only APPEARANCE** — see §4.1 — and **v3 before it removed the five that could never be honored** (per-series `meta.format`, side legend positions, the `"auto"` domain bound, `scatter.shape`, `kpi.icon`) behind a pixel-preserving migration — an option that parses and does nothing is a promise the schema cannot keep.
 >
 > **Since v2 shipped (additive, no version bump):** `chart.transform` — presentation transforms applied once in `ChartRenderer` (§2.9); **temporal category axes** on line/area (§2.2); and the **semantic interaction seam** — brush-to-drill and click-to-cross-filter reported in Cube terms, never pixels (§3.1).
 
@@ -515,6 +515,55 @@ Validation (zod) runs **after** merge so required-but-defaulted fields (e.g. `sc
 
 ---
 
+### 4.1 What is NOT a spec option: the mark theme
+
+Ten options left the spec in v4 for `CubeVizProvider`'s `theme.marks`
+(`src/charts/theme.ts`): `barRadius`, `barCategoryGap`, `barGap`, `maxBarSize`,
+`fillOpacity`, `strokeWidth` (line + area), `padAngle`, `cornerRadius`,
+`outerRadiusPct` and `sizeRange`.
+
+The test that moved them is not "is it honored" — every one of them was — but **does
+any answer make the chart wrong?** Stacking does: pick the wrong mode and the chart
+says something false. Bar corner radius does not. Every value of it is defensible,
+which means the choice carries no information and only carries a decision — one the
+person in the editor has to make, in the middle of trying to answer a question about
+their fleet.
+
+So they are set ONCE, by the host, and defaulted to values that suit a dashboard tile:
+
+```tsx
+<CubeVizProvider cube={cube} theme={{ marks: { barRadius: 2, lineWidth: 1.5 } }}>
+```
+
+Three consequences worth naming:
+
+- **A stored chart can no longer carry a stale look.** Restyling every chart in the app
+  is a provider edit, not a migration over saved specs.
+- **A family never writes `?? 4`.** `ChartRenderer` resolves the partial theme once and
+  hands every family a complete `ChartMarkTheme`, so the fallback lives in one place.
+- **The v3 → v4 migration DISCARDS stored values rather than promoting them.** The theme
+  is app-wide: honoring one chart's `barRadius: 12` would restyle every other chart on
+  the dashboard. This is the only step in the ladder that changes pixels.
+
+The same reasoning retired four table switches (`sortable`, `stickyHeader`,
+`rowHeight`, `showRowNumbers`), `heatmap.showValues` and `pie.maxSlices` — but to
+**fixed behavior or a data-driven default** rather than to the theme, because those had
+not merely a defensible answer but a single right one:
+
+| Was | Now |
+|---|---|
+| `sortable`, `stickyHeader` | always on — they are what makes a table usable |
+| `rowHeight` | compact past 12 rows; the row count already knows |
+| `showRowNumbers` | gone; the column says nothing about the data |
+| `heatmap.showValues` | on when the grid is ≤100 cells, which is when the text fits |
+| `pie.maxSlices` | 8 + "Other"; nobody tuned it |
+
+And `axes.*.labelHide` collapsed into `axes.*.label`: unset means the member's name,
+`""` means no title. One field, and the editor shows the title the chart is drawing
+instead of a placeholder beside an eye that disabled the field you would reach for.
+
+---
+
 ## 5. Number / date / unit formatting — mirror `withUnits`' *intent*, not its *mechanism*
 
 aa-app-embeddable's `withUnits(base)` HOC wraps every chart to (1) inject a `__unitPlan` from `clientContext.unitSystem`, (2) convert each `DataResponse` row to the viewer's units, and (3) append `(km)`/`(mi)` to member display names. It reads unit/quantity/convert off each Cube member's `meta` and converts via a hand-rolled `UNIT_RULES` table.
@@ -599,8 +648,7 @@ dropped).
 | `tooltip.show` | honored | every charting family |
 | `tooltip.indicator` | honored | `dot`/`line`/`dashed` swatch shape, restored as a CSS modifier (`cv-chart-tooltip--*`) since the TanStack tooltip has no shape option. Was DEAD from the migration until the 2026-08 audit |
 | `tooltip.showTotal` | honored (grouped tooltips) | appends a summed, swatch-less "Total" row to bar/line/area tooltips with ≥2 series (companions excluded). Pie/scatter tooltips describe a single datum, so there is nothing to total |
-| `axes.{x,y}.label` | honored | override → the mapped member's `shortTitle` (`resolvedAxisLabels`) |
-| `axes.{x,y}.labelHide` | honored | hides the title, keeps the ticks |
+| `axes.{x,y}.label` | honored | unset → the mapped member's `shortTitle`; `""` → no title (the ticks stay). Absorbed `labelHide` in v4 — see §4.1 |
 | `axes.{x,y}.hide` | honored | hides the whole axis. For a HORIZONTAL bar the flags follow the VISUAL axis (`axes.y.hide` hides the category axis) while `label` follows the SEMANTIC one — the pre-migration convention, kept for spec compatibility |
 | `axes.{x,y}.scale` (`log`) | honored on the VALUE axis | a category axis is band/point/utc — there is no log form of it |
 | `axes.{x,y}.domain` | honored | a fixed `[min, max]`, both ends numeric. The `"auto"` bound was **removed in v3** (a half-`"auto"` domain was ignored whole); omit the key for auto — see §7.5 |
@@ -623,23 +671,26 @@ dropped).
 
 | Family | Option | Verdict |
 |---|---|---|
-| bar | `barRadius`, `maxBarSize`, `barCategoryGap`, `referenceLines`, `comparePrevious` | honored |
-| bar | `barGap` | honored in grouped + multi-stack layouts (there is no inter-bar gap inside a single stack) |
+| bar | `referenceLines`, `comparePrevious` | honored |
 | bar | `showValueLabels` | honored, including stacked (labels ride the segment top) and percent (labels print the share) — the percent case was dropped by the migration |
-| line | `curve`, `strokeWidth`, `connectNulls`, `chrome`, `referenceLines`, `showValueLabels`, `comparePrevious` | honored |
+| line | `curve`, `connectNulls`, `chrome`, `referenceLines`, `showValueLabels`, `comparePrevious` | honored |
 | line | `dots` | honored: `true` = static points + hover marker, `"active"` (the default) = hover marker only, `false` = neither. The hover marker is `crosshair({ marker })` — the migration dropped it, so `"active"` drew nothing |
-| area | `curve`, `fillOpacity`, `strokeWidth`, `connectNulls`, `referenceLines`, `comparePrevious` | honored |
+| area | `curve`, `connectNulls`, `referenceLines`, `comparePrevious` | honored |
 | area | `dots` | honored (was a documented no-op after the migration) |
-| pie | `innerRadiusPct`, `outerRadiusPct`, `padAngle`, `cornerRadius`, `showLabels`, `maxSlices` | honored |
+| pie | `innerRadiusPct` (the donut switch), `showLabels` | honored |
 | pie | `centerLabel` | honored **on a donut only** (`innerRadiusPct > 0`) — on a full pie it would sit on top of the slices; same as pre-migration |
-| scatter | `x`, `y`, `size`, `sizeRange`, `groupBy`, `referenceLines` | honored |
+| scatter | `x`, `y`, `size`, `groupBy`, `referenceLines` | honored |
 | kpi | `display`, `measure`, `comparison.*`, `sparkline.*`, `goodDirection`, `gauge.*` | honored |
-| table | `columns[].{member,label,align,width,hidden}`, `pageSize`, `sortable`, `stickyHeader`, `rowHeight`, `showRowNumbers`, `conditionalFormat` | honored |
+| table | `columns[].{member,label,align,width,hidden}`, `pageSize`, `conditionalFormat` | honored |
 | table | `columns[].format` | honored (per-column re-bind via `ChartFormat.derive`) — dead in both stacks until the 2026-08 audit |
-| heatmap | `colorToken`, `showValues` | honored |
+| heatmap | `colorToken` | honored |
 
 > **Removed in v3:** `scatter.shape` (§7.7) and `kpi.icon` (§7.8) — neither ever
 > reached the canvas in any renderer this library has shipped.
+>
+> **Removed in v4:** the ten mark-geometry options (now `theme.marks`), the four table
+> switches, `heatmap.showValues` and `pie.maxSlices` — appearance, or a question with a
+> single right answer. See §4.1.
 
 **Decoration never joins the focus model.** Value labels, reference-line labels and
 in-cell heatmap values are `text` marks, and a text mark emits one interaction point

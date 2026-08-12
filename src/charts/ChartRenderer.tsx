@@ -11,6 +11,7 @@ import type { NormalizedChartData } from "@/adapter/types";
 import type { ChartComponent, ChartComponentProps, ChartConfig } from "./types";
 import { resolveOptions, builtinFamilyRegistry, type FamilyRegistry } from "./familyRegistry";
 import { builtinFamilyDescriptors } from "./familyDescriptors";
+import { resolveMarkTheme, type ChartMarkTheme } from "./theme";
 import { applyTransform, familySupportsTransform, transformedChartFormat } from "./transforms";
 
 /**
@@ -51,7 +52,14 @@ export const builtinCharts: Record<string, ChartComponent> = Object.fromEntries(
   Object.entries(builtinFamilyDescriptors).map(([family, d]) => [family, d.component]),
 );
 
-export interface ChartRendererProps extends Omit<ChartComponentProps, "format"> {
+export interface ChartRendererProps extends Omit<ChartComponentProps, "format" | "theme"> {
+  /**
+   * Mark geometry overrides (bar radius, area fill opacity, pie gap…). Optional and
+   * PARTIAL: whatever the host omits falls back to {@link DEFAULT_MARK_THEME}, and the
+   * families receive the resolved whole. `CubeChart` passes the provider's
+   * `theme.marks`. Deliberately not a spec option — see charts/theme.ts.
+   */
+  theme?: Partial<ChartMarkTheme>;
   /**
    * The bound value formatter. Optional here: when absent the renderer builds a
    * default from `data.raw.annotation` + the resolved options + the minimal
@@ -78,8 +86,10 @@ export function ChartRenderer({
   editing,
   updateFamilyOptions,
   registry = builtinFamilyRegistry,
+  theme,
 }: ChartRendererProps): ReactElement {
   const resolved = useMemo(() => resolveOptions(options, registry), [options, registry]);
+  const markTheme = useMemo(() => resolveMarkTheme(theme), [theme]);
   const descriptor = registry.get(resolved.family);
 
   // A QUERY-LESS family (e.g. a host AI-summary tile) draws its own content from its own
@@ -145,6 +155,7 @@ export function ChartRenderer({
       options={resolved}
       config={chartConfig}
       format={chartFormat}
+      theme={markTheme}
       state={state}
       editing={editing}
       updateFamilyOptions={updateFamilyOptions}

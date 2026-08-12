@@ -9,6 +9,7 @@ import { createRoot } from "react-dom/client";
 import "@/styles/cube-viz.css";
 import "@/theme/tokens.css";
 
+import { DEFAULT_MARK_THEME } from "@/charts/theme";
 import { BarChartFamily } from "@/charts/bar";
 import { LineChartFamily } from "@/charts/line";
 import { AreaChartFamily } from "@/charts/area";
@@ -99,7 +100,6 @@ function App() {
     family: "bar",
     stackMode: "stacked",
     mapping: { category: { member: "trips.day" } },
-    familyOptions: { barRadius: 3 },
   } as unknown as ChartOptions);
   const barData = data({
     categories: WEEKDAYS,
@@ -211,28 +211,28 @@ function App() {
       </div>
       <div className="pv-grid">
         <Tile title="Total distance (14 days)">
-          <KpiFamily data={kpiData} options={kpiOpts} config={config} format={fmt(kpiOpts)} />
+          <KpiFamily data={kpiData} options={kpiOpts} config={config} format={fmt(kpiOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
         <Tile title="Fleet utilization">
-          <KpiFamily data={gaugeData} options={gaugeOpts} config={config} format={fmt(gaugeOpts)} />
+          <KpiFamily data={gaugeData} options={gaugeOpts} config={config} format={fmt(gaugeOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
         <Tile title="Trips by vehicle">
-          <PieChartFamily data={pieData} options={pieOpts} config={config} format={fmt(pieOpts)} />
+          <PieChartFamily data={pieData} options={pieOpts} config={config} format={fmt(pieOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
         <Tile title="Distance over time" tall>
-          <LineChartFamily data={lineData} options={lineOpts} config={config} format={fmt(lineOpts)} />
+          <LineChartFamily data={lineData} options={lineOpts} config={config} format={fmt(lineOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
         <Tile title="Driver events by weekday" tall>
-          <BarChartFamily data={barData} options={barOpts} config={config} format={fmt(barOpts)} />
+          <BarChartFamily data={barData} options={barOpts} config={config} format={fmt(barOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
         <Tile title="Fuel consumption">
-          <AreaChartFamily data={areaData} options={areaOpts} config={config} format={fmt(areaOpts)} />
+          <AreaChartFamily data={areaData} options={areaOpts} config={config} format={fmt(areaOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
         <Tile title="Distance intensity (vehicle × day)">
-          <HeatmapChartFamily data={heatData} options={heatOpts} config={config} format={fmt(heatOpts)} />
+          <HeatmapChartFamily data={heatData} options={heatOpts} config={config} format={fmt(heatOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
         <Tile title="Trip duration vs distance">
-          <ScatterChartFamily data={scatterData} options={scatterOpts} config={config} format={fmt(scatterOpts)} />
+          <ScatterChartFamily data={scatterData} options={scatterOpts} config={config} format={fmt(scatterOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
       </div>
     </div>
