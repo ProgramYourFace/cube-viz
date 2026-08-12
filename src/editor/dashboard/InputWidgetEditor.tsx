@@ -366,12 +366,16 @@ function SelectOptions({
               <div key={i} className="cv-select-option-row">
                 <Input
                   className="cv-ed-grow"
+                  // Repeated per option row, so the name is per-field (the visible
+                  // cue is the placeholder) rather than a shared caption.
+                  aria-label={`Option ${i + 1} label`}
                   placeholder="Label"
                   value={opt.label}
                   onChange={(e) => setOption(i, { label: e.target.value })}
                 />
                 <Input
                   className="cv-ed-grow"
+                  aria-label={`Option ${i + 1} value`}
                   placeholder="Value"
                   value={String(opt.value)}
                   onChange={(e) => setOption(i, { value: e.target.value })}
@@ -452,9 +456,11 @@ function TextOptions({
   control: ControlOf<"text">;
   onChange: (next: Control) => void;
 }): React.ReactElement {
+  const id = React.useId();
   return (
-    <FieldRow label="Placeholder">
+    <FieldRow label="Placeholder" htmlFor={id}>
       <Input
+        id={id}
         value={control.placeholder ?? ""}
         onChange={(e) => onChange({ ...control, placeholder: e.target.value || undefined })}
       />
@@ -469,9 +475,12 @@ function NumberOptions({
   control: ControlOf<"number">;
   onChange: (next: Control) => void;
 }): React.ReactElement {
+  // One base per editor; each of the three rows derives its own id from the key.
+  const idBase = React.useId();
   const numField = (key: "min" | "max" | "step", label: string): React.ReactElement => (
-    <FieldRow label={label}>
+    <FieldRow label={label} htmlFor={`${idBase}-${key}`}>
       <Input
+        id={`${idBase}-${key}`}
         type="number"
         value={control[key] ?? ""}
         onChange={(e) => {

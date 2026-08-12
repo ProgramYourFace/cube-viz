@@ -39,6 +39,13 @@ export function AxisChrome({
 }): React.ReactElement {
   const ax = (spec.chart.axes?.[axis] ?? {}) as AxisOptions;
   const hidden = ax.labelHide === true;
+  // The visible "TITLE" caption IS this input's label, so it is what names the field:
+  // the caption carries an id and the input points at it (`aria-labelledby`), which
+  // keeps the compact inline design and still gives the field a real accessible name.
+  // With no caption rendered, fall back to naming the axis outright.
+  const captionId = React.useId();
+  const inputId = React.useId();
+  const axisName = axis === "y" ? "Value axis title" : "Category axis title";
   return (
     <div
       className={cn(
@@ -47,11 +54,13 @@ export function AxisChrome({
       )}
     >
       {title ? (
-        <span className="cv-axis-chrome-label">
+        <span id={captionId} className="cv-axis-chrome-label">
           {title}
         </span>
       ) : null}
       <input
+        id={inputId}
+        {...(title ? { "aria-labelledby": captionId } : { "aria-label": axisName })}
         value={ax.label ?? ""}
         placeholder={auto ?? "Axis title"}
         disabled={hidden}

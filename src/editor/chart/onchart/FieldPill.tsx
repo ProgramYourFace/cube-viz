@@ -68,6 +68,15 @@ export function FieldPill({
 }: FieldPillProps): React.ReactElement {
   const families = useFamilyRegistry();
   const b = chipBindings(spec, update, well, member, option, families);
+  // Ids for the config popover's controls: each visible caption is a real
+  // `<label htmlFor>` pointing at its field, so every control has an accessible name
+  // (a wrapping label alone left the fields anonymous to autofill + Chrome's audit).
+  const renameId = React.useId();
+  const sortId = React.useId();
+  const sortLabelId = React.useId();
+  const limitId = React.useId();
+  const compareId = React.useId();
+  const dotsId = React.useId();
   const defaultLabel = option?.label ?? member;
   const display = b.label || defaultLabel;
   const showSwatch = b.canColor && resolvedColor !== undefined;
@@ -120,9 +129,10 @@ export function FieldPill({
         <PopoverContent align="start" className="cv-field-pill-popover">
           <div className="cv-field-pill-config">
             {b.canRename ? (
-              <label className="cv-ec-field">
+              <label className="cv-ec-field" htmlFor={renameId}>
                 <span className="cv-ec-label">Label</span>
                 <Input
+                  id={renameId}
                   defaultValue={b.label ?? ""}
                   placeholder={defaultLabel}
                   className="cv-ec-h8"
@@ -168,11 +178,12 @@ export function FieldPill({
                 </div>
                 {b.canComparePrevious ? (
                   <div className="cv-ec-field">
-                    <label className="cv-ec-row">
+                    <label className="cv-ec-row" htmlFor={compareId}>
                       <span className="cv-ec-label">
                         Compare to previous period
                       </span>
                       <Switch
+                        id={compareId}
                         checked={b.comparePrevious}
                         onChange={b.onComparePrevious}
                         aria-label="Compare to previous period"
@@ -190,9 +201,14 @@ export function FieldPill({
 
             {b.isCategoryField ? (
               <>
-                <label className="cv-ec-field cv-ec-field--loose">
-                  <span className="cv-ec-label">Sort</span>
+                <label className="cv-ec-field cv-ec-field--loose" htmlFor={sortId}>
+                  <span id={sortLabelId} className="cv-ec-label">Sort</span>
                   <select
+                    id={sortId}
+                    // The caption sits INSIDE the label, so a bare `for` association
+                    // would fold every <option> into the accessible name; point at the
+                    // caption instead to keep the name exactly "Sort".
+                    aria-labelledby={sortLabelId}
                     value={b.sortValue}
                     onChange={(e) => b.onSort(e.target.value as typeof b.sortValue)}
                     className="cv-field-pill-select"
@@ -204,11 +220,12 @@ export function FieldPill({
                     ))}
                   </select>
                 </label>
-                <label className="cv-ec-field cv-ec-field--loose">
+                <label className="cv-ec-field cv-ec-field--loose" htmlFor={limitId}>
                   <span className="cv-ec-label">
                     Show top (leave blank for all)
                   </span>
                   <Input
+                    id={limitId}
                     type="number"
                     min={1}
                     defaultValue={b.limit ?? ""}
@@ -251,9 +268,9 @@ export function FieldPill({
                     ))}
                   </div>
                 </div>
-                <label className="cv-ec-row">
+                <label className="cv-ec-row" htmlFor={dotsId}>
                   <span className="cv-ec-label">Show points</span>
-                  <Switch checked={b.dots === true} onChange={b.onDots} aria-label="Show points" />
+                  <Switch id={dotsId} checked={b.dots === true} onChange={b.onDots} aria-label="Show points" />
                 </label>
               </>
             ) : null}

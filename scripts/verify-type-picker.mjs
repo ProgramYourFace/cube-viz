@@ -141,17 +141,21 @@ const READ_TILES = () => {
     // The two DOM-drawing families first, and conclusively: both plant small icon <svg>s
     // (a sort button, a trend arrow) inside the figure that would otherwise be read as
     // chart marks.
-    if (tile.querySelector(".cv-kpi-value")) {
+    if (tile.querySelector(".cv-type-tile-canvas .cv-kpi-value")) {
       out.form = "value";
       return out;
     }
-    const table = tile.querySelector("table");
+    const table = tile.querySelector(".cv-type-tile-canvas table");
     if (table && table.querySelectorAll("tbody tr").length > 0) {
       out.form = "table";
       out.counts = { rows: table.querySelectorAll("tbody tr").length };
       return out;
     }
-    const svg = tile.querySelector(".cv-type-tile-figure svg");
+    // ONLY the chart container: when a tile has no preview yet it renders the family's
+    // lucide ICON directly in the figure, and that icon is itself an <svg> of stroked
+    // paths — reading it would report every waiting tile as a "line".
+    const canvas = tile.querySelector(".cv-type-tile-canvas");
+    const svg = canvas?.querySelector("svg");
     if (!svg) return out;
 
     const vb = svg.viewBox.baseVal;
@@ -273,7 +277,12 @@ async function verifySeed(browser, baseUrl, seed) {
           failures.push(`${where}: unknown family — add it to EXPECTED_FORM`);
           continue;
         }
-        if (tile.form !== expected) {
+        // A tile that has not drawn yet ("none") is legitimate while its own fetch
+        // is in flight: a family that WILL show the user's data deliberately waits
+        // as an icon rather than drawing a stand-in and swapping — that swap was
+        // the "flashing" this check exists for. What must never happen is drawing
+        // the WRONG type, at any moment, or never drawing at all (checked below).
+        if (tile.form !== expected && tile.form !== "none") {
           failures.push(
             `${where}: drew "${tile.form}", expected "${expected}" ` +
               `— counts ${JSON.stringify(tile.counts ?? {})}`,
@@ -296,6 +305,18 @@ async function verifySeed(browser, baseUrl, seed) {
         }
       }
     }
+    // By the last sample every tile must have settled into its own type — an icon
+    // that never resolves would otherwise pass the "none is fine" rule above.
+    for (const tile of last) {
+      const expected = EXPECTED_FORM[tile.family];
+      if (expected !== undefined && tile.form !== expected) {
+        failures.push(
+          `${seed} @final tile ${tile.index} (${tile.family}): settled on "${tile.form}", ` +
+            `expected "${expected}" — the preview never resolved`,
+        );
+      }
+    }
+
     if (errors.length > 0) {
       failures.push(`${seed}: ${errors.length} page error(s)\n    ${errors.slice(0, 5).join("\n    ")}`);
     }

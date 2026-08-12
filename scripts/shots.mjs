@@ -87,6 +87,7 @@ async function launchBrowser() {
 /* ──────────────────────────────── the shots ─────────────────────────────── */
 
 const failures = [];
+let shotCount = 0;
 
 /**
  * Open `path`, wait for the charts to actually paint, run `prepare` (e.g. open a
@@ -156,6 +157,7 @@ async function shot(
     if (errors.length > 0) {
       failures.push(`${name}: ${errors.length} page error(s)\n    ${errors.slice(0, 5).join("\n    ")}`);
     }
+    shotCount += 1;
     console.log(
       `[shot] ${name.padEnd(20)} ${String(Math.round(size / 1024)).padStart(5)} KB  ` +
         `${String(svgCount).padStart(2)}× "${waitFor}"  ${describe}`,
@@ -174,6 +176,50 @@ async function shot(
  * `<button class="cv-type-pill" title="Change chart type">`), which opens a Radix
  * popover containing the "Suggested for your fields" group + the live tile previews.
  */
+/**
+ * Open a slot's field picker. An AVAILABLE row is `.cv-picker-row`; a blocked one is
+ * `.cv-picker-row--disabled` (a different class, not a modifier on the same node), so
+ * counting rows has to match both — the Values slot here happens to have no available
+ * candidate at all, which is exactly the state worth photographing.
+ */
+const PICKER_ROWS = ".cv-picker-row, .cv-picker-row--disabled";
+
+async function openPickerFor(page, name) {
+  const add = page.getByRole("button", { name }).first();
+  await add.waitFor({ state: "visible", timeout: 15_000 });
+  await add.click();
+
+  await page.locator(".cv-picker").waitFor({ state: "visible", timeout: 15_000 });
+  // Assert it listed something, so an empty popover cannot pass as a shot.
+  await page.waitForFunction(
+    (sel) => document.querySelectorAll(sel).length >= 2,
+    PICKER_ROWS,
+    { timeout: 15_000 },
+  );
+}
+
+/** The Values slot: every candidate is blocked, each with its reason shown. */
+async function openFieldPicker(page) {
+  await openPickerFor(page, /^add$/i);
+}
+
+/**
+ * The Split-by slot with the switch ON — chosen over Values because it NARROWS
+ * (categories survive, measures do not) rather than emptying, so the shot shows the
+ * filtered list and the hidden count together.
+ */
+async function openFieldPickerFiltered(page) {
+  await openPickerFor(page, /split by/i);
+  const before = await page.locator(PICKER_ROWS).count();
+  await page.locator(".cv-picker-filter-box").click();
+  await page.waitForFunction(
+    ({ sel, n }) => document.querySelectorAll(sel).length < n,
+    { sel: PICKER_ROWS, n: before },
+    { timeout: 15_000 },
+  );
+  await page.getByText(/\d+ hidden/i).waitFor({ state: "visible", timeout: 15_000 });
+}
+
 async function openTypePicker(page) {
   // Its accessible name is the CURRENT family's label ("Line") — the `title` is only a
   // tooltip — so scope by role+name and cross-check the title so a label change is loud.
@@ -258,6 +304,25 @@ try {
     prepare: openTypePicker,
     describe: "chart-type picker open (Suggested + live tiles)",
   });
+  await shot(browser, baseUrl, {
+    name: "field-picker",
+    path: "/editor.html",
+    waitFor: '[data-slot="chart-edit-overlay"] svg',
+    forbid: EDITOR_FORBID,
+    prepare: openFieldPicker,
+    describe: "field picker, all fields (blocked ones muted with a reason)",
+  });
+  await shot(browser, baseUrl, {
+    name: "field-picker-compatible-only",
+    // The default seed already fills Split by (so it offers no Add button); the
+    // two-measure seed leaves it empty, and it is also the slot that NARROWS
+    // rather than empties — categories survive, measures do not.
+    path: "/editor.html?seed=measures",
+    waitFor: '[data-slot="chart-edit-overlay"] svg',
+    forbid: EDITOR_FORBID,
+    prepare: openFieldPickerFiltered,
+    describe: 'field picker, "Only compatible fields" on (hidden count shown)',
+  });
 } finally {
   await browser?.close();
   await close();
@@ -268,4 +333,4 @@ if (failures.length > 0) {
   for (const f of failures) console.error(`  - ${f}`);
   process.exit(1);
 }
-console.log(`\n[shots] 5 screenshots written to ${OUT_DIR}`);
+console.log(`\n[shots] ${shotCount} screenshots written to ${OUT_DIR}`);

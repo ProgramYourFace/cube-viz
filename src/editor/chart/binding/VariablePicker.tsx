@@ -90,6 +90,8 @@ export function VariablePicker({ kind, value, onChange, className }: VariablePic
               <div className="cv-var-new-form">
                 <Input
                   autoFocus
+                  // The visible text is the placeholder, so the name lives in aria-label.
+                  aria-label="New variable label"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   onKeyDown={(e) => {

@@ -307,6 +307,15 @@ function FilterEditRow({
   const operators = operatorsForType(member?.type);
   const operator = operators.includes(leaf.operator) ? leaf.operator : operators[0];
   const needsValue = !VALUELESS_OPERATORS.has(operator);
+  // Each caption names its control: the Field / Condition triggers are BUTTONS (a
+  // `<label htmlFor>` cannot target one), so they take `aria-labelledby` on the
+  // caption's id; the Value editor's own field gets a real label association.
+  const fieldLabelId = React.useId();
+  const fieldTriggerId = React.useId();
+  const conditionLabelId = React.useId();
+  const conditionTriggerId = React.useId();
+  const valueLabelId = React.useId();
+  const valueFieldId = React.useId();
 
   // Persist the type-derived fallback rather than merely displaying it. This repairs
   // older time filters that looked like `inDateRange` but still stored `equals`.
@@ -343,7 +352,7 @@ function FilterEditRow({
       </div>
 
       <div className="cv-ec-field">
-        <span className="cv-ec-label">Field</span>
+        <span id={fieldLabelId} className="cv-ec-label">Field</span>
         {scope ? (
           // Same rich picker as the axis wells: grouped Numbers / Categories / Dates,
           // search, join-scope. Including Dates makes time dimensions filterable.
@@ -358,7 +367,11 @@ function FilterEditRow({
           >
             <button
               type="button"
+              id={fieldTriggerId}
               disabled={disabled}
+              // Caption FIRST, then the trigger's own text, so the name reads
+              // "Field · Region" rather than replacing the value with the caption.
+              aria-labelledby={`${fieldLabelId} ${fieldTriggerId}`}
               className="cv-filter-field-trigger"
             >
               {member ? (
@@ -385,8 +398,8 @@ function FilterEditRow({
         )}
       </div>
 
-      <label className="cv-ec-field">
-        <span className="cv-ec-label">Condition</span>
+      <div className="cv-ec-field">
+        <span id={conditionLabelId} className="cv-ec-label">Condition</span>
         <Select
           value={operator}
           onValueChange={(v) =>
@@ -397,7 +410,11 @@ function FilterEditRow({
           }
           disabled={disabled}
         >
-          <SelectTrigger className="cv-ec-full">
+          <SelectTrigger
+            id={conditionTriggerId}
+            aria-labelledby={`${conditionLabelId} ${conditionTriggerId}`}
+            className="cv-ec-full"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -408,17 +425,21 @@ function FilterEditRow({
             ))}
           </SelectContent>
         </Select>
-      </label>
+      </div>
 
       {needsValue ? (
-        <label className="cv-ec-field">
-          <span className="cv-ec-label">Value</span>
+        <div className="cv-ec-field">
+          <label id={valueLabelId} htmlFor={valueFieldId} className="cv-ec-label">
+            Value
+          </label>
           <FilterValueField
+            fieldId={valueFieldId}
+            labelId={valueLabelId}
             values={leaf.values}
             memberType={member?.type}
             onChange={(values) => onChange({ values })}
           />
-        </label>
+        </div>
       ) : null}
     </div>
   );
@@ -450,6 +471,10 @@ interface FilterValueFieldProps {
   /** The member's primitive type (drives the editor + which variables can bind). */
   memberType: string | undefined;
   onChange: (values: (Scalar | VarRef)[]) => void;
+  /** Id for the free-text field, so the row's "Value" label can point at it. */
+  fieldId?: string;
+  /** Id of the "Value" label — names the Value | Variable group for assistive tech. */
+  labelId?: string;
 }
 
 /**
@@ -457,7 +482,13 @@ interface FilterValueFieldProps {
  * scalars) OR a `{var}` binding — through the shared {@link ValueBinding}. A bound filter
  * is `values: [{var}]`; the resolver spreads multi-select variables + drops empties.
  */
-function FilterValueField({ values, memberType, onChange }: FilterValueFieldProps): React.ReactElement {
+function FilterValueField({
+  values,
+  memberType,
+  onChange,
+  fieldId,
+  labelId,
+}: FilterValueFieldProps): React.ReactElement {
   const list = values ?? [];
   const bound = list.length === 1 && isVarRef(list[0]);
 
@@ -465,6 +496,7 @@ function FilterValueField({ values, memberType, onChange }: FilterValueFieldProp
     const current: DateRange | VarRef | undefined = bound ? (list[0] as VarRef) : toDateRange(list);
     return (
       <ValueBinding
+        labelId={labelId}
         kind="dateRange"
         value={current}
         onChange={(next) =>
@@ -482,6 +514,7 @@ function FilterValueField({ values, memberType, onChange }: FilterValueFieldProp
     : (list.filter((v) => !isVarRef(v)) as Scalar[]);
   return (
     <ValueBinding
+      labelId={labelId}
       kind={bindKind}
       value={current}
       onChange={(next) =>
@@ -489,6 +522,7 @@ function FilterValueField({ values, memberType, onChange }: FilterValueFieldProp
       }
       renderFixed={(arr, set) => (
         <Input
+          id={fieldId}
           value={(arr ?? []).map(String).join(", ")}
           onChange={(e) => set(splitValues(e.target.value))}
           placeholder="value, value…"

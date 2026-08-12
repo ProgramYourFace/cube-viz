@@ -94,23 +94,29 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
   return (
     <div className="cv-kpi-fields">
       <Field label="Time field">
-        <MemberPicker
-          cube={cube}
-          kind="time"
-          value={td?.dimension}
-          onChange={(m) => setTimeDim({ dimension: m })}
-          placeholder="All time"
-          className="cv-ec-h8"
-        />
+        {({ id }) => (
+          <MemberPicker
+            id={id}
+            cube={cube}
+            kind="time"
+            value={td?.dimension}
+            onChange={(m) => setTimeDim({ dimension: m })}
+            placeholder="All time"
+            className="cv-ec-h8"
+          />
+        )}
       </Field>
       {td?.dimension ? (
         <Field label="Date range">
-          <ValueBinding
-            kind="dateRange"
-            value={td.dateRange}
-            onChange={(r) => setTimeDim({ dateRange: r as DateRange | VarRef | undefined })}
-            renderFixed={(r, set) => <DateRangeValueEditor value={r} onChange={set} />}
-          />
+          {({ labelId }) => (
+            <ValueBinding
+              labelId={labelId}
+              kind="dateRange"
+              value={td.dateRange}
+              onChange={(r) => setTimeDim({ dateRange: r as DateRange | VarRef | undefined })}
+              renderFixed={(r, set) => <DateRangeValueEditor value={r} onChange={set} />}
+            />
+          )}
         </Field>
       ) : null}
       <FieldRow label="Display">
@@ -127,16 +133,19 @@ export function KpiValueFields({ spec, update }: Props): React.ReactElement {
       </FieldRow>
       {display === "gauge" ? (
         <Field label="Gauge max">
-          <Input
-            type="number"
-            className="cv-ec-h8"
-            value={gauge?.max ?? ""}
-            placeholder="Auto"
-            onChange={(e) => {
-              const n = parseFloat(e.target.value);
-              setFO({ gauge: Number.isFinite(n) ? { ...(gauge ?? {}), max: n } : undefined });
-            }}
-          />
+          {({ id }) => (
+            <Input
+              id={id}
+              type="number"
+              className="cv-ec-h8"
+              value={gauge?.max ?? ""}
+              placeholder="Auto"
+              onChange={(e) => {
+                const n = parseFloat(e.target.value);
+                setFO({ gauge: Number.isFinite(n) ? { ...(gauge ?? {}), max: n } : undefined });
+              }}
+            />
+          )}
         </Field>
       ) : null}
     </div>
@@ -185,15 +194,18 @@ export function KpiComparison({ spec, update }: Props): React.ReactElement {
           </FieldRow>
           {comparison?.mode === "value" ? (
             <Field label="Baseline value">
-              <Input
-                type="number"
-                className="cv-ec-h8"
-                value={(comparison?.value as number | undefined) ?? ""}
-                onChange={(e) => {
-                  const n = parseFloat(e.target.value);
-                  setFO({ comparison: { ...comparison, value: Number.isFinite(n) ? n : undefined } });
-                }}
-              />
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="number"
+                  className="cv-ec-h8"
+                  value={(comparison?.value as number | undefined) ?? ""}
+                  onChange={(e) => {
+                    const n = parseFloat(e.target.value);
+                    setFO({ comparison: { ...comparison, value: Number.isFinite(n) ? n : undefined } });
+                  }}
+                />
+              )}
             </Field>
           ) : null}
           {comparison?.mode === "previousPeriod" && !td?.dateRange ? (
@@ -246,12 +258,17 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
       {sparkOn ? (
         <>
           <Field label="Trend granularity">
-            <ValueBinding
-              kind="granularity"
-              value={granularity}
-              onChange={(g) => setFO({ sparkline: { ...sparkline, granularity: g as Granularity | VarRef } })}
-              renderFixed={(g, set) => <GranularityPicker value={g} onChange={set} className="cv-ec-h8 cv-ec-full" />}
-            />
+            {({ id, labelId }) => (
+              <ValueBinding
+                labelId={labelId}
+                kind="granularity"
+                value={granularity}
+                onChange={(g) => setFO({ sparkline: { ...sparkline, granularity: g as Granularity | VarRef } })}
+                renderFixed={(g, set) => (
+                  <GranularityPicker id={id} value={g} onChange={set} className="cv-ec-h8 cv-ec-full" />
+                )}
+              />
+            )}
           </Field>
           {!comparing ? (
             <SwitchRow
@@ -269,12 +286,27 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
 
 /* ───────────────────────────────── helpers ──────────────────────────────── */
 
-/** A vertical labeled field (caption above the control). */
-function Field({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
+/**
+ * A vertical labeled field (caption above the control). The caption is a real
+ * `<label>` and hands its generated ids to the control, so whatever sits below is
+ * NAMED: `id` for a native field (`<label htmlFor>`), `labelId` for a cluster of
+ * buttons (a Select trigger / the Value|Variable group) that a `for` cannot target.
+ */
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: (ids: { id: string; labelId: string }) => React.ReactNode;
+}): React.ReactElement {
+  const id = React.useId();
+  const labelId = React.useId();
   return (
     <div className="cv-ec-field">
-      <span className="cv-ec-label">{label}</span>
-      {children}
+      <label id={labelId} htmlFor={id} className="cv-ec-label">
+        {label}
+      </label>
+      {children({ id, labelId })}
     </div>
   );
 }

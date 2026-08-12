@@ -126,18 +126,21 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
       </FieldRow>
       {transformKind === "rollingAvg" ? (
         <KField label="Window (points)">
-          <Input
-            type="number"
-            min={2}
-            max={90}
-            className="cv-ec-h8 cv-transform-window"
-            value={chart.transform?.window ?? DEFAULT_TRANSFORM_WINDOW}
-            onChange={(e) => {
-              const n = parseInt(e.target.value, 10);
-              const window = Number.isFinite(n) ? Math.min(90, Math.max(2, n)) : DEFAULT_TRANSFORM_WINDOW;
-              setEnvelope({ transform: { kind: "rollingAvg", window } });
-            }}
-          />
+          {(id) => (
+            <Input
+              id={id}
+              type="number"
+              min={2}
+              max={90}
+              className="cv-ec-h8 cv-transform-window"
+              value={chart.transform?.window ?? DEFAULT_TRANSFORM_WINDOW}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                const window = Number.isFinite(n) ? Math.min(90, Math.max(2, n)) : DEFAULT_TRANSFORM_WINDOW;
+                setEnvelope({ transform: { kind: "rollingAvg", window } });
+              }}
+            />
+          )}
         </KField>
       ) : null}
     </>
@@ -216,17 +219,20 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
               />
             </FieldRow>
             <KField label="Max slices">
-              <Input
-                type="number"
-                min={1}
-                className="cv-ec-h8"
-                value={(fo.maxSlices as number | undefined) ?? ""}
-                placeholder="8"
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
-                  setFamilyOptions({ maxSlices: Number.isFinite(n) && n > 0 ? n : undefined });
-                }}
-              />
+              {(id) => (
+                <Input
+                  id={id}
+                  type="number"
+                  min={1}
+                  className="cv-ec-h8"
+                  value={(fo.maxSlices as number | undefined) ?? ""}
+                  placeholder="8"
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    setFamilyOptions({ maxSlices: Number.isFinite(n) && n > 0 ? n : undefined });
+                  }}
+                />
+              )}
             </KField>
           </>
         );
@@ -315,12 +321,25 @@ export function hasCustomizeOptions(
   );
 }
 
-/** A vertical labeled field (caption above the control) for the option pickers. */
-function KField({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
+/**
+ * A vertical labeled field (caption above the control) for the option pickers. The
+ * caption is a real `<label htmlFor>` over a generated id, which the control adopts —
+ * so these numeric knobs have accessible names instead of only a placeholder.
+ */
+function KField({
+  label,
+  children,
+}: {
+  label: string;
+  children: (id: string) => React.ReactNode;
+}): React.ReactElement {
+  const id = React.useId();
   return (
     <div className="cv-customize-field">
-      <span className="cv-ec-label">{label}</span>
-      {children}
+      <label htmlFor={id} className="cv-ec-label">
+        {label}
+      </label>
+      {children(id)}
     </div>
   );
 }

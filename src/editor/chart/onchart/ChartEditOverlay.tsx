@@ -16,6 +16,7 @@ import { ChartSourcePopover } from "./ChartSourcePopover";
 import { AxisChrome, LegendChrome } from "./ChartChrome";
 import { CenterTypePicker, ChartTypePill } from "./CenterTypePicker";
 import { computeJoinScope, cubeInJoinScope } from "./join-scope";
+import { axisUnitBlockReason } from "./picker-filter";
 import { WellGroup } from "./WellGroup";
 import {
   KpiComparison,
@@ -58,6 +59,9 @@ export function ChartEditOverlay({
   // is the ONLY way to reach the family's Customize panel (prompt/schedule) — would be
   // hidden and the empty type-chooser would overlay the configured tile forever.
   const queryless = descriptor.queryless ?? false;
+  // Whether this family's single value axis must stay one KIND of quantity (bar/line/
+  // area) — the source of the picker's axis-unit "unavailable" reason.
+  const enforcesAxisUnit = descriptor.enforcesAxisUnit;
   const cube = inferCube(spec);
 
   // The unit shown in the value-axis badge follows the viewer's unit system, so the
@@ -133,16 +137,17 @@ export function ChartEditOverlay({
         const src = scope.sourceCube?.title ?? scope.measureSource;
         return `Measures come from one table (${src}). Remove them to switch.`;
       }
-      // 3) Value-axis unit consistency on the "y" well.
-      if (wellId === "y" && option.memberType === "measure") {
+      // 3) Value-axis unit consistency on the "y" well — the families that declare
+      //    `enforcesAxisUnit` keep their single value axis to ONE quantity, so a
+      //    litres measure cannot join an axis already showing distance. The picker's
+      //    "Only compatible fields" switch hides exactly these rows.
+      if (enforcesAxisUnit && wellId === "y" && option.memberType === "measure") {
         const { leftKey, leftLabel } = valueAxes;
-        if (leftKey !== undefined && axisKeyOf(option) !== leftKey) {
-          return `This axis shows ${leftLabel}; ${option.label ?? "this field"} is ${axisLabelOf(option)}`;
-        }
+        return axisUnitBlockReason(option, leftKey, leftLabel);
       }
       return undefined;
     },
-    [scope, valueAxes],
+    [scope, valueAxes, enforcesAxisUnit],
   );
 
   // The value-well badge: the axis' unit label.

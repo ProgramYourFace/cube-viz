@@ -396,6 +396,30 @@ two categories"*, *"Every field, row by row"* — and never in grammar (*channel
   those **replace** rather than refuse. It is kept as a hook for callers that want to warn
   ("replaces Distance") instead of disabling.
 
+### 6.1 "Only compatible fields" — hiding, as an explicit choice
+
+Listing the blocked fields is the default, but a user who knows what they want does not need the
+lesson every time. The picker header therefore carries one switch that hides every row that cannot
+be added **for any reason** (`src/editor/chart/onchart/picker-filter.ts`):
+
+- `candidateReason(well, kind, inWell, option, contextReason)` is the single availability verdict:
+  the slot's own rule (`placementBlockReason`) first, then the chart-level context reason
+  `ChartEditOverlay` supplies — cross-dataset, second measure source, or the **axis unit/quantity**
+  block (`axisUnitBlockReason`, applied on the value well of the families that declare
+  `enforcesAxisUnit`). One value drives both the muted row's inline hint and whether the switch
+  hides it, so the two can never disagree.
+- Consequence, and the reason it was asked for: with a **Distance** measure on the value axis, the
+  switch leaves only distance-compatible measures listed — litres and km/h are `unavailable` and
+  disappear along with the wrong kinds.
+- Hiding costs discoverability, so it is always paid for: the header shows **"n hidden"** next to
+  the switch, the table counts drop to what is visible, and a list emptied *only* by the switch says
+  so and offers **"Show all fields"** instead of reading as "this field does not exist".
+- The choice persists under `localStorage["cube-viz:field-picker:only-compatible"]`, read through a
+  guard that tolerates no storage at all (SSR) and a `localStorage` access that *throws* (hardened
+  WebView / blocked cookies). **Default OFF** — the option was the request, not a behavior change.
+- Tests: `src/editor/chart/onchart/picker-filter.test.ts` (the hidden set incl. the
+  distance-vs-litres case, and the persistence guard).
+
 ---
 
 ## 7. Host families
@@ -489,8 +513,9 @@ Builder-specific, still open:
 | Fit ranking + preview specs | `src/editor/chart/builder/suggest.ts` |
 | The on-chart surface | `src/editor/chart/onchart/ChartEditOverlay.tsx` |
 | Slots + the forgiving field picker | `src/editor/chart/onchart/WellGroup.tsx`, `FieldPickerPopover.tsx` |
+| Field availability + the "only compatible" switch | `src/editor/chart/onchart/picker-filter.ts` |
 | Type picker + live tile previews | `src/editor/chart/onchart/CenterTypePicker.tsx` |
 | Per-family Options (incl. the transform select) | `src/editor/chart/builder/CustomizeSection.tsx` |
-| Value-axis unit consistency | `src/editor/chart/builder/axis.ts` |
+| Value-axis unit consistency | `src/editor/chart/builder/axis.ts`, `onchart/picker-filter.ts` |
 | Controlled-spec engine (unchanged) | `src/editor/chart/useChartEditorState.ts` |
-| Tests | `src/editor/chart/builder/channels.test.ts`, `suggest.test.ts` |
+| Tests | `src/editor/chart/builder/channels.test.ts`, `suggest.test.ts`, `onchart/picker-filter.test.ts` |

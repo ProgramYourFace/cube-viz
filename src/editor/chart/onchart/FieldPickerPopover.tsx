@@ -17,6 +17,13 @@ import {
 import { placementBlockReason, wellAccepts } from "../builder/channels";
 import type { FieldKind, WellDef } from "../builder/wells";
 import type { JoinScope } from "./join-scope";
+import {
+  candidateReason,
+  isAvailable,
+  readOnlyCompatible,
+  writeOnlyCompatible,
+  type FieldCandidate,
+} from "./picker-filter";
 
 export interface FieldPickerPopoverProps {
   /** The slot being filled — its `kinds` order the list; the rest show disabled. */
@@ -63,7 +70,7 @@ interface PickGroup {
   headerIcon?: React.ReactElement;
   /** Every item is of a type this slot cannot take (a fully-disabled bucket). */
   rejected?: boolean;
-  items: { option: MemberOption; kind: FieldKind; blocked?: string }[];
+  items: FieldCandidate[];
 }
 
 /**
@@ -72,14 +79,21 @@ interface PickGroup {
  * (Numbers / Categories / Dates). A source selector switches between "All related
  * tables" and the curated views.
  *
- * Nothing is hidden. Fields of a type this slot cannot take used to be omitted
- * entirely, so hunting for "Revenue" in the Category slot found *nothing* and the
- * user had no way to learn why. They are now listed after the usable ones, disabled,
+ * By default nothing is hidden. Fields of a type this slot cannot take used to be
+ * omitted entirely, so hunting for "Revenue" in the Category slot found *nothing* and
+ * the user had no way to learn why. They are listed after the usable ones, disabled,
  * each carrying the same short reason the slot would give
  * ({@link placementBlockReason} — "Category takes a date or category"). The other
  * blocks (a 2nd measure table, a field from another dataset, an axis-unit mismatch)
  * read the same way, so the user can only build queries Cube will actually resolve —
  * and always knows which slot to try instead.
+ *
+ * The header's "Only compatible fields" switch is the OPT-IN to the older, narrower
+ * list: it hides every row that cannot be added for ANY reason (see
+ * {@link candidateReason}), so with a distance measure on the value axis only
+ * distance measures remain listed. Because hiding costs discoverability, the switch
+ * always states how many rows it took away, and an emptied list offers to show them
+ * back. The choice persists (localStorage, guarded) and defaults to OFF.
  */
 export function FieldPickerPopover({
   well,
@@ -95,6 +109,15 @@ export function FieldPickerPopover({
   const { meta, isLoading } = useCubeMeta();
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  // "Only compatible fields" — read ONCE (lazily) from storage so the choice survives
+  // popover opens and reloads; every write goes back through the guarded setter.
+  const [onlyCompatible, setOnlyCompatibleState] = React.useState<boolean>(readOnlyCompatible);
+  const setOnlyCompatible = React.useCallback((on: boolean): void => {
+    setOnlyCompatibleState(on);
+    writeOnlyCompatible(on);
+  }, []);
+  const searchId = React.useId();
+  const toggleId = React.useId();
   // Which source we're browsing: the raw table graph, or a specific view.
   const [browse, setBrowse] = React.useState<string>(scope.viewLocked ?? "tables");
   // Per-table collapse overrides (related tables default collapsed; search forces open).
@@ -175,16 +198,47 @@ export function FieldPickerPopover({
         }
         // A semantic group that mixes usable and unusable kinds is not "rejected".
         if (kindBlock === undefined) grp.rejected = false;
-        grp.items.push({ option: o, kind: k, blocked: kindBlock });
+        // The FULL reason (slot kind first, then the chart-level dataset / measure-
+        // source / axis-unit blocks) — one value drives both the muted row's hint and
+        // whether "Only compatible fields" hides the row.
+        grp.items.push({
+          option: o,
+          kind: k,
+          reason: candidateReason(well, k, inWell ?? [], o, blockReason),
+        });
       }
     }
     return order.map((key) => byKey.get(key)!);
   };
 
-  const rendered = sections
+  // Every candidate, in render order, BEFORE the compatibility switch is applied —
+  // so the hidden count below is honest about what the switch took away.
+  const all = sections
     .map((s) => ({ section: s, groups: groupsFor(s.cube.name) }))
     .filter((r) => r.groups.length > 0);
+
+  // How many rows matching the current search the switch is hiding right now.
+  const hiddenCount = onlyCompatible
+    ? all.reduce(
+        (n, r) => n + r.groups.reduce((m, g) => m + g.items.filter((i) => !isAvailable(i)).length, 0),
+        0,
+      )
+    : 0;
+
+  const rendered = onlyCompatible
+    ? all
+        .map((r) => ({
+          section: r.section,
+          groups: r.groups
+            .map((g) => ({ ...g, rejected: false, items: g.items.filter(isAvailable) }))
+            .filter((g) => g.items.length > 0),
+        }))
+        .filter((r) => r.groups.length > 0)
+    : all;
   const hasAny = rendered.length > 0;
+  // Nothing left ONLY because the switch hid it — an empty list would look like the
+  // field does not exist, so say what happened and offer the way back.
+  const emptiedByFilter = !hasAny && hiddenCount > 0;
 
   const pick = (name: string, kind: FieldKind): void => {
     onSelect(name, kind);
@@ -206,6 +260,8 @@ export function FieldPickerPopover({
             <Search className="cv-ec-icon cv-ec-icon--muted" />
             <input
               autoFocus
+              id={searchId}
+              aria-label="Search fields"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={isLoading ? "Loading fields…" : "Search fields…"}
@@ -220,11 +276,49 @@ export function FieldPickerPopover({
           />
         </div>
 
+        {/* The compatibility switch. A plain checkbox (no Radix Switch in this package)
+            so it is keyboard- and WebView-native; the count is the discoverability
+            receipt for everything it removed. */}
+        <div className="cv-picker-filter">
+          <input
+            type="checkbox"
+            id={toggleId}
+            className="cv-picker-filter-box"
+            checked={onlyCompatible}
+            onChange={(e) => setOnlyCompatible(e.target.checked)}
+          />
+          <label htmlFor={toggleId} className="cv-picker-filter-label">
+            Only compatible fields
+          </label>
+          {onlyCompatible ? (
+            <span className="cv-picker-filter-count">
+              {hiddenCount === 0 ? "none hidden" : `${hiddenCount} hidden`}
+            </span>
+          ) : null}
+        </div>
+
         <div className="cv-picker-list">
           {!hasAny ? (
-            <p className="cv-picker-empty">
-              {isLoading ? "Loading fields…" : "No fields match."}
-            </p>
+            emptiedByFilter ? (
+              <div className="cv-picker-empty">
+                <p>
+                  {hiddenCount} {q ? "matching " : ""}field{hiddenCount === 1 ? "" : "s"} cannot go
+                  in this slot, and “Only compatible fields” is hiding{" "}
+                  {hiddenCount === 1 ? "it" : "them"}.
+                </p>
+                <button
+                  type="button"
+                  className="cv-picker-show-all"
+                  onClick={() => setOnlyCompatible(false)}
+                >
+                  Show all fields
+                </button>
+              </div>
+            ) : (
+              <p className="cv-picker-empty">
+                {isLoading ? "Loading fields…" : "No fields match."}
+              </p>
+            )
           ) : (
             rendered.map(({ section, groups }, idx) => {
               const count = groups.reduce((n, g) => n + g.items.length, 0);
@@ -285,16 +379,13 @@ export function FieldPickerPopover({
                               ) : null}
                             </div>
                           ) : null}
-                          {g.items.map(({ option, kind, blocked }) => (
+                          {g.items.map(({ option, kind, reason }) => (
                             <PickerRow
                               key={option.name}
                               option={option}
                               kindIcon={showRowIcon ? GROUP_META[kind].icon : undefined}
                               badge={kind === "time" && memberCanonicalTime(option) ? "default" : undefined}
-                              // The slot's own "wrong kind of field" reason wins: it names
-                              // the fix ("put a measure here instead"), where the dataset /
-                              // axis-unit blocks describe the model.
-                              reason={blocked ?? blockReason(option)}
+                              reason={reason}
                               onPick={() => pick(option.name, kind)}
                             />
                           ))}

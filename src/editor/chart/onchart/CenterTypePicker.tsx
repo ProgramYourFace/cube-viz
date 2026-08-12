@@ -359,6 +359,15 @@ function useTilePreviews(
       // a scatter missing its second measure would otherwise draw the family's own
       // "No data", which tells the user nothing about what a scatter looks like. Those
       // fall through to the canned illustration instead.
+      // A family that CAN show the user's fields must never draw someone else's
+      // data first and then change under them — that read as the chart type
+      // flickering. While its own fetch is in flight it stays an icon, and the
+      // canned sample is reserved for tiles that will never show real data
+      // (a family the current fields cannot fill, or no query at all), where it
+      // is a stable illustration rather than a transient stand-in.
+      const willDrawReal = live && fitting.has(f);
+      if (willDrawReal && !resultSet) continue;
+
       const real =
         resultSet && fitting.has(f)
           ? realPreview(spec, f, families, resultSet, resolvedQuery)
@@ -367,7 +376,7 @@ function useTilePreviews(
       if (preview) out.set(f, preview);
     }
     return out;
-  }, [spec, families, resultSet, resolvedQuery, fitting]);
+  }, [spec, families, resultSet, resolvedQuery, fitting, live]);
 }
 
 /** The user's own data, re-bound into `family`'s wells and re-normalized for it. */

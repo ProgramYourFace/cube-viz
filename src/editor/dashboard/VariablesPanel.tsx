@@ -154,6 +154,9 @@ function VariableRow({
 }): React.ReactElement {
   const [open, setOpen] = React.useState(true);
   const nameError = decl.name === "" ? "Name required" : duplicate ? "Duplicate name" : undefined;
+  // FieldRow renders its caption as a `<label htmlFor>`, so the text field below is
+  // NAMED by the caption the user reads (a caption with no `for` names nothing).
+  const labelId = React.useId();
 
   return (
     <div
@@ -236,8 +239,14 @@ function VariableRow({
             </Select>
           </FieldRow>
 
-          <FieldRow label="Label" hint="Optional human label for controls." className="cv-ed-row-tight">
+          <FieldRow
+            label="Label"
+            htmlFor={labelId}
+            hint="Optional human label for controls."
+            className="cv-ed-row-tight"
+          >
             <Input
+              id={labelId}
               value={decl.label ?? ""}
               placeholder={decl.name}
               onChange={(e) => onChange({ label: e.target.value })}
@@ -267,6 +276,8 @@ function DefaultField({
   decl: VariableDecl;
   onChange: (value: VariableValue | undefined) => void;
 }): React.ReactElement {
+  // One id for whichever editor this type renders, paired with the FieldRow caption.
+  const defaultId = React.useId();
   // Boolean default → a switch. Everything else → a text/number input. Date-range
   // and time accept relative strings ("This month", "today"), so they're text too.
   if (decl.type === "boolean") {
@@ -281,8 +292,9 @@ function DefaultField({
 
   if (decl.type === "number" && !decl.array) {
     return (
-      <FieldRow label="Default" className="cv-ed-row-tight">
+      <FieldRow label="Default" htmlFor={defaultId} className="cv-ed-row-tight">
         <Input
+          id={defaultId}
           type="number"
           value={typeof decl.default === "number" ? decl.default : ""}
           onChange={(e) => {
@@ -305,8 +317,9 @@ function DefaultField({
     Array.isArray(decl.default) ? decl.default.join(", ") : stringifyScalar(decl.default);
 
   return (
-    <FieldRow label="Default" hint={hint} className="cv-ed-row-tight">
+    <FieldRow label="Default" htmlFor={defaultId} hint={hint} className="cv-ed-row-tight">
       <Input
+        id={defaultId}
         value={display}
         placeholder={defaultPlaceholder(decl.type)}
         onChange={(e) => {

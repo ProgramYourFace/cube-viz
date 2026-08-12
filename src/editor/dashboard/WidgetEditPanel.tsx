@@ -78,6 +78,9 @@ export function WidgetEditPanel({
   onVariablesChange,
   fill = false,
 }: WidgetEditPanelProps): React.ReactElement {
+  // The FieldRow caption is a real `<label htmlFor>` over this id, so the title field
+  // has an accessible name (a caption rendered as a sibling label names nothing).
+  const titleId = React.useId();
   // Inline variable creation from the chart editor's binding controls.
   const createVariable = onVariablesChange
     ? (decl: VariableDecl): void => onVariablesChange([...variables, decl])
@@ -89,9 +92,11 @@ export function WidgetEditPanel({
       {widget.type !== "text" ? (
         <FieldRow
           label="Title"
+          htmlFor={titleId}
           hint={widget.type === "input" ? "Used as the field label." : "Shown in the widget header."}
         >
           <Input
+            id={titleId}
             value={widget.title ?? ""}
             placeholder="Untitled"
             onChange={(e) =>
