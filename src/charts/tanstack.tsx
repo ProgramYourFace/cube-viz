@@ -774,7 +774,7 @@ export interface CubeTooltipOpts {
    * Format one row's value; defaults to member-aware `format.value(v, member,
    * "tooltip")` using the row's own `member`.
    */
-  value?: (point: ChartPoint<SeriesRow, ChartValue, ChartValue>) => string;
+  value?: (row: SeriesRow) => string;
   /** percent stackMode: show each series' share of its category total. */
   percentShare?: boolean;
   /**
@@ -813,10 +813,8 @@ export function tooltipClassName(indicator?: TooltipOptions["indicator"]): strin
  */
 export function cubeTooltip(opts: CubeTooltipOpts) {
   const catFmt = opts.category ?? ((v: ChartValue) => opts.format.category(v as string | number));
-  const valueOf = (p: ChartPoint<SeriesRow, ChartValue, ChartValue>): string => {
-    if (opts.value) return opts.value(p);
-    return opts.format.value(p.datum.value, p.datum.member, "tooltip");
-  };
+  const valueOf = (row: SeriesRow): string =>
+    opts.value ? opts.value(row) : opts.format.value(row.value, row.member, "tooltip");
   return {
     use: tooltip,
     className: tooltipClassName(opts.indicator),
@@ -848,12 +846,12 @@ export function cubeTooltip(opts: CubeTooltipOpts) {
           totalled += 1;
         }
       }
-      const rows: ChartTooltipRow[] = entries.map((e, k) => ({
+      const rows: ChartTooltipRow[] = entries.map((e) => ({
         label: e.datum.label,
         value:
           opts.percentShare && total > 0 && typeof e.datum.value === "number"
             ? percentTick(e.datum.value / total, opts.locale)
-            : valueOf(points[k] ?? ({ datum: e.datum } as ChartPoint<SeriesRow, ChartValue, ChartValue>)),
+            : valueOf(e.datum),
         color: e.color,
       }));
       // A single-series tooltip's "total" would just repeat the one row (no swatch:

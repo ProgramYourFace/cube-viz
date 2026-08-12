@@ -83,6 +83,15 @@ export function BarChartFamily({
       ? buildStackedRows(data, barSeries, { normalize: percent })
       : buildSeriesRows(data, { series: barSeries });
     const tokenByLabel = new Map(data.series.map((s) => [seriesLabel(s), seriesColorVar(s)]));
+    // Category index → every row in it (the multi-stack tooltip's expansion).
+    const rowsByCategory = new Map<number, SeriesRow[]>();
+    if (multiStack) {
+      for (const r of rows) {
+        const bucket = rowsByCategory.get(r.i);
+        if (bucket) bucket.push(r);
+        else rowsByCategory.set(r.i, [r]);
+      }
+    }
     const axl = resolvedAxisLabels(data, options);
     // Visual-axis semantics (as before): for a horizontal bar the category sits
     // on Y and the value on X, so hide flags + scale options swap with it.
@@ -239,11 +248,19 @@ export function BarChartFamily({
               percentShare: percent && !multiStack,
               value:
                 percent && multiStack
-                  ? (p) => {
-                      const share = (p.datum as StackedRow).share;
+                  ? (r) => {
+                      const share = (r as StackedRow).share;
                       return typeof share === "number" ? percentTick(share) : "";
                     }
                   : undefined,
+              // A multi-stack mark groups by STACK, so grouped focus yields one point
+              // per stack; expand back to every series of the focused category.
+              expand: multiStack
+                ? (focused) => rowsByCategory.get(focused.i) ?? [focused]
+                : undefined,
+              colorOf: multiStack
+                ? (r) => tokenByLabel.get(r.label) ?? "var(--chart-1)"
+                : undefined,
               indicator: options.tooltip?.indicator,
               showTotal: options.tooltip?.showTotal,
             }),

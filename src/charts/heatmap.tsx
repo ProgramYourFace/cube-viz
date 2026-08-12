@@ -3,7 +3,15 @@ import { cell, defineChart, text, type ChartMark } from "@tanstack/charts";
 
 import type { ChartComponentProps } from "./types";
 import type { HeatmapFamilyOptions } from "./defaults";
-import { axisFormat, bandScale, cubeTooltip, CvChart, rowKeyFor, type SeriesRow } from "./tanstack";
+import {
+  axisFormat,
+  bandScale,
+  cubeTooltip,
+  CvChart,
+  decorativeMark,
+  rowKeyFor,
+  type SeriesRow,
+} from "./tanstack";
 
 /**
  * `heatmap` — a two-dimension × one-measure matrix drawn with the TanStack `cell`
@@ -142,14 +150,18 @@ export function HeatmapChartFamily({
 
     if (fo.showValues) {
       marks.push(
-        text(cells, {
-          id: "cv-heatmap-values",
-          x: "cat",
-          y: "label",
-          text: (c: HeatmapCell) => format.value(c.value, c.member, "label"),
-          fill: "currentColor",
-          fontSize: 10,
-        }),
+        // Decorative: the in-cell number restates the cell's own value, so it must
+        // not emit a second focus point (the tooltip would list the cell twice).
+        decorativeMark(
+          text(cells, {
+            id: "cv-heatmap-values",
+            x: "cat",
+            y: "label",
+            text: (c: HeatmapCell) => format.value(c.value, c.member, "label"),
+            fill: "currentColor",
+            fontSize: 10,
+          }),
+        ),
       );
     }
 
