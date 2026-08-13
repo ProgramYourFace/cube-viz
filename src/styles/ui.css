@@ -24,6 +24,20 @@
   color: var(--foreground);
 }
 
+/* `color-scheme` is inherited, so it reaches every descendant through
+   `display: contents`. It is what makes the UA-painted parts follow the mode —
+   scrollbars, native date/number spinners, form-control chrome, and the CSS
+   system colors (`Canvas` / `CanvasText`) that third-party widgets style
+   themselves with. Only set when the mode is EXPLICIT: under "system" the host
+   owns the selector and setting it here would fight the host. */
+.cv-root.dark {
+  color-scheme: dark;
+}
+
+.cv-root.cube-viz-light {
+  color-scheme: light;
+}
+
 /* ── Shared icon sizing (the old cv:size-4 on lucide icons) ──────────────── */
 .cv-icon {
   width: 1rem;

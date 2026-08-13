@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ArrowDown, ArrowUp, Check, X } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/components/ui/utils";
 import { useFamilyRegistry } from "@/provider";
 import type { ChartColorToken, ChartSpec } from "@/spec";
+import { granularityOptionsFor } from "@/variables";
 
 import { ColorTokenPicker } from "../../primitives/ColorTokenPicker";
 import { GranularityPicker } from "../../primitives/GranularityPicker";
@@ -14,15 +15,34 @@ import { Switch } from "../../primitives/SwitchRow";
 import { memberTypeIcon } from "../../primitives/MemberPicker";
 import type { MemberOption } from "../../primitives/meta-helpers";
 import type { WellDef } from "../builder/wells";
-import { chipBindings, type LineCurve } from "./chip-bindings";
+import { chipBindings } from "./chip-bindings";
 import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
 import { ValueBinding } from "../binding/ValueBinding";
 
+/**
+ * Reordering for a many-cardinality well. Order is meaningful — it is the series
+ * order (draw order, legend order, stack order) — so the pills ARE the control:
+ * you drag one to where it belongs, the same HTML5 pattern
+ * {@link MemberMultiPicker} already uses for its ordered list.
+ *
+ * The drag session is owned by the WELL, not the pill, because a drag is a
+ * conversation between two pills: the one being carried and the one it is over.
+ * Alt+↑/↓ does the same move from the keyboard, since a drag alone would put
+ * ordering out of reach for anyone not using a pointer.
+ */
 export interface PillReorder {
-  canUp: boolean;
-  canDown: boolean;
-  onUp: () => void;
-  onDown: () => void;
+  /** This pill's position in the well. */
+  index: number;
+  /** How many pills the well holds (the last one cannot move down). */
+  total: number;
+  /** True while THIS pill is the one being dragged. */
+  dragging: boolean;
+  onDragStart: () => void;
+  /** The pointer is over this pill mid-drag — the well moves the carried pill here. */
+  onDragOver: () => void;
+  onDragEnd: () => void;
+  /** Keyboard equivalent: move one slot up (-1) or down (+1). */
+  onMove: (delta: -1 | 1) => void;
 }
 
 export interface FieldPillProps {
@@ -42,13 +62,6 @@ export interface FieldPillProps {
   /** Compact (bottom-bar) vs. full (left strip). */
   className?: string;
 }
-
-const LINE_SHAPES: ReadonlyArray<readonly [LineCurve, string]> = [
-  ["monotone", "Smooth"],
-  ["linear", "Straight"],
-  ["step", "Step"],
-  ["natural", "Curved"],
-];
 
 /**
  * A placed-field token (on-chart). The body opens a context popover with every
@@ -81,21 +94,31 @@ export function FieldPill({
   const display = b.label || defaultLabel;
   const showSwatch = b.canColor && resolvedColor !== undefined;
   // Whether the field has anything to configure; if not, the pill is just a label + ×.
+  // Reordering is NOT config — it is the pill's own drag behaviour — so it does not
+  // count towards opening a popover.
   const hasConfig =
-    b.canRename ||
-    showSwatch ||
-    b.isTimeField ||
-    b.isCategoryField ||
-    b.canLineStyle ||
-    !!reorder;
+    b.canRename || showSwatch || b.isTimeField || b.isCategoryField || b.canPoints;
 
   const commitRename = (value: string): void => {
     const trimmed = value.trim();
     b.onRename(trimmed.length > 0 ? trimmed : undefined);
   };
 
+  // Alt+↑/↓ from the focused pill — the keyboard equivalent of dragging it.
+  const onReorderKey = (e: React.KeyboardEvent): void => {
+    if (!reorder || !e.altKey) return;
+    if (e.key === "ArrowUp" && reorder.index > 0) {
+      e.preventDefault();
+      reorder.onMove(-1);
+    } else if (e.key === "ArrowDown" && reorder.index < reorder.total - 1) {
+      e.preventDefault();
+      reorder.onMove(1);
+    }
+  };
+
   const inner = (
     <>
+      {reorder ? <GripVertical className="cv-field-pill-grip" aria-hidden /> : null}
       {showSwatch ? (
         <span
           className="cv-field-pill-swatch"
@@ -109,10 +132,45 @@ export function FieldPill({
     </>
   );
 
+  const reorderHint = reorder ? " · drag to reorder (Alt+↑/↓)" : "";
+
   return (
-    <div data-slot="field-pill" className={cn("cv-field-pill", className)}>
+    <div
+      data-slot="field-pill"
+      className={cn("cv-field-pill", reorder?.dragging && "cv-field-pill--dragging", className)}
+      // `draggable` on the WRAPPER makes the whole pill the drag source (the body is a
+      // button, and the nearest draggable ancestor is what the browser picks up), so
+      // there is no thin grip strip to hit — the grip icon is the affordance, not the
+      // target.
+      draggable={!!reorder}
+      onDragStart={reorder?.onDragStart}
+      onDragOver={
+        reorder
+          ? (e) => {
+              // Without preventDefault the element is not a valid drop target and the
+              // browser shows the "no drop" cursor over it.
+              e.preventDefault();
+              reorder.onDragOver();
+            }
+          : undefined
+      }
+      onDragEnd={reorder?.onDragEnd}
+      onKeyDown={reorder ? onReorderKey : undefined}
+    >
       {!hasConfig ? (
-        <span className="cv-field-pill-body" title={display}>
+        // Nothing to configure, but a reorderable pill still has to be REACHABLE for
+        // the keyboard move to exist at all — so it takes focus even without a popover.
+        <span
+          className="cv-field-pill-body"
+          title={`${display}${reorderHint}`}
+          {...(reorder
+            ? {
+                tabIndex: 0,
+                "aria-label": `${display}, position ${reorder.index + 1} of ${reorder.total}. Alt with arrow up or down to move.`,
+                "aria-keyshortcuts": "Alt+ArrowUp Alt+ArrowDown",
+              }
+            : {})}
+        >
           {inner}
         </span>
       ) : (
@@ -121,7 +179,10 @@ export function FieldPill({
           <button
             type="button"
             className="cv-field-pill-body cv-field-pill-trigger"
-            title={`Edit ${display}`}
+            title={`Edit ${display}${reorderHint}`}
+            {...(reorder
+              ? { "aria-keyshortcuts": "Alt+ArrowUp Alt+ArrowDown" }
+              : {})}
           >
             {inner}
           </button>
@@ -172,7 +233,14 @@ export function FieldPill({
                     value={b.granularity}
                     onChange={b.onGranularity}
                     renderFixed={(g, set) => (
-                      <GranularityPicker value={g} onChange={set} className="cv-ec-h8 cv-ec-full" />
+                      <GranularityPicker
+                        value={g}
+                        onChange={set}
+                        // Same rail as the KPI trend: only buckets that divide the date
+                        // range set right above into a readable number of points.
+                        options={granularityOptionsFor(b.dateRange)}
+                        className="cv-ec-h8 cv-ec-full"
+                      />
                     )}
                   />
                 </div>
@@ -247,57 +315,11 @@ export function FieldPill({
               </>
             ) : null}
 
-            {b.canLineStyle ? (
-              <>
-                <div className="cv-ec-field cv-ec-field--loose">
-                  <span className="cv-ec-label">Line shape</span>
-                  <div className="cv-line-shape-grid">
-                    {LINE_SHAPES.map(([v, lbl]) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => b.onCurve(v)}
-                        className={cn(
-                          "cv-line-shape-option",
-                          (b.curve ?? "monotone") === v && "cv-line-shape-option--active",
-                        )}
-                      >
-                        {lbl}
-                        {(b.curve ?? "monotone") === v ? <Check className="cv-ec-icon--sm" /> : null}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <label className="cv-ec-row" htmlFor={dotsId}>
-                  <span className="cv-ec-label">Show points</span>
-                  <Switch id={dotsId} checked={b.dots === true} onChange={b.onDots} aria-label="Show points" />
-                </label>
-              </>
-            ) : null}
-
-            {reorder ? (
-              <div className="cv-field-pill-reorder">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="cv-ec-h8 cv-ec-flex1"
-                  disabled={!reorder.canUp}
-                  onClick={reorder.onUp}
-                >
-                  <ArrowUp className="cv-ec-icon" />
-                  Up
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="cv-ec-h8 cv-ec-flex1"
-                  disabled={!reorder.canDown}
-                  onClick={reorder.onDown}
-                >
-                  <ArrowDown className="cv-ec-icon" />
-                  Down
-                </Button>
-              </div>
+            {b.canPoints ? (
+              <label className="cv-ec-row" htmlFor={dotsId}>
+                <span className="cv-ec-label">Show points</span>
+                <Switch id={dotsId} checked={b.dots === true} onChange={b.onDots} aria-label="Show points" />
+              </label>
             ) : null}
 
             <Button

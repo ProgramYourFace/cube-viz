@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GranularitySchema, type Granularity } from "@/spec";
+import { bindingSummary } from "../chart/binding/variable-binding";
 
 const ALL_GRANULARITIES = GranularitySchema.options;
 
@@ -21,6 +22,17 @@ const GRANULARITY_LABELS: Record<Granularity, string> = {
   quarter: "Quarter",
   year: "Year",
 };
+
+/**
+ * How a granularity slot reads when COLLAPSED (a popover trigger's summary).
+ * The value may be a literal granularity or a `{var}` binding, so it goes through
+ * {@link bindingSummary} — which is what keeps a bound value from reaching JSX as a
+ * raw object and crashing the editor. Literals get their proper display name.
+ */
+export function granularitySummary(value: unknown, none = "None"): string {
+  const summary = bindingSummary(value, none);
+  return GRANULARITY_LABELS[summary as Granularity] ?? summary;
+}
 
 export interface GranularityPickerProps {
   value?: Granularity;
@@ -60,10 +72,24 @@ export function GranularityPicker({
   id,
   className,
 }: GranularityPickerProps): React.ReactElement {
-  const list = options && options.length > 0 ? options : ALL_GRANULARITIES;
+  const narrowed = options && options.length > 0 ? options : ALL_GRANULARITIES;
+  // The CURRENT value always appears, even when it falls outside the narrowed set —
+  // a stored spec may hold a bucket set before the range shrank, and dropping it from
+  // the list would leave the trigger showing a placeholder over a value that is really
+  // there. Narrowing steers the next choice; it does not hide the present one.
+  const list =
+    value && !narrowed.includes(value)
+      ? [...narrowed, value].sort(
+          (a, b) => ALL_GRANULARITIES.indexOf(a) - ALL_GRANULARITIES.indexOf(b),
+        )
+      : narrowed;
   return (
     <Select
-      value={value ?? (allowNone ? NONE : undefined)}
+      // Always a string: `undefined` would make Radix treat the select as
+      // UNCONTROLLED until a value arrives, and React warns the moment it flips
+      // ("changing from uncontrolled to controlled"). "" is Radix's own
+      // show-the-placeholder value (only ITEM values may not be empty).
+      value={value ?? (allowNone ? NONE : "")}
       onValueChange={(v) => onChange(v === NONE ? undefined : (v as Granularity))}
       disabled={disabled}
     >

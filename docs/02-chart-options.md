@@ -121,7 +121,7 @@ interface LineFamilyOptions {
 
 | Spec input | Translation |
 |---|---|
-| multi-series | one `lineY` mark per `NormalizedSeries` (rows built per series via `buildSeriesRows`) — which is what lets a per-series `meta.curve` / `meta.dots` win over the family default |
+| multi-series | one `lineY` mark per `NormalizedSeries` (rows built per series via `buildSeriesRows`) — which is what lets a per-series `meta.dots` win over the family default |
 | `chrome:"none"` (sparkline) | axes/grid/guides/legend/tooltip off, `margin: 4`, compact aspect via `cv-chart--sparkline` |
 | `connectNulls` | `skipNull` row filtering (true) — otherwise null rows break the line |
 | single data point | forced visible point so a one-bucket series degrades gracefully instead of rendering nothing |
@@ -182,8 +182,7 @@ interface AreaFamilyOptions {
 Point markers come from `dots` (or a per-series `meta.dots`, which the field pill's
 "Show points" switch writes) as their own `dot` mark, since `areaY` has no `points`
 option — which is also what lets a stacked dot sit on its segment's top rather than at
-its raw value. A per-series `meta.curve` applies in overlap mode (each series owns a
-mark) but not inside a stack (§7.10).
+its raw value. `curve` is chart-level and applies in every stack mode (§7.10).
 
 When the spec sets no `stackMode`, the area family defaults it **shape-awarely**: a color-split pivot stacks (parts of a whole); multiple independent measures overlap instead of summing into a misleading band. `orientation` is ignored (areas are time-series-vertical only).
 
@@ -212,7 +211,17 @@ Pie uses `mapping.category` as the slice dimension and **one** measure (`mapping
 | `innerRadiusPct:0` | full pie (`radialArc` from center) |
 | `innerRadiusPct:60` | donut (`radialArc` with 60% inner radius) |
 | per-slice color | color scale `domain` = slice labels, `range` = `var(--chart-N)` by post-rollup slice index |
+| `showLabels` | `radialText` OUTSIDE the arc (`anchor: "outside"`, +6px past the edge); the arc gives up `LABEL_RING` (26%) of the layout radius to make room, and slices under 3% go unlabelled |
 | `centerLabel` | `radialText` in the donut hole |
+
+**Why the labels are outside.** Inside a slice, a label is drawn over whatever colour
+that slice happens to be: legible on the light half of the ramp, not on the dark half,
+and never on both in light *and* dark mode. Outside, every label sits on the chart
+background, so one text colour reads for all of them. `anchor: "outside"` is TanStack's
+own angle-aware anchoring — start on the right half, end on the left — so labels grow
+away from the pie instead of back across the slice they belong to. Slivers are skipped
+because their labels land on their neighbours'; the slice keeps its legend entry and
+its tooltip, so nothing is hidden, only uncrowded.
 
 ---
 
@@ -392,7 +401,7 @@ interface SeriesRow {
 - `annotationToAxis` / `categoryScale` / `categoryChannel` / `categoryLabeler` — the temporal category axis (§2.2): detect it from the annotation + the categories, then pick `scaleUtc` vs `pointScale`, the `t` vs `cat` channel, and the bucket-round-tripping tick formatter. Returns `null` for every non-temporal chart, so bars/heatmaps and non-date categories are untouched.
 - `useTemporalBrush` — the controlled `brushX` range selector (below), mounted only on a temporal axis and only when a host supplied an `onRangeSelect` somewhere up the tree. Returns a **memoized** `ChartControl[]` (or `undefined`) that a family drops into `defineChart({ controls })` and into that definition's deps.
 - `resolvePointSelection` — clicked `ChartPoint` → the Cube member + raw value it stands for (below).
-- `chartCurve` / `seriesCurve` / `seriesDots` — cube-viz curve name → TanStack curve contract (via `d3-shape`), and the per-series resolution of `meta.curve` / `meta.dots` over the family default (unit-tested in `src/charts/options-honored.test.ts`).
+- `chartCurve` / `seriesDots` — cube-viz curve name → TanStack curve contract (via `d3-shape`), and the per-series resolution of `meta.dots` over the family default (unit-tested in `src/charts/options-honored.test.ts`). There is no `seriesCurve`: shape is chart-level as of spec v5 (§7.10).
 - `stackIdOf` / `stackGroups` / `buildStackedRows` — the per-series `meta.stackId` model: group series into stacks, and (for a multi-stack bar) pre-compute each segment's `[y1,y2]` interval and its within-stack share.
 - `axisFormat` — the per-axis `tickFormat` re-bind (`ChartFormat.derive`), so an axis' ticks can carry their own FormatOptions without touching the chart-level formatter.
 - `decorativeMark` — strips a mark's interaction points (labels/annotations paint, but never join focus, the tooltip or click-select).
@@ -660,7 +669,7 @@ dropped).
 | `mapping.series.meta.label` | honored (measures mode) · partial (pivot) | in a pivot, per-measure meta renames the MEASURE half of a multi-measure label; a single-measure pivot's series are named by their pivot value — see §7.6 |
 | `mapping.series.meta.colorToken` | honored (measures mode) · unsupported (pivot) | see §7.6 |
 | `mapping.series.meta.stackId` | honored (bar, area) | bar: one side-by-side stack per distinct id; area: one overlaid stack per id. Was DEAD from the migration until the 2026-08 audit |
-| `mapping.series.meta.curve` | honored where a series owns its mark (line, area overlap, companions) | a STACKED area draws a whole stack from one mark, so its curve is the family's — see §7.10 |
+| `mapping.series.meta.curve` | REMOVED in spec v5 — promoted to `familyOptions.curve` | it was ignored in stacked areas and unavailable on color-split charts; see §7.10 |
 | `mapping.series.meta.dots` | honored (line, area) | area point markers are a separate `dot` mark (`areaY` has no `points`); on a stacked area they sit on the segment top |
 
 > **Removed in v3:** `mapping.series.meta.format` (no surface read it — formatting is
@@ -819,12 +828,18 @@ icon, the honest surface is a host family or a widget-chrome slot, not a string 
   shared baseline (what Recharts drew); the translucent fill is what keeps them
   readable. Nothing in the grammar offsets them sideways — areas have no band.
 
-### 7.10 A stacked area's curve is per STACK, not per series
+### 7.10 Line shape is a property of the CHART (spec v5)
 
 `stackMode: "stacked" | "percent"` draws one `areaY` mark per stack, and a mark has a
-single `curve`. So a per-series `meta.curve` applies wherever a series owns its mark
-(line, overlap-mode area, previous-period companions) and is ignored inside a stack,
-where the family curve wins. Splitting one mark per series inside a stack would mean
-computing the stack offsets by hand and giving up the mark's own stacking — the same
-trade the multi-`stackId` bar makes, but for a shape choice rather than a layout that
-is otherwise impossible to express.
+single `curve`. A per-series shape therefore *cannot* be honored inside a stack —
+splitting one mark per series there would mean computing the stack offsets by hand and
+giving up the mark's own stacking. A color-split (pivot) chart is worse still: its
+series are data-driven, so there is no per-measure `meta` for a picker to write to, and
+the control was not even offered.
+
+That left a per-series `meta.curve` working only in the arrangements nobody was asking
+about it in, and doing nothing in the two people actually use. So the shape moved up:
+`familyOptions.curve` on `line`/`area`, one segmented control in the chart's Options,
+honored by every mark in every mode. The v4 → v5 migration promotes the first series'
+stored curve. Per-series `dots` did NOT move — a dot is its own mark, one per series,
+so it is honorable exactly where it is offered.

@@ -646,21 +646,6 @@ export function valueScale(axis?: AxisOptions): {
 export type CurveName = "linear" | "monotone" | "step" | "natural";
 
 /**
- * The curve a SERIES draws with: its own `meta.curve` (what the field pill's line-shape
- * picker writes) wins over the family default. Resolved as a NAME so the choice is
- * unit-testable without touching the renderer; pass the result to {@link chartCurve}.
- *
- * Only families that give each series its OWN mark can honor this — a single stacked
- * mark draws every series with one curve (see the area family).
- */
-export function seriesCurve(
-  series: Pick<NormalizedSeries, "meta">,
-  familyCurve?: CurveName,
-): CurveName | undefined {
-  return (series.meta?.curve as CurveName | undefined) ?? familyCurve;
-}
-
-/**
  * Whether a SERIES draws point markers: its own `meta.dots` (the field pill's "Show
  * points" switch) wins over the family `dots`. `"active"` (line's default) means
  * hover-only, so it is NOT a static point.

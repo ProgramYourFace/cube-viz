@@ -1,8 +1,8 @@
-This is a design/writing task with no code dependencies, and the grounded research findings give me everything I need. I'll produce the markdown design section directly.
-
 # cube-viz Spec Schema & Variable Binding Model
 
-> **Status:** Stable contract, **`SCHEMA_VERSION` 4** (2026-08). This is the library-agnostic source of truth that every other cube-viz layer (renderer, editor, adapter, preview server) builds on. Library-specific concerns (the chart renderer — `@tanstack/charts` since 2026-08, formerly Recharts — react-grid-layout, TipTap) never leak into the spec.
+> **Status:** Stable contract, **`SCHEMA_VERSION` 5** (2026-08). This is the library-agnostic source of truth that every other cube-viz layer (renderer, editor, adapter, preview server) builds on. Library-specific concerns (the chart renderer — `@tanstack/charts` since 2026-08, formerly Recharts — react-grid-layout, TipTap) never leak into the spec.
+>
+> **v4 → v5 (breaking):** line shape stopped being a per-series setting. `mapping.series.meta[member].curve` is gone; the chart says its shape once, as `familyOptions.curve` on `line`/`area`. Per-series was never honorable across the board — a stacked or 100% area draws a whole stack from a *single* mark, so that mark has exactly one curve, and a color-split (pivot) chart has no per-measure `meta` for a picker to write to at all. The control existed and silently did nothing in precisely the arrangements people reached for it in. The migration promotes the **first** series' curve to the family option (the options are mutually exclusive once they are chart-level, and the first series' shape is the one that read as the chart's) and drops it from a family whose schema has no `curve`. Per-series `dots` stays: each series has its own `dot` mark, so that one really does apply per series.
 >
 > **v3 → v4 (breaking):** the spec stopped carrying APPEARANCE. Ten mark-geometry options — `barRadius`, `barCategoryGap`, `barGap`, `maxBarSize`, `fillOpacity`, `strokeWidth` (line + area), `padAngle`, `cornerRadius`, `outerRadiusPct`, `sizeRange` — moved to the host's `CubeVizProvider` theme as `theme.marks` (see `src/charts/theme.ts`), and `pie.maxSlices`, `table.{sortable,stickyHeader,rowHeight,showRowNumbers}` and `heatmap.showValues` became fixed behavior or data-driven defaults. `axes.*.labelHide` is gone too: an axis title is now said entirely by `label`, where `""` means no title. **This migration is not pixel-preserving** — a spec that had customized its geometry adopts the app default, which is the point: appearance is a property of the product, set once, and every one of these was a question with no wrong answer put in front of someone trying to ask something about their data.
 >
@@ -29,9 +29,10 @@ These constrain every decision below:
 cube-viz has exactly **three persistable top-level kinds**, discriminated by a `kind` literal. `WidgetSpec` is itself a nested discriminated union of three widget types.
 
 ```ts
-type SpecVersion = 4; // integer, bumped only on breaking shape changes. 2 = combo/dual-axis
+type SpecVersion = 5; // integer, bumped only on breaking shape changes. 2 = combo/dual-axis
                       // removal + heatmap; 3 = never-rendered options removed;
-                      // 4 = appearance left the spec for the host theme
+                      // 4 = appearance left the spec for the host theme;
+                      // 5 = per-series line shape became a chart-level option
 
 interface SpecMeta {
   schemaVersion: SpecVersion;   // REQUIRED on every persisted top-level spec
@@ -110,10 +111,11 @@ interface InputWidget extends WidgetBase {
 
   Migrations run *before* zod parsing so old shapes are repaired, then proven valid against the current schema. A spec with `schemaVersion > CURRENT_VERSION` is rejected (the host is older than the file). This keeps stored specs immutable on disk until re-saved, but always loadable.
 
-  Two migrations are registered (`src/spec/migrate.ts`), and `loadSpec` walks them in
-  order — a v1 spec runs through **both**, which is what `migrate.test.ts` pins:
+  Four migrations are registered (`src/spec/migrate.ts`), and `loadSpec` walks them in
+  order — a v1 spec runs through **all of them**, which is what `migrate.test.ts` pins:
 
   - **v1 → v2**: combo widgets are rewritten to `bar`/`line` (bar when any combo series rendered bars; per-series `colorToken`s carried onto measures-mode `mapping.series.meta` where representable; the rest of the combo `familyOptions` dropped so the new family's defaults win), and the dual-axis remnants — `axes.y2`, `mapping.series.meta[member].axis`, reference-line `side` — are stripped wherever a chart-options object lives.
+  - **v4 → v5**: `mapping.series.meta[member].curve` is lifted to `familyOptions.curve` on `line`/`area` (first series wins; an explicit family-level curve is never overwritten), and dropped entirely on any other family — promoting a `curve` onto a `bar` would fail the strict parse that follows, turning the repair into the breakage it exists to prevent. A series whose `meta` held nothing else loses the `meta` entry.
   - **v3 → v4**: the mark-geometry keys are deleted per family (`GEOMETRY_BY_FAMILY`), along with the table/heatmap switches that became fixed behavior, and `axes.*.labelHide: true` is rewritten to `label: ""`. Stored geometry values are DISCARDED rather than promoted into the theme — the theme is app-wide, so honoring one chart's `barRadius: 12` would restyle every other chart on the dashboard.
   - **v2 → v3**: the five never-rendered options are removed — `mapping.series.meta[member].format` and `familyOptions.{shape (scatter), icon (kpi)}` are deleted, `legend.position: left|right` becomes `"bottom"`, and a half-`"auto"` `axes.{x,y}.domain` is dropped (an emptied `axes` object goes with it). Nothing here changes what a chart draws — each rewrite states what the renderer was already doing.
 
@@ -276,11 +278,13 @@ interface SeriesMeta {
   label?: string;               // overrides annotation().shortTitle
   colorToken?: ChartColorToken; // "chart-1".."chart-5" (§3.4)
   stackId?: string;             // same id ⇒ stacked together (only when stackMode demands)
-  curve?: "linear" | "monotone" | "step" | "natural"; // per-series line shape (line/area)
   dots?: boolean;               // per-series point markers (line/area)
   // (v1 had `axis?: "left" | "right"` for dual-axis; removed in v2 — the migration strips it)
   // (v2 had `format?: FormatOptions`; removed in v3 — nothing read it, and series on one
   //  value axis share that axis' unit. Format per AXIS or per COLUMN instead.)
+  // (v4 had `curve?: "linear"|"monotone"|"step"|"natural"`; removed in v5 — a stacked
+  //  area draws one mark per STACK and a pivot chart has no per-measure meta, so the
+  //  setting could not be honored where it was wanted. It is `familyOptions.curve` now.)
 }
 ```
 
@@ -570,7 +574,7 @@ Two measures plotted side-by-side per day, vertical grouped bars, real member na
 
 ```json
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "kind": "chart",
   "id": "chart_trips_by_day",
   "name": "Distance vs Idle by Day",
@@ -617,7 +621,7 @@ A date-range Input writes the `dateRange` variable; both charts read it via `{va
 
 ```json
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "kind": "dashboard",
   "id": "dash_fleet_utilization",
   "name": "Fleet Utilization",
@@ -725,4 +729,4 @@ A date-range Input writes the `dateRange` variable; both charts read it via `{va
 | Adapter | `{ categories, series:[{key,label,data,colorToken,meta}], raw, empty }` | Single boundary; swapping the chart library touches only the renderer |
 | RLS | **not in the spec** — JWT `securityContext.{systemIds,roles}` | Authors can never widen tenant scope |
 
-This is the stable contract, at `SCHEMA_VERSION` 4. The chart-options layer fills `familyOptions` per family; the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks; the editor and preview server author and validate `Spec` objects. None of those layers can alter the shape above without a `schemaVersion` bump — v2 (combo/dual-axis), v3 (never-rendered options) and v4 (appearance → host theme) are the precedents, and all three are *removals*. **Optional additions are not alterations:** `chart.transform` (§3.6) joined the envelope after v2 shipped and left every stored v2 spec valid, so the version did not move for it.
+This is the stable contract, at `SCHEMA_VERSION` 5. The chart-options layer fills `familyOptions` per family; the renderer maps `NormalizedChartData` + `ChartOptions` onto `@tanstack/charts` marks; the editor and preview server author and validate `Spec` objects. None of those layers can alter the shape above without a `schemaVersion` bump — v2 (combo/dual-axis), v3 (never-rendered options), v4 (appearance → host theme) and v5 (per-series line shape → chart-level) are the precedents, and all four are *removals*. **Optional additions are not alterations:** `chart.transform` (§3.6) joined the envelope after v2 shipped and left every stored v2 spec valid, so the version did not move for it.

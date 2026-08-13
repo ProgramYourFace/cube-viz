@@ -4,7 +4,9 @@ import { CalendarRange, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { ChartSpec, DateRange, Granularity, TimeDimension, VarRef } from "@/spec";
+import { granularityOptionsFor } from "@/variables";
 
+import { EditorErrorBoundary } from "../../primitives/EditorErrorBoundary";
 import { FieldRow } from "../../primitives/FieldRow";
 import { GranularityPicker } from "../../primitives/GranularityPicker";
 import { MemberPicker } from "../../primitives/MemberPicker";
@@ -48,7 +50,10 @@ export function KpiSectionPopover({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="cv-kpi-section-popover">
-        {children}
+        {/* Each section is independently guarded: a control that chokes on the value
+            it was given reports itself HERE, next to the knob that holds that value,
+            instead of unmounting the editor and the dashboard around it. */}
+        <EditorErrorBoundary label={label}>{children}</EditorErrorBoundary>
       </PopoverContent>
     </Popover>
   );
@@ -254,6 +259,11 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
   const sparkline = fo.sparkline as { granularity?: Granularity | VarRef } | undefined;
   const sparkOn = sparkline !== undefined;
   const granularity = sparkline?.granularity;
+  // Only offer buckets that divide THIS KPI's date range into something readable.
+  // "Second" over a four-week range is 2.4 million buckets — a query that hangs or is
+  // refused, reached by picking a plainly-offered option. The rail is the option list,
+  // not a warning after the fact. An unknown or variable-bound range narrows nothing.
+  const bucketOptions = granularityOptionsFor(spec.query.timeDimensions?.[0]?.dateRange);
 
   /**
    * The bucket picker IS the on/off switch: no bucket, no trend. A separate "Show
@@ -279,6 +289,7 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
                 id={id}
                 value={g}
                 onChange={set}
+                options={bucketOptions}
                 allowNone
                 noneLabel="No trend"
                 className="cv-ec-h8 cv-ec-full"

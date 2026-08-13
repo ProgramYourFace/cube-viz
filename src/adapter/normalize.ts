@@ -206,7 +206,6 @@ function resolveSeriesMeta(
   if (format) out.format = format;
 
   if (specMeta?.stackId) out.stackId = specMeta.stackId;
-  if (specMeta?.curve) out.curve = specMeta.curve;
   if (specMeta?.dots !== undefined) out.dots = specMeta.dots;
 
   return out;

@@ -24,6 +24,9 @@ export interface CustomizeSectionProps {
 
 type StackChoice = "none" | "stacked" | "percent";
 
+/** The line/area shape choices — the spec's `familyOptions.curve`. */
+type LineCurve = "linear" | "monotone" | "step" | "natural";
+
 /** The "Compare" select's options — the three presentation transforms, plus off. */
 type TransformChoice = "none" | TransformKind;
 
@@ -146,6 +149,30 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
     </>
   ) : null;
 
+  /**
+   * Line shape, for line AND area. It is a CHART-level setting, not a per-series one:
+   * a stacked or 100% area draws a whole stack from a single mark (one curve for all
+   * of it), and a color-split chart has no per-measure meta to hang a shape on — so
+   * the per-series picker this replaces did nothing in exactly the arrangements
+   * people reach for it in. One control, honored in every mode.
+   */
+  const ShapeControl = (
+    <FieldRow label="Line shape">
+      <SegmentedControl<LineCurve>
+        aria-label="Line shape"
+        size="sm"
+        options={[
+          { value: "monotone", label: "Smooth" },
+          { value: "linear", label: "Straight" },
+          { value: "step", label: "Step" },
+          { value: "natural", label: "Curved" },
+        ]}
+        value={(fo.curve as LineCurve | undefined) ?? "monotone"}
+        onChange={(v) => setFamilyOptions({ curve: v })}
+      />
+    </FieldRow>
+  );
+
   const StackControl = (
     <FieldRow label="Stacked">
       <SegmentedControl<StackChoice>
@@ -177,14 +204,15 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
           </>
         );
 
-      // Line shape + points are now per-measure (the field-pill popover), so a line
-      // chart needs no type-level options at all.
+      // Point markers stay per-measure (the field-pill popover) — each series has its
+      // own dot mark, so that one genuinely applies per series.
       case "line":
-        return null;
+        return ShapeControl;
 
       case "area":
         return (
           <>
+            {ShapeControl}
             {StackControl}
             {chart.stackMode === undefined ? (
               <p className="cv-ec-hint cv-customize-hint">

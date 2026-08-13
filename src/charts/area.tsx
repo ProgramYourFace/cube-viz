@@ -22,7 +22,6 @@ import {
   resolvedAxisLabels,
   seriesColor,
   seriesColorVar,
-  seriesCurve,
   seriesDots,
   seriesLabel,
   seriesMember,
@@ -133,9 +132,6 @@ export function AreaChartFamily({
             color: "label",
             // "i" alone collides across series inside a single multi-series mark.
             key: (r: SeriesRow) => `${r.key}:${r.i}`,
-            // STACKED draws a whole stack from a single mark, so the shape is a
-            // property of that stack — a per-series `meta.curve` cannot apply
-            // here (it does in overlap mode, where each series has its own mark).
             curve,
             fillOpacity,
             // Boundary stroke; evaluated from each z-group's first row → per-series color.
@@ -159,9 +155,7 @@ export function AreaChartFamily({
             z: "label",
             color: "label",
             key: "i",
-            // Per-series shape (the field pill's picker writes `meta.curve`) wins
-            // over the family default wherever the series has its own mark.
-            curve: chartCurve(seriesCurve(s, curveName)),
+            curve,
             fill: `url(#${gradientId(s.key)})`,
             // The gradient stops already carry the intended ramp, but areaY
             // defaults `fillOpacity` to 0.2 and MULTIPLIES it in — which divided
@@ -188,7 +182,7 @@ export function AreaChartFamily({
           z: "label",
           color: "label",
           key: "i",
-          curve: chartCurve(seriesCurve(s, curveName)),
+          curve,
           strokeWidth,
           strokeDasharray: "5 4",
           strokeOpacity: 0.55,

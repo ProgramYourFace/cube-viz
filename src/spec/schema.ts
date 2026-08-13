@@ -8,7 +8,7 @@ import { z } from "zod";
  * See docs/01-spec-schema.md for the full rationale.
  */
 
-export const SCHEMA_VERSION = 4 as const;
+export const SCHEMA_VERSION = 5 as const;
 
 /* ────────────────────────── variable reference token ────────────────────── */
 
@@ -195,8 +195,11 @@ export const SeriesMetaSchema = z
     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
     stackId: z.string().optional(),
-    /** Per-series line shape (line/area) — overrides the family default. */
-    curve: z.enum(["linear", "monotone", "step", "natural"]).optional(),
+    // NOTE — there is deliberately no per-series `curve`. Line shape is a property of
+    // the CHART (`familyOptions.curve`): a stacked/percent area draws a whole stack
+    // from one mark, and a color-split chart has no per-measure meta at all, so a
+    // per-series shape was ignored in exactly the cases users reached for it.
+    // Removed in v5 (promoted to the family option by the migration).
     /** Per-series point markers (line/area) — overrides the family default. */
     dots: z.boolean().optional(),
     // NOTE — there is deliberately no per-series `format`. Numbers on ONE value axis

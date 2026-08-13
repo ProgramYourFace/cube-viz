@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartSpec } from "@/spec";
 
+import { EditorErrorBoundary } from "../../primitives/EditorErrorBoundary";
 import type { MemberOption } from "../../primitives/meta-helpers";
 import { placementBlockReason, wellAccepts } from "../builder/channels";
 import type { FieldKind, WellDef } from "../builder/wells";
@@ -86,6 +87,11 @@ export function WellGroup({
   const total = placed.length;
   const vertical = orientation === "vertical";
   const groupLabel = label ?? well.label;
+  // Order is meaningful only where a well holds several fields at once.
+  const reorderable = many && total > 1 && !disableReorder;
+  // The in-flight drag lives on the WELL: it is the only thing that sees both the
+  // pill being carried and the pill it is over.
+  const [dragIndex, setDragIndex] = React.useState<number | null>(null);
 
   // What this slot takes, in the SAME words the picker uses to refuse a field
   // ("Category takes a date or category"), so the add button and the greyed-out rows
@@ -149,31 +155,48 @@ export function WellGroup({
 
       {control ? <div className="cv-well-control">{control}</div> : null}
 
-      <div className={cn("cv-well-fields", vertical ? "cv-well-fields--v" : "cv-well-fields--h")}>
-        {placed.map((member, i) => (
-          <FieldPill
-            key={member}
-            spec={spec}
-            update={update}
-            well={well}
-            member={member}
-            option={optionFor(member)}
-            resolvedColor={colorFor(member)}
-            className={vertical ? "cv-field-pill--full" : undefined}
-            reorder={
-              many && total > 1 && !disableReorder
-                ? {
-                    canUp: i > 0,
-                    canDown: i < total - 1,
-                    onUp: () => update(reorderWell(spec, well, i, i - 1)),
-                    onDown: () => update(reorderWell(spec, well, i, i + 1)),
-                  }
-                : undefined
-            }
-          />
-        ))}
-        {showAdd ? addSlot : null}
-      </div>
+      {/* One well is a self-contained thought, so it is also the unit of failure:
+          a pill that cannot render its field's options says so here, and the other
+          wells (and the chart) keep working. */}
+      <EditorErrorBoundary label={groupLabel} resetKey={spec}>
+        <div className={cn("cv-well-fields", vertical ? "cv-well-fields--v" : "cv-well-fields--h")}>
+          {placed.map((member, i) => (
+            <FieldPill
+              key={member}
+              spec={spec}
+              update={update}
+              well={well}
+              member={member}
+              option={optionFor(member)}
+              resolvedColor={colorFor(member)}
+              className={vertical ? "cv-field-pill--full" : undefined}
+              reorder={
+                reorderable
+                  ? {
+                      index: i,
+                      total,
+                      dragging: dragIndex === i,
+                      onDragStart: () => setDragIndex(i),
+                      // Live reorder: the list rearranges UNDER the pointer as it
+                      // passes each neighbour, so the drop is just letting go of
+                      // what you already see. `dragIndex` follows the carried pill
+                      // to its new slot, which is what makes the next crossing
+                      // compare against the right position.
+                      onDragOver: () => {
+                        if (dragIndex === null || dragIndex === i) return;
+                        update(reorderWell(spec, well, dragIndex, i));
+                        setDragIndex(i);
+                      },
+                      onDragEnd: () => setDragIndex(null),
+                      onMove: (delta) => update(reorderWell(spec, well, i, i + delta)),
+                    }
+                  : undefined
+              }
+            />
+          ))}
+          {showAdd ? addSlot : null}
+        </div>
+      </EditorErrorBoundary>
 
       {startHint ? <p className="cv-ec-hint cv-well-start-hint">{startHint}</p> : null}
 

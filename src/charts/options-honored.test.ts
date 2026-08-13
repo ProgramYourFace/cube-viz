@@ -9,7 +9,6 @@ import {
   axisFormat,
   buildStackedRows,
   referenceLineMarks,
-  seriesCurve,
   seriesDots,
   stackGroups,
   stackIdOf,
@@ -40,22 +39,7 @@ function chartData(
   return { categories, series: s, raw: { rows: [], query: {} }, empty: false };
 }
 
-/* ─────────────────────── per-series shape + point markers ─────────────────── */
-
-describe("seriesCurve (per-series meta.curve)", () => {
-  it("prefers the series' own curve over the family default", () => {
-    expect(seriesCurve(series("a", [], { curve: "step" }), "monotone")).toBe("step");
-  });
-
-  it("falls back to the family curve when the series has none", () => {
-    expect(seriesCurve(series("a", []), "monotone")).toBe("monotone");
-    expect(seriesCurve(series("a", [], {}), "linear")).toBe("linear");
-  });
-
-  it("is undefined (straight segments) when neither is set", () => {
-    expect(seriesCurve(series("a", []), undefined)).toBeUndefined();
-  });
-});
+/* ───────────────────────────── point markers ──────────────────────────────── */
 
 describe("seriesDots (per-series meta.dots)", () => {
   it("lets a series turn points on over a family default of off", () => {

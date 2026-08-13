@@ -10,6 +10,7 @@ import type { ChartSpec } from "@/spec";
 
 import { ChartEditOverlay } from "./chart/onchart/ChartEditOverlay";
 import { useChartEditorState } from "./chart/useChartEditorState";
+import { EditorErrorBoundary } from "./primitives/EditorErrorBoundary";
 
 /**
  * ChartEditor (docs/03 §A3.1, docs/05) — the JSON-in / JSON-out chart editor. It takes
@@ -161,9 +162,16 @@ export function ChartEditor({
       ) : null}
 
       <div className="cv-chart-editor-preview">
-        <ChartEditOverlay spec={draft} update={update} toolbar={toolbar}>
-          {preview}
-        </ChartEditOverlay>
+        {/* Last line of containment for the authoring surface. The individual config
+            popovers guard themselves, but the strips, pills and summaries around them
+            are also code reading a spec that may hold a shape they did not expect —
+            and without this, one of those throwing takes the entire dashboard with it.
+            Keyed on the draft so any edit retries the render. */}
+        <EditorErrorBoundary label="The chart editor" resetKey={draft}>
+          <ChartEditOverlay spec={draft} update={update} toolbar={toolbar}>
+            {preview}
+          </ChartEditOverlay>
+        </EditorErrorBoundary>
       </div>
     </div>
   );

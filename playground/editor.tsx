@@ -149,11 +149,41 @@ const SEED_KPI: ChartSpec = {
   },
 } as ChartSpec;
 
+/**
+ * A FIFTH seed, `?seed=kpi-bound`: the same KPI with its trend bucket and date range
+ * BOUND TO VARIABLES rather than set to literals.
+ *
+ * This is a regression seed, not a demo. Binding the trend used to take the whole
+ * dashboard down: the config strip printed the bucket by casting it to a string, a
+ * `{var}` is an object, and React refuses an object as a child. The spec kept the
+ * binding, so every reload crashed again and the board could not be edited back to a
+ * working state. Rendering this seed at all is the check.
+ */
+const SEED_KPI_BOUND: ChartSpec = {
+  ...SEED_KPI,
+  id: "chart_fleet_kpi_bound",
+  // No `variables` here — a ChartSpec has none (they are declared on the DASHBOARD
+  // that hosts the chart). What matters for this seed is the BINDING TOKENS below,
+  // which is what a chart carries either way.
+  query: {
+    measures: ["trips.total_distance"],
+    timeDimensions: [{ dimension: "trips.start_time", dateRange: { var: "range" } }],
+  },
+  chart: {
+    ...SEED_KPI.chart,
+    familyOptions: {
+      ...SEED_KPI.chart.familyOptions,
+      sparkline: { granularity: { var: "bucket" } },
+    },
+  },
+} as ChartSpec;
+
 const SEEDS: Record<string, ChartSpec> = {
   default: SEED_SPEC,
   measures: SEED_MEASURES,
   empty: SEED_EMPTY,
   kpi: SEED_KPI,
+  "kpi-bound": SEED_KPI_BOUND,
 };
 
 function App(): React.ReactElement {

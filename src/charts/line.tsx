@@ -20,7 +20,6 @@ import {
   resolvedAxisLabels,
   seriesColor,
   seriesColorVar,
-  seriesCurve,
   seriesDots,
   seriesLabel,
   useTemporalBrush,
@@ -72,6 +71,7 @@ export function LineChartFamily({
     const xField = categoryChannel(temporal);
     const connectNulls = fo.connectNulls ?? false;
     const curveName = (fo.curve ?? "monotone") as CurveName;
+    const curve = chartCurve(curveName);
     const axl = resolvedAxisLabels(data, options);
     const y = valueScale(options.axes?.y);
     // A single data point has no line segment; force a visible dot so the
@@ -87,10 +87,7 @@ export function LineChartFamily({
         z: "label",
         color: "label",
         key: "i",
-        // Per-series shape wins over the family default: the shape picker on a
-        // field pill writes `meta.curve`, and reading only `fo.curve` here made
-        // that control do nothing.
-        curve: chartCurve(seriesCurve(s, curveName)),
+        curve,
         strokeWidth: theme.lineWidth,
         strokeDasharray: s.meta?.companion ? "5 4" : undefined,
         strokeOpacity: s.meta?.companion ? 0.55 : undefined,

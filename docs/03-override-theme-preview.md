@@ -59,6 +59,10 @@ cube-viz **reads** these CSS variables; it never **defines** them as a hard depe
   - A host with its own tokens imports nothing — its cascade wins.
   - A host with *no* shadcn theme can `@import "cube-viz/theme.css"` to get a complete, working default in either dark convention.
 
+- **Two things escape the cascade, and both are handled explicitly.**
+  - **Portalled surfaces.** `theme.mode` is applied by putting `.dark` / `.cube-viz-light` on the provider's own `.cv-root` wrapper, so the tokens reach descendants — but a Radix `Portal` defaults to `document.body`, which is *outside* that subtree, and a portalled popover or select then resolved its tokens against `:root` and painted light in dark mode. `CubeVizProvider` therefore captures its root node and publishes it through `usePortalContainer()` (`src/components/ui/portal-container.tsx`); `PopoverContent` and `SelectContent` portal into it. It also sets `color-scheme` on the root when the mode is explicit, so the UA-painted parts — scrollbars, native spinners, the CSS system colors — follow it too.
+  - **The chart tooltip's inline styles.** TanStack builds its tooltip element imperatively and assigns the surface styling as an *inline* `style` (`background: Canvas`, `color: CanvasText`, its own border/radius/padding/font). Inline beats any class rule, so `.cv-chart-tooltip` in `charts.css` was dead and the tooltip painted in the system colours regardless of the mode. Every declaration in that block is `!important` for exactly that reason — the same trick its swatch modifiers have always needed. Token resolution itself is fine: TanStack appends the element inside the chart container, which is inside `.cv-root`.
+
 - **OKLCH is the source of truth.** The fallback stylesheet copies aa-app's `global.css` OKLCH values verbatim (e.g. `--color-background: oklch(1 0 0)`, `--color-destructive: oklch(0.577 0.245 27.325)`, dark `--color-border: oklch(1 0 0 / 10%)` preserving alpha). The divergent HSL mirror in `lib/theme.ts` is **not** used — that exists only for React Navigation, which cube-viz (web) does not touch.
 
 ### A1.3 Mapping series colors → chart tokens
