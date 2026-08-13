@@ -58,19 +58,36 @@
   fill: var(--muted-foreground);
 }
 
-/* Built-in HTML tooltip surface (mirrors the old shadcn tooltip card). */
+/* Built-in HTML tooltip surface (mirrors the old shadcn tooltip card).
+ *
+ * EVERY declaration here is `!important` ON PURPOSE. TanStack builds the tooltip
+ * element imperatively and assigns its surface styling as an INLINE `style`
+ * (createTooltip in @tanstack/charts/tooltip: background `Canvas`, color
+ * `CanvasText`, its own border/radius/padding/shadow/font). An inline style beats
+ * any class rule, so without `!important` this whole block was dead and the
+ * tooltip painted in the SYSTEM colors — which ignore the token set and are light
+ * unless the document opts into `color-scheme: dark`. That is why the tooltip
+ * stayed white in dark mode. `--background`/`--foreground` resolve normally: the
+ * element is appended INSIDE the chart container (inside `.cv-root`), so the mode
+ * class on the provider subtree still cascades to it.
+ *
+ * Same reasoning as the swatch modifiers below, which have always needed it. */
 .cv-chart-tooltip {
-  min-width: 8rem;
-  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
-  border-radius: 0.5rem;
-  background: var(--background);
-  color: var(--foreground);
-  padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
-  line-height: 1.25;
+  min-width: 8rem !important;
+  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent) !important;
+  border-radius: 0.5rem !important;
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+  padding: 0.5rem 0.75rem !important;
+  /* The inline style is a `font` SHORTHAND, so family/weight need overriding too
+     or the tooltip is the only surface in the library not in the host's font. */
+  font-family: inherit !important;
+  font-weight: 400 !important;
+  font-size: 0.75rem !important;
+  line-height: 1.25 !important;
   box-shadow:
-    0 10px 15px -3px rgb(0 0 0 / 0.1),
-    0 4px 6px -4px rgb(0 0 0 / 0.1);
+    0 10px 15px -3px rgb(0 0 0 / 0.25),
+    0 4px 6px -4px rgb(0 0 0 / 0.25) !important;
 }
 
 /* The host emits ts-chart-tooltip__{body,title,rows,row,swatch}. */

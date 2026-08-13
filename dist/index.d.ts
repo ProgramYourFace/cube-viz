@@ -78,7 +78,6 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
     }>, "many">>;
     comparePrevious: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
     referenceLines?: {
         value: number;
@@ -86,10 +85,10 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
+    curve?: "linear" | "step" | "monotone" | "natural" | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
 }, {
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
     referenceLines?: {
         value: number;
@@ -97,6 +96,7 @@ export declare const AreaFamilyOptionsSchema: z.ZodObject<{
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
+    curve?: "linear" | "step" | "monotone" | "natural" | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
 }>;
@@ -708,7 +708,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         showValueLabels: z.ZodOptional<z.ZodBoolean>;
         comparePrevious: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | "active" | undefined;
         referenceLines?: {
             value: number;
@@ -716,12 +715,12 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
+        curve?: "linear" | "step" | "monotone" | "natural" | undefined;
         showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
         chrome?: "none" | "full" | undefined;
     }, {
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | "active" | undefined;
         referenceLines?: {
             value: number;
@@ -729,6 +728,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
+        curve?: "linear" | "step" | "monotone" | "natural" | undefined;
         showValueLabels?: boolean | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
@@ -756,7 +756,6 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
         }>, "many">>;
         comparePrevious: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | undefined;
         referenceLines?: {
             value: number;
@@ -764,10 +763,10 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
+        curve?: "linear" | "step" | "monotone" | "natural" | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
     }, {
-        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
         dots?: boolean | undefined;
         referenceLines?: {
             value: number;
@@ -775,6 +774,7 @@ export declare const BUILTIN_FAMILY_OPTION_SCHEMAS: {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
         }[] | undefined;
+        curve?: "linear" | "step" | "monotone" | "natural" | undefined;
         comparePrevious?: boolean | undefined;
         connectNulls?: boolean | undefined;
     }>;
@@ -1617,21 +1617,17 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                  *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                 stackId: z.ZodOptional<z.ZodString>;
-                /** Per-series line shape (line/area) — overrides the family default. */
-                curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                 /** Per-series point markers (line/area) — overrides the family default. */
                 dots: z.ZodOptional<z.ZodBoolean>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }, {
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }>>>;
         }, "strict", z.ZodTypeAny, {
@@ -1641,7 +1637,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         }, {
@@ -1651,7 +1646,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         }>, z.ZodObject<{
@@ -1672,21 +1666,17 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                  *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                 stackId: z.ZodOptional<z.ZodString>;
-                /** Per-series line shape (line/area) — overrides the family default. */
-                curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                 /** Per-series point markers (line/area) — overrides the family default. */
                 dots: z.ZodOptional<z.ZodBoolean>;
             }, "strict", z.ZodTypeAny, {
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }, {
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }>>>;
         }, "strict", z.ZodTypeAny, {
@@ -1698,7 +1688,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         }, {
@@ -1710,7 +1699,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         }>]>;
@@ -1725,7 +1713,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         } | {
@@ -1737,7 +1724,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         };
@@ -1752,7 +1738,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         } | {
@@ -1764,7 +1749,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         };
@@ -2091,7 +2075,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         } | {
@@ -2103,7 +2086,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         };
@@ -2185,7 +2167,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         } | {
@@ -2197,7 +2178,6 @@ export declare const ChartOptionsSchema: z.ZodObject<{
                 label?: string | undefined;
                 colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                 stackId?: string | undefined;
-                curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                 dots?: boolean | undefined;
             }> | undefined;
         };
@@ -2426,21 +2406,17 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    /** Per-series line shape (line/area) — overrides the family default. */
-                    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
@@ -2450,7 +2426,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }, {
@@ -2460,7 +2435,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }>, z.ZodObject<{
@@ -2481,21 +2455,17 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    /** Per-series line shape (line/area) — overrides the family default. */
-                    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
@@ -2507,7 +2477,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }, {
@@ -2519,7 +2488,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }>]>;
@@ -2534,7 +2502,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -2546,7 +2513,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -2561,7 +2527,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -2573,7 +2538,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -2900,7 +2864,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -2912,7 +2875,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -2994,7 +2956,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -3006,7 +2967,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -3076,7 +3036,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
-    schemaVersion: z.ZodLiteral<4>;
+    schemaVersion: z.ZodLiteral<5>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -3097,7 +3057,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -3109,7 +3068,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -3205,7 +3163,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         timezone?: string | undefined;
     };
     id: string;
-    schemaVersion: 4;
+    schemaVersion: 5;
     name?: string | undefined;
     description?: string | undefined;
     createdAt?: string | undefined;
@@ -3225,7 +3183,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -3237,7 +3194,6 @@ export declare const ChartSpecSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -3308,7 +3264,7 @@ export declare const ChartSpecSchema: z.ZodObject<{
         familyOptions?: Record<string, unknown> | undefined;
     };
     id: string;
-    schemaVersion: 4;
+    schemaVersion: 5;
     query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
@@ -3518,21 +3474,17 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    /** Per-series line shape (line/area) — overrides the family default. */
-                    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
@@ -3542,7 +3494,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }, {
@@ -3552,7 +3503,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }>, z.ZodObject<{
@@ -3573,21 +3523,17 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    /** Per-series line shape (line/area) — overrides the family default. */
-                    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
@@ -3599,7 +3545,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }, {
@@ -3611,7 +3556,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }>]>;
@@ -3626,7 +3570,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -3638,7 +3581,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -3653,7 +3595,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -3665,7 +3606,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -3992,7 +3932,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -4004,7 +3943,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -4086,7 +4024,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -4098,7 +4035,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -4185,7 +4121,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -4197,7 +4132,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -4309,7 +4243,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -4321,7 +4254,6 @@ export declare const ChartWidgetSchema: z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -5164,21 +5096,17 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                          *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
-                        /** Per-series line shape (line/area) — overrides the family default. */
-                        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
                     }, "strict", z.ZodTypeAny, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }>>>;
                 }, "strict", z.ZodTypeAny, {
@@ -5188,7 +5116,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 }, {
@@ -5198,7 +5125,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 }>, z.ZodObject<{
@@ -5219,21 +5145,17 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                          *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
-                        /** Per-series line shape (line/area) — overrides the family default. */
-                        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
                     }, "strict", z.ZodTypeAny, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }>>>;
                 }, "strict", z.ZodTypeAny, {
@@ -5245,7 +5167,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 }, {
@@ -5257,7 +5178,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 }>]>;
@@ -5272,7 +5192,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -5284,7 +5203,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -5299,7 +5217,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -5311,7 +5228,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -5638,7 +5554,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -5650,7 +5565,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -5732,7 +5646,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -5744,7 +5657,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -5831,7 +5743,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -5843,7 +5754,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -5955,7 +5865,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -5967,7 +5876,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -6175,14 +6083,14 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 step: z.ZodOptional<z.ZodNumber>;
             }, "strict", z.ZodTypeAny, {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             }, {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             }>, z.ZodObject<{
                 kind: z.ZodLiteral<"toggle">;
             }, "strict", z.ZodTypeAny, {
@@ -6216,9 +6124,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -6248,9 +6156,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -6285,9 +6193,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -6322,9 +6230,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -6376,7 +6284,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
         margin?: [number, number] | undefined;
         containerPadding?: [number, number] | undefined;
     }>>;
-    schemaVersion: z.ZodLiteral<4>;
+    schemaVersion: z.ZodLiteral<5>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -6385,7 +6293,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 4;
+    schemaVersion: 5;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -6408,7 +6316,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -6420,7 +6327,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -6553,9 +6459,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -6586,7 +6492,7 @@ export declare const DashboardSpecSchema: z.ZodObject<{
 }, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 4;
+    schemaVersion: 5;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -6609,7 +6515,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -6621,7 +6526,6 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -6754,9 +6658,9 @@ export declare const DashboardSpecSchema: z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -7149,10 +7053,31 @@ export declare type FormatRole = "value" | "axis" | "tooltip" | "label" | "categ
 /** Stable synthetic member id reproducible from the stored lat/lng pair alone. */
 export declare function geoPointId(latMember: string, lngMember: string): string;
 
+/**
+ * Which time buckets make sense for a given date range.
+ *
+ * This is a SAFETY rail, not a nicety. A bucket is only meaningful in relation to the
+ * span it divides: "second" over four weeks is 2.4 million buckets — a query that
+ * either times out, is refused, or comes back big enough to lock the page up. Every
+ * granularity is legitimate for SOME range, so the answer is not to delete choices
+ * from the vocabulary but to only offer, in each place, the ones that fit the range
+ * that place is actually looking at.
+ *
+ * Three options, finest→coarsest, each landing in a readable number of buckets.
+ */
+export declare function granularitiesForSpan(days: number): Granularity[];
+
 export declare type Granularity = z.infer<typeof GranularitySchema>;
 
 /** Default date-fns patterns per granularity bucket. */
 export declare const GRANULARITY_PATTERN: Record<Granularity, string>;
+
+/**
+ * The granularities to offer for a date range, or `undefined` for "all of them" —
+ * the shape {@link GranularityPickerProps.options} takes. Wraps the two above so the
+ * "unknown range ⇒ do not narrow" rule is written once.
+ */
+export declare function granularityOptionsFor(range: unknown): Granularity[] | undefined;
 
 export declare const GranularitySchema: z.ZodEnum<["second", "minute", "hour", "day", "week", "month", "quarter", "year"]>;
 
@@ -7318,14 +7243,14 @@ export declare const InputControlSchema: z.ZodObject<{
         step: z.ZodOptional<z.ZodNumber>;
     }, "strict", z.ZodTypeAny, {
         kind: "number";
-        step?: number | undefined;
         min?: number | undefined;
         max?: number | undefined;
+        step?: number | undefined;
     }, {
         kind: "number";
-        step?: number | undefined;
         min?: number | undefined;
         max?: number | undefined;
+        step?: number | undefined;
     }>, z.ZodObject<{
         kind: z.ZodLiteral<"toggle">;
     }, "strict", z.ZodTypeAny, {
@@ -7359,9 +7284,9 @@ export declare const InputControlSchema: z.ZodObject<{
         placeholder?: string | undefined;
     } | {
         kind: "number";
-        step?: number | undefined;
         min?: number | undefined;
         max?: number | undefined;
+        step?: number | undefined;
     } | {
         kind: "toggle";
     };
@@ -7391,9 +7316,9 @@ export declare const InputControlSchema: z.ZodObject<{
         placeholder?: string | undefined;
     } | {
         kind: "number";
-        step?: number | undefined;
         min?: number | undefined;
         max?: number | undefined;
+        step?: number | undefined;
     } | {
         kind: "toggle";
     };
@@ -7501,14 +7426,14 @@ export declare const InputWidgetSchema: z.ZodObject<{
             step: z.ZodOptional<z.ZodNumber>;
         }, "strict", z.ZodTypeAny, {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         }, {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         }>, z.ZodObject<{
             kind: z.ZodLiteral<"toggle">;
         }, "strict", z.ZodTypeAny, {
@@ -7542,9 +7467,9 @@ export declare const InputWidgetSchema: z.ZodObject<{
             placeholder?: string | undefined;
         } | {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         } | {
             kind: "toggle";
         };
@@ -7574,9 +7499,9 @@ export declare const InputWidgetSchema: z.ZodObject<{
             placeholder?: string | undefined;
         } | {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         } | {
             kind: "toggle";
         };
@@ -7611,9 +7536,9 @@ export declare const InputWidgetSchema: z.ZodObject<{
             placeholder?: string | undefined;
         } | {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         } | {
             kind: "toggle";
         };
@@ -7648,9 +7573,9 @@ export declare const InputWidgetSchema: z.ZodObject<{
             placeholder?: string | undefined;
         } | {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         } | {
             kind: "toggle";
         };
@@ -8003,7 +7928,6 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
     showValueLabels: z.ZodOptional<z.ZodBoolean>;
     comparePrevious: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | "active" | undefined;
     referenceLines?: {
         value: number;
@@ -8011,12 +7935,12 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
+    curve?: "linear" | "step" | "monotone" | "natural" | undefined;
     showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
     chrome?: "none" | "full" | undefined;
 }, {
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | "active" | undefined;
     referenceLines?: {
         value: number;
@@ -8024,6 +7948,7 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
         label?: string | undefined;
         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     }[] | undefined;
+    curve?: "linear" | "step" | "monotone" | "natural" | undefined;
     showValueLabels?: boolean | undefined;
     comparePrevious?: boolean | undefined;
     connectNulls?: boolean | undefined;
@@ -8321,6 +8246,16 @@ export declare interface RangeSelection {
     to: string;
 }
 
+/**
+ * Approximate the day-span of a date-range value — an absolute `[from, to]` pair or a
+ * Cube relative preset ("last 30 days", "this month", …).
+ *
+ * `undefined` means "no idea", and callers must read it as "offer everything": an
+ * unknown range is not a reason to narrow, only a known one is. A `{var}` binding is
+ * one of those unknowns — its value is not decided until the dashboard resolves it.
+ */
+export declare function rangeSpanDays(range: VariableValue | undefined): number | undefined;
+
 export declare type ReferenceLineOpt = z.infer<typeof ReferenceLineOptSchema>;
 
 /** A reference line on the x or y axis (bar/line/area/scatter). */
@@ -8563,7 +8498,7 @@ export declare const ScatterFamilyOptionsSchema: z.ZodObject<{
  *
  * See docs/01-spec-schema.md for the full rationale.
  */
-export declare const SCHEMA_VERSION: 4;
+export declare const SCHEMA_VERSION: 5;
 
 export declare type SeriesMapping = z.infer<typeof SeriesMappingSchema>;
 
@@ -8584,21 +8519,17 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
              *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
             stackId: z.ZodOptional<z.ZodString>;
-            /** Per-series line shape (line/area) — overrides the family default. */
-            curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
             /** Per-series point markers (line/area) — overrides the family default. */
             dots: z.ZodOptional<z.ZodBoolean>;
         }, "strict", z.ZodTypeAny, {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }, {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }>>>;
     }, "strict", z.ZodTypeAny, {
@@ -8608,7 +8539,6 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }> | undefined;
     }, {
@@ -8618,7 +8548,6 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }> | undefined;
     }>, z.ZodObject<{
@@ -8639,21 +8568,17 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
              *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
             stackId: z.ZodOptional<z.ZodString>;
-            /** Per-series line shape (line/area) — overrides the family default. */
-            curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
             /** Per-series point markers (line/area) — overrides the family default. */
             dots: z.ZodOptional<z.ZodBoolean>;
         }, "strict", z.ZodTypeAny, {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }, {
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }>>>;
     }, "strict", z.ZodTypeAny, {
@@ -8665,7 +8590,6 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }> | undefined;
     }, {
@@ -8677,7 +8601,6 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }> | undefined;
     }>]>;
@@ -8692,7 +8615,6 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }> | undefined;
     } | {
@@ -8704,7 +8626,6 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }> | undefined;
     };
@@ -8719,7 +8640,6 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }> | undefined;
     } | {
@@ -8731,7 +8651,6 @@ export declare const SeriesMappingSchema: z.ZodObject<{
             label?: string | undefined;
             colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
             stackId?: string | undefined;
-            curve?: "linear" | "monotone" | "step" | "natural" | undefined;
             dots?: boolean | undefined;
         }> | undefined;
     };
@@ -8745,21 +8664,17 @@ export declare const SeriesMetaSchema: z.ZodObject<{
     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
     stackId: z.ZodOptional<z.ZodString>;
-    /** Per-series line shape (line/area) — overrides the family default. */
-    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
     /** Per-series point markers (line/area) — overrides the family default. */
     dots: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
     label?: string | undefined;
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     stackId?: string | undefined;
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
 }, {
     label?: string | undefined;
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
     stackId?: string | undefined;
-    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
     dots?: boolean | undefined;
 }>;
 
@@ -8775,8 +8690,6 @@ export declare interface SeriesValueMeta {
     quantity?: string;
     convert?: boolean;
     stackId?: string;
-    /** Per-series line shape (line/area) carried from the spec's SeriesMeta. */
-    curve?: "linear" | "monotone" | "step" | "natural";
     /** Per-series point markers (line/area) carried from the spec's SeriesMeta. */
     dots?: boolean;
     /** This series is a previous-period overlay → renderers draw it muted + dashed. */
@@ -8919,21 +8832,17 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    /** Per-series line shape (line/area) — overrides the family default. */
-                    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
@@ -8943,7 +8852,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }, {
@@ -8953,7 +8861,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }>, z.ZodObject<{
@@ -8974,21 +8881,17 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    /** Per-series line shape (line/area) — overrides the family default. */
-                    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
@@ -9000,7 +8903,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }, {
@@ -9012,7 +8914,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }>]>;
@@ -9027,7 +8928,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -9039,7 +8939,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -9054,7 +8953,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -9066,7 +8964,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -9393,7 +9290,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -9405,7 +9301,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -9487,7 +9382,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -9499,7 +9393,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -9569,7 +9462,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         } | undefined;
         familyOptions?: Record<string, unknown> | undefined;
     }>;
-    schemaVersion: z.ZodLiteral<4>;
+    schemaVersion: z.ZodLiteral<5>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -9590,7 +9483,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -9602,7 +9494,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -9698,7 +9589,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         timezone?: string | undefined;
     };
     id: string;
-    schemaVersion: 4;
+    schemaVersion: 5;
     name?: string | undefined;
     description?: string | undefined;
     createdAt?: string | undefined;
@@ -9718,7 +9609,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -9730,7 +9620,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -9801,7 +9690,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         familyOptions?: Record<string, unknown> | undefined;
     };
     id: string;
-    schemaVersion: 4;
+    schemaVersion: 5;
     query?: {
         measures?: string[] | undefined;
         dimensions?: string[] | undefined;
@@ -9982,21 +9871,17 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                          *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
-                        /** Per-series line shape (line/area) — overrides the family default. */
-                        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
                     }, "strict", z.ZodTypeAny, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }>>>;
                 }, "strict", z.ZodTypeAny, {
@@ -10006,7 +9891,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 }, {
@@ -10016,7 +9900,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 }>, z.ZodObject<{
@@ -10037,21 +9920,17 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                          *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                         stackId: z.ZodOptional<z.ZodString>;
-                        /** Per-series line shape (line/area) — overrides the family default. */
-                        curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                         /** Per-series point markers (line/area) — overrides the family default. */
                         dots: z.ZodOptional<z.ZodBoolean>;
                     }, "strict", z.ZodTypeAny, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }, {
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }>>>;
                 }, "strict", z.ZodTypeAny, {
@@ -10063,7 +9942,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 }, {
@@ -10075,7 +9953,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 }>]>;
@@ -10090,7 +9967,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -10102,7 +9978,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -10117,7 +9992,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -10129,7 +10003,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -10456,7 +10329,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -10468,7 +10340,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -10550,7 +10421,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -10562,7 +10432,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -10649,7 +10518,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -10661,7 +10529,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -10773,7 +10640,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -10785,7 +10651,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -10993,14 +10858,14 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 step: z.ZodOptional<z.ZodNumber>;
             }, "strict", z.ZodTypeAny, {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             }, {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             }>, z.ZodObject<{
                 kind: z.ZodLiteral<"toggle">;
             }, "strict", z.ZodTypeAny, {
@@ -11034,9 +10899,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -11066,9 +10931,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -11103,9 +10968,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -11140,9 +11005,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -11194,7 +11059,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
         margin?: [number, number] | undefined;
         containerPadding?: [number, number] | undefined;
     }>>;
-    schemaVersion: z.ZodLiteral<4>;
+    schemaVersion: z.ZodLiteral<5>;
     id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodString>;
@@ -11203,7 +11068,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 4;
+    schemaVersion: 5;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -11226,7 +11091,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -11238,7 +11102,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -11371,9 +11234,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -11404,7 +11267,7 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
 }, {
     kind: "dashboard";
     id: string;
-    schemaVersion: 4;
+    schemaVersion: 5;
     variables: {
         type: "string" | "number" | "boolean" | "dimension" | "granularity" | "dateRange" | "measure" | "dimensionOrMeasure" | "time";
         name: string;
@@ -11427,7 +11290,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 } | {
@@ -11439,7 +11301,6 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                         label?: string | undefined;
                         colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                         stackId?: string | undefined;
-                        curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                         dots?: boolean | undefined;
                     }> | undefined;
                 };
@@ -11572,9 +11433,9 @@ export declare const SpecSchema: z.ZodDiscriminatedUnion<"kind", [z.ZodObject<{
                 placeholder?: string | undefined;
             } | {
                 kind: "number";
-                step?: number | undefined;
                 min?: number | undefined;
                 max?: number | undefined;
+                step?: number | undefined;
             } | {
                 kind: "toggle";
             };
@@ -12237,9 +12098,10 @@ export declare interface UseNormalizedSeriesOptions {
 
 /**
  * Fetch + normalize in one step (docs/03-override-theme-preview.md §A2.5). Returns
- * the SAME {@link NormalizedChartData} the renderer consumes, applying — when the
- * hook is inside a `DashboardProvider` — variable resolution + the noFilter rule
- * automatically. A standalone chart (no dashboard) uses the query verbatim.
+ * the SAME {@link NormalizedChartData} the renderer consumes, with variable resolution
+ * + the noFilter rule applied. Inside a `DashboardProvider` tokens resolve against the
+ * dashboard's variables; OUTSIDE one there is nothing to resolve against, so every
+ * token resolves to empty and its field drops — never leaks to Cube as a literal.
  *
  * This is the seam the registry chart components are built on, so a host gets
  * identical behaviour whether it renders `<CubeChart>` or wires the hook by hand.
@@ -12587,21 +12449,17 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    /** Per-series line shape (line/area) — overrides the family default. */
-                    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
@@ -12611,7 +12469,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }, {
@@ -12621,7 +12478,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }>, z.ZodObject<{
@@ -12642,21 +12498,17 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     /** Series sharing an id stack together; DIFFERENT ids are separate stacks —
                      *  side by side (bar) or overlaid (area). Only read when `stackMode` stacks. */
                     stackId: z.ZodOptional<z.ZodString>;
-                    /** Per-series line shape (line/area) — overrides the family default. */
-                    curve: z.ZodOptional<z.ZodEnum<["linear", "monotone", "step", "natural"]>>;
                     /** Per-series point markers (line/area) — overrides the family default. */
                     dots: z.ZodOptional<z.ZodBoolean>;
                 }, "strict", z.ZodTypeAny, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }, {
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }>>>;
             }, "strict", z.ZodTypeAny, {
@@ -12668,7 +12520,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }, {
@@ -12680,7 +12531,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             }>]>;
@@ -12695,7 +12545,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -12707,7 +12556,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -12722,7 +12570,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -12734,7 +12581,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -13061,7 +12907,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -13073,7 +12918,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -13155,7 +12999,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -13167,7 +13010,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -13254,7 +13096,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -13266,7 +13107,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -13378,7 +13218,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             } | {
@@ -13390,7 +13229,6 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
                     label?: string | undefined;
                     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
                     stackId?: string | undefined;
-                    curve?: "linear" | "monotone" | "step" | "natural" | undefined;
                     dots?: boolean | undefined;
                 }> | undefined;
             };
@@ -13598,14 +13436,14 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             step: z.ZodOptional<z.ZodNumber>;
         }, "strict", z.ZodTypeAny, {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         }, {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         }>, z.ZodObject<{
             kind: z.ZodLiteral<"toggle">;
         }, "strict", z.ZodTypeAny, {
@@ -13639,9 +13477,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             placeholder?: string | undefined;
         } | {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         } | {
             kind: "toggle";
         };
@@ -13671,9 +13509,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             placeholder?: string | undefined;
         } | {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         } | {
             kind: "toggle";
         };
@@ -13708,9 +13546,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             placeholder?: string | undefined;
         } | {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         } | {
             kind: "toggle";
         };
@@ -13745,9 +13583,9 @@ export declare const WidgetSpecSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
             placeholder?: string | undefined;
         } | {
             kind: "number";
-            step?: number | undefined;
             min?: number | undefined;
             max?: number | undefined;
+            step?: number | undefined;
         } | {
             kind: "toggle";
         };

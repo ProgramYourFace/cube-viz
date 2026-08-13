@@ -1,4 +1,4 @@
-import type { VariableDecl, VariableType } from "@/spec";
+import { isVarRef, type VariableDecl, type VariableType } from "@/spec";
 
 /**
  * The value-binding seam (docs/05): every place a chart value can be a FIXED literal
@@ -10,6 +10,33 @@ import type { VariableDecl, VariableType } from "@/spec";
 
 /** The kind of value a binding slot holds (drives the fixed editor + compatible vars). */
 export type BindKind = "dateRange" | "granularity" | "string" | "number" | "boolean";
+
+/**
+ * A one-line summary of a value that may be a fixed literal OR a `{var}` binding —
+ * for the collapsed state of a control (a popover trigger, a pill caption).
+ *
+ * It exists because EVERY such slot is two-shaped, and reading one as "just a
+ * string" is a live crash: a bound value is an OBJECT, and React throws
+ * ("Objects are not valid as a React child") the moment one reaches JSX — taking
+ * the whole editor, and with it the dashboard, down. This ALWAYS returns a string,
+ * so a summary can never be the thing that breaks. Bound values read as
+ * `{variable}`, the same convention the filter summaries use.
+ */
+export function bindingSummary(value: unknown, none = "None"): string {
+  if (isVarRef(value)) {
+    // Strip braces from the name so they cannot break the {…} wrapper.
+    return `{${value.var.replace(/[{}]/g, "")}}`;
+  }
+  if (value === undefined || value === null || value === "") return none;
+  if (Array.isArray(value)) {
+    const parts = value.map((v) => bindingSummary(v, none)).filter((s) => s !== none);
+    return parts.length > 0 ? parts.join(" – ") : none;
+  }
+  // Any other object shape has no honest one-line reading — and printing
+  // "[object Object]" would be worse than saying nothing.
+  if (typeof value === "object") return none;
+  return String(value);
+}
 
 /** Variable types that can legally fill a binding slot of `kind`. */
 export function acceptedVarTypes(kind: BindKind): VariableType[] {

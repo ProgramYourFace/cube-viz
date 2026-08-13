@@ -292,10 +292,66 @@ function migrateV3(raw: Record<string, unknown>): Record<string, unknown> {
   return next;
 }
 
+/* ───────────── v4 → v5 (line shape belongs to the chart, not the series) ─── */
+
+/**
+ * `mapping.series.meta[*].curve` → `chart.familyOptions.curve`.
+ *
+ * A per-series line shape could never be honored across the board: a STACKED or
+ * percent area draws a whole stack from ONE mark, so that mark has exactly one
+ * curve, and a color-split (pivot) chart has no per-measure meta to hang a shape
+ * on in the first place. The control existed and silently did nothing in all
+ * three cases. Shape is a property of the chart, so that is where it now lives —
+ * one control, honored everywhere.
+ *
+ * The FIRST series' curve wins: the options are mutually exclusive as a chart-level
+ * setting, and the first series is the one whose shape read as "the chart's".
+ */
+function promoteSeriesCurve(chart: Record<string, unknown>): void {
+  if (!isRecord(chart.mapping)) return;
+  const series = chart.mapping.series;
+  if (!isRecord(series) || !isRecord(series.meta)) return;
+
+  let promoted: unknown;
+  const meta: Record<string, unknown> = {};
+  for (const [member, entry] of Object.entries(series.meta)) {
+    if (!isRecord(entry)) continue;
+    if (promoted === undefined && typeof entry.curve === "string") promoted = entry.curve;
+    const cleaned = without(entry, "curve");
+    if (cleaned) meta[member] = cleaned;
+  }
+  if (Object.keys(meta).length > 0) series.meta = meta;
+  else delete series.meta;
+
+  // Only line/area have a curve at all; anything else that somehow carried one just
+  // loses it rather than gaining an option its schema does not accept.
+  const family = chart.family;
+  if (promoted === undefined || (family !== "line" && family !== "area")) return;
+  const fo = isRecord(chart.familyOptions) ? chart.familyOptions : {};
+  // An explicit family-level curve already says the chart's shape — don't overwrite it.
+  chart.familyOptions = { curve: promoted, ...fo };
+}
+
+function migrateV4(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = structuredClone(raw);
+  const visit = (chart: unknown): void => {
+    if (isRecord(chart)) promoteSeriesCurve(chart);
+  };
+  if (next.kind === "chart") {
+    visit(next.chart);
+  } else if (next.kind === "dashboard" && Array.isArray(next.widgets)) {
+    for (const w of next.widgets) {
+      if (isRecord(w) && w.type === "chart") visit(w.chart);
+    }
+  }
+  return next;
+}
+
 const migrations: Record<number, Migration> = {
   1: migrateV1,
   2: migrateV2,
   3: migrateV3,
+  4: migrateV4,
 };
 
 /**

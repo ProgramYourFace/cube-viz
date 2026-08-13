@@ -273,24 +273,23 @@ describe("applyTransform — series identity + purity", () => {
     });
   }
 
-  it("preserves the FULL meta (curve/dots/stackId/companion) for non-percent kinds", () => {
+  it("preserves the FULL meta (dots/stackId/companion) for non-percent kinds", () => {
     const src = chartData([
       series("a", [1, 2], {
-        meta: { measure: "a", unit: "km", curve: "step", dots: true, stackId: "s", companion: true },
+        meta: { measure: "a", unit: "km", dots: true, stackId: "s", companion: true },
       }),
     ]);
     const d = applyTransform(src, { kind: "cumulative" });
     expect(d.series[0]!.meta).toEqual(src.series[0]!.meta);
   });
 
-  it("keeps curve/dots/stackId through percentOfTotal (only unit fields are dropped)", () => {
+  it("keeps dots/stackId through percentOfTotal (only unit fields are dropped)", () => {
     const src = chartData([
-      series("a", [1, 1], { meta: { measure: "a", unit: "km", curve: "step", stackId: "s" } }),
+      series("a", [1, 1], { meta: { measure: "a", unit: "km", stackId: "s" } }),
     ]);
     const d = applyTransform(src, { kind: "percentOfTotal" });
     expect(d.series[0]!.meta).toEqual({
       measure: "a",
-      curve: "step",
       stackId: "s",
       format: { kind: "percent", decimals: 0 },
     });

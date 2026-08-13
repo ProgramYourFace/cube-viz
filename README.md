@@ -163,8 +163,8 @@ chart.transform = { kind: "percentOfTotal" };         // window ignored
 It is an **envelope** option, not a family one: it reshapes the generic
 `{ categories, series[].data }` shape and is applied once in `ChartRenderer`, before any family
 component sees the data — so every cartesian family gets it and no `familyOptions` schema grew a
-knob. It is **purely additive**, so `SCHEMA_VERSION` stays **2** and every existing spec is
-unaffected.
+knob. It is **purely additive** — it did not move `SCHEMA_VERSION` (it landed on v2 and left
+every v2 spec valid), and every existing spec is unaffected.
 
 - **Where it applies:** mapping-driven *cartesian* families — `bar` / `line` / `area`, plus any
   host family declaring both `supportsMapping` and `supportsCartesianAxes` (and not `queryless`).
@@ -689,6 +689,12 @@ from the picker entirely while keeping them available for joins and row-level se
   degrade to `bottom` — and pie now renders its legend correctly), tooltips are interactive and
   **pinnable via click**, and charts animate with spring motion. Brush/zoom becomes possible
   future work on this stack.
+- **Line shape became a chart-level option** in `SCHEMA_VERSION` 5: `familyOptions.curve` on
+  `line`/`area`, replacing per-series `mapping.series.meta[member].curve`. Per-series could not
+  be honored where it mattered — a stacked or 100% area draws a whole stack from one mark, and a
+  color-split chart has no per-measure meta for a picker to write to — so the control silently
+  did nothing in the two arrangements people reach for it in. `loadSpec` promotes the first
+  series' stored curve. Per-series `dots` stayed (a dot is its own mark, one per series).
 - **The `combo` family and all dual-axis support were removed** in `SCHEMA_VERSION` 2:
   `axes.y2`, per-series `meta.axis: "left"|"right"`, reference-line `side`, and the descriptor's
   `dualAxisY`/`assignSeriesAxis` are gone. `loadSpec` migrates v1 specs automatically — a combo

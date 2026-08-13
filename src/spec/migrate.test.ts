@@ -251,6 +251,95 @@ describe("v3 → v4 — mark geometry moved to the host theme", () => {
   });
 });
 
+describe("v4 → v5 — line shape moved from the series to the chart", () => {
+  it("promotes a per-series curve to the family option", () => {
+    const chart = loadChart(
+      chartSpec(4, {
+        family: "area",
+        mapping: mapping({ "Trips.count": { label: "Trips", curve: "step" } }),
+      }),
+    );
+
+    // The shape survives — it just says it about the chart now, which is the only
+    // level a stacked area could ever have honored it at.
+    expect(chart.familyOptions).toEqual({ curve: "step" });
+    const seriesMeta = (chart.mapping as { series: { meta: Record<string, unknown> } }).series.meta;
+    expect(seriesMeta["Trips.count"]).toEqual({ label: "Trips" });
+  });
+
+  it("removes a series' meta entry entirely when the curve was all it carried", () => {
+    const chart = loadChart(
+      chartSpec(4, {
+        family: "line",
+        mapping: mapping({ "Trips.count": { curve: "linear" } }),
+      }),
+    );
+
+    expect((chart.mapping as { series: Record<string, unknown> }).series.meta).toBeUndefined();
+    expect(chart.familyOptions).toEqual({ curve: "linear" });
+  });
+
+  it("takes the FIRST series' curve when several disagree", () => {
+    const chart = loadChart(
+      chartSpec(4, {
+        family: "line",
+        mapping: {
+          category: { member: "Trips.startedAt" },
+          series: {
+            mode: "measures",
+            members: ["Trips.count", "Trips.distance"],
+            meta: {
+              "Trips.count": { curve: "step" },
+              "Trips.distance": { curve: "natural" },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(chart.familyOptions).toEqual({ curve: "step" });
+  });
+
+  it("does not overwrite a curve the chart already declared", () => {
+    const chart = loadChart(
+      chartSpec(4, {
+        family: "line",
+        familyOptions: { curve: "linear" },
+        mapping: mapping({ "Trips.count": { curve: "step" } }),
+      }),
+    );
+
+    expect(chart.familyOptions).toEqual({ curve: "linear" });
+  });
+
+  it("drops the curve rather than inventing an option a family has no schema for", () => {
+    // A bar chart has no `curve`; promoting one would fail the strict parse that
+    // follows, turning a repair into the very breakage it exists to prevent.
+    const chart = loadChart(
+      chartSpec(4, {
+        family: "bar",
+        mapping: mapping({ "Trips.count": { label: "Trips", curve: "step" } }),
+      }),
+    );
+
+    expect(chart.familyOptions).toBeUndefined();
+    const seriesMeta = (chart.mapping as { series: { meta: Record<string, unknown> } }).series.meta;
+    expect(seriesMeta["Trips.count"]).toEqual({ label: "Trips" });
+  });
+
+  it("leaves per-series points alone — those DO apply per series", () => {
+    const chart = loadChart(
+      chartSpec(4, {
+        family: "line",
+        mapping: mapping({ "Trips.count": { curve: "step", dots: true } }),
+      }),
+    );
+
+    const seriesMeta = (chart.mapping as { series: { meta: Record<string, unknown> } }).series.meta;
+    expect(seriesMeta["Trips.count"]).toEqual({ dots: true });
+  });
+});
+
 describe("the ladder", () => {
   it("carries a v1 spec through BOTH steps", () => {
     // v1 shape (dual-axis era) that ALSO carries a v3-removed option: the v1→v2 step

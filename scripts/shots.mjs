@@ -16,10 +16,16 @@
  * FAILS LOUDLY (non-zero exit) on a console error, a page error, a missing target
  * selector, or a shot that never painted — a silent blank PNG is worse than none.
  *
- * It also runs one check that is NOT a picture: `verifyCompatibilityInvariant` asserts
- * that with the field picker's "Only compatible fields" switch on, no slot — in any
- * table — renders a row it would refuse. A screenshot of one slot cannot see that,
- * because the bug it guards leaked in the slots the camera was not pointed at.
+ * It also runs three checks that are NOT pictures — each guarding a control whose
+ * APPEARANCE was never the thing that was broken:
+ *   • `verifyCompatibilityInvariant` — with the field picker's "Only compatible fields"
+ *     switch on, no slot in any table renders a row it would refuse. A screenshot of
+ *     one slot cannot see that; the bug it guards leaked in the slots the camera was
+ *     not pointed at.
+ *   • `verifyLineShape` — picking a line shape reaches the marks on a COLOR-SPLIT
+ *     chart, the arrangement where the old per-series control was not even offered.
+ *   • `verifyWellReorder` — dragging a field pill, and Alt+↑/↓ on a focused one, both
+ *     reorder the Values well (the up/down buttons that used to do this are gone).
  *
  * What it does NOT prove is that each of the type picker's tiles drew the chart type it
  * is a picture OF: a shot only shows that something painted, and the picker's tiles all
@@ -332,6 +338,144 @@ async function openKpiComparison(page) {
   await page.waitForTimeout(250);
 }
 
+/** The third strip entry — Trend, whose bucket may be a literal or a `{var}` binding. */
+async function openKpiTrend(page) {
+  const triggers = page.locator(".cv-kpi-section-trigger");
+  await triggers.nth(2).click();
+  await page.locator('[role="dialog"]').first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(250);
+}
+
+/**
+ * Line shape has to reach the MARKS, in every arrangement.
+ *
+ * It used to be a per-series setting, which meant it silently did nothing in the two
+ * arrangements people actually use it in: a stacked area draws a whole stack from one
+ * mark, and a color-split chart (the default seed here — one measure split by Region)
+ * has no per-measure meta for the picker to write to, so the control was not even
+ * offered. It is a chart-level option now; this asserts the path geometry changes when
+ * it does, on exactly that color-split chart.
+ */
+async function verifyLineShape(browser, baseUrl) {
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    locale: "en-US",
+    timezoneId: "UTC",
+    colorScheme: "light",
+    reducedMotion: "reduce",
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+
+  // A smooth curve is drawn with cubic segments (`C`); a step curve is straight
+  // segments (`L`) only. Counting curve commands separates them without pixel diffing,
+  // and — unlike comparing the raw `d` — cannot be satisfied by the paths merely
+  // re-animating.
+  const curveCommands = () =>
+    page.$$eval('[data-slot="chart-edit-overlay"] svg path', (nodes) =>
+      nodes.reduce((n, p) => n + ((p.getAttribute("d") ?? "").match(/C/g)?.length ?? 0), 0),
+    );
+
+  try {
+    await page.goto(`${baseUrl}/editor.html`, { waitUntil: "load", timeout: 60_000 });
+    await page.waitForSelector('[data-slot="chart-edit-overlay"] svg', { state: "visible", timeout: 30_000 });
+    await page.waitForTimeout(SETTLE_MS);
+
+    const smooth = await curveCommands();
+
+    await page.locator(".cv-type-pill").first().click();
+    // SegmentedControl segments are role="radio", not role="button".
+    const step = page.getByRole("radio", { name: "Step", exact: true });
+    await step.waitFor({ state: "visible", timeout: 15_000 });
+    await step.click();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(SETTLE_MS);
+
+    const stepped = await curveCommands();
+    if (smooth === 0 || stepped !== 0) {
+      failures.push(
+        `line-shape: picking "Step" on a color-split line chart did not reach the marks ` +
+          `(cubic path commands ${smooth} → ${stepped}; expected many → 0)`,
+      );
+    }
+
+    if (errors.length > 0) failures.push(`line-shape: ${errors.join(" | ")}`);
+    else console.log(`[check] line-shape          "Step" reaches the marks on a color-split chart`);
+  } catch (err) {
+    failures.push(`line-shape: ${err instanceof Error ? err.message.split("\n")[0] : err}`);
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * Series order is the draw / legend / stack order, and it is now expressed by DRAGGING
+ * a field pill rather than by up/down buttons. A screenshot shows the grip; it cannot
+ * show that the grip works — so this drives both paths on the two-measure seed:
+ * a pointer drag, and the Alt+↑/↓ keyboard equivalent that keeps ordering reachable
+ * without a pointer.
+ */
+async function verifyWellReorder(browser, baseUrl) {
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    locale: "en-US",
+    timezoneId: "UTC",
+    colorScheme: "light",
+    reducedMotion: "reduce",
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+
+  // The pills of the VALUES well, top to bottom.
+  const order = () =>
+    page.$$eval(".cv-edit-sidebar .cv-field-pill .cv-field-pill-name", (nodes) =>
+      nodes.map((n) => n.textContent.trim()),
+    );
+
+  try {
+    await page.goto(`${baseUrl}/editor.html?seed=measures`, { waitUntil: "load", timeout: 60_000 });
+    await page.waitForSelector(".cv-edit-sidebar .cv-field-pill", { state: "visible", timeout: 30_000 });
+    await page.waitForTimeout(800);
+
+    const before = await order();
+    if (before.length < 2) {
+      failures.push(`well-reorder: expected 2+ pills to reorder, found ${JSON.stringify(before)}`);
+      return;
+    }
+
+    // 1) Drag the LAST pill onto the first.
+    const pills = page.locator(".cv-edit-sidebar .cv-field-pill");
+    await pills.nth(before.length - 1).dragTo(pills.nth(0));
+    await page.waitForTimeout(400);
+    const dragged = await order();
+    if (dragged[0] !== before[before.length - 1]) {
+      failures.push(
+        `well-reorder: dragging "${before[before.length - 1]}" to the top left ${JSON.stringify(dragged)}`,
+      );
+    }
+
+    // 2) Alt+ArrowDown on the focused first pill puts it back.
+    await page.locator(".cv-edit-sidebar .cv-field-pill .cv-field-pill-body").first().focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await page.waitForTimeout(400);
+    const keyed = await order();
+    if (keyed[0] !== dragged[1]) {
+      failures.push(
+        `well-reorder: Alt+ArrowDown on "${dragged[0]}" left ${JSON.stringify(keyed)} (expected it to swap down)`,
+      );
+    }
+
+    if (errors.length > 0) failures.push(`well-reorder: ${errors.join(" | ")}`);
+    else console.log(`[check] well-reorder        drag + Alt+↑/↓ both reorder the Values well`);
+  } catch (err) {
+    failures.push(`well-reorder: ${err instanceof Error ? err.message.split("\n")[0] : err}`);
+  } finally {
+    await context.close();
+  }
+}
+
 /**
  * Drive the invariant over EVERY add-slot the editor offers (`?seed=empty` leaves them
  * all empty, so Values / Category / Split by are all reachable), turning the switch on
@@ -539,7 +683,23 @@ try {
     describe: "KPI config strip with the Comparison popover open",
   });
 
-  // Not a shot — the assertion a shot cannot make (see assertNoBlockedRows).
+  await shot(browser, baseUrl, {
+    // A KPI whose trend bucket and date range are BOUND TO VARIABLES. This is a
+    // regression shot: printing a bound value used to hand React an object and take
+    // the whole dashboard down, and because the binding lived in the spec, every
+    // reload did it again. `shot` fails the run on any page error, so this frame
+    // existing at all IS the assertion; the picture shows how a binding reads.
+    name: "editor-kpi-bound",
+    path: "/editor.html?seed=kpi-bound",
+    waitFor: ".cv-kpi-section-trigger",
+    forbid: EDITOR_FORBID,
+    prepare: openKpiTrend,
+    describe: "KPI with a variable-bound trend bucket, Trend popover open",
+  });
+
+  // Not shots — the assertions a picture cannot make.
+  await verifyLineShape(browser, baseUrl);
+  await verifyWellReorder(browser, baseUrl);
   await verifyCompatibilityInvariant(browser, baseUrl);
 } finally {
   await browser?.close();

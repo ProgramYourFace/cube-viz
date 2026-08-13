@@ -36,6 +36,12 @@ interface SliceRow {
 
 type PieSlice = PieDatum<SliceRow>;
 
+/** Fraction of the layout radius kept clear outside the arc for slice labels. */
+const LABEL_RING = 0.26;
+
+/** Slices smaller than this share of the total go unlabelled (see the mark below). */
+const MIN_LABEL_FRACTION = 0.03;
+
 /** Shared muted empty-state chrome (plain CSS — no Tailwind in this layer). */
 const emptyStyle: React.CSSProperties = {
   display: "flex",
@@ -100,9 +106,17 @@ export function PieChartFamily({
     if (degenerate) return null;
 
     const inner = (fo.innerRadiusPct ?? 0) / 100;
-    const outer = theme.pieRadiusPct / 100;
     const isDonut = inner > 0;
     const showLabels = fo.showLabels ?? "percent";
+    const labelled = showLabels !== "none";
+    // Slice labels sit OUTSIDE the arc, so the arc gives up a ring of the layout
+    // radius for them. Inside the slice, a label is drawn over whatever colour that
+    // slice happens to be — legible on the light half of the ramp, not on the dark
+    // half, and never legible on both in light AND dark mode. Outside, every label
+    // sits on the chart background and reads the same for all of them.
+    const outer = labelled
+      ? Math.min(theme.pieRadiusPct / 100, 1 - LABEL_RING)
+      : theme.pieRadiusPct / 100;
 
     // Recharts' paddingAngle was degrees; the pie transform's gapAngle is radians.
     const rows = pie(slices, {
@@ -123,27 +137,33 @@ export function PieChartFamily({
     // polar mark set (arc rows vs. center-label datum); CvChart erases types anyway.
     const polarMarks: any[] = [arcs];
 
-    if (showLabels !== "none") {
+    if (labelled) {
       const sliceText = (d: PieSlice): string => {
         if (showLabels === "name") return d.label;
         if (showLabels === "value") return format.value(d.value, member, "label");
         return percentTick(d.fraction);
       };
-      // Inside the slice at ~outer*0.75; for donuts, centered in the ring so the
-      // label can't fall into the hole.
-      const labelRadius = isDonut ? (inner + outer) / 2 : outer * 0.75;
       polarMarks.push(
         radialText(
-          rows.filter((d) => d.value > 0),
+          // Slivers are skipped: their labels land on top of their neighbours' and
+          // the pile is less readable than the gap. The slice is still in the legend
+          // and still in the tooltip, so nothing is hidden — only uncrowded.
+          rows.filter((d) => d.value > 0 && d.fraction >= MIN_LABEL_FRACTION),
           {
             id: "cv-pie-labels",
             key: "label",
             angle: (d: PieSlice) => d.angle,
-            radius: labelRadius,
+            radius: outer,
+            // A few px clear of the arc edge, in PIXELS so the gap is the same
+            // whatever size the widget is.
+            radiusOffset: 6,
             text: sliceText,
             fill: "var(--foreground)",
             fontSize: 11,
-            anchor: "middle",
+            // "outside" reads each slice's own angle and anchors the text away from
+            // the centre — start on the right half, end on the left — so labels grow
+            // outward instead of back across the slice they belong to.
+            anchor: "outside",
             baseline: "middle",
           },
         ),

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useSyncExternalStore } from "react";
 
-import type { ChartOptions, CubeQuery } from "@/spec";
+import type { ChartOptions, CubeQuery, VariableDecl } from "@/spec";
 import { normalize } from "@/adapter";
 import type { NormalizedChartData } from "@/adapter/types";
 import { useCubeVizContext, useFamilyRegistry } from "@/provider";
@@ -12,9 +12,10 @@ import { useOptionalDashboard } from "./useDashboard";
 
 /**
  * Fetch + normalize in one step (docs/03-override-theme-preview.md §A2.5). Returns
- * the SAME {@link NormalizedChartData} the renderer consumes, applying — when the
- * hook is inside a `DashboardProvider` — variable resolution + the noFilter rule
- * automatically. A standalone chart (no dashboard) uses the query verbatim.
+ * the SAME {@link NormalizedChartData} the renderer consumes, with variable resolution
+ * + the noFilter rule applied. Inside a `DashboardProvider` tokens resolve against the
+ * dashboard's variables; OUTSIDE one there is nothing to resolve against, so every
+ * token resolves to empty and its field drops — never leaks to Cube as a literal.
  *
  * This is the seam the registry chart components are built on, so a host gets
  * identical behaviour whether it renders `<CubeChart>` or wires the hook by hand.
@@ -42,6 +43,11 @@ export interface UseNormalizedSeriesOptions {
 /** A no-op `useSyncExternalStore` subscribe for the no-dashboard / skipResolve path. */
 const noopSubscribe = (): (() => void) => () => {};
 
+/* Frozen module-level singletons: the resolver memoizes on its inputs, so handing it a
+ * fresh `{}`/`[]` each render would defeat that. Outside a dashboard these never change. */
+const EMPTY_STORE: Record<string, never> = Object.freeze({});
+const EMPTY_DECLS = Object.freeze([]) as unknown as VariableDecl[];
+
 export function useNormalizedSeries(
   query: CubeQuery,
   options: ChartOptions,
@@ -65,7 +71,15 @@ export function useNormalizedSeries(
   const resolveOnce = resolverRef.current;
 
   const skipResolve = opts?.skipResolve ?? false;
-  const active = dashboard !== null && !skipResolve;
+  // Resolution runs whether or not there is a dashboard. Outside one there are no
+  // declarations and no values, so every `{var}` resolves to nothing and the field
+  // holding it is DROPPED — which is the resolver's whole contract (an unset variable
+  // may only narrow, never widen). Passing the query verbatim instead used to send the
+  // raw `{var:"…"}` token to Cube, where `@cubejs-client/core` reads a dateRange as an
+  // array and threw on the object — a chart or editor rendered outside a
+  // DashboardProvider died on any bound value. Dropping is the fail-safe; leaking a
+  // token was never a defensible third behaviour.
+  const active = !skipResolve;
 
   // Subscribe to the store, but the SNAPSHOT we select is the resolved query itself
   // (memoized for referential stability). React re-renders only when that reference
@@ -73,8 +87,12 @@ export function useNormalizedSeries(
   // `setVar` elsewhere neither re-renders this chart nor re-runs normalize(). A real
   // change to a bound variable yields a new reference and correctly updates the widget.
   const getResolved = (): CubeQuery => {
-    if (!active || !dashboard) return query;
-    return resolveOnce(query, dashboard.store.getAll(), dashboard.decls);
+    if (!active) return query;
+    return resolveOnce(
+      query,
+      dashboard?.store.getAll() ?? EMPTY_STORE,
+      dashboard?.decls ?? EMPTY_DECLS,
+    );
   };
   const resolvedQuery = useSyncExternalStore(
     active && dashboard ? dashboard.store.subscribe : noopSubscribe,

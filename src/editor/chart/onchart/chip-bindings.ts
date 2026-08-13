@@ -22,8 +22,6 @@ import type { MemberOption } from "../../primitives/meta-helpers";
  * Pure: every writer funnels a full next-spec through `update`.
  */
 
-export type LineCurve = "linear" | "monotone" | "step" | "natural";
-
 /** How the category axis is ordered (contextual: by value, by label, or chronological). */
 export type SortKey =
   | "none"
@@ -62,11 +60,10 @@ export interface ChipBindings {
   /** The date range — a literal range OR a `{var}` binding — when this is the time field. */
   dateRange?: DateRange | VarRef;
   /** Per-series line shape, when this series draws a line/area. */
-  curve?: LineCurve;
   /** Per-series point markers, when this series draws a line/area. */
   dots?: boolean;
   /** Whether per-series line style (shape + points) applies to this field. */
-  canLineStyle: boolean;
+  canPoints: boolean;
   canRename: boolean;
   /** Whether a per-series color is meaningful (one rendered series ↔ this field). */
   canColor: boolean;
@@ -97,7 +94,6 @@ export interface ChipBindings {
   onRecolor: (token: ChartColorToken | null) => void;
   onGranularity: (g: Granularity | VarRef | undefined) => void;
   onDateRange: (range: DateRange | VarRef | undefined) => void;
-  onCurve: (c: LineCurve) => void;
   onDots: (on: boolean) => void;
   onRemove: () => void;
 }
@@ -148,10 +144,11 @@ export function chipBindings(
   const granularity = isTimeField ? timeDim?.granularity : undefined;
   const dateRange = isTimeField ? timeDim?.dateRange : undefined;
 
-  // Per-series line shape + points: line/area measures-mode Y.
-  const canLineStyle = (family === "line" || family === "area") && well.id === "y" && measuresMode;
-  const curve: LineCurve | undefined = canLineStyle ? (meta?.curve as LineCurve | undefined) : undefined;
-  const dots: boolean | undefined = canLineStyle ? meta?.dots : undefined;
+  // Per-series point markers: line/area measures-mode Y. (Line SHAPE is not here —
+  // it is a chart-level option, because a stacked area draws a whole stack from one
+  // mark and a color split has no per-measure meta to hang a shape on.)
+  const canPoints = (family === "line" || family === "area") && well.id === "y" && measuresMode;
+  const dots: boolean | undefined = canPoints ? meta?.dots : undefined;
 
   /* ── writers ────────────────────────────────────────────────────────────── */
 
@@ -205,9 +202,6 @@ export function chipBindings(
   const onGranularity = (g: Granularity | VarRef | undefined): void => patchTimeDim({ granularity: g });
   const onDateRange = (range: DateRange | VarRef | undefined): void => patchTimeDim({ dateRange: range });
 
-  const onCurve = (c: LineCurve): void => {
-    if (usesSeriesMeta) patchSeriesMeta({ ...meta, curve: c });
-  };
   const onDots = (on: boolean): void => {
     if (usesSeriesMeta) patchSeriesMeta({ ...meta, dots: on });
   };
@@ -310,9 +304,8 @@ export function chipBindings(
     colorToken,
     granularity,
     dateRange,
-    curve,
     dots,
-    canLineStyle,
+    canPoints,
     canRename: isTableCol || usesSeriesMeta,
     // A color dot is meaningful only when one rendered series ↔ this field: a
     // measures-mode cartesian Y measure. (Pivot Y, pie size, scatter, heatmap,
@@ -333,7 +326,6 @@ export function chipBindings(
     onRecolor,
     onGranularity,
     onDateRange,
-    onCurve,
     onDots,
     onRemove,
   };

@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { resolveMarkTheme, type ChartMarkTheme } from "@/charts";
 import type { ChartColorToken } from "@/spec";
@@ -11,6 +11,7 @@ import {
   type ChartFamilyDescriptor,
   type FamilyRegistry,
 } from "@/charts";
+import { PortalContainerProvider } from "@/components/ui/portal-container";
 import { cn } from "@/components/ui/utils";
 
 import {
@@ -189,21 +190,32 @@ export function CubeVizProvider({
   // Apply theme.mode by scoping the `.dark` token set to the provider subtree.
   // `display:contents` keeps the wrapper layout-transparent while the CSS custom
   // properties still cascade to descendants. "system" defers to the host's selector.
+  //
+  // The root node is also the PORTAL TARGET for every popover/select below it: a
+  // Radix portal defaults to `document.body`, which is outside this subtree, so a
+  // portalled surface used to resolve its tokens against `:root` and paint light
+  // even in dark mode. Held in state (not a ref) so the first render after mount
+  // hands the real node down; `null` until then just means "Radix default".
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+
   return (
     <CubeVizContext.Provider value={value}>
       <div
+        ref={setRoot}
         className={cn(
           "cv-root",
           resolvedTheme.mode === "dark" && "dark",
           resolvedTheme.mode === "light" && "cube-viz-light",
         )}
       >
-        <ChartInteractionProvider
-          onRangeSelect={interactions?.onRangeSelect}
-          onPointSelect={interactions?.onPointSelect}
-        >
-          {children}
-        </ChartInteractionProvider>
+        <PortalContainerProvider container={root}>
+          <ChartInteractionProvider
+            onRangeSelect={interactions?.onRangeSelect}
+            onPointSelect={interactions?.onPointSelect}
+          >
+            {children}
+          </ChartInteractionProvider>
+        </PortalContainerProvider>
       </div>
     </CubeVizContext.Provider>
   );

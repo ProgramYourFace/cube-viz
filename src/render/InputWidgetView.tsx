@@ -11,6 +11,7 @@ import type {
 } from "@/spec";
 import { useDashboard } from "@/hooks";
 import { useCubeMeta } from "@/hooks";
+import { granularitiesForSpan, rangeSpanDays } from "@/variables";
 // Date-range preset catalog lives in one place (shared with the editor).
 import { DEFAULT_PRESETS, presetLabel } from "./dateRangePresets";
 import {
@@ -175,38 +176,6 @@ const ALL_GRANULARITIES: Granularity[] = [
   "quarter",
   "year",
 ];
-
-/** Sensible granularity options for a date-range span (finest→coarsest, ≈3 buckets). */
-function granularitiesForSpan(days: number): Granularity[] {
-  if (days <= 2) return ["minute", "hour", "day"];
-  if (days <= 31) return ["hour", "day", "week"];
-  if (days <= 186) return ["day", "week", "month"];
-  if (days <= 731) return ["week", "month", "quarter"];
-  return ["month", "quarter", "year"];
-}
-
-/** Approximate the day-span of a resolved date-range value (absolute pair or relative). */
-function rangeSpanDays(range: VariableValue | undefined): number | undefined {
-  if (Array.isArray(range) && range.length === 2 && typeof range[0] === "string") {
-    const a = Date.parse(range[0]);
-    const b = Date.parse(range[1] as string);
-    if (!Number.isNaN(a) && !Number.isNaN(b)) return Math.max(1, Math.abs(b - a) / 86_400_000);
-  }
-  if (typeof range === "string") {
-    const m = range.match(/(\d+)\s*(day|week|month|quarter|year)/i);
-    if (m) {
-      const mult: Record<string, number> = { day: 1, week: 7, month: 30, quarter: 91, year: 365 };
-      return Number(m[1]) * (mult[m[2].toLowerCase()] ?? 1);
-    }
-    const lc = range.toLowerCase();
-    if (lc.includes("today") || lc.includes("yesterday")) return 1;
-    if (lc.includes("week")) return 7;
-    if (lc.includes("month")) return 30;
-    if (lc.includes("quarter")) return 91;
-    if (lc.includes("year")) return 365;
-  }
-  return undefined;
-}
 
 function GranularityControl({
   value,

@@ -47,7 +47,16 @@ if I switch type?* — now have **one** answer each instead of five that disagre
 - `descriptor.sidebarWidthClass` widens the left strip for KPI (`cv-sidebar--wide`), whose
   strip carries value/comparison/sparkline config blocks rather than one slot.
 - A `WellGroup` renders one well: its placed field pills plus an add button opening
-  `FieldPickerPopover` (§6).
+  `FieldPickerPopover` (§6). Where a well holds several fields at once its order **means**
+  something — series draw / legend / stack order — so the pills carry a grip and are
+  **dragged** into place, the same HTML5 pattern `MemberMultiPicker` uses for its ordered
+  list. The drag session lives on the well (it is the only thing that sees both the pill
+  being carried and the pill it is over) and the list rearranges live under the pointer,
+  so the drop is just letting go of what you already see. **Alt+↑/↓** on a focused pill
+  does the same move, because a drag alone would put ordering out of reach for anyone not
+  using a pointer. This replaced a pair of Up/Down buttons buried in the pill's config
+  popover; `scripts/shots.mjs` drives both paths (`verifyWellReorder`), since a screenshot
+  can show the grip but not that it works.
 - The centre holds `ChartTypePill` (configured chart) or `CenterTypePicker` (empty chart) —
   both now render the **suggested-types tile grid with live previews** (§5).
 - The value well's per-field colour swatches use the **same** `resolveSeriesColors` resolver the
@@ -481,14 +490,20 @@ knobs. As built today:
 | Family | Controls | Spec field |
 |---|---|---|
 | **bar** | Horizontal · Stacked (None / Stacked / 100%) | `chart.orientation` · `chart.stackMode` |
-| **line** | *(none — curve and points are per-measure on the field pill)* | — |
-| **area** | Stacked (None / Stacked / 100%), with a hint explaining the shape-aware default while `stackMode` is unset | `chart.stackMode` |
-| **pie** | Donut · Slice labels (None / % / Value / Name) · Max slices | `familyOptions.innerRadiusPct` · `showLabels` · `maxSlices` |
+| **line** | Line shape (Smooth / Straight / Step / Curved) | `familyOptions.curve` |
+| **area** | Line shape · Stacked (None / Stacked / 100%), with a hint explaining the shape-aware default while `stackMode` is unset | `familyOptions.curve` · `chart.stackMode` |
+| **pie** | Donut · Slice labels (None / % / Value / Name) | `familyOptions.innerRadiusPct` · `showLabels` |
 | **scatter** | *(none)* | — |
-| **kpi** | *(none — configured by the Value / Comparison / Sparkline blocks in the config strip)* | — |
-| **table** | Compact rows · Sortable columns · Sticky header · Row numbers | `familyOptions.rowHeight` · `sortable` · `stickyHeader` · `showRowNumbers` |
-| **heatmap** | Show values | `familyOptions.showValues` |
+| **kpi** | *(none — configured by the Value / Comparison / Trend blocks in the config strip)* | — |
+| **table** | *(none — sorting and a pinned header are always on, row density follows the row count)* | — |
+| **heatmap** | *(none — in-cell values appear whenever the grid is small enough to read them)* | — |
 | **bar / line / area** | **Compare** (None / Rolling average / Running total / % of total), plus a **Window** input revealed only for the rolling average | **`chart.transform`** (docs/01 §3.6, docs/02 §2.9) |
+
+**Line shape is here, not on the field pill (spec v5).** It used to be per-measure, and
+per-measure it could not work: a stacked or 100% area draws a whole stack from one mark,
+and a color-split chart has no per-measure `meta` to write to — so the picker was ignored
+in one case and absent in the other. Points (`meta.dots`) stayed per-measure, because a
+dot is its own mark per series. See docs/02 §7.10.
 
 The `transform` row is the one addition: it is an **envelope** option, not a family one, offered
 wherever `familySupportsTransform(descriptor)` holds (`supportsMapping && supportsCartesianAxes &&
@@ -498,6 +513,53 @@ otherwise edited entirely in context but still needs somewhere for the Compare s
 
 Everything v2 made automatic stays automatic: legend show/position, tooltip, axis labels/scale/
 domain, and number/date/unit formatting (host `ChartFormat`, member-meta driven).
+
+---
+
+## 8b. Nothing a knob does may cost you the dashboard
+
+The editor is a tree of small controls over one spec, and any of them can be handed a
+shape it did not expect — a value bound to a variable where a literal was assumed, an
+option written by a newer build, a half-migrated preset. Unguarded, one such control
+throws, React unmounts the tree, and the whole board becomes a blank error screen with
+nothing naming which knob did it. Worse, the offending value is *in the spec*, so every
+reload does it again and there is no way back in to fix it.
+
+This actually shipped. The KPI **Trend** popover printed its bucket by casting it to a
+string; a bucket may be a `{var}` binding, which is an object, and React refuses an
+object as a child. Binding the trend took the dashboard down permanently.
+
+Four things now stand between a bad value and that outcome, in order of preference:
+
+1. **`bindingSummary`** (`chart/binding/variable-binding.ts`) — the one way to render a
+   value that may be a literal or a `{var}`. It returns a **string for every input**, so
+   a collapsed summary can never be the thing that breaks; bound values read as
+   `{variable}`, the convention the filter summaries already use. `granularitySummary`
+   wraps it with the bucket display names.
+2. **`granularityOptionsFor`** (`src/variables/granularity-span.ts`) — every picker that
+   chooses a bucket for a *known* date range offers only the buckets that divide it into
+   something readable. "Second" over four weeks is 2.4 million points: a query that
+   hangs or is refused, reached by picking a plainly-offered option. The rail is the
+   option list, not a warning afterwards. An unknown or variable-bound range narrows
+   nothing, and the value already stored always stays in the list so a picker can never
+   show a placeholder over a real setting.
+3. **Resolution always runs.** `useNormalizedSeries` resolves `{var}` tokens whether or
+   not there is a `DashboardProvider`; outside one there is nothing to resolve against,
+   so tokens resolve to empty and their field drops — the resolver's own
+   narrowing-or-neutral contract. Passing the query verbatim instead used to send the
+   raw token to Cube, where `@cubejs-client/core` reads a `dateRange` as an array and
+   threw on the object.
+4. **`EditorErrorBoundary`** (`editor/primitives/`) — the backstop, at every surface that
+   can be reasoned about on its own: each KPI config popover, each `WellGroup`, the whole
+   on-chart overlay, and the dashboard editor's full-screen body. The failure reads as a
+   message *inside that surface*, naming it ("Trend couldn't be shown"), and the rest of
+   the editor keeps working. It clears on `resetKey` (the spec), so editing the offending
+   value retries the render. The full-screen **header stays outside** its boundary on
+   purpose: whatever went wrong, "Done" is still there to get back to the canvas.
+
+`playground/editor.tsx` carries a `?seed=kpi-bound` regression seed — a KPI whose trend
+bucket and date range are variable-bound — and `scripts/shots.mjs` shoots it. That
+harness fails the run on any page error, so the frame existing at all is the assertion.
 
 ---
 
@@ -537,6 +599,10 @@ Builder-specific, still open:
 | Fit ranking + preview specs | `src/editor/chart/builder/suggest.ts` |
 | The on-chart surface | `src/editor/chart/onchart/ChartEditOverlay.tsx` |
 | Slots + the forgiving field picker | `src/editor/chart/onchart/WellGroup.tsx`, `FieldPickerPopover.tsx` |
+| Drag-to-reorder a well's fields (+ Alt+↑/↓) | `WellGroup.tsx` owns the drag session; `FieldPill.tsx` is the source |
+| Rendering a maybe-bound value safely | `src/editor/chart/binding/variable-binding.ts` (`bindingSummary`) |
+| Bucket options that fit the range | `src/variables/granularity-span.ts` |
+| Containing a control's crash to that control | `src/editor/primitives/EditorErrorBoundary.tsx` |
 | Field availability + the "only compatible" switch | `src/editor/chart/onchart/picker-filter.ts` |
 | Type picker + live tile previews | `src/editor/chart/onchart/CenterTypePicker.tsx` |
 | Per-family Options (incl. the transform select) | `src/editor/chart/builder/CustomizeSection.tsx` |

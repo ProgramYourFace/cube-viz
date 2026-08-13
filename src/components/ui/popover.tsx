@@ -1,6 +1,7 @@
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
+import { usePortalContainer } from "@/components/ui/portal-container";
 import { cn } from "@/components/ui/utils";
 
 function Popover({
@@ -27,8 +28,11 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>): React.ReactElement {
+  // Portal into the provider's themed root, not the document body — see
+  // components/ui/portal-container.tsx.
+  const container = usePortalContainer();
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={container}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
         align={align}

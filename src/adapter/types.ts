@@ -13,8 +13,6 @@ export interface SeriesValueMeta {
   quantity?: string;
   convert?: boolean;
   stackId?: string;
-  /** Per-series line shape (line/area) carried from the spec's SeriesMeta. */
-  curve?: "linear" | "monotone" | "step" | "natural";
   /** Per-series point markers (line/area) carried from the spec's SeriesMeta. */
   dots?: boolean;
   /** This series is a previous-period overlay → renderers draw it muted + dashed. */

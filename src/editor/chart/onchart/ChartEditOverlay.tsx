@@ -7,6 +7,7 @@ import { mergeUnitConversions } from "@/units";
 import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartSpec } from "@/spec";
 
+import { granularitySummary } from "../../primitives/GranularityPicker";
 import { canonicalTimeOf, findMember, type MemberOption } from "../../primitives/meta-helpers";
 import { inferCube } from "../helpers";
 import { axisKeyOf, axisLabelOf } from "../builder/axis";
@@ -314,9 +315,9 @@ export function ChartEditOverlay({
             </KpiSectionPopover>
             <KpiSectionPopover
               label="Trend"
-              summary={
-                ((kfo.sparkline as { granularity?: unknown } | undefined)?.granularity as string) ?? "None"
-              }
+              summary={granularitySummary(
+                (kfo.sparkline as { granularity?: unknown } | undefined)?.granularity,
+              )}
             >
               <KpiSparklineConfig spec={spec} update={update} />
             </KpiSectionPopover>

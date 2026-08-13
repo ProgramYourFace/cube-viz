@@ -26,6 +26,7 @@ import {
   replaceWidget,
 } from "./dashboard/layout";
 import { createIdFactory, newWidget, type IdFactory } from "./dashboard/factories";
+import { EditorErrorBoundary } from "./primitives/EditorErrorBoundary";
 
 /**
  * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
@@ -405,6 +406,11 @@ export function DashboardEditor({
             ) : null}
           </header>
 
+          {/* The header above stays OUTSIDE this boundary on purpose: whatever goes
+              wrong in here, "Done" is still there to get back to the canvas. Without
+              it, a control that throws on the value it was handed unmounts the whole
+              dashboard editor and the board reads as unopenable. */}
+          <EditorErrorBoundary label={overlayTitle} resetKey={draft}>
           <div className="cv-dashboard-editor-fullscreen-body">
             {editing.kind === "variables" ? (
               <div className="cv-dashboard-editor-fullscreen-column">
@@ -429,6 +435,7 @@ export function DashboardEditor({
               </div>
             ) : null}
           </div>
+          </EditorErrorBoundary>
         </div>
       ) : null}
     </div>

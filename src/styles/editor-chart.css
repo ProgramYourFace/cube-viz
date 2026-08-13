@@ -62,10 +62,6 @@
   width: 100%;
 }
 
-.cv-ec-flex1 {
-  flex: 1 1 0%;
-}
-
 .cv-ec-truncate {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -598,6 +594,36 @@
   width: 100%;
 }
 
+/* ── reordering ───────────────────────────────────────────────────────────────
+ * A well whose order MEANS something (series draw/legend/stack order) makes its
+ * pills draggable. The grip is the affordance; the whole pill is the drag source,
+ * so there is no 12px strip to hit. */
+.cv-field-pill[draggable="true"] {
+  cursor: grab;
+}
+
+.cv-field-pill-grip {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+}
+
+.cv-field-pill:hover .cv-field-pill-grip,
+.cv-field-pill:focus-within .cv-field-pill-grip {
+  opacity: 1;
+}
+
+/* The carried pill. The list rearranges live underneath the pointer, so this is
+   the only thing marking which one is in hand. */
+.cv-field-pill--dragging {
+  cursor: grabbing;
+  opacity: 0.6;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
 /* The resolved series-colour swatch. */
 .cv-field-pill-swatch {
   width: 0.75rem;
@@ -665,44 +691,6 @@
 
 .cv-field-pill-select:focus-visible {
   box-shadow: 0 0 0 1px var(--ring);
-}
-
-/* Line-shape chooser (2-col grid of small options). */
-.cv-line-shape-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.25rem;
-}
-
-.cv-line-shape-option {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  border: 1px solid var(--input);
-  border-radius: calc(var(--radius) - 2px);
-  background: none;
-  padding: 0.25rem 0.5rem;
-  font: inherit;
-  font-size: 0.75rem;
-  color: inherit;
-}
-
-.cv-line-shape-option:hover {
-  background: color-mix(in oklab, var(--accent) 50%, transparent);
-}
-
-.cv-line-shape-option--active,
-.cv-line-shape-option--active:hover {
-  border-color: var(--ring);
-  background: var(--accent);
-}
-
-/* Up/Down reorder button pair. */
-.cv-field-pill-reorder {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
 }
 
 /* The popover's full-width destructive Remove entry. */
@@ -1093,6 +1081,53 @@
   width: 0.875rem;
   height: 0.875rem;
   flex: none;
+}
+
+/* The amber above is a fixed hue (no warning token in the theme contract), and
+   #b45309 on a dark surface is unreadable — lift the text for dark mode. */
+.dark .cv-kpi-warn {
+  color: #fbbf24;
+}
+
+/* ── a contained editor failure (EditorErrorBoundary) ─────────────────────────
+ * Deliberately the same compact shape as the KPI warning: something inside this
+ * surface threw, and the message stands in for the control that would have been
+ * here — the rest of the editor is untouched. */
+.cv-ed-broken {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  border: 1px solid color-mix(in oklab, var(--destructive) 35%, transparent);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in oklab, var(--destructive) 8%, transparent);
+  padding: 0.5rem;
+  font-size: 11px;
+  line-height: 1.375;
+  color: var(--foreground);
+}
+
+.cv-ed-broken-icon {
+  margin-top: 1px;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+  color: var(--destructive);
+}
+
+.cv-ed-broken-title {
+  display: block;
+  font-weight: 600;
+}
+
+.cv-ed-broken-msg {
+  margin-top: 0.125rem;
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+}
+
+.cv-ed-broken-hint {
+  margin-top: 0.25rem;
+  color: var(--muted-foreground);
 }
 
 /* ───────────────── filters popover (ChartFiltersPopover) ─────────────────── */
