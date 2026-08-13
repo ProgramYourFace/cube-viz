@@ -754,5 +754,31 @@ The full design record lives in [`docs/`](./docs):
 bun install
 bun run dev          # Vite playground at http://localhost:5180
 bun run typecheck    # tsc --noEmit
+bun run test         # vitest (spec migrations, adapter, transforms, editor helpers)
 bun run build        # library build (ESM + types) + theme.css
 ```
+
+### Checks that need a browser
+
+These drive a real Chromium over the Vite playground and its offline Cube mock. They
+are **local-only** — the Screenshots workflow that ran them on every push was removed
+(2026-08-13) because a per-PR Chromium install to produce PNG artifacts nobody opened
+was not worth the minutes. Run them yourself after touching a chart family, the type
+picker, or the editor's wells:
+
+```bash
+PW_EXECUTABLE_PATH=/opt/pw-browsers/chromium bun run shots
+PW_EXECUTABLE_PATH=/opt/pw-browsers/chromium bun run verify:type-picker
+```
+
+`bun run shots` is not only pictures — it fails on any page error, and carries four
+assertions no screenshot can make: that a line shape reaches the marks on a color-split
+chart, that both drag and Alt+↑/↓ reorder a well, that "Only compatible fields" hides
+the same rows in every slot, and that a variable-bound KPI renders at all (the
+regression that used to take a whole dashboard down). `verify:type-picker` asserts each
+picker tile drew the chart type it is a picture of.
+
+**cube-viz has no PR CI.** The only workflow left is `release.yml`, which builds and
+tags on a push to master — so a build break is caught there, but typecheck and the unit
+tests run *nowhere* automatically. Run `bun run typecheck && bun run test` before you
+push.
