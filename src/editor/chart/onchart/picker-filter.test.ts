@@ -102,13 +102,39 @@ describe("candidateReason", () => {
   });
 
   it("reports the SLOT rule for the wrong kind of field", () => {
-    expect(candidateReason(Y_WELL, "category", [], REGION)).toBe("Values takes a measure");
-    expect(candidateReason(X_WELL, "number", [], DISTANCE)).toBe("Category takes a date or category");
+    expect(candidateReason(Y_WELL, "category", [], REGION)).toBe(
+      "Values needs a number (a total, average or count)",
+    );
+    expect(candidateReason(X_WELL, "number", [], DISTANCE)).toBe(
+      "Category needs a date or category",
+    );
+  });
+
+  it("names the FIELD's nature when that points at the fix better", () => {
+    // A per-record number offered where an aggregate belongs: say what to pick instead.
+    const perTrip: MemberOption = {
+      ...DISTANCE,
+      name: "trips.distance",
+      label: "Distance (per trip)",
+      memberType: "dimension",
+    };
+    expect(candidateReason(Y_WELL, "numberDimension", [], perTrip)).toBe(
+      "One value per record — pick its total or average instead",
+    );
+    // A yes/no field is never a number to plot; name its real uses.
+    const flag: MemberOption = { ...REGION, name: "trips.has_fuel_data", label: "Has fuel data", type: "boolean" };
+    expect(candidateReason(Y_WELL, "category", [], flag)).toBe(
+      "Yes/no field — use it as a filter or in Split by",
+    );
+    // The refinement is for numeric slots only — a category slot keeps the slot rule.
+    expect(candidateReason(X_WELL, "number", [], DISTANCE)).toBe(
+      "Category needs a date or category",
+    );
   });
 
   it("lets the slot rule win over a context block (it names the fix)", () => {
     const reason = candidateReason(Y_WELL, "category", [], REGION, () => "Clear the current fields…");
-    expect(reason).toBe("Values takes a measure");
+    expect(reason).toBe("Values needs a number (a total, average or count)");
   });
 
   it("falls through to the context block (axis unit) for an accepted kind", () => {
@@ -173,7 +199,7 @@ describe("the hidden set (what the switch removes)", () => {
 
     expect(available.map((c) => c.option.label)).toEqual(["Region"]);
     expect(unavailable).toHaveLength(4);
-    expect(unavailable.every((c) => c.reason === "Category takes a date or category")).toBe(true);
+    expect(unavailable.every((c) => c.reason === "Category needs a date or category")).toBe(true);
   });
 
   it("partitions purely on the presence of a reason", () => {
@@ -221,9 +247,9 @@ describe("the persisted 'only compatible' choice", () => {
     else delete (globalThis as { localStorage?: unknown }).localStorage;
   });
 
-  it("defaults to OFF (show everything — the owner asked for an option, not a change)", () => {
+  it("defaults to ON (lead with what fits — showing everything is the opt-out)", () => {
     install(fakeStorage());
-    expect(readOnlyCompatible()).toBe(false);
+    expect(readOnlyCompatible()).toBe(true);
   });
 
   it("round-trips through storage under a cube-viz-namespaced key", () => {
@@ -234,28 +260,30 @@ describe("the persisted 'only compatible' choice", () => {
     expect(ONLY_COMPATIBLE_KEY.startsWith("cube-viz:")).toBe(true);
     expect(readOnlyCompatible()).toBe(true);
 
+    // OFF is stored explicitly ("0"), never as an absent key — an absent key is the
+    // default, and a later default flip must not move users who made a choice.
     writeOnlyCompatible(false);
-    expect(s.store.has(ONLY_COMPATIBLE_KEY)).toBe(false);
+    expect(s.store.get(ONLY_COMPATIBLE_KEY)).toBe("0");
     expect(readOnlyCompatible()).toBe(false);
   });
 
-  it("ignores a foreign value (only an exact '1' means on)", () => {
+  it("honours the legacy persisted '1' (users who opted in before the default flipped)", () => {
     const s = fakeStorage();
-    s.store.set(ONLY_COMPATIBLE_KEY, "true");
+    s.store.set(ONLY_COMPATIBLE_KEY, "1");
     install(s);
-    expect(readOnlyCompatible()).toBe(false);
+    expect(readOnlyCompatible()).toBe(true);
   });
 
   describe("guards", () => {
     it("survives NO storage at all (SSR)", () => {
       delete (globalThis as { localStorage?: unknown }).localStorage;
-      expect(readOnlyCompatible()).toBe(false);
+      expect(readOnlyCompatible()).toBe(true); // the default, not an error state
       expect(() => writeOnlyCompatible(true)).not.toThrow();
     });
 
     it("survives a storage PROPERTY that throws (hardened WebView / blocked cookies)", () => {
       install(undefined, { throwOnAccess: true });
-      expect(readOnlyCompatible()).toBe(false);
+      expect(readOnlyCompatible()).toBe(true); // the default, not an error state
       expect(() => writeOnlyCompatible(true)).not.toThrow();
     });
 
@@ -271,7 +299,7 @@ describe("the persisted 'only compatible' choice", () => {
           throw new DOMException("quota", "QuotaExceededError");
         },
       });
-      expect(readOnlyCompatible()).toBe(false);
+      expect(readOnlyCompatible()).toBe(true); // the default, not an error state
       expect(() => writeOnlyCompatible(true)).not.toThrow();
       expect(() => writeOnlyCompatible(false)).not.toThrow();
     });
@@ -284,13 +312,19 @@ describe("the persisted 'only compatible' choice", () => {
  * The regression this exists for: the switch used to be `useState` inside each
  * `FieldPickerPopover`, seeded from storage at MOUNT. The editor mounts one picker per
  * well up front, so flipping the switch in one slot re-rendered only that slot — every
- * other picker kept its stale `false` and went on listing rows it had promised to hide
- * ("Values takes a measure" on the Values slot, with its own toggle reading OFF).
+ * other picker kept its stale value and went on listing rows it had promised to hide
+ * ("Values needs a number…" on the Values slot, with its own toggle reading OFF).
  *
  * A subscriber standing in for a second mounted picker is therefore the whole test: it
  * must see the same value, and it must be TOLD when the value changes.
  */
 describe("the shared 'only compatible' store", () => {
+  // The store's snapshot is read once at module load (now defaulting ON); these
+  // tests assert the SHARING behaviour, so they start from an explicit OFF.
+  beforeEach(() => {
+    onlyCompatibleStore.set(false);
+  });
+
   /** Two mounted pickers, each re-reading the store when notified. */
   function mountedPickers(n: number): { seen: () => boolean[]; stop: () => void } {
     const values = Array.from({ length: n }, () => onlyCompatibleStore.get());

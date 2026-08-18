@@ -7,6 +7,8 @@ import type {
   SeriesMeta,
   TimeDimension,
 } from "@/spec";
+import { AUTO_GRANULARITY } from "@/spec";
+import { autoGranularityFor } from "@/variables";
 
 import { buildSeries, categoryOf, DEFAULT_GRANULARITY, seriesMetaOf, timeDimensionOf } from "../helpers";
 
@@ -121,11 +123,11 @@ export function placementBlockReason(
 ): string | undefined {
   if (!wellAccepts(well, kind)) {
     const wants = well.kinds.includes("number")
-      ? "a measure"
+      ? "a number (a total, average or count)"
       : well.kinds.includes("time")
         ? "a date or category"
         : "a category";
-    return `${well.label} takes ${wants}`;
+    return `${well.label} needs ${wants}`;
   }
   if (well.cardinality === "one" && current.length >= 1) {
     // Not a block — one-cardinality wells REPLACE. Kept for callers that want to
@@ -277,24 +279,24 @@ function setTimeDimension(query: CubeQuery, td: TimeDimension | undefined): Cube
 /**
  * Adaptive default granularity for a freshly-placed date X: pick from the bound
  * dateRange span when present (≤2 days→hour, ≤90→day, ≤730→month, else year),
- * else fall back to `day` (docs/05 §3.3).
+ * else fall back to `day` (docs/05 §3.3). Delegates to the resolver's
+ * {@link autoGranularityFor} — the same rule the stored `"auto"` choice resolves
+ * through — so an explicit adaptive pick and an Auto pick can never disagree.
+ * (Relative presets like "last 30 days" are understood too, not just pairs.)
  */
 export function adaptiveGranularity(dateRange: TimeDimension["dateRange"]): Granularity {
-  const days = spanDays(dateRange);
-  if (days === undefined) return DEFAULT_GRANULARITY;
-  if (days <= 2) return "hour";
-  if (days <= 90) return "day";
-  if (days <= 730) return "month";
-  return "year";
+  if (dateRange === undefined) return DEFAULT_GRANULARITY;
+  return autoGranularityFor(dateRange);
 }
 
-function spanDays(dateRange: TimeDimension["dateRange"]): number | undefined {
-  if (!Array.isArray(dateRange) || dateRange.length !== 2) return undefined;
-  const from = Date.parse(dateRange[0]);
-  const to = Date.parse(dateRange[1]);
-  if (Number.isNaN(from) || Number.isNaN(to)) return undefined;
-  return Math.abs(to - from) / 86_400_000;
-}
+/**
+ * What a FRESHLY-placed time field gets when the user has expressed no choice yet:
+ * a real window ("last 30 days" — enough data to see a shape, few enough buckets to
+ * read) bucketed on "auto", so the first preview renders something sensible instead
+ * of every row since the beginning of time. Both are ordinary values the user can
+ * change (or clear) from the field's popover.
+ */
+export const DEFAULT_NEW_TIME_RANGE = "last 30 days" as const;
 
 /**
  * Bind a member to the query in the way its kind requires. `carry` is the time
@@ -311,10 +313,15 @@ function bindToQuery(
   if (isMeasureKind(kind)) return { ...query, measures: withMember(query.measures, member) };
   if (kind === "time") {
     const prev = timeDimensionOf(query) ?? carry;
+    // A swap preserves the prior RANGE verbatim — including a deliberately-cleared
+    // one ("all time"); only a genuinely fresh placement gets the default window.
+    // The bucket may always fall back to "auto": it never overrides a choice (a
+    // chosen bucket rides in on prev.granularity) and an unbucketed time axis is
+    // never what a cartesian chart wants.
     return setTimeDimension(query, {
       dimension: member,
-      granularity: prev?.granularity ?? adaptiveGranularity(prev?.dateRange),
-      dateRange: prev?.dateRange,
+      granularity: prev?.granularity ?? AUTO_GRANULARITY,
+      dateRange: prev ? prev.dateRange : DEFAULT_NEW_TIME_RANGE,
     });
   }
   return ensureDimension(query, member);

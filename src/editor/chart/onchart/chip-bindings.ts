@@ -2,7 +2,7 @@ import type {
   ChartColorToken,
   ChartSpec,
   DateRange,
-  Granularity,
+  GranularityChoice,
   OrderSpec,
   SeriesMeta,
   TimeDimension,
@@ -55,8 +55,8 @@ export interface ChipBindings {
   label?: string;
   /** The EXPLICIT color token (undefined = auto/ramp); for the color picker's value. */
   colorToken?: ChartColorToken;
-  /** The time bucket — a literal granularity OR a `{var}` binding — when this is the time field. */
-  granularity?: Granularity | VarRef;
+  /** The time bucket — a literal granularity, "auto", OR a `{var}` binding — when this is the time field. */
+  granularity?: GranularityChoice | VarRef;
   /** The date range — a literal range OR a `{var}` binding — when this is the time field. */
   dateRange?: DateRange | VarRef;
   /** Per-series line shape, when this series draws a line/area. */
@@ -92,7 +92,7 @@ export interface ChipBindings {
   onLimit: (n: number | undefined) => void;
   onRename: (label: string | undefined) => void;
   onRecolor: (token: ChartColorToken | null) => void;
-  onGranularity: (g: Granularity | VarRef | undefined) => void;
+  onGranularity: (g: GranularityChoice | VarRef | undefined) => void;
   onDateRange: (range: DateRange | VarRef | undefined) => void;
   onDots: (on: boolean) => void;
   onRemove: () => void;
@@ -199,7 +199,7 @@ export function chipBindings(
     update({ ...spec, query: { ...query, timeDimensions: [next] } });
   };
 
-  const onGranularity = (g: Granularity | VarRef | undefined): void => patchTimeDim({ granularity: g });
+  const onGranularity = (g: GranularityChoice | VarRef | undefined): void => patchTimeDim({ granularity: g });
   const onDateRange = (range: DateRange | VarRef | undefined): void => patchTimeDim({ dateRange: range });
 
   const onDots = (on: boolean): void => {

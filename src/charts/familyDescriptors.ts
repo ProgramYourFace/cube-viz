@@ -194,7 +194,10 @@ const CARTESIAN_WELLS: WellDef[] = [
   },
   {
     id: "x",
-    label: "Category",
+    // "Category" named the spec's storage slot, not what the user sees — the strip
+    // along the bottom of the chart. placementBlockReason speaks it too
+    // ("Horizontal axis needs a date or category").
+    label: "Horizontal axis",
     hint: X_AXIS_HINT,
     cardinality: "one",
     kinds: ["time", "category"],

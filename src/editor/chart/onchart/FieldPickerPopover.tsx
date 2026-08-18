@@ -3,9 +3,10 @@ import { Calendar, Check, ChevronDown, ChevronRight, Database, Hash, Layers, Lis
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
-import { useCubeMeta } from "@/hooks";
+import { useCubeMeta, useDisplayUnit } from "@/hooks";
 
 import {
+  fieldBadge,
   findCube,
   listMembers,
   memberCanonicalTime,
@@ -58,6 +59,11 @@ const KIND_ORDER: FieldKind[] = ["geoPoint", "number", "numberDimension", "categ
 interface TableSection {
   cube: CubeOption;
   tag?: "source" | "related" | "dataset";
+  /**
+   * The category heading this related table renders under (cube `meta.category`,
+   * with a fallback for uncategorized tables). Only related sections carry one.
+   */
+  heading?: string;
 }
 
 /** A rendered group within a table: a semantic `meta.group` or a data-type fallback bucket. */
@@ -74,29 +80,29 @@ interface PickGroup {
 
 /**
  * The cross-table field picker. Fields are grouped FIRST by relation to the source
- * dataset (the source table, then related joined tables) and THEN by data type
- * (Numbers / Categories / Dates). A source selector switches between "All related
- * tables" and the curated views.
+ * dataset (the source table, then related joined tables under their model-authored
+ * `meta.category` headings — Vehicle activity / Maintenance / …) and THEN by the
+ * model's semantic `meta.group` sections. A source selector switches between "All
+ * related tables" and the curated views.
  *
- * By default nothing is hidden. Fields of a type this slot cannot take used to be
- * omitted entirely, so hunting for "Revenue" in the Category slot found *nothing* and
- * the user had no way to learn why. They are listed after the usable ones, disabled,
- * each carrying the same short reason the slot would give
- * ({@link placementBlockReason} — "Category takes a date or category"). The other
- * blocks (a 2nd measure table, a field from another dataset, an axis-unit mismatch)
- * read the same way, so the user can only build queries Cube will actually resolve —
- * and always knows which slot to try instead.
+ * Fields of a type this slot cannot take used to be omitted entirely, so hunting for
+ * "Revenue" in the Category slot found *nothing* and the user had no way to learn why.
+ * They are listed after the usable ones, disabled, each carrying the same short reason
+ * the slot would give ({@link placementBlockReason} — "Slices needs a date or
+ * category"). The other blocks (a 2nd measure table, a field from another dataset, an
+ * axis-unit mismatch) read the same way, so the user can only build queries Cube will
+ * actually resolve — and always knows which slot to try instead.
  *
- * The header's "Only compatible fields" toggle is the OPT-IN to the older, narrower
- * list: it hides every row that cannot be added for ANY reason (see
- * {@link candidateReason}), so with a distance measure on the value axis only
- * distance measures remain listed. It is an icon toggle button inline in the search
- * row (`aria-pressed` + a filled pressed state, since a WebView has no hover to lean
- * on). Because hiding costs discoverability, it still states how many rows it took
- * away — a numeric badge on the icon plus the tooltip — and an emptied list offers to
- * show them back. The choice is ONE shared, observable value for every picker on the
- * page ({@link onlyCompatibleStore}) — not a per-popover copy — persists (localStorage,
- * guarded) and defaults to OFF.
+ * The header's "Only compatible fields" toggle hides every row that cannot be added
+ * for ANY reason (see {@link candidateReason}), so with a distance measure on the
+ * value axis only distance measures remain listed. It is an icon toggle button inline
+ * in the search row (`aria-pressed` + a filled pressed state, since a WebView has no
+ * hover to lean on). It DEFAULTS ON — the common intent is to fill the slot, so the
+ * list leads with what fits — and because hiding costs discoverability it states how
+ * many rows it took away (a numeric badge on the icon plus the tooltip), and an
+ * emptied list offers to show them back. The choice is ONE shared, observable value
+ * for every picker on the page ({@link onlyCompatibleStore}) — not a per-popover
+ * copy — and persists (localStorage, guarded).
  */
 export function FieldPickerPopover({
   well,
@@ -137,7 +143,14 @@ export function FieldPickerPopover({
   const placedSet = React.useMemo(() => new Set(placed), [placed]);
   const q = search.trim().toLowerCase();
 
-  // The table sections to render, in relation order: source first, then related.
+  // The row badges show the unit the CHART will render — the viewer's unit system —
+  // not the storage unit (same conversion the axis badge uses).
+  const displayUnit = useDisplayUnit();
+
+  // The table sections to render: source first, then related tables grouped under
+  // their model-authored `meta.category` headings (alphabetical; uncategorized last).
+  // With no categories in the model at all, the fallback heading keeps the old flat
+  // "Related tables" reading.
   const sections = React.useMemo<TableSection[]>(() => {
     if (browse !== "tables") {
       const v = scope.views.find((x) => x.name === browse) ?? findCube(meta, browse);
@@ -145,14 +158,19 @@ export function FieldPickerPopover({
     }
     const out: TableSection[] = [];
     if (scope.sourceCube) out.push({ cube: scope.sourceCube, tag: "source" });
-    for (const c of scope.relatedCubes) out.push({ cube: c, tag: "related" });
+    const anyCategory = scope.relatedCubes.some((c) => c.category);
+    const fallback = anyCategory ? "More tables" : "Related tables";
+    const related = [...scope.relatedCubes].sort((a, b) => {
+      if (a.category !== b.category) {
+        if (a.category === undefined) return 1; // uncategorized sink to the bottom
+        if (b.category === undefined) return -1;
+        return a.category.localeCompare(b.category);
+      }
+      return 0; // stable: keep join-scope's title order within a category
+    });
+    for (const c of related) out.push({ cube: c, tag: "related", heading: c.category ?? fallback });
     return out;
   }, [browse, scope, meta]);
-
-  // Every list now mixes kinds (the ones this slot cannot take come last, disabled),
-  // so the per-row data-type icon always earns its place: it is the fastest way to
-  // see WHY a row is greyed out.
-  const showRowIcon = true;
 
   // Usable kinds first (in the picker's canonical order), then the ones this slot
   // rejects — so the list still leads with what the user can actually pick.
@@ -179,7 +197,7 @@ export function FieldPickerPopover({
     const seen = new Set<string>();
     for (const k of kindOrder) {
       const gm = GROUP_META[k];
-      // The slot-level reason ("Slices takes a date or category") — undefined for the
+      // The slot-level reason ("Slices needs a date or category") — undefined for the
       // kinds this well accepts.
       const kindBlock = placementBlockReason(well, k, inWell ?? []);
       let members = listMembers(meta, gm.metaKind, cubeName);
@@ -367,11 +385,17 @@ export function FieldPickerPopover({
               const defaultCollapsed = section.tag === "related";
               const effectiveCollapsed = collapsedOverride[section.cube.name] ?? defaultCollapsed;
               const expanded = q.length > 0 ? true : !effectiveCollapsed;
+              // A category heading renders above the FIRST related table of each
+              // category (sections arrive sorted by category).
+              const prev = idx > 0 ? rendered[idx - 1].section : undefined;
+              const showHeading =
+                section.tag === "related" && section.heading !== undefined &&
+                (prev?.tag !== "related" || prev.heading !== section.heading);
               return (
                 <div key={section.cube.name}>
-                  {section.tag === "related" && idx > 0 && rendered[idx - 1].section.tag !== "related" ? (
+                  {showHeading ? (
                     <div className="cv-picker-related-heading">
-                      Related tables
+                      {section.heading}
                     </div>
                   ) : null}
                   <button
@@ -423,7 +447,7 @@ export function FieldPickerPopover({
                             <PickerRow
                               key={option.name}
                               option={option}
-                              kindIcon={showRowIcon ? GROUP_META[kind].icon : undefined}
+                              unitBadge={fieldBadge(option, displayUnit)}
                               badge={kind === "time" && memberCanonicalTime(option) ? "default" : undefined}
                               reason={reason}
                               onPick={() => pick(option.name, kind)}
@@ -527,8 +551,11 @@ interface PickerRowProps {
   option: MemberOption;
   reason?: string;
   onPick: () => void;
-  /** Data-type icon, shown only for mixed-kind wells (semantic groups can mix kinds). */
-  kindIcon?: React.ReactElement;
+  /**
+   * The type/unit chip ("km", "mpg", "#", "text", "date", "yes/no") — what the field
+   * HOLDS, in words, replacing the old per-type glyph icons that named nothing.
+   */
+  unitBadge?: string;
   /** A small trailing chip (e.g. "default" on the cube's canonical time axis). */
   badge?: string;
 }
@@ -538,7 +565,8 @@ interface PickerRowProps {
  * hint is reachable — and it SHOWS the reason inline rather than only in the tooltip:
  * a WebView has no hover, so a title-only hint is invisible on touch.
  */
-function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps): React.ReactElement {
+function PickerRow({ option, reason, onPick, unitBadge, badge }: PickerRowProps): React.ReactElement {
+  const unit = unitBadge ? <span className="cv-field-unit">{unitBadge}</span> : null;
   if (reason) {
     return (
       <span
@@ -548,7 +576,7 @@ function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps):
         className="cv-picker-row--disabled"
       >
         <span className="cv-picker-row-main">
-          {kindIcon}
+          {unit}
           <span className="cv-ec-truncate">{option.label}</span>
         </span>
         <span className="cv-picker-row-reason">{reason}</span>
@@ -562,7 +590,7 @@ function PickerRow({ option, reason, onPick, kindIcon, badge }: PickerRowProps):
       title={option.description ?? option.name}
       className="cv-picker-row"
     >
-      {kindIcon}
+      {unit}
       <span className="cv-picker-row-label">{option.label}</span>
       {badge ? (
         <span className="cv-picker-badge">

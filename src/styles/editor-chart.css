@@ -994,6 +994,25 @@
   color: var(--primary);
 }
 
+/* The type/unit chip on member rows + placed pills ("km", "mpg", "#", "text",
+   "date", "yes/no") — a quiet, min-width token so labels stay aligned and the unit
+   is scannable without reading. Replaces the old per-type glyph icons. */
+.cv-field-unit {
+  flex: none;
+  min-width: 1.75rem;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: calc(var(--radius) - 4px);
+  background: color-mix(in oklab, var(--muted) 60%, transparent);
+  padding: 0 0.25rem;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+
 /* The data-source (browse) selector's menu. Its trigger is styled with the compat
    toggle above so the two icon buttons match. */
 .cv-picker-source-menu {

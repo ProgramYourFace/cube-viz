@@ -22,7 +22,7 @@ import {
   type VarRef,
 } from "@/spec";
 
-import { MemberPicker, memberTypeIcon } from "../primitives/MemberPicker";
+import { MemberPicker, MemberUnitChip } from "../primitives/MemberPicker";
 import { SegmentedControl } from "../primitives/SegmentedControl";
 import {
   findMember,
@@ -376,7 +376,7 @@ function FilterEditRow({
             >
               {member ? (
                 <span className="cv-filter-field-value">
-                  {memberTypeIcon(member.type)}
+                  <MemberUnitChip option={member} />
                   <span className="cv-ec-truncate">{member.label}</span>
                 </span>
               ) : (

@@ -40,6 +40,18 @@ export const GranularitySchema = z.enum([
 ]);
 export type Granularity = z.infer<typeof GranularitySchema>;
 
+/**
+ * "auto" is a SPEC-level granularity choice, not a Cube one: it means "pick a bucket
+ * that fits the date range at query time" (2 days → hour, a quarter → day, two years
+ * → month…). The variable resolver replaces it with a concrete {@link Granularity}
+ * before the query is POSTed, so Cube never sees the token — and the chart keeps a
+ * sensible bucket when the user (or a dashboard variable) later changes the range.
+ */
+export const AUTO_GRANULARITY = "auto" as const;
+export const GranularityChoiceSchema = z.union([GranularitySchema, z.literal(AUTO_GRANULARITY)]);
+/** What a spec may STORE for a time bucket: a concrete granularity, or "auto". */
+export type GranularityChoice = z.infer<typeof GranularityChoiceSchema>;
+
 /** Absolute `[from, to]` pair OR a relative string like "last 30 days" / "This month". */
 export const DateRangeSchema = z.union([z.tuple([z.string(), z.string()]), z.string()]);
 export type DateRange = z.infer<typeof DateRangeSchema>;
@@ -104,7 +116,7 @@ export const QueryFilterSchema: z.ZodType<QueryFilter> = z.lazy(() =>
 export const TimeDimensionSchema = z
   .object({
     dimension: MemberSchema,
-    granularity: orVar(GranularitySchema).optional(),
+    granularity: orVar(GranularityChoiceSchema).optional(),
     dateRange: orVar(DateRangeSchema).optional(),
     compareDateRange: z.array(DateRangeSchema).optional(),
   })

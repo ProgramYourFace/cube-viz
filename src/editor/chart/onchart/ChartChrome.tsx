@@ -58,7 +58,7 @@ export function AxisChrome({
   // With no caption rendered, fall back to naming the axis outright.
   const captionId = React.useId();
   const inputId = React.useId();
-  const axisName = axis === "y" ? "Value axis title" : "Category axis title";
+  const axisName = axis === "y" ? "Value axis title" : "Horizontal axis title";
   return (
     <div className={cn("cv-axis-chrome", hidden && "cv-axis-chrome--hidden")}>
       {title ? (

@@ -59,3 +59,20 @@ export function granularityOptionsFor(range: unknown): Granularity[] | undefined
   const span = rangeSpanDays(range as VariableValue | undefined);
   return span === undefined ? undefined : granularitiesForSpan(span);
 }
+
+/**
+ * The concrete bucket an `"auto"` granularity resolves to for a date range — the
+ * one place that decides what Auto means, shared by the query resolver (which
+ * substitutes it before POSTing to Cube) and the editor (which previews it in the
+ * "Auto" label). Accepts an absolute `[from, to]` pair or a relative preset
+ * ("last 30 days"); an unknowable range (unset, or an unresolved `{var}`) falls
+ * back to `day` — the bucket that reads sensibly at most fleet time scales.
+ */
+export function autoGranularityFor(range: unknown): Granularity {
+  const days = rangeSpanDays(range as VariableValue | undefined);
+  if (days === undefined) return "day";
+  if (days <= 2) return "hour";
+  if (days <= 90) return "day";
+  if (days <= 730) return "month";
+  return "year";
+}

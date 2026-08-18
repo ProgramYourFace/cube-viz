@@ -26,9 +26,11 @@ export interface CubePickerProps {
 }
 
 /**
- * Pick a data source — a cube OR a view — from `useCubeMeta()`. Cubes and views
- * are grouped and tagged (view/cube) so authors know whether `prefix:true`
- * member names apply. Names are read verbatim and emitted unchanged.
+ * Pick a data source — a table (cube) OR a saved dataset (view) — from
+ * `useCubeMeta()`. Tables are grouped under their model-authored `meta.category`
+ * headings (Vehicle activity / Maintenance / …, uncategorized last) so a long flat
+ * list reads as a few subject areas; saved datasets keep their own group on top.
+ * Names are read verbatim and emitted unchanged.
  */
 export function CubePicker({
   value,
@@ -41,9 +43,31 @@ export function CubePicker({
   const { meta, isLoading } = useCubeMeta();
   const options = React.useMemo(() => listCubes(meta), [meta]);
 
-  const cubes = options.filter((o) => o.type === "cube");
   const views = options.filter((o) => o.type === "view");
   const selected = options.find((o) => o.name === value);
+
+  // Tables grouped by category, categories alphabetical, uncategorized last. With no
+  // categories in the model at all this degrades to one "Tables" group — the old list.
+  const tableGroups = React.useMemo(() => {
+    const cubes = options.filter((o) => o.type === "cube");
+    const anyCategory = cubes.some((c) => c.category);
+    const order: string[] = [];
+    const byLabel = new Map<string, CubeOption[]>();
+    for (const c of cubes) {
+      const label = c.category ?? (anyCategory ? "More tables" : "Tables");
+      if (!byLabel.has(label)) {
+        byLabel.set(label, []);
+        order.push(label);
+      }
+      byLabel.get(label)!.push(c);
+    }
+    order.sort((a, b) => {
+      if (a === "More tables") return 1;
+      if (b === "More tables") return -1;
+      return a.localeCompare(b);
+    });
+    return order.map((label) => ({ label, items: byLabel.get(label)! }));
+  }, [options]);
 
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled || isLoading}>
@@ -55,7 +79,7 @@ export function CubePicker({
       <SelectContent>
         {views.length > 0 ? (
           <SelectGroup>
-            <SelectLabel>Views</SelectLabel>
+            <SelectLabel>Saved datasets</SelectLabel>
             {views.map((o) => (
               <SelectItem key={o.name} value={o.name}>
                 <CubeLabel option={o} />
@@ -63,16 +87,16 @@ export function CubePicker({
             ))}
           </SelectGroup>
         ) : null}
-        {cubes.length > 0 ? (
-          <SelectGroup>
-            <SelectLabel>Cubes</SelectLabel>
-            {cubes.map((o) => (
+        {tableGroups.map((g) => (
+          <SelectGroup key={g.label}>
+            <SelectLabel>{g.label}</SelectLabel>
+            {g.items.map((o) => (
               <SelectItem key={o.name} value={o.name}>
                 <CubeLabel option={o} />
               </SelectItem>
             ))}
           </SelectGroup>
-        ) : null}
+        ))}
       </SelectContent>
     </Select>
   );
@@ -85,7 +109,7 @@ function CubeLabel({ option }: { option: CubeOption }): React.ReactElement {
       <Icon className="cv-cube-icon" />
       <span className="cv-ed-truncate">{option.title}</span>
       <Badge variant="secondary" className="cv-cube-badge">
-        {option.type}
+        {option.type === "view" ? "dataset" : "table"}
       </Badge>
     </span>
   );

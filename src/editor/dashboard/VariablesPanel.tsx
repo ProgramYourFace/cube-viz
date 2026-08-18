@@ -44,13 +44,13 @@ export interface VariablesPanelProps {
 const TYPE_LABELS: Record<VariableType, string> = {
   dateRange: "Date range",
   time: "Time",
-  granularity: "Granularity",
-  string: "String",
+  granularity: "Group dates by",
+  string: "Text",
   number: "Number",
-  boolean: "Boolean",
-  dimension: "Dimension",
-  measure: "Measure",
-  dimensionOrMeasure: "Dimension or measure",
+  boolean: "Yes/no",
+  dimension: "Category field",
+  measure: "Number field",
+  dimensionOrMeasure: "Any field",
 };
 
 export function VariablesPanel({

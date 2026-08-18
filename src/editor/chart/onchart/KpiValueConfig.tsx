@@ -3,7 +3,7 @@ import { CalendarRange, ChevronDown } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { ChartSpec, DateRange, Granularity, TimeDimension, VarRef } from "@/spec";
+import type { ChartSpec, DateRange, Granularity, GranularityChoice, TimeDimension, VarRef } from "@/spec";
 import { granularityOptionsFor } from "@/variables";
 
 import { EditorErrorBoundary } from "../../primitives/EditorErrorBoundary";
@@ -288,7 +288,10 @@ export function KpiSparklineConfig({ spec, update }: Props): React.ReactElement 
               <GranularityPicker
                 id={id}
                 value={g}
-                onChange={set}
+                // No `allowAuto` here, so the picker only ever emits a concrete
+                // Granularity (or undefined) — the cast just narrows it back for
+                // the sparkline's own stricter type.
+                onChange={set as (g: GranularityChoice | undefined) => void}
                 options={bucketOptions}
                 allowNone
                 noneLabel="No trend"

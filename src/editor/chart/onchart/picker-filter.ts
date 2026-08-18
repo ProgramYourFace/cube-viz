@@ -53,7 +53,27 @@ export function candidateReason(
   option: MemberOption,
   contextReason?: (option: MemberOption) => string | undefined,
 ): string | undefined {
-  return placementBlockReason(well, kind, [...inWell]) ?? contextReason?.(option);
+  const slot = placementBlockReason(well, kind, [...inWell]);
+  if (slot) return refineSlotReason(slot, well, option);
+  return contextReason?.(option);
+}
+
+/**
+ * Upgrade a generic slot reason to name the FIELD's nature when that names the fix
+ * better. The generic form says what the slot wants ("Values needs a number…"); for
+ * the two cases users actually hit — a per-record number offered where an aggregate
+ * belongs, and a yes/no field offered anywhere numeric — saying what the FIELD is
+ * points at the move that works.
+ */
+function refineSlotReason(slot: string, well: WellDef, option: MemberOption): string {
+  if (!well.kinds.includes("number")) return slot;
+  if (option.type === "boolean") {
+    return "Yes/no field — use it as a filter or in Split by";
+  }
+  if (option.memberType === "dimension" && option.type === "number") {
+    return "One value per record — pick its total or average instead";
+  }
+  return slot;
 }
 
 /**
@@ -117,14 +137,17 @@ function storage(): Storage | undefined {
 }
 
 /**
- * The persisted switch state. DEFAULT OFF: the picker's job is to show what exists
- * and why it is blocked, so hiding is opt-in and survives popover opens + reloads.
+ * The persisted switch state. DEFAULT ON: most of the time the user is trying to
+ * FILL the slot, so the list leads with fields that will actually drop in; showing
+ * every incompatible row is the opt-out (the switch is one tap, the hidden count is
+ * always stated, and an emptied list offers the way back). An explicit choice in
+ * EITHER direction persists: "0" = off, anything else (incl. the legacy "1") = on.
  */
 export function readOnlyCompatible(): boolean {
   try {
-    return storage()?.getItem(ONLY_COMPATIBLE_KEY) === "1";
+    return storage()?.getItem(ONLY_COMPATIBLE_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -133,8 +156,9 @@ export function writeOnlyCompatible(on: boolean): void {
   try {
     const s = storage();
     if (!s) return;
-    if (on) s.setItem(ONLY_COMPATIBLE_KEY, "1");
-    else s.removeItem(ONLY_COMPATIBLE_KEY);
+    // Both states are stored explicitly ("1"/"0") so flipping the DEFAULT again some
+    // day cannot silently flip users who had made a choice.
+    s.setItem(ONLY_COMPATIBLE_KEY, on ? "1" : "0");
   } catch {
     /* quota exceeded / storage disabled — the preference is a nicety, never a failure */
   }

@@ -37,7 +37,7 @@ if I switch type?* — now have **one** answer each instead of five that disagre
 │  │ [Σ …+]  │ │                                                 │
 │  └─────────┘ │                                                 │
 ├──────────────┴─────────────────────────────────────────────────┤
-│  BOTTOM strip (zones.bottom):  [Category ▾] [Split by +]       │
+│  BOTTOM strip (zones.bottom):  [Horizontal axis ▾] [Split by +]│
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -135,7 +135,7 @@ listed **top → bottom**, i.e. the order the greedy matcher (§5) walks them.
 | Family | Well `id` | Label | Card. | Accepted kinds | `target` | `channel` | Optional |
 |---|---|---|---|---|---|---|---|
 | **bar / line / area** *(one shared `CARTESIAN_WELLS` array)* | `y` | Values | many | `number` | `measures` | `y` | |
-| | `x` | Category | one | `time`, `category` | `category` | `x` | |
+| | `x` | Horizontal axis | one | `time`, `category` | `category` | `x` | |
 | | `color` | Split by | one | `category` | `pivot` | `color` | ✓ |
 | **heatmap** | `value` | Value | one | `number` | `measures` | `y` | |
 | | `hy` | Rows | one | `category` | `pivot` | `row` | |
@@ -248,10 +248,16 @@ guards in `wells.ts` reconcile the result with what the wells actually hold:
 Neither ever *prunes* a time dimension: a `dateRange`-only entry that no well claims is the
 chart's date **filter**.
 
-**Adaptive granularity** (unchanged from v3, now in `channels.ts` and re-exported from `wells.ts`
-for host families): a freshly-placed date picks its bucket from the bound `dateRange` span —
-≤2 days → `hour`, ≤90 → `day`, ≤730 → `month`, else `year` — falling back to `day`
-(`DEFAULT_GRANULARITY`) with no range.
+**Auto granularity.** A freshly-placed date is stored as `granularity: "auto"` with a
+`dateRange` default of `"last 30 days"` (`DEFAULT_NEW_TIME_RANGE`) when nothing carried over —
+so the first preview shows a month of daily buckets rather than every row since forever. The
+spec keeps `"auto"`; the **variable resolver** substitutes the span-fitting concrete bucket
+(`autoGranularityFor`: ≤2 days → `hour`, ≤90 → `day`, ≤730 → `month`, else `year`, no
+readable span → `day`) right before the query is POSTed, so Cube never sees the token and a
+later range change re-fits the bucket. The pill's "Group dates by" select leads with
+**Auto (Day)** — the parenthesis names what it currently resolves to — and picking a concrete
+bucket pins it. `adaptiveGranularity` (re-exported from `wells.ts` for host families) now
+delegates to the same rule, so an explicit adaptive pick and Auto can never disagree.
 
 ---
 
@@ -385,22 +391,36 @@ two categories"*, *"Every field, row by row"* — and never in grammar (*channel
 **Changed in v4.** Field slots used to *hide* fields of a type they could not take. Hunting for
 "Revenue" in the Category slot therefore found **nothing**, and the user had no way to learn why.
 
+- Related tables are grouped under **cube-level `meta.category` headings** ("Vehicle
+  activity", "Maintenance", …; alphabetical, uncategorized under a trailing "More tables") —
+  authored on the Cube model, read off `/v1/meta` verbatim (`CubeOption.category`). The source
+  table stays pinned on top with its "Main table" tag, and `CubePicker` (the Source control)
+  groups its table list by the same headings. With no categories in the model the pickers
+  degrade to the old flat list.
 - `FieldPickerPopover` now lists everything. Usable kinds come first (in the picker's canonical
   order `geoPoint → number → numberDimension → category → time`), then the kinds this slot
   rejects — **muted, `aria-disabled`, still focusable**, each carrying the same short reason the
-  slot itself would give (`placementBlockReason`: *"Category takes a date or category"*). A
+  slot itself would give (`placementBlockReason`: *"Horizontal axis needs a date or
+  category"*, *"Values needs a number (a total, average or count)"* — the copy avoids
+  "measure"/"dimension", which name spec storage, not anything a chart reader recognizes).
+  `candidateReason` refines the slot rule when the FIELD's nature names the fix better: a
+  numeric **dimension** on a numeric slot reads *"One value per record — pick its total or
+  average instead"*, a boolean reads *"Yes/no field — use it as a filter or in Split by"*. A
   fully-rejected group header is marked *"not for this slot"*.
 - The reason is rendered **inline**, not only in the `title`: a WebView has no hover, so a
   tooltip-only hint is invisible on touch. (This replaced a flat *"Not available"*.)
 - The slot's own wrong-kind reason **wins** over the other blocks (cross-dataset, second measure
   source, axis-unit mismatch), because it names the fix — *put this somewhere else* — where the
   others describe the model.
-- Every list now mixes kinds, so the per-row data-type icon is always shown: it is the fastest way
-  to see *why* a row is greyed out.
+- Every row carries a **type/unit chip** (`fieldBadge` + `.cv-field-unit`) instead of the old
+  glyph-per-type icon: numbers show their unit in the *viewer's* unit system ("km"/"mi", "L",
+  "min", "%", counts "#"), and the unit-less types name themselves ("text", "date", "yes/no",
+  "map"). The same chip renders on placed pills and in the member pickers/filter builder
+  (`MemberUnitChip`), so a field looks the same everywhere it appears.
 - `WellGroup` titles its add button with the same sentence (`takesHint`), so the button and the
   greyed rows inside it never disagree; a well that takes everything (a table column) falls back to
   its own `hint`. With nothing placed anywhere yet, the required value slot — the measure is what
-  every family needs first — shows a single *"Add a measure to start"* line.
+  every family needs first — shows a single *"Pick a number to get started"* line.
 - `placementBlockReason` deliberately returns `undefined` for a full `one`-cardinality well:
   those **replace** rather than refuse. It is kept as a hook for callers that want to warn
   ("replaces Distance") instead of disabling.
@@ -436,12 +456,14 @@ search row, that hides every row that cannot be added **for any reason** (`src/e
   `picker-filter.ts`), consumed with `useSyncExternalStore`. It is *not* per-popover state seeded
   from storage: the editor mounts one picker per well up front, so a local copy taken at mount time
   never learns that the user flipped the switch in a different slot — the bug that left the Values
-  slot listing every date and dimension under *"Values takes a measure"* while its own toggle read
+  slot listing every date and dimension under *"Values needs a number…"* while its own toggle read
   `aria-pressed="false"`. The store also adopts a change made in another tab (`storage` event) and
   keeps working where `localStorage` cannot be written at all (it just does not survive a reload).
 - It persists under `localStorage["cube-viz:field-picker:only-compatible"]`, read through a
   guard that tolerates no storage at all (SSR) and a `localStorage` access that *throws* (hardened
-  WebView / blocked cookies). **Default OFF** — the option was the request, not a behavior change.
+  WebView / blocked cookies). **Default ON** — the common intent is to fill the slot, so the list
+  leads with what fits; both states persist explicitly ("1"/"0", legacy "1" honoured) so a future
+  default flip cannot move a user who has chosen.
 - A member Cube models as a `type: "number"` **dimension** (a coordinate, a heading) is reported by
   `listMembers` under *both* `numberDimension` and the plain `dimension` bucket, so `groupsFor`
   de-duplicates per table and keeps the FIRST hit — and since `kindOrder` leads with the kinds the

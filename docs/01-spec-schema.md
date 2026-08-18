@@ -146,7 +146,7 @@ type Member = string;           // fully-qualified, dot-namespaced, snake_case
 interface TimeDimension {
   dimension: Member;            // a dimension whose meta type === 'time'
                                 // e.g. "device_trips.start_time", "device_locations.timestamp"
-  granularity?: Granularity | VarRef;   // omit ⇒ plain date filter, no grouping
+  granularity?: Granularity | "auto" | VarRef; // omit ⇒ plain date filter; "auto" ⇒ resolver fits the bucket to the range
   dateRange?: DateRange | VarRef;        // ['2026-06-01','2026-06-18'] | "last 7 days" | {var}
   compareDateRange?: DateRange[];        // period-over-period
 }
@@ -509,7 +509,11 @@ When a `{var}` token resolves to **unset** (no store value and no default) or **
 
 - **In a `LeafFilter.values`** → the entire `LeafFilter` is **removed** from the query.
 - **In `TimeDimension.dateRange`** → the `dateRange` field is **removed** (the time dimension stays for grouping if `granularity` is present; otherwise it's an ungrouped passthrough).
-- **In `TimeDimension.granularity`** → the `granularity` field is **removed** (ungrouped).
+- **In `TimeDimension.granularity`** → the `granularity` field is **removed** (ungrouped). A
+  granularity that resolves to `"auto"` (stored literal or carried by a variable) is replaced
+  with the concrete bucket fitting the resolved `dateRange` (`autoGranularityFor` — ≤2 days →
+  `hour`, ≤90 → `day`, ≤730 → `month`, else `year`; unknown span → `day`), so the query POSTed
+  to Cube never carries `"auto"`.
 - **In `limit`/`offset`** → the field is **removed** (Cube default applies).
 - **In `mapping`/options (member-valued var)** → the chart renders an **empty/placeholder state** (it cannot plot an unspecified member) rather than erroring.
 - **Inside an `and`/`or` group** → the empty leaf is dropped; if the group empties, the group is dropped.

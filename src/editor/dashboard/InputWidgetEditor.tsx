@@ -44,12 +44,12 @@ export interface InputWidgetEditorProps {
 
 const KIND_LABELS: Record<InputControlKind, string> = {
   dateRange: "Date range",
-  granularity: "Granularity",
-  select: "Select",
-  memberSelect: "Member select",
+  granularity: "Group dates by",
+  select: "Dropdown",
+  memberSelect: "Field picker",
   text: "Text",
   number: "Number",
-  toggle: "Toggle",
+  toggle: "On/off switch",
 };
 
 type Control = InputControl["control"];
@@ -418,9 +418,9 @@ function MemberSelectOptions({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="dimension">Dimensions</SelectItem>
-            <SelectItem value="measure">Measures</SelectItem>
-            <SelectItem value="dimensionOrMeasure">Dimensions &amp; measures</SelectItem>
+            <SelectItem value="dimension">Category fields</SelectItem>
+            <SelectItem value="measure">Number fields</SelectItem>
+            <SelectItem value="dimensionOrMeasure">All fields</SelectItem>
           </SelectContent>
         </Select>
       </FieldRow>

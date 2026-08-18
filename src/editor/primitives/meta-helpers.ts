@@ -62,6 +62,13 @@ export interface CubeOption {
   connectedComponent?: number;
   /** Direct outbound join targets declared in cube `meta.joinTargets`. */
   joinTargets: string[];
+  /**
+   * Model-authored table CATEGORY, read from cube-level `meta.category` (e.g.
+   * "Vehicle activity", "Maintenance"). Table pickers group and head tables by it so
+   * a long flat table list reads as a small set of subject areas. Undefined when the
+   * model declares none — callers bucket those under a trailing fallback group.
+   */
+  category?: string;
 }
 
 /** The `connectedComponent` (join-graph id) of a cube/view, or undefined. */
@@ -73,6 +80,13 @@ function joinTargetsOf(c: { meta?: unknown }): string[] {
   if (!c.meta || typeof c.meta !== "object") return [];
   const targets = (c.meta as Record<string, unknown>).joinTargets;
   return Array.isArray(targets) ? targets.filter((v): v is string => typeof v === "string") : [];
+}
+
+/** Cube-level `meta.category` (see {@link CubeOption.category}); undefined when absent. */
+function categoryOf(c: { meta?: unknown }): string | undefined {
+  if (!c.meta || typeof c.meta !== "object") return undefined;
+  const category = (c.meta as Record<string, unknown>).category;
+  return typeof category === "string" && category.length > 0 ? category : undefined;
 }
 
 function isPublic(m: { public?: boolean; isVisible?: boolean }): boolean {
@@ -93,6 +107,7 @@ export function listCubes(meta: CubeMeta | undefined): CubeOption[] {
       type: c.type === "view" ? ("view" as const) : ("cube" as const),
       connectedComponent: componentOf(c as { connectedComponent?: number }),
       joinTargets: joinTargetsOf(c),
+      category: categoryOf(c),
     }));
 }
 
@@ -190,6 +205,37 @@ export function groupMembersByMeta(
     entry.items.push(m);
   }
   return order.map((k) => [byKey.get(k)!.label, byKey.get(k)!.items] as [string, MemberOption[]]);
+}
+
+/**
+ * The short TYPE/UNIT badge for a member row — what a field HOLDS, in the user's own
+ * words, replacing the old glyph-per-type icons (a `#` or `T` said nothing to a fleet
+ * manager). Numbers show their unit ("km", "L", "min", "%"), counts show "#", and the
+ * unit-less types name themselves ("text", "date", "yes/no"). `displayUnit` converts a
+ * storage unit to the viewer's unit system ("km" → "mi") so the badge matches what the
+ * chart will actually render; pass nothing to show storage units.
+ */
+export function fieldBadge(
+  option: Pick<MemberOption, "type" | "unit">,
+  displayUnit?: (unit?: string) => string | undefined,
+): string {
+  switch (option.type) {
+    case "time":
+      return "date";
+    case "boolean":
+      return "yes/no";
+    case "geoPoint":
+      return "map";
+    case "segment":
+      return "filter";
+    case "number": {
+      const unit = displayUnit?.(option.unit) ?? option.unit;
+      if (!unit || unit === "count") return "#";
+      return unit;
+    }
+    default:
+      return "text";
+  }
 }
 
 function measureToOption(m: TCubeMeasure, cube: string): MemberOption {

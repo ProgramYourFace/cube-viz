@@ -9,7 +9,10 @@ import {
   type VariableValue,
 } from "@/spec";
 
+import { AUTO_GRANULARITY } from "@/spec";
+
 import { resolveRelativeDateRange } from "./date-ranges";
+import { autoGranularityFor } from "./granularity-span";
 
 /**
  * The variable resolver — legs 2 & 3 of the binding model, plus the `noFilter`
@@ -165,16 +168,24 @@ function resolveTimeDimension(
 ): TimeDimension {
   const out: TimeDimension = { dimension: td.dimension };
 
-  if (td.granularity !== undefined) {
-    const g = resolveToken(td.granularity, decls, store);
-    // Empty granularity is DELETED (the time dim stays, ungrouped).
-    if (!isEmptyValue(g)) out.granularity = g as TimeDimension["granularity"];
-  }
-
+  // dateRange resolves FIRST: an "auto" granularity is derived from it below.
   if (td.dateRange !== undefined) {
     const dr = resolveToken(td.dateRange, decls, store);
     // Empty dateRange is DELETED; the time dim stays for grouping (if granularity present).
     if (!isEmptyValue(dr)) out.dateRange = dr as TimeDimension["dateRange"];
+  }
+
+  if (td.granularity !== undefined) {
+    const g = resolveToken(td.granularity, decls, store);
+    // Empty granularity is DELETED (the time dim stays, ungrouped). An "auto" choice
+    // (stored literal or carried by a variable) becomes the concrete bucket that fits
+    // the resolved range — Cube itself never sees "auto".
+    if (!isEmptyValue(g)) {
+      out.granularity =
+        g === AUTO_GRANULARITY
+          ? autoGranularityFor(out.dateRange)
+          : (g as TimeDimension["granularity"]);
+    }
   }
 
   // compareDateRange carries no var tokens in the contract; passthrough verbatim.
