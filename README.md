@@ -778,7 +778,8 @@ the same rows in every slot, and that a variable-bound KPI renders at all (the
 regression that used to take a whole dashboard down). `verify:type-picker` asserts each
 picker tile drew the chart type it is a picture of.
 
-**cube-viz has no PR CI.** The only workflow left is `release.yml`, which builds and
-tags on a push to master — so a build break is caught there, but typecheck and the unit
-tests run *nowhere* automatically. Run `bun run typecheck && bun run test` before you
-push.
+**CI on PRs is typecheck + unit tests only.** `ci.yml` runs `bun run typecheck` and
+`bun run test` on every pull request (and master pushes) — fast, no browser. The
+screenshot/interaction assertions above run *nowhere* automatically; run them locally
+before shipping visual changes. `release.yml` still builds and tags on a push to
+master, so a build break is caught there.
