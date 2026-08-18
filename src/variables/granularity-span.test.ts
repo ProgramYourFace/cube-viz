@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { granularitiesForSpan, granularityOptionsFor, rangeSpanDays } from "./granularity-span";
+import { autoGranularityFor, granularitiesForSpan, granularityOptionsFor, rangeSpanDays } from "./granularity-span";
 
 /**
  * The bucket rail. A granularity is only meaningful against the span it divides, and
@@ -56,5 +56,19 @@ describe("granularityOptionsFor", () => {
     // Guessing narrow here would hide buckets the eventual range makes correct.
     expect(granularityOptionsFor({ var: "range" })).toBeUndefined();
     expect(granularityOptionsFor(undefined)).toBeUndefined();
+  });
+});
+
+describe("autoGranularityFor (what a stored 'auto' becomes)", () => {
+  it("fits the bucket to the span", () => {
+    expect(autoGranularityFor(["2026-07-01", "2026-07-02"])).toBe("hour");
+    expect(autoGranularityFor("last 30 days")).toBe("day");
+    expect(autoGranularityFor("last 12 months")).toBe("month");
+    expect(autoGranularityFor(["2020-01-01", "2026-01-01"])).toBe("year");
+  });
+
+  it("falls back to day when the span is unknowable", () => {
+    expect(autoGranularityFor(undefined)).toBe("day");
+    expect(autoGranularityFor("whenever")).toBe("day");
   });
 });

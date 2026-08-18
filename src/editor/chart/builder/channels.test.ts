@@ -10,7 +10,7 @@ import { SCHEMA_VERSION, type ChartFamily, type ChartSpec, type SeriesMapping } 
 
 import { migrateToFamily } from "../helpers";
 import { placeField, readWells, removeField, type FieldKind } from "./wells";
-import { channelFitScore, unifyChannels, wellAccepts } from "./channels";
+import { adaptiveGranularity, channelFitScore, DEFAULT_NEW_TIME_RANGE, unifyChannels, wellAccepts } from "./channels";
 
 /**
  * The channel model (docs/05 §2) — ONE interpreter servicing every builtin family from
@@ -296,7 +296,7 @@ describe("heatmap", () => {
 /* ───────────────────────────── time placement ─────────────────────────────── */
 
 describe("time fields", () => {
-  it("sets a time dimension with an adaptive granularity, preserving the bound range", () => {
+  it("sets an AUTO time dimension, preserving the bound range", () => {
     const withRange = specOf("bar", {
       query: { timeDimensions: [{ dimension: SHIPPED, dateRange: ["2024-01-01", "2024-02-01"] }] },
     });
@@ -304,26 +304,43 @@ describe("time fields", () => {
       ["y", AMOUNT, "number"],
       ["x", CREATED, "time"],
     ]);
+    // "auto" is stored, not a concrete bucket — the variable resolver substitutes the
+    // span-fitting granularity at query time, so a later range change re-fits it.
     expect(spec.query.timeDimensions).toEqual([
-      { dimension: CREATED, granularity: "day", dateRange: ["2024-01-01", "2024-02-01"] },
+      { dimension: CREATED, granularity: "auto", dateRange: ["2024-01-01", "2024-02-01"] },
     ]);
     expect(spec.query.dimensions ?? []).toEqual([]);
     expect(wellsOf(spec).x).toEqual([CREATED]);
   });
 
-  it("picks the granularity from the span", () => {
-    const span = (from: string, to: string): string | undefined =>
-      place(specOf("bar", { query: { timeDimensions: [{ dimension: SHIPPED, dateRange: [from, to] }] } }), [
-        ["x", CREATED, "time"],
-      ]).query.timeDimensions?.[0]?.granularity as string | undefined;
-    expect(span("2024-01-01", "2024-01-02")).toBe("hour");
-    expect(span("2024-01-01", "2024-03-01")).toBe("day");
-    expect(span("2024-01-01", "2025-01-01")).toBe("month");
-    expect(span("2020-01-01", "2024-01-01")).toBe("year");
-    // No range to read → the editor's default bucket.
-    expect(
-      place(specOf("bar"), [["x", CREATED, "time"]]).query.timeDimensions?.[0]?.granularity,
-    ).toBe("day");
+  it("gives a FRESH time placement a real window, so the first preview reads", () => {
+    const spec = place(specOf("bar"), [["x", CREATED, "time"]]);
+    expect(spec.query.timeDimensions).toEqual([
+      { dimension: CREATED, granularity: "auto", dateRange: DEFAULT_NEW_TIME_RANGE },
+    ]);
+  });
+
+  it("keeps a user-chosen granularity and range on an axis swap", () => {
+    const withChoice = specOf("bar", {
+      query: {
+        timeDimensions: [
+          { dimension: SHIPPED, granularity: "week", dateRange: ["2024-01-01", "2024-02-01"] },
+        ],
+      },
+    });
+    const spec = place(withChoice, [["x", CREATED, "time"]]);
+    expect(spec.query.timeDimensions).toEqual([
+      { dimension: CREATED, granularity: "week", dateRange: ["2024-01-01", "2024-02-01"] },
+    ]);
+  });
+
+  it("adaptiveGranularity fits the span (shared rule with the auto resolver)", () => {
+    expect(adaptiveGranularity(["2024-01-01", "2024-01-02"])).toBe("hour");
+    expect(adaptiveGranularity(["2024-01-01", "2024-03-01"])).toBe("day");
+    expect(adaptiveGranularity(["2024-01-01", "2025-01-01"])).toBe("month");
+    expect(adaptiveGranularity(["2020-01-01", "2024-01-01"])).toBe("year");
+    expect(adaptiveGranularity("last 30 days")).toBe("day");
+    expect(adaptiveGranularity(undefined)).toBe("day");
   });
 
   it("keeps a table's other date columns bound when a second one is added", () => {

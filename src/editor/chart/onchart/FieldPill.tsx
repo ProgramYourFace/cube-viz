@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
+import { useDisplayUnit } from "@/hooks";
 import { useFamilyRegistry } from "@/provider";
 import type { ChartColorToken, ChartSpec } from "@/spec";
-import { granularityOptionsFor } from "@/variables";
+import { autoGranularityFor, granularityOptionsFor } from "@/variables";
 
 import { ColorTokenPicker } from "../../primitives/ColorTokenPicker";
 import { GranularityPicker } from "../../primitives/GranularityPicker";
 import { Switch } from "../../primitives/SwitchRow";
-import { memberTypeIcon } from "../../primitives/MemberPicker";
-import type { MemberOption } from "../../primitives/meta-helpers";
+import { fieldBadge, type MemberOption } from "../../primitives/meta-helpers";
 import type { WellDef } from "../builder/wells";
 import { chipBindings } from "./chip-bindings";
 import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
@@ -80,6 +80,7 @@ export function FieldPill({
   className,
 }: FieldPillProps): React.ReactElement {
   const families = useFamilyRegistry();
+  const displayUnit = useDisplayUnit();
   const b = chipBindings(spec, update, well, member, option, families);
   // Ids for the config popover's controls: each visible caption is a real
   // `<label htmlFor>` pointing at its field, so every control has an accessible name
@@ -126,7 +127,9 @@ export function FieldPill({
           aria-hidden
         />
       ) : option ? (
-        memberTypeIcon(option.type)
+        // What the field HOLDS, in words ("km", "#", "date") — same chip as the
+        // picker rows, converted to the viewer's unit system.
+        <span className="cv-field-unit">{fieldBadge(option, displayUnit)}</span>
       ) : null}
       <span className="cv-field-pill-name">{display}</span>
     </>
@@ -236,6 +239,12 @@ export function FieldPill({
                       <GranularityPicker
                         value={g}
                         onChange={set}
+                        // "Auto" leads the list and is the default for a new time field:
+                        // the bucket follows the date range (the resolver substitutes a
+                        // concrete granularity before the query is sent), and the label
+                        // names what it currently resolves to.
+                        allowAuto
+                        autoHint={autoGranularityFor(b.dateRange)}
                         // Same rail as the KPI trend: only buckets that divide the date
                         // range set right above into a readable number of points.
                         options={granularityOptionsFor(b.dateRange)}

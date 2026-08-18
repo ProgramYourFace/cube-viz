@@ -11,7 +11,7 @@ import {
 import { cn } from "@/components/ui/utils";
 import { useCubeMeta } from "@/hooks";
 
-import { memberTypeIcon } from "./MemberPicker";
+import { MemberUnitChip } from "./MemberPicker";
 import { listMembers, type MemberKind, type MemberOption } from "./meta-helpers";
 
 export interface MemberMultiPickerProps {
@@ -113,7 +113,7 @@ export function MemberMultiPicker({
                   className="cv-member-picker-grip"
                   aria-hidden
                 />
-                {opt ? memberTypeIcon(opt.type) : null}
+                {opt ? <MemberUnitChip option={opt} /> : null}
                 <span className="cv-member-picker-name" title={name}>
                   {opt?.label ?? name}
                 </span>
@@ -206,7 +206,7 @@ export function MemberMultiPicker({
                     >
                       {checked ? <Check /> : null}
                     </span>
-                    {memberTypeIcon(m.type)}
+                    <MemberUnitChip option={m} />
                     <span className="cv-member-picker-name" title={m.name}>
                       {m.label}
                     </span>

@@ -31,4 +31,6 @@ export type {
 export { useCubeMeta } from "./useCubeMeta";
 export type { UseCubeMetaResult } from "./useCubeMeta";
 
+export { useDisplayUnit } from "./useDisplayUnit";
+
 export { useFormatter } from "./useFormatter";

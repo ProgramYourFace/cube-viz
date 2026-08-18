@@ -1,9 +1,8 @@
 import * as React from "react";
 
 import { resolveSeriesColors } from "@/adapter";
-import { useCubeMeta } from "@/hooks";
-import { useCubeVizContext, useFamilyRegistry } from "@/provider";
-import { mergeUnitConversions } from "@/units";
+import { useCubeMeta, useDisplayUnit } from "@/hooks";
+import { useFamilyRegistry } from "@/provider";
 import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartSpec } from "@/spec";
 
@@ -50,7 +49,6 @@ export function ChartEditOverlay({
   children,
 }: ChartEditOverlayProps): React.ReactElement {
   const { meta } = useCubeMeta();
-  const { locale } = useCubeVizContext();
   const families = useFamilyRegistry();
   const { chart } = spec;
   const family = chart.family;
@@ -67,14 +65,7 @@ export function ChartEditOverlay({
 
   // The unit shown in the value-axis badge follows the viewer's unit system, so the
   // badge matches the converted axis on the chart (km storage → "mi" when imperial).
-  const conversions = React.useMemo(() => mergeUnitConversions(locale?.units), [locale?.units]);
-  const displayUnit = React.useCallback(
-    (unit?: string): string | undefined =>
-      unit && locale?.unitSystem === "imperial" && conversions[unit]
-        ? conversions[unit].imperialUnit
-        : unit,
-    [locale?.unitSystem, conversions],
-  );
+  const displayUnit = useDisplayUnit();
 
   const wells = React.useMemo(() => getWells(family, families), [family, families]);
   const placed = React.useMemo(() => readWells(spec, families), [spec, families]);
@@ -136,7 +127,7 @@ export function ChartEditOverlay({
       // 2) Single measure source (no two-fact fan-out). Dimensions may cross freely.
       if (option.memberType === "measure" && scope.measureSource && option.cube !== scope.measureSource) {
         const src = scope.sourceCube?.title ?? scope.measureSource;
-        return `Measures come from one table (${src}). Remove them to switch.`;
+        return `This chart's numbers come from ${src}. Remove them to use another table.`;
       }
       // 3) Value-axis unit consistency on the "y" well — the families that declare
       //    `enforcesAxisUnit` keep their single value axis to ONE quantity, so a
@@ -218,7 +209,7 @@ export function ChartEditOverlay({
   const splitMeasureCount = placed.y?.length ?? 0;
   const splitNote =
     colorMember && splitMeasureCount > 1
-      ? `${splitMeasureCount} measures × ${findMember(meta, colorMember)?.label ?? "this split"} — one series per measure per value.`
+      ? `${splitMeasureCount} values × ${findMember(meta, colorMember)?.label ?? "this split"} — one series per value per group.`
       : undefined;
 
   // In-context chrome (axis-title boxes + legend visibility). Axis titles auto-fill from

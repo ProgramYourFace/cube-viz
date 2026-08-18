@@ -94,7 +94,7 @@ export function WellGroup({
   const [dragIndex, setDragIndex] = React.useState<number | null>(null);
 
   // What this slot takes, in the SAME words the picker uses to refuse a field
-  // ("Category takes a date or category"), so the add button and the greyed-out rows
+  // ("Horizontal axis needs a date or category"), so the add button and the greyed-out rows
   // inside it never disagree. A well that takes everything (a table column) has
   // nothing to refuse, so it falls back to its own hint.
   const takesHint =
@@ -108,7 +108,7 @@ export function WellGroup({
   // what every family needs first), so it appears exactly once.
   const startHint =
     allPlaced.length === 0 && !well.optional && wellAccepts(well, "number")
-      ? "Add a measure to start"
+      ? "Pick a number to get started"
       : undefined;
 
   const addSlot = (

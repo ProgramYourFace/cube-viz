@@ -1,6 +1,7 @@
 export { resolveQuery, resolveValue, isEmptyValue, createQueryResolver } from "./resolver";
 export { resolveRelativeDateRange } from "./date-ranges";
 export {
+  autoGranularityFor,
   granularitiesForSpan,
   granularityOptionsFor,
   rangeSpanDays,

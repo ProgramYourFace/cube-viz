@@ -98,7 +98,7 @@ export function ChartEditor({
   // Family-aware hint so the empty state names the missing required field.
   const emptyHint =
     needsMeasure && !hasMeasure(draft.query)
-      ? `Add a value (measure) to build this ${draft.chart.family} chart.`
+      ? `Pick a number to show — a total, average or count — to build this ${draft.chart.family} chart.`
       : "Add fields from the axes to build this chart.";
 
   // On-chart familyOptions write-back (see ChartComponentProps.updateFamilyOptions):

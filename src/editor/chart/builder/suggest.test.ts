@@ -118,7 +118,7 @@ describe("rankFamilies — realistic field shapes", () => {
     expect(ranked[0].reason).toBe("One headline number");
     // Nothing that needs an axis can draw this yet.
     expect(fitOf(spec, "bar").fits).toBe(false);
-    expect(fitOf(spec, "bar").reason).toBe("Category needs a date or category");
+    expect(fitOf(spec, "bar").reason).toBe("Horizontal axis needs a date or category");
   });
 
   it("2 measures, no dimension → scatter tops", () => {
