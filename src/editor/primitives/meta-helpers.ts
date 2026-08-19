@@ -216,7 +216,7 @@ export function groupMembersByMeta(
  * chart will actually render; pass nothing to show storage units.
  */
 export function fieldBadge(
-  option: Pick<MemberOption, "type" | "unit">,
+  option: Pick<MemberOption, "type" | "unit" | "quantity">,
   displayUnit?: (unit?: string) => string | undefined,
 ): string {
   switch (option.type) {
@@ -229,6 +229,11 @@ export function fieldBadge(
     case "segment":
       return "filter";
     case "number": {
+      // Durations are rendered humanized ("2d 19h", "45m 12s"), so their STORAGE
+      // unit ("h", "min", "ms") is an implementation detail the badge must not
+      // leak — it reads as a promise about the display. One generic word for all
+      // of them; "date" (above) stays reserved for calendar timestamps.
+      if (option.quantity === "time") return "time";
       const unit = displayUnit?.(option.unit) ?? option.unit;
       if (!unit || unit === "count") return "#";
       return unit;

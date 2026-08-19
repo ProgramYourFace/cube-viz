@@ -372,9 +372,12 @@ export function ChartEditOverlay({
 }
 
 /** The axis-well badge: quantity label plus the DISPLAY unit in parens ("Distance (mi)").
- *  `unitOverride` is the viewer-converted unit; falls back to the member's storage unit. */
+ *  `unitOverride` is the viewer-converted unit; falls back to the member's storage unit.
+ *  Durations get NO unit parens: they render humanized ("2d 19h"), so "Time (h)" would
+ *  advertise a storage detail the chart never shows. */
 function axisBadgeLabel(option: MemberOption | undefined, unitOverride?: string): string {
   const base = axisLabelOf(option);
+  if (option?.quantity === "time") return base;
   const unit = unitOverride ?? option?.unit;
   return unit && unit !== base ? `${base} (${unit})` : base;
 }

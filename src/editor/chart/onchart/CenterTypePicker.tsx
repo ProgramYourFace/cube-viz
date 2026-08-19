@@ -475,7 +475,10 @@ const sampleCartesian = (family: ChartFamily, members: string[]): ChartOptions =
 const SAMPLE_OPTIONS: Record<string, ChartOptions> = {
   bar: sampleCartesian("bar", [S_VALUE, S_COUNT]),
   line: sampleCartesian("line", [S_VALUE, S_COUNT]),
-  area: { ...sampleCartesian("area", [S_VALUE, S_COUNT]), stackMode: "stacked" },
+  // No forced stackMode: the tile must show what PICKING area does for this shape
+  // (measures-mode ⇒ overlap). Advertising a stack the pick doesn't deliver is how
+  // users end up asking why their area chart "isn't stacking".
+  area: sampleCartesian("area", [S_VALUE, S_COUNT]),
   pie: sampleCartesian("pie", [S_VALUE]),
   scatter: { family: "scatter", familyOptions: { x: S_VALUE, y: S_COUNT } },
   heatmap: {

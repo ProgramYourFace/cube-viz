@@ -81,6 +81,10 @@ export function AreaChartFamily({
     const curveName = (fo.curve ?? "monotone") as CurveName;
     const curve = chartCurve(curveName);
     const fillOpacity = theme.areaFillOpacity;
+    // Stacked bands never overlap each other, so they render near-solid — a 0.4
+    // fill over a dark background reads as a SECOND OVERLAPPING series, not a band
+    // riding on the one below (the exact misread users report as "not stacking").
+    const stackedFillOpacity = theme.stackedAreaFillOpacity;
     const strokeWidth = theme.lineWidth;
     const axl = resolvedAxisLabels(data, options);
     const y = valueScale(options.axes?.y);
@@ -133,7 +137,7 @@ export function AreaChartFamily({
             // "i" alone collides across series inside a single multi-series mark.
             key: (r: SeriesRow) => `${r.key}:${r.i}`,
             curve,
-            fillOpacity,
+            fillOpacity: stackedFillOpacity,
             // Boundary stroke; evaluated from each z-group's first row → per-series color.
             stroke: (r: SeriesRow) => colorByKey.get(r.key) ?? "currentColor",
             strokeWidth,

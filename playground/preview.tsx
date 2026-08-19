@@ -124,6 +124,24 @@ function App() {
     ],
   });
 
+  // area STACKED: two fuel measures with explicit stackMode. The data is the
+  // pathological shape from the field (sparse humps, zeros between, alternating
+  // dominance — "total fuel" + "idle fuel" per day): with translucent fills this
+  // exact shape read as OVERLAPPING humps, which is why stacked bands render
+  // near-solid (theme.stackedAreaFillOpacity). Keep the shape — it's the regression.
+  const areaStackedOpts = resolveOptions({
+    family: "area",
+    stackMode: "stacked",
+    mapping: { category: { member: "trips.start_time.day" } },
+  } as unknown as ChartOptions);
+  const areaStackedData = data({
+    categories: DAYS,
+    series: [
+      { key: "trips.fuel", label: "Fuel (L)", data: [0, 0.05, 0.28, 0.08, 0, 0.02, 0.14, 0, 0.15, 0, 0, 0.09, 0.1, 0], colorToken: "chart-1", meta: { measure: "trips.fuel" } },
+      { key: "trips.idle_fuel", label: "Idle (L)", data: [0, 0, 0.01, 0, 0, 0.11, 0.02, 0, 0.13, 0, 0, 0.08, 0, 0], colorToken: "chart-3", meta: { measure: "trips.idle_fuel" } },
+    ],
+  });
+
   // pie: trips by vehicle
   const pieOpts = resolveOptions({
     family: "pie",
@@ -227,6 +245,9 @@ function App() {
         </Tile>
         <Tile title="Fuel consumption">
           <AreaChartFamily data={areaData} options={areaOpts} config={config} format={fmt(areaOpts)} theme={DEFAULT_MARK_THEME} />
+        </Tile>
+        <Tile title="Fuel consumption (stacked)">
+          <AreaChartFamily data={areaStackedData} options={areaStackedOpts} config={config} format={fmt(areaStackedOpts)} theme={DEFAULT_MARK_THEME} />
         </Tile>
         <Tile title="Distance intensity (vehicle × day)">
           <HeatmapChartFamily data={heatData} options={heatOpts} config={config} format={fmt(heatOpts)} theme={DEFAULT_MARK_THEME} />
