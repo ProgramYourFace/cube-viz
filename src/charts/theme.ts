@@ -30,8 +30,16 @@ export interface ChartMarkTheme {
   barCategoryGap: number;
   /** Upper bound on bar thickness, px — keeps a 3-category chart from drawing slabs. */
   maxBarSize: number;
-  /** Peak opacity of an area's gradient fill. */
+  /** Peak opacity of an OVERLAPPING area's gradient fill (translucent so series behind stay visible). */
   areaFillOpacity: number;
+  /**
+   * Fill opacity of STACKED / percent area bands. Stacked bands never overlap, so
+   * translucency buys nothing and costs legibility: at 0.4 a band over a dark
+   * background is indistinguishable from a second overlapping series, which is
+   * exactly how users read it. Near-solid ribbons are what make a stack read as
+   * "one on top of the other".
+   */
+  stackedAreaFillOpacity: number;
   /** Stroke width for line + area marks, px. */
   lineWidth: number;
   /** Gap between pie slices, DEGREES. */
@@ -55,6 +63,7 @@ export const DEFAULT_MARK_THEME: ChartMarkTheme = {
   barCategoryGap: 0.2,
   maxBarSize: 64,
   areaFillOpacity: 0.4,
+  stackedAreaFillOpacity: 0.85,
   lineWidth: 2,
   pieGapAngle: 0,
   pieCornerRadius: 0,
