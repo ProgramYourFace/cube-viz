@@ -88,6 +88,20 @@
   box-shadow:
     0 10px 15px -3px rgb(0 0 0 / 0.25),
     0 4px 6px -4px rgb(0 0 0 / 0.25) !important;
+  /* Glide between snap points: the library positions the (persistent) element via
+     `style.left/top` on every focus change, so transitioning those interpolates the
+     move. First show animates nothing — the element comes back from `hidden`
+     (display:none) in the same frame it is positioned, and property changes applied
+     alongside a display change don't transition. */
+  transition:
+    left 140ms ease-out,
+    top 140ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-chart-tooltip {
+    transition: none;
+  }
 }
 
 /* The host emits ts-chart-tooltip__{body,title,rows,row,swatch}. */

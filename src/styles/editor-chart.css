@@ -704,6 +704,37 @@
   color: var(--destructive);
 }
 
+/* "Swap field…" — reopens the full field picker from the pill's config popover. */
+.cv-field-pill-swap {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.cv-field-pill-swap:hover {
+  background: var(--accent);
+}
+
+/* The aggregation segments inside the pill popover reuse the picker's control but
+   stretch to the popover's width so the tap targets aren't cramped. */
+.cv-field-pill-aggseg {
+  display: flex;
+  width: 100%;
+}
+
+.cv-field-pill-aggseg .cv-picker-aggseg-opt {
+  flex: 1;
+}
+
 /* ──────────────── field picker popover (FieldPickerPopover) ──────────────── */
 
 .cv-picker {

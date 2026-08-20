@@ -276,6 +276,32 @@ export function grainAggLabel(grain: string | undefined): string {
   return m ? `per ${m[1]}` : "per row";
 }
 
+/**
+ * Every member of `option`'s aggregate family (measures + the row-level number
+ * dimension), in model order — `[option]` when it belongs to no family. Feeds the
+ * aggregation switcher on an already-PLACED field, which must offer the same
+ * variants the picker's family row collapsed.
+ */
+export function familyVariantsOf(
+  meta: CubeMeta | undefined,
+  option: MemberOption,
+): MemberOption[] {
+  const key = familyKeyOf(option);
+  if (!key) return [option];
+  const pool = [
+    ...listMembers(meta, "measure", option.cube),
+    ...listMembers(meta, "numberDimension", option.cube),
+  ];
+  const seen = new Set<string>();
+  const out: MemberOption[] = [];
+  for (const m of pool) {
+    if (familyKeyOf(m) !== key || seen.has(m.name)) continue;
+    seen.add(m.name);
+    out.push(m);
+  }
+  return out.length > 0 ? out : [option];
+}
+
 /** One collapsed picker row: a lone member, or a family of aggregation variants. */
 export interface FamilyRow<T extends { option: MemberOption }> {
   /** Set only when ≥2 variants collapsed (the pill renders for these). */

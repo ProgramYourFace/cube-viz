@@ -99,6 +99,21 @@ export interface DashboardEditorProps {
    * families just for this editor); the rest of the context is inherited unchanged.
    */
   families?: ChartFamilyDescriptor[];
+  /**
+   * Intercept the toolbar's "Chart" button. When provided, clicking Chart calls THIS
+   * instead of appending a blank chart widget — the host runs its own creation flow
+   * (e.g. an AI wizard), inserts the widget through `spec`, and points
+   * {@link DashboardEditorProps.openWidgetId} at it to land in the chart editor.
+   * The Text/Input buttons keep their default behaviour.
+   */
+  onCreateChart?: () => void;
+  /**
+   * Open this widget in the full-screen editor as soon as it exists in the draft —
+   * the host's half of a custom creation flow (see {@link onCreateChart}). One-shot
+   * per id: the user closing the editor is respected (it does not force re-open)
+   * until the host passes a different id.
+   */
+  openWidgetId?: string;
   className?: string;
 }
 
@@ -116,6 +131,8 @@ export function DashboardEditor({
   canRedo,
   onDiscard,
   families,
+  onCreateChart,
+  openWidgetId,
   className,
 }: DashboardEditorProps): React.ReactElement {
   // Local working copy; the host's `spec` seeds it and re-seeds when its identity
@@ -210,14 +227,30 @@ export function DashboardEditor({
 
   const handleAdd = React.useCallback(
     (type: WidgetSpec["type"]) => {
+      // The host may own chart creation (wizard flow) — see onCreateChart/openWidgetId.
+      if (type === "chart" && onCreateChart) {
+        onCreateChart();
+        return;
+      }
       const widget = newWidget(type, mintId());
       commit((d) => appendWidget(d, widget));
       setSelectedId(widget.id);
       // Open the new widget straight into the full-screen editor.
       setEditing({ kind: "widget", id: widget.id });
     },
-    [commit, mintId],
+    [commit, mintId, onCreateChart],
   );
+
+  // Host-driven "open this widget once it exists" (the landing half of a custom
+  // creation flow). One-shot per id: closing the editor is never fought.
+  const openedWidgetRef = React.useRef<string | undefined>(undefined);
+  React.useEffect(() => {
+    if (!openWidgetId || openedWidgetRef.current === openWidgetId) return;
+    if (!draft.widgets.some((w) => w.id === openWidgetId)) return; // not seeded yet
+    openedWidgetRef.current = openWidgetId;
+    setSelectedId(openWidgetId);
+    setEditing({ kind: "widget", id: openWidgetId });
+  }, [openWidgetId, draft.widgets]);
 
   // Clicking a widget only selects it (the ring) — editing is via the edit button.
   const handleSelect = React.useCallback((id: string) => setSelectedId(id), []);

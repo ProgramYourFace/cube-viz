@@ -1,5 +1,5 @@
 import * as React from "react";
-import { GripVertical, X } from "lucide-react";
+import { ArrowLeftRight, GripVertical, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,32 @@ import { ColorTokenPicker } from "../../primitives/ColorTokenPicker";
 import { GranularityPicker } from "../../primitives/GranularityPicker";
 import { Switch } from "../../primitives/SwitchRow";
 import { fieldBadge, type MemberOption } from "../../primitives/meta-helpers";
-import type { WellDef } from "../builder/wells";
+import type { FieldKind, WellDef } from "../builder/wells";
+import { AggSegments, type AggSegmentOption } from "./AggSegments";
 import { chipBindings } from "./chip-bindings";
+import { FieldPickerPopover } from "./FieldPickerPopover";
+import type { JoinScope } from "./join-scope";
 import { DateRangeValueEditor } from "../binding/DateRangeValueEditor";
 import { ValueBinding } from "../binding/ValueBinding";
+
+/**
+ * Everything a placed pill needs to CHANGE the field it holds without a delete +
+ * re-add round trip. Built lazily by the overlay (see `swapFor`) against the spec
+ * WITH THIS FIELD REMOVED, so a swap is exactly as permissive as remove-then-add.
+ */
+export interface PillSwapControls {
+  /** The in-place field picker, pre-scoped to this well minus this field. */
+  picker: {
+    well: WellDef;
+    placed: string[];
+    inWell: string[];
+    scope: JoinScope;
+    blockReason: (option: MemberOption) => string | undefined;
+    onSelect: (name: string, kind: FieldKind) => void;
+  };
+  /** Aggregation variants when the field belongs to a family with ≥2 of them. */
+  agg?: { options: AggSegmentOption[] };
+}
 
 /**
  * Reordering for a many-cardinality well. Order is meaningful — it is the series
@@ -59,6 +81,12 @@ export interface FieldPillProps {
   resolvedColor?: ChartColorToken;
   /** Reorder affordance for many-cardinality wells. */
   reorder?: PillReorder;
+  /**
+   * Lazy swap controls (in-place picker + aggregation segments). Called only when
+   * the config popover renders, so the without-this-field scope is never computed
+   * for pills nobody opened.
+   */
+  getSwap?: () => PillSwapControls | undefined;
   /** Compact (bottom-bar) vs. full (left strip). */
   className?: string;
 }
@@ -77,6 +105,7 @@ export function FieldPill({
   option,
   resolvedColor,
   reorder,
+  getSwap,
   className,
 }: FieldPillProps): React.ReactElement {
   const families = useFamilyRegistry();
@@ -98,7 +127,12 @@ export function FieldPill({
   // Reordering is NOT config — it is the pill's own drag behaviour — so it does not
   // count towards opening a popover.
   const hasConfig =
-    b.canRename || showSwatch || b.isTimeField || b.isCategoryField || b.canPoints;
+    b.canRename ||
+    showSwatch ||
+    b.isTimeField ||
+    b.isCategoryField ||
+    b.canPoints ||
+    getSwap !== undefined;
 
   const commitRename = (value: string): void => {
     const trimmed = value.trim();
@@ -192,6 +226,7 @@ export function FieldPill({
         </PopoverTrigger>
         <PopoverContent align="start" className="cv-field-pill-popover">
           <div className="cv-field-pill-config">
+            {getSwap ? <SwapSection getSwap={getSwap} display={display} /> : null}
             {b.canRename ? (
               <label className="cv-ec-field" htmlFor={renameId}>
                 <span className="cv-ec-label">Label</span>
@@ -355,5 +390,48 @@ export function FieldPill({
         <X className="cv-ec-icon" />
       </Button>
     </div>
+  );
+}
+
+/**
+ * The "change what this pill holds" section of the config popover: the family's
+ * aggregation segments (same control as the picker's family rows) and a "Swap
+ * field…" button that reopens the full field picker in place. Its own component so
+ * `getSwap` — which prices out the whole chart without this field — runs only when
+ * the popover is actually open, never for every pill on every render.
+ */
+function SwapSection({
+  getSwap,
+  display,
+}: {
+  getSwap: () => PillSwapControls | undefined;
+  display: string;
+}): React.ReactElement | null {
+  const swap = getSwap();
+  if (!swap) return null;
+  return (
+    <>
+      {swap.agg ? (
+        <div className="cv-ec-field cv-ec-field--loose">
+          <span className="cv-ec-label">Aggregation</span>
+          <AggSegments options={swap.agg.options} className="cv-field-pill-aggseg" />
+        </div>
+      ) : null}
+      <FieldPickerPopover
+        well={swap.picker.well}
+        placed={swap.picker.placed}
+        inWell={swap.picker.inWell}
+        scope={swap.picker.scope}
+        blockReason={swap.picker.blockReason}
+        onSelect={swap.picker.onSelect}
+        side="right"
+        align="start"
+      >
+        <button type="button" className="cv-field-pill-swap" title={`Swap ${display} for another field`}>
+          <ArrowLeftRight className="cv-ec-icon" />
+          Swap field…
+        </button>
+      </FieldPickerPopover>
+    </>
   );
 }

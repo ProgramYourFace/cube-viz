@@ -9,9 +9,7 @@ import {
   collapseFamilies,
   fieldBadge,
   findCube,
-  grainAggLabel,
   listMembers,
-  memberAgg,
   memberCanonicalTime,
   memberGroup,
   pathLabel,
@@ -21,6 +19,7 @@ import {
 } from "../../primitives/meta-helpers";
 import { placementBlockReason, wellAccepts } from "../builder/channels";
 import type { FieldKind, WellDef } from "../builder/wells";
+import { AggSegments, aggPillLabel } from "./AggSegments";
 import type { JoinScope } from "./join-scope";
 import {
   candidateReason,
@@ -593,15 +592,6 @@ function MenuItem({
   );
 }
 
-/**
- * The pill label for a family variant: its agg ("total", "avg"), with the row-level
- * variant named by the cube's grain ("per trip") instead of an abstract "value".
- */
-function aggPillLabel(option: MemberOption, cube: CubeOption | undefined): string {
-  const agg = memberAgg(option) ?? "";
-  return agg === "value" ? grainAggLabel(cube?.grain) : agg;
-}
-
 interface PickerRowProps {
   option: MemberOption;
   /** Label override — a collapsed family renders its familyTitle, not the member's. */
@@ -640,24 +630,7 @@ interface PickerRowProps {
 function PickerRow({ option, label, reason, onPick, unitBadge, badge, agg }: PickerRowProps): React.ReactElement {
   const unit = unitBadge ? <span className="cv-field-unit">{unitBadge}</span> : null;
   const text = label ?? option.label;
-  const aggPill = agg ? (
-    <span className="cv-picker-aggseg" role="radiogroup" aria-label="Aggregation">
-      {agg.options.map((o) => (
-        <button
-          key={o.label}
-          type="button"
-          role="radio"
-          aria-checked={o.selected}
-          disabled={o.disabled}
-          title={o.title ?? `Aggregation: ${o.label}`}
-          onClick={o.onSelect}
-          className={cn("cv-picker-aggseg-opt", o.selected && "cv-picker-aggseg-opt--on")}
-        >
-          {o.label}
-        </button>
-      ))}
-    </span>
-  ) : null;
+  const aggPill = agg ? <AggSegments options={agg.options} /> : null;
   const main = reason ? (
     <span
       tabIndex={0}
@@ -675,7 +648,9 @@ function PickerRow({ option, label, reason, onPick, unitBadge, badge, agg }: Pic
     <button
       type="button"
       onClick={onPick}
-      title={option.description ?? option.name}
+      // Compose the hover hint instead of echoing the internal member name: the
+      // label the user sees, then the model's description when it has one.
+      title={option.description ? `${text} — ${option.description}` : text}
       className="cv-picker-row"
     >
       {unit}
