@@ -1,10 +1,11 @@
 import type { CubeMeta } from "@/adapter";
 import type { FamilyRegistry } from "@/charts";
-import type { ChartSpec } from "@/spec";
+import type { ChartSpec, TimeDimension } from "@/spec";
 
 import { cubeOfMember } from "../helpers";
 import { readWells } from "../builder/wells";
 import {
+  canonicalTimeOf,
   findCube,
   findMember,
   listCubes,
@@ -16,7 +17,15 @@ import {
  * The chart's CROSS-TABLE scope. Cube's `connectedComponent` only describes a weak
  * component and incorrectly treats sibling facts as mutually joinable. Models may
  * therefore publish direct outbound edges as cube `meta.joinTargets`; this module
- * computes transitive reachability from the selected source and otherwise fails closed.
+ * mirrors Cube's own join-tree rule and otherwise fails closed.
+ *
+ * Cube accepts a query iff SOME root cube reaches every referenced cube along the
+ * DIRECTED join edges (fact → dimension). That makes joinability a property of the
+ * whole SET of placed cubes, not of the first-placed field: `devices.name` placed
+ * first must still admit every fact cube that joins to `devices` (the fact is the
+ * root), which one-way reachability from `devices` would wrongly refuse — the
+ * order-dependent-availability bug. Every answer here is therefore "would the set
+ * {placed ∪ candidate} still have a viable root?".
  */
 export interface JoinScope {
   /** When the chart is bound to a curated view, its name (single flat source). */
@@ -38,8 +47,8 @@ export function cubeInJoinScope(scope: JoinScope, cube: string): boolean {
   return scope.allowedCubes.includes(cube);
 }
 
-function reachableFrom(all: CubeOption[], source: string): CubeOption[] {
-  const cubes = new Map(all.filter((c) => c.type === "cube").map((c) => [c.name, c]));
+/** Every cube reachable from `source` (inclusive) along directed join edges. */
+function reachSet(cubes: Map<string, CubeOption>, source: string): Set<string> {
   const seen = new Set<string>([source]);
   const queue = [source];
   while (queue.length > 0) {
@@ -50,10 +59,50 @@ function reachableFrom(all: CubeOption[], source: string): CubeOption[] {
       queue.push(target);
     }
   }
-  return [...seen]
-    .filter((name) => name !== source)
-    .map((name) => cubes.get(name)!)
-    .sort((a, b) => a.title.localeCompare(b.title));
+  return seen;
+}
+
+/** name → cube map of the CUBE (non-view) options. */
+function cubeMap(all: CubeOption[]): Map<string, CubeOption> {
+  return new Map(all.filter((c) => c.type === "cube").map((c) => [c.name, c]));
+}
+
+/**
+ * Cube's own acceptance rule: SOME root reaches every cube in `required`. Unknown
+ * cube names (not in the map) fail closed.
+ */
+function hasViableRoot(cubes: Map<string, CubeOption>, required: ReadonlySet<string>): boolean {
+  if (required.size === 0) return true;
+  for (const name of required) if (!cubes.has(name)) return false;
+  if (required.size === 1) return true;
+  for (const root of cubes.keys()) {
+    const reach = reachSet(cubes, root);
+    let covers = true;
+    for (const name of required) {
+      if (!reach.has(name)) {
+        covers = false;
+        break;
+      }
+    }
+    if (covers) return true;
+  }
+  return false;
+}
+
+/**
+ * The cubes a NEXT field may come from, given the cubes already referenced: every X
+ * where {placed ∪ X} still has a viable root. With nothing placed that is every cube.
+ */
+function joinableWith(cubes: Map<string, CubeOption>, placed: ReadonlySet<string>): string[] {
+  const out: string[] = [];
+  for (const name of cubes.keys()) {
+    if (placed.has(name)) {
+      out.push(name);
+      continue;
+    }
+    if (hasViableRoot(cubes, new Set([...placed, name]))) out.push(name);
+  }
+  return out;
 }
 
 /**
@@ -95,11 +144,24 @@ export function computeJoinScope(
   const sourceName = measureSource ?? anchor?.cube ?? hintCube?.name;
   const sourceCube = sourceName ? findCube(meta, sourceName) : undefined;
 
-  const cubeSources = all.filter((c) => c.type === "cube");
-  const relatedCubes = sourceName ? reachableFrom(cubeSources, sourceName) : cubeSources;
-  const allowedCubes = sourceName
-    ? [sourceName, ...relatedCubes.map((c) => c.name)]
-    : cubeSources.map((c) => c.name);
+  const cubes = cubeMap(all);
+  // Every cube the CURRENT chart references constrains the next pick — the wells,
+  // the measure source, and the source hint alike. (The wells cover the visible
+  // fields; the invisible dateRange-only time filter is reconciled by
+  // `reconcileQueryJoin` rather than allowed to constrain the picker.)
+  const placedCubes = new Set<string>();
+  for (const m of placedMembers) {
+    const cube = findMember(meta, m)?.cube;
+    if (cube && cubes.has(cube)) placedCubes.add(cube);
+  }
+  if (measureSource && cubes.has(measureSource)) placedCubes.add(measureSource);
+  if (!placedCubes.size && sourceName && cubes.has(sourceName)) placedCubes.add(sourceName);
+
+  const allowedCubes = joinableWith(cubes, placedCubes);
+  const relatedCubes = allowedCubes
+    .filter((name) => name !== sourceName)
+    .map((name) => cubes.get(name)!)
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   return {
     sourceCube: sourceCube?.type === "cube" ? sourceCube : undefined,
@@ -108,4 +170,91 @@ export function computeJoinScope(
     measureSource,
     allowedCubes,
   };
+}
+
+/**
+ * Repair the parts of the QUERY the wells don't show, so the spec the editor emits is
+ * one Cube will accept ("Can't find join path to join 'device_locations',
+ * 'device_trips'" was a user-visible failure):
+ *
+ *  • a `dateRange`-only time dimension (the chart's date FILTER — no well claims it)
+ *    left pointing at a cube the rest of the query can no longer join is RE-POINTED
+ *    to the query's own fact cube (its `canonicalTime` axis), keeping the window;
+ *    dropped when that cube has no time axis;
+ *  • any other query member set that has no viable join root keeps only the members
+ *    the wells actually hold (stale writers, never user-visible fields).
+ *
+ * Pure spec-in/spec-out; call it on every editor emit.
+ */
+export function reconcileQueryJoin(
+  spec: ChartSpec,
+  meta: CubeMeta | undefined,
+  registry: FamilyRegistry,
+): ChartSpec {
+  if (!meta) return spec;
+  const cubes = cubeMap(listCubes(meta));
+  const query = spec.query ?? {};
+  const placed = new Set(Object.values(readWells(spec, registry)).flat());
+
+  // `cubeOfMember` yields undefined for a malformed name — treat those as outside
+  // the graph (they can't constrain or be repaired).
+  const cubeOf = (m: string): string | undefined => {
+    const c = cubeOfMember(m);
+    return c !== undefined && cubes.has(c) ? c : undefined;
+  };
+
+  const queryCubes = new Set<string>();
+  for (const m of [...(query.measures ?? []), ...(query.dimensions ?? [])]) {
+    const cube = cubeOf(m);
+    if (cube) queryCubes.add(cube);
+  }
+  const timeDims = query.timeDimensions ?? [];
+  for (const t of timeDims) {
+    const cube = cubeOf(t.dimension);
+    if (cube) queryCubes.add(cube);
+  }
+  if (hasViableRoot(cubes, queryCubes)) return spec;
+
+  // The fact cube (measure owner) anchors the repair; fall back to the first placed
+  // member's cube so a measure-less chart still converges.
+  const factCube =
+    (query.measures ?? []).map(cubeOf).find((c) => c !== undefined) ??
+    [...placed].map((m) => findMember(meta, m)?.cube).find((c) => c !== undefined && cubes.has(c));
+  if (!factCube) return spec;
+
+  const keptCubes = new Set<string>([factCube]);
+  const joins = (cube: string): boolean =>
+    hasViableRoot(cubes, new Set([...keptCubes, cube])) && (keptCubes.add(cube), true);
+
+  const nextTimeDims: TimeDimension[] = [];
+  for (const t of timeDims) {
+    const cube = cubeOf(t.dimension);
+    if (cube && joins(cube)) {
+      nextTimeDims.push(t);
+      continue;
+    }
+    if (!placed.has(t.dimension)) {
+      // The invisible date filter: follow the fact cube, keep the window.
+      const canonical = canonicalTimeOf(meta, factCube);
+      if (canonical && !nextTimeDims.some((d) => d.dimension === canonical.name)) {
+        nextTimeDims.push({ ...t, dimension: canonical.name });
+      }
+    }
+    // A placed-but-unjoinable time axis should have been blocked at placement;
+    // dropping it here would fight the user, so leave it for the picker rules.
+    else nextTimeDims.push(t);
+  }
+
+  const keepMember = (m: string): boolean => {
+    if (placed.has(m)) return true;
+    const cube = cubeOf(m);
+    return cube !== undefined && joins(cube);
+  };
+  const nextQuery = {
+    ...query,
+    measures: (query.measures ?? []).filter(keepMember),
+    dimensions: (query.dimensions ?? []).filter(keepMember),
+    timeDimensions: nextTimeDims,
+  };
+  return { ...spec, query: nextQuery };
 }

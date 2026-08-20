@@ -7,17 +7,33 @@ import { cn } from "@/components/ui/utils";
 import type { ChartColorToken, ChartSpec } from "@/spec";
 
 import { granularitySummary } from "../../primitives/GranularityPicker";
-import { canonicalTimeOf, findMember, type MemberOption } from "../../primitives/meta-helpers";
+import {
+  canonicalTimeOf,
+  familyVariantsOf,
+  findCube,
+  findMember,
+  type MemberOption,
+} from "../../primitives/meta-helpers";
 import { inferCube } from "../helpers";
 import { axisKeyOf, axisLabelOf } from "../builder/axis";
-import { getWells, placeField, readWells, type FieldKind, type WellDef } from "../builder/wells";
+import {
+  getWells,
+  placeField,
+  readWells,
+  removeField,
+  type FieldKind,
+  type WellDef,
+} from "../builder/wells";
 import { Database } from "lucide-react";
 
+import { aggPillLabel } from "./AggSegments";
 import { ChartFiltersPopover } from "./ChartFiltersPopover";
 import { AxisChrome, LegendChrome } from "./ChartChrome";
 import { CenterTypePicker, ChartTypePill } from "./CenterTypePicker";
-import { computeJoinScope, cubeInJoinScope } from "./join-scope";
-import { axisUnitBlockReason } from "./picker-filter";
+import { reorderWell } from "./chip-bindings";
+import type { PillSwapControls } from "./FieldPill";
+import { computeJoinScope, cubeInJoinScope, reconcileQueryJoin } from "./join-scope";
+import { axisUnitBlockReason, candidateReason } from "./picker-filter";
 import { WellGroup } from "./WellGroup";
 import {
   KpiComparison,
@@ -45,12 +61,19 @@ export interface ChartEditOverlayProps {
  */
 export function ChartEditOverlay({
   spec,
-  update,
+  update: emitRaw,
   toolbar,
   children,
 }: ChartEditOverlayProps): React.ReactElement {
   const { meta } = useCubeMeta();
   const families = useFamilyRegistry();
+  // Every edit leaves through this: repair the query parts no well shows (the
+  // dateRange-only time FILTER above all) so the editor can never emit a spec whose
+  // cubes have no join path — Cube rejects those at render ("Can't find join path…").
+  const update = React.useCallback(
+    (next: ChartSpec) => emitRaw(reconcileQueryJoin(next, meta, families)),
+    [emitRaw, meta, families],
+  );
   const { chart } = spec;
   const family = chart.family;
   const descriptor = families.require(family);
@@ -100,38 +123,48 @@ export function ChartEditOverlay({
   /* ── value-axis unit consistency ─────────────────────────────────────────
    * The value well ("y") must keep the single value axis to ONE kind of quantity:
    * every measure plotted on it must share the first measure's unit key. */
-  const valueAxes = React.useMemo(() => {
-    const leftM = (placed.y ?? [])[0];
-    const opt = leftM ? findMember(meta, leftM) : undefined;
-    return {
-      leftKey: leftM ? axisKeyOf(opt) : undefined,
-      leftLabel: leftM ? axisBadgeLabel(opt, displayUnit(opt?.unit)) : undefined,
-    };
-  }, [placed, meta, displayUnit]);
-
-  const blockReason = React.useCallback(
-    (wellId: string, option: MemberOption | undefined): string | undefined => {
-      if (!option) return undefined;
-      // 1) Cross-dataset: only fields in the chart's current join graph can be added.
-      if (!cubeInJoinScope(scope, option.cube)) {
-        return "Clear the current fields to use a different dataset.";
-      }
-      // 2) Single measure source (no two-fact fan-out). Dimensions may cross freely.
-      if (option.memberType === "measure" && scope.measureSource && option.cube !== scope.measureSource) {
-        const src = scope.sourceCube?.title ?? scope.measureSource;
-        return `This chart's numbers come from ${src}. Remove them to use another table.`;
-      }
-      // 3) Value-axis unit consistency on the "y" well — the families that declare
-      //    `enforcesAxisUnit` keep their single value axis to ONE quantity, so a
-      //    litres measure cannot join an axis already showing distance. The picker's
-      //    "Only compatible fields" switch hides exactly these rows.
-      if (enforcesAxisUnit && wellId === "y" && option.memberType === "measure") {
-        const { leftKey, leftLabel } = valueAxes;
-        return axisUnitBlockReason(option, leftKey, leftLabel);
-      }
-      return undefined;
+  const valueAxesFor = React.useCallback(
+    (placedMap: Record<string, string[]>) => {
+      const leftM = (placedMap.y ?? [])[0];
+      const opt = leftM ? findMember(meta, leftM) : undefined;
+      return {
+        leftKey: leftM ? axisKeyOf(opt) : undefined,
+        leftLabel: leftM ? axisBadgeLabel(opt, displayUnit(opt?.unit)) : undefined,
+      };
     },
-    [scope, valueAxes, enforcesAxisUnit],
+    [meta, displayUnit],
+  );
+  const valueAxes = React.useMemo(() => valueAxesFor(placed), [valueAxesFor, placed]);
+
+  // The three chart-context rules, parameterized by scope + axes so a SWAP can ask
+  // "would this be allowed with the outgoing field removed?" using the same code.
+  const blockReasonWith = React.useCallback(
+    (scopeIn: typeof scope, axes: ReturnType<typeof valueAxesFor>) =>
+      (wellId: string, option: MemberOption | undefined): string | undefined => {
+        if (!option) return undefined;
+        // 1) Cross-dataset: only fields in the chart's current join graph can be added.
+        if (!cubeInJoinScope(scopeIn, option.cube)) {
+          return "Clear the current fields to use a different dataset.";
+        }
+        // 2) Single measure source (no two-fact fan-out). Dimensions may cross freely.
+        if (option.memberType === "measure" && scopeIn.measureSource && option.cube !== scopeIn.measureSource) {
+          const src = scopeIn.sourceCube?.title ?? scopeIn.measureSource;
+          return `This chart's numbers come from ${src}. Remove them to use another table.`;
+        }
+        // 3) Value-axis unit consistency on the "y" well — the families that declare
+        //    `enforcesAxisUnit` keep their single value axis to ONE quantity, so a
+        //    litres measure cannot join an axis already showing distance. The picker's
+        //    "Only compatible fields" switch hides exactly these rows.
+        if (enforcesAxisUnit && wellId === "y" && option.memberType === "measure") {
+          return axisUnitBlockReason(option, axes.leftKey, axes.leftLabel);
+        }
+        return undefined;
+      },
+    [enforcesAxisUnit],
+  );
+  const blockReason = React.useMemo(
+    () => blockReasonWith(scope, valueAxes),
+    [blockReasonWith, scope, valueAxes],
   );
 
   // The value-well badge: the axis' unit label.
@@ -183,6 +216,71 @@ export function ChartEditOverlay({
       update(next);
     },
     [blockReason, meta, update, spec, family, families, descriptor, placed],
+  );
+
+  /* ── swap-in-place ───────────────────────────────────────────────────────
+   * A placed pill offers "swap" (re-open the picker, replace this field, keep its
+   * position) and — for aggregate-family members — the same segment control the
+   * picker shows, so changing total→avg never means delete + find + re-add. All
+   * validity questions are answered against the spec WITH THE OUTGOING FIELD
+   * REMOVED: swapping the only measure may cross tables, swapping the axis owner
+   * may change quantity — exactly what remove-then-add would have allowed. */
+  const swapFor = React.useCallback(
+    (wellId: string, member: string): PillSwapControls | undefined => {
+      if (queryless) return undefined;
+      const wellDef = wellById.get(wellId);
+      const option = findMember(meta, member);
+      if (!wellDef || !option) return undefined;
+      const index = (placed[wellId] ?? []).indexOf(member);
+      const without = removeField(spec, family, wellId, member, families);
+      const placedW = readWells(without, families);
+      const scopeW = computeJoinScope(meta, without, undefined, families);
+      const reasonW = blockReasonWith(scopeW, valueAxesFor(placedW));
+      const inWellW = placedW[wellId] ?? [];
+      const allPlacedW = Object.values(placedW).flat();
+      const onSelect = (name: string, kind: FieldKind): void => {
+        if (name === member) return;
+        let next = placeField(without, family, wellId, name, kind, families);
+        // Keep the slot: a many-well appends, so walk the newcomer back to where
+        // the outgoing field sat (series/stack/legend order is meaning).
+        const list = readWells(next, families)[wellId] ?? [];
+        const from = list.indexOf(name);
+        if (index >= 0 && from > index) next = reorderWell(next, wellDef, from, index);
+        update(next);
+      };
+      const variants = familyVariantsOf(meta, option);
+      const agg =
+        variants.length > 1
+          ? {
+              options: variants.map((v) => {
+                const kind: FieldKind = v.memberType === "measure" ? "number" : "numberDimension";
+                const reason =
+                  v.name === member
+                    ? undefined
+                    : candidateReason(wellDef, kind, inWellW, v, (o) => reasonW(wellId, o));
+                return {
+                  label: aggPillLabel(v, findCube(meta, v.cube)),
+                  selected: v.name === member,
+                  disabled: reason !== undefined,
+                  title: reason,
+                  onSelect: () => onSelect(v.name, kind),
+                };
+              }),
+            }
+          : undefined;
+      return {
+        picker: {
+          well: wellDef,
+          placed: allPlacedW,
+          inWell: inWellW,
+          scope: scopeW,
+          blockReason: (o) => reasonW(wellId, o),
+          onSelect,
+        },
+        agg,
+      };
+    },
+    [queryless, wellById, meta, placed, spec, family, families, blockReasonWith, valueAxesFor, update],
   );
 
   // Zones adapt to STATE: a horizontal bar swaps its value + category axes (value on the
@@ -255,6 +353,7 @@ export function ChartEditOverlay({
       scope={scope}
       blockReason={(opt) => blockReason(well.id, opt)}
       onAdd={(name, kind) => place(well.id, name, kind)}
+      swapFor={(member) => swapFor(well.id, member)}
       badge={well.id === "y" ? valueBadge : undefined}
       orientation={orientation}
       note={well.id === "color" ? splitNote : undefined}

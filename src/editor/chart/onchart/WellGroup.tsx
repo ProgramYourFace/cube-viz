@@ -31,6 +31,8 @@ export interface WellGroupProps {
   blockReason: (option: MemberOption) => string | undefined;
   /** Place a field into this well. */
   onAdd: (name: string, kind: FieldKind) => void;
+  /** Swap controls for a placed member (picker-in-place + aggregation segments). */
+  swapFor?: (member: string) => import("./FieldPill").PillSwapControls | undefined;
   /** The axis unit badge (e.g. "Distance (km)") for enforcing value wells. */
   badge?: string;
   orientation: "vertical" | "horizontal";
@@ -70,6 +72,7 @@ export function WellGroup({
   scope,
   blockReason,
   onAdd,
+  swapFor,
   badge,
   orientation,
   lockedSingle,
@@ -169,6 +172,7 @@ export function WellGroup({
               member={member}
               option={optionFor(member)}
               resolvedColor={colorFor(member)}
+              getSwap={swapFor ? () => swapFor(member) : undefined}
               className={vertical ? "cv-field-pill--full" : undefined}
               reorder={
                 reorderable

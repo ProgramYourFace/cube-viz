@@ -1359,7 +1359,7 @@ export declare interface ChartEditorProps {
  * left strip's per-field colour swatches use the SAME {@link resolveSeriesColors}
  * resolver as the renderer, so the editor never disagrees with the chart.
  */
-export declare function ChartEditOverlay({ spec, update, toolbar, children, }: ChartEditOverlayProps): React_2.ReactElement;
+export declare function ChartEditOverlay({ spec, update: emitRaw, toolbar, children, }: ChartEditOverlayProps): React_2.ReactElement;
 
 export declare interface ChartEditOverlayProps {
     spec: ChartSpec;
@@ -4898,7 +4898,7 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, onDiscard, families, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, onDiscard, families, onCreateChart, openWidgetId, className, }: DashboardEditorProps): React_2.ReactElement;
 
 /**
  * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
@@ -4970,6 +4970,21 @@ export declare interface DashboardEditorProps {
      * families just for this editor); the rest of the context is inherited unchanged.
      */
     families?: ChartFamilyDescriptor[];
+    /**
+     * Intercept the toolbar's "Chart" button. When provided, clicking Chart calls THIS
+     * instead of appending a blank chart widget — the host runs its own creation flow
+     * (e.g. an AI wizard), inserts the widget through `spec`, and points
+     * {@link DashboardEditorProps.openWidgetId} at it to land in the chart editor.
+     * The Text/Input buttons keep their default behaviour.
+     */
+    onCreateChart?: () => void;
+    /**
+     * Open this widget in the full-screen editor as soon as it exists in the draft —
+     * the host's half of a custom creation flow (see {@link onCreateChart}). One-shot
+     * per id: the user closing the editor is respected (it does not force re-open)
+     * until the host passes a different id.
+     */
+    openWidgetId?: string;
     className?: string;
 }
 
@@ -7735,7 +7750,15 @@ export declare function isVarRef(v: unknown): v is VarRef;
  * The chart's CROSS-TABLE scope. Cube's `connectedComponent` only describes a weak
  * component and incorrectly treats sibling facts as mutually joinable. Models may
  * therefore publish direct outbound edges as cube `meta.joinTargets`; this module
- * computes transitive reachability from the selected source and otherwise fails closed.
+ * mirrors Cube's own join-tree rule and otherwise fails closed.
+ *
+ * Cube accepts a query iff SOME root cube reaches every referenced cube along the
+ * DIRECTED join edges (fact → dimension). That makes joinability a property of the
+ * whole SET of placed cubes, not of the first-placed field: `devices.name` placed
+ * first must still admit every fact cube that joins to `devices` (the fact is the
+ * root), which one-way reachability from `devices` would wrongly refuse — the
+ * order-dependent-availability bug. Every answer here is therefore "would the set
+ * {placed ∪ candidate} still have a viable root?".
  */
 declare interface JoinScope {
     /** When the chart is bound to a curated view, its name (single flat source). */
