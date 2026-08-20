@@ -8083,14 +8083,6 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
 /** Cubes + views from meta, visible only, tagged cube/view. */
 export declare function listCubes(meta: CubeMeta | undefined): CubeOption[];
 
-/**
- * Flatten meta into the member options matching `kind`, restricted to `cube` when
- * given. `"dimension"`/`"dimensionOrMeasure"` exclude time dimensions; `"time"`
- * returns only `type === "time"` dimensions; `"measure"` returns measures only;
- * `"numberDimension"` returns only `type === "number"` dimensions (raw per-row
- * numbers like coordinates); `"geoPoint"` returns one synthetic option per valid
- * model-authored latitude/longitude pair.
- */
 export declare function listMembers(meta: CubeMeta | undefined, kind: MemberKind, cube?: string): MemberOption[];
 
 export declare type LoadResult = {
