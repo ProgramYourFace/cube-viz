@@ -483,6 +483,19 @@ function geoPointOptions(c: Cube, connectedComponent: number | undefined): Membe
  * numbers like coordinates); `"geoPoint"` returns one synthetic option per valid
  * model-authored latitude/longitude pair.
  */
+/**
+ * One half of a model-authored coordinate pair (member meta `geoRole`). Bare
+ * latitude/longitude numbers are meaningless to chart on their own, so pickers list
+ * them ONLY through the united synthetic "Location" option (`kind: "geoPoint"`) —
+ * never as standalone number/category rows. `findMember` still resolves them by
+ * name, so specs the geoPoint placement writes (lat/lng wells) keep working.
+ */
+function isGeoHalf(d: { meta?: unknown }): boolean {
+  const m = d.meta;
+  if (!m || typeof m !== "object") return false;
+  return typeof (m as Record<string, unknown>).geoRole === "string";
+}
+
 export function listMembers(
   meta: CubeMeta | undefined,
   kind: MemberKind,
@@ -512,7 +525,7 @@ export function listMembers(
     }
     if (kind === "dimension" || kind === "dimensionOrMeasure") {
       for (const d of c.dimensions) {
-        if (isPublic(d) && d.type !== "time") push(dimensionToOption(d, c.name));
+        if (isPublic(d) && d.type !== "time" && !isGeoHalf(d)) push(dimensionToOption(d, c.name));
       }
     }
     if (kind === "time") {
@@ -522,7 +535,7 @@ export function listMembers(
     }
     if (kind === "numberDimension") {
       for (const d of c.dimensions) {
-        if (isPublic(d) && d.type === "number") push(dimensionToOption(d, c.name));
+        if (isPublic(d) && d.type === "number" && !isGeoHalf(d)) push(dimensionToOption(d, c.name));
       }
     }
   }
