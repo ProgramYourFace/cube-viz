@@ -6,11 +6,15 @@ import { cn } from "@/components/ui/utils";
 import { useCubeMeta, useDisplayUnit } from "@/hooks";
 
 import {
+  collapseFamilies,
   fieldBadge,
   findCube,
+  grainAggLabel,
   listMembers,
+  memberAgg,
   memberCanonicalTime,
   memberGroup,
+  pathLabel,
   type CubeOption,
   type MemberKind,
   type MemberOption,
@@ -134,6 +138,9 @@ export function FieldPickerPopover({
   const [browse, setBrowse] = React.useState<string>(scope.viewLocked ?? "tables");
   // Per-table collapse overrides (related tables default collapsed; search forces open).
   const [collapsedOverride, setCollapsedOverride] = React.useState<Record<string, boolean>>({});
+  // Aggregation-pill choice per family (family key → member name). The pill remembers
+  // the user's pick for this popover's lifetime; absent ⇒ the model's default.
+  const [familySel, setFamilySel] = React.useState<Record<string, string>>({});
 
   // Re-seed the browse source whenever the popover (re)opens for a new scope.
   React.useEffect(() => {
@@ -148,9 +155,10 @@ export function FieldPickerPopover({
   const displayUnit = useDisplayUnit();
 
   // The table sections to render: source first, then related tables grouped under
-  // their model-authored `meta.category` headings (alphabetical; uncategorized last).
-  // With no categories in the model at all, the fallback heading keeps the old flat
-  // "Related tables" reading.
+  // their field-atlas mount (cube `meta.path` — Trips / Maintenance / …, ordered by
+  // first appearance in meta so the model controls the sequence), falling back to
+  // `meta.category` headings for path-less models. With neither, the flat "Related
+  // tables" reading survives.
   const sections = React.useMemo<TableSection[]>(() => {
     if (browse !== "tables") {
       const v = scope.views.find((x) => x.name === browse) ?? findCube(meta, browse);
@@ -158,17 +166,25 @@ export function FieldPickerPopover({
     }
     const out: TableSection[] = [];
     if (scope.sourceCube) out.push({ cube: scope.sourceCube, tag: "source" });
-    const anyCategory = scope.relatedCubes.some((c) => c.category);
+    const anyCategory = scope.relatedCubes.some((c) => c.path ?? c.category);
     const fallback = anyCategory ? "More tables" : "Related tables";
+    const headingOf = (c: CubeOption): string | undefined =>
+      c.path ? pathLabel(c.path) : c.category;
+    // Atlas order: the model's own declaration order (first cube seen per heading).
+    const rank = new Map<string, number>();
+    for (const c of scope.relatedCubes) {
+      const h = headingOf(c);
+      if (h !== undefined && !rank.has(h)) rank.set(h, rank.size);
+    }
     const related = [...scope.relatedCubes].sort((a, b) => {
-      if (a.category !== b.category) {
-        if (a.category === undefined) return 1; // uncategorized sink to the bottom
-        if (b.category === undefined) return -1;
-        return a.category.localeCompare(b.category);
-      }
-      return 0; // stable: keep join-scope's title order within a category
+      const ha = headingOf(a);
+      const hb = headingOf(b);
+      if (ha === hb) return 0; // stable: keep join-scope's title order within a heading
+      if (ha === undefined) return 1; // unmounted tables sink to the bottom
+      if (hb === undefined) return -1;
+      return (rank.get(ha) ?? 0) - (rank.get(hb) ?? 0);
     });
-    for (const c of related) out.push({ cube: c, tag: "related", heading: c.category ?? fallback });
+    for (const c of related) out.push({ cube: c, tag: "related", heading: headingOf(c) ?? fallback });
     return out;
   }, [browse, scope, meta]);
 
@@ -412,6 +428,9 @@ export function FieldPickerPopover({
                     )}
                     <Table2 className="cv-ec-icon--sm cv-ec-icon--muted" />
                     <span className="cv-picker-table-title">{section.cube.title}</span>
+                    {section.cube.grain ? (
+                      <span className="cv-picker-grain">{section.cube.grain}</span>
+                    ) : null}
                     {section.tag === "source" ? (
                       <span className="cv-picker-tag cv-picker-tag--primary">
                         Main table
@@ -443,16 +462,36 @@ export function FieldPickerPopover({
                               ) : null}
                             </div>
                           ) : null}
-                          {g.items.map(({ option, kind, reason }) => (
-                            <PickerRow
-                              key={option.name}
-                              option={option}
-                              unitBadge={fieldBadge(option, displayUnit)}
-                              badge={kind === "time" && memberCanonicalTime(option) ? "default" : undefined}
-                              reason={reason}
-                              onPick={() => pick(option.name, kind)}
-                            />
-                          ))}
+                          {collapseFamilies(g.items).map((row) => {
+                            // An aggregate family renders as ONE row; the pill swaps
+                            // which concrete member a click will place (total → avg →
+                            // per <row>). Lone members render exactly as before.
+                            const selName = row.familyKey ? familySel[row.familyKey] : undefined;
+                            const selIdx = row.variants.findIndex((v) => v.option.name === selName);
+                            const idx = selIdx >= 0 ? selIdx : row.defaultIndex;
+                            const { option, kind, reason } = row.variants[idx];
+                            const agg = row.familyKey
+                              ? {
+                                  label: aggPillLabel(option, findCube(meta, option.cube)),
+                                  onCycle: (): void => {
+                                    const next = row.variants[(idx + 1) % row.variants.length];
+                                    setFamilySel((s) => ({ ...s, [row.familyKey!]: next.option.name }));
+                                  },
+                                }
+                              : undefined;
+                            return (
+                              <PickerRow
+                                key={row.familyKey ?? option.name}
+                                option={option}
+                                label={row.familyKey ? row.label : undefined}
+                                unitBadge={fieldBadge(option, displayUnit)}
+                                badge={kind === "time" && memberCanonicalTime(option) ? "default" : undefined}
+                                reason={reason}
+                                agg={agg}
+                                onPick={() => pick(option.name, kind)}
+                              />
+                            );
+                          })}
                         </div>
                       ))
                     : null}
@@ -547,8 +586,19 @@ function MenuItem({
   );
 }
 
+/**
+ * The pill label for a family variant: its agg ("total", "avg"), with the row-level
+ * variant named by the cube's grain ("per trip") instead of an abstract "value".
+ */
+function aggPillLabel(option: MemberOption, cube: CubeOption | undefined): string {
+  const agg = memberAgg(option) ?? "";
+  return agg === "value" ? grainAggLabel(cube?.grain) : agg;
+}
+
 interface PickerRowProps {
   option: MemberOption;
+  /** Label override — a collapsed family renders its familyTitle, not the member's. */
+  label?: string;
   reason?: string;
   onPick: () => void;
   /**
@@ -558,6 +608,12 @@ interface PickerRowProps {
   unitBadge?: string;
   /** A small trailing chip (e.g. "default" on the cube's canonical time axis). */
   badge?: string;
+  /**
+   * The aggregation pill for a collapsed family row ("total ▾"). A SIBLING of the row
+   * button (buttons cannot nest), clickable even when the current variant is blocked
+   * so the user can cycle to one that fits.
+   */
+  agg?: { label: string; onCycle: () => void };
 }
 
 /**
@@ -565,25 +621,35 @@ interface PickerRowProps {
  * hint is reachable — and it SHOWS the reason inline rather than only in the tooltip:
  * a WebView has no hover, so a title-only hint is invisible on touch.
  */
-function PickerRow({ option, reason, onPick, unitBadge, badge }: PickerRowProps): React.ReactElement {
+function PickerRow({ option, label, reason, onPick, unitBadge, badge, agg }: PickerRowProps): React.ReactElement {
   const unit = unitBadge ? <span className="cv-field-unit">{unitBadge}</span> : null;
-  if (reason) {
-    return (
-      <span
-        tabIndex={0}
-        aria-disabled
-        title={reason}
-        className="cv-picker-row--disabled"
-      >
-        <span className="cv-picker-row-main">
-          {unit}
-          <span className="cv-ec-truncate">{option.label}</span>
-        </span>
-        <span className="cv-picker-row-reason">{reason}</span>
+  const text = label ?? option.label;
+  const aggPill = agg ? (
+    <button
+      type="button"
+      onClick={agg.onCycle}
+      title={`Aggregation: ${agg.label} — click to change`}
+      aria-label={`Aggregation: ${agg.label} — click to change`}
+      className="cv-picker-agg"
+    >
+      {agg.label}
+      <ChevronDown className="cv-ec-icon--xs" />
+    </button>
+  ) : null;
+  const main = reason ? (
+    <span
+      tabIndex={0}
+      aria-disabled
+      title={reason}
+      className="cv-picker-row--disabled"
+    >
+      <span className="cv-picker-row-main">
+        {unit}
+        <span className="cv-ec-truncate">{text}</span>
       </span>
-    );
-  }
-  return (
+      <span className="cv-picker-row-reason">{reason}</span>
+    </span>
+  ) : (
     <button
       type="button"
       onClick={onPick}
@@ -591,12 +657,19 @@ function PickerRow({ option, reason, onPick, unitBadge, badge }: PickerRowProps)
       className="cv-picker-row"
     >
       {unit}
-      <span className="cv-picker-row-label">{option.label}</span>
+      <span className="cv-picker-row-label">{text}</span>
       {badge ? (
         <span className="cv-picker-badge">
           {badge}
         </span>
       ) : null}
     </button>
+  );
+  if (!aggPill) return main;
+  return (
+    <span className="cv-picker-rowwrap">
+      {main}
+      {aggPill}
+    </span>
   );
 }

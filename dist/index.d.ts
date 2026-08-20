@@ -1209,6 +1209,13 @@ export declare const builtinFamilyRegistry: FamilyRegistry;
 export declare const CANONICAL_BREAKPOINT: "lg";
 
 /**
+ * The cube's canonical time dimension (see {@link memberCanonicalTime}), or
+ * undefined when the cube doesn't declare one (e.g. config-style cubes whose only
+ * time is an archive/creation stamp).
+ */
+export declare function canonicalTimeOf(meta: CubeMeta | undefined, cube: string | undefined): MemberOption | undefined;
+
+/**
  * The visual role a well feeds. Two families that expose the same channel mean
  * the same thing by it, which is what makes type-switching lossless
  * ({@link unifyChannels}), fit-ranking possible, and the editor uniform: the
@@ -4382,6 +4389,16 @@ export declare const ChartWidgetSchema: z.ZodObject<{
     title?: string | undefined;
 }>;
 
+/**
+ * Collapse a candidate list into picker rows: candidates sharing a (cube, family)
+ * merge into one row; everything else passes through untouched. Order is stable —
+ * a family row sits where its first variant appeared.
+ */
+export declare function collapseFamilies<T extends {
+    option: MemberOption;
+    reason?: string;
+}>(items: T[]): FamilyRow<T>[];
+
 export declare type ColorAssignment = z.infer<typeof ColorAssignmentSchema>;
 
 export declare const ColorAssignmentSchema: z.ZodObject<{
@@ -4589,7 +4606,7 @@ export declare interface CubeMeta {
 }
 
 /** A cube or view entry for the CubePicker. */
-declare interface CubeOption {
+export declare interface CubeOption {
     name: string;
     title: string;
     /** "cube" | "view" — defaults to "cube" when meta omits `type`. */
@@ -4605,6 +4622,19 @@ declare interface CubeOption {
      * model declares none — callers bucket those under a trailing fallback group.
      */
     category?: string;
+    /**
+     * Field-atlas mount slug from cube `meta.path` (e.g. "trips", "maintenance").
+     * Cubes sharing a path render under ONE atlas heading ({@link pathLabel}) — that is
+     * how a two-grain subject (maintenance records + schedules) stays one menu branch.
+     * Undefined ⇒ the cube falls back to `category` grouping.
+     */
+    path?: string;
+    /**
+     * Human grain sentence from cube `meta.grain` (e.g. "one row per trip"). Shown
+     * under the table heading so "which rows am I counting?" is answered before the
+     * first field is picked; also feeds {@link grainAggLabel}.
+     */
+    grain?: string;
 }
 
 export declare type CubeQuery = z.infer<typeof CubeQuerySchema>;
@@ -6879,6 +6909,9 @@ export declare interface FamilyDefault {
     familyOptions: Record<string, unknown>;
 }
 
+/** The member's family key, namespaced by cube (families are per-cube). */
+export declare function familyKeyOf(o: Pick<MemberOption, "cube" | "meta">): string | undefined;
+
 /**
  * An immutable chart-family registry: the runtime single source of truth for which
  * families exist and how each behaves. Built once by {@link buildFamilyRegistry} and
@@ -6923,6 +6956,20 @@ export declare function FamilyRegistryOverride({ families, children, }: {
     families?: ChartFamilyDescriptor[];
     children: ReactNode;
 }): ReactElement;
+
+/** One collapsed picker row: a lone member, or a family of aggregation variants. */
+export declare interface FamilyRow<T extends {
+    option: MemberOption;
+}> {
+    /** Set only when ≥2 variants collapsed (the pill renders for these). */
+    familyKey?: string;
+    /** Row label: the model's familyTitle for a family, the member label otherwise. */
+    label: string;
+    /** Variants in incoming order (a lone member has exactly one). */
+    variants: T[];
+    /** The variant to lead with: model default, else first addable, else first. */
+    defaultIndex: number;
+}
 
 /**
  * Fetch `/v1/meta` and return the cubes/views list alongside the raw `Meta`
@@ -6999,6 +7046,12 @@ export declare interface FilterBuilderProps {
 export declare type FilterOperator = z.infer<typeof FilterOperatorSchema>;
 
 export declare const FilterOperatorSchema: z.ZodEnum<["equals", "notEquals", "gt", "gte", "lt", "lte", "contains", "notContains", "startsWith", "endsWith", "set", "notSet", "inDateRange", "notInDateRange", "beforeDate", "beforeOrOnDate", "afterDate", "afterOrOnDate", "measureFilter"]>;
+
+/** A single cube/view's option (title, type, join-graph id) by name. */
+export declare function findCube(meta: CubeMeta | undefined, name: string | undefined): CubeOption | undefined;
+
+/** Find a single member option by its verbatim name. */
+export declare function findMember(meta: CubeMeta | undefined, name: string | undefined): MemberOption | undefined;
 
 /* Excluded from this release type: formatCategory */
 
@@ -7089,6 +7142,13 @@ export declare type FormatRole = "value" | "axis" | "tooltip" | "label" | "categ
 
 /** Stable synthetic member id reproducible from the stored lat/lng pair alone. */
 export declare function geoPointId(latMember: string, lngMember: string): string;
+
+/**
+ * The pill label for a "value" (row-level) variant, derived from the cube's grain so
+ * it names the actual row: "one row per trip" → "per trip". Falls back to "per row"
+ * when the model declares no grain.
+ */
+export declare function grainAggLabel(grain: string | undefined): string;
 
 /**
  * Which time buckets make sense for a given date range.
@@ -7997,6 +8057,19 @@ export declare const LineFamilyOptionsSchema: z.ZodObject<{
     chrome?: "none" | "full" | undefined;
 }>;
 
+/** Cubes + views from meta, visible only, tagged cube/view. */
+export declare function listCubes(meta: CubeMeta | undefined): CubeOption[];
+
+/**
+ * Flatten meta into the member options matching `kind`, restricted to `cube` when
+ * given. `"dimension"`/`"dimensionOrMeasure"` exclude time dimensions; `"time"`
+ * returns only `type === "time"` dimensions; `"measure"` returns measures only;
+ * `"numberDimension"` returns only `type === "number"` dimensions (raw per-row
+ * numbers like coordinates); `"geoPoint"` returns one synthetic option per valid
+ * model-authored latitude/longitude pair.
+ */
+export declare function listMembers(meta: CubeMeta | undefined, kind: MemberKind, cube?: string): MemberOption[];
+
 export declare type LoadResult = {
     ok: true;
     spec: Spec;
@@ -8025,6 +8098,32 @@ export declare function makeChartFormat(annotation: ResultAnnotation | undefined
 
 export declare type Member = z.infer<typeof MemberSchema>;
 
+/** The member's aggregation label within its family (undefined = not in a family). */
+export declare function memberAgg(o: {
+    meta?: Record<string, unknown>;
+}): string | undefined;
+
+/** Whether this member is its family's model-declared default aggregation. */
+export declare function memberAggDefault(o: {
+    meta?: Record<string, unknown>;
+}): boolean;
+
+/**
+ * Whether a member is its cube's CANONICAL time axis — Cube member meta
+ * `canonicalTime: true`, authored on exactly one time dimension per cube (the
+ * primary domain event time, e.g. `device_locations.timestamp`). Consumers use it
+ * to sort/badge the member first in date pickers and to auto-fill empty time wells
+ * so users don't have to pick "the" time axis themselves.
+ */
+export declare function memberCanonicalTime(o: {
+    meta?: Record<string, unknown>;
+}): boolean;
+
+/** The family's display label, authored on the default member. */
+export declare function memberFamilyTitle(o: {
+    meta?: Record<string, unknown>;
+}): string | undefined;
+
 /**
  * The single runtime context cube-viz reads (docs/03-override-theme-preview.md
  * §A1.4). It carries everything the host injects through {@link CubeVizProvider}:
@@ -8052,6 +8151,28 @@ export declare interface MemberFormatMeta {
 }
 
 /**
+ * A member's semantic GROUP label, read from Cube member `meta.group` (e.g. "Fuel",
+ * "Safety", "Location"). The model authors this to organize a long member list into
+ * intuitive sections; the field pickers render it as collapsible/labelled groups.
+ * Undefined when the member carries no `meta.group` — callers fall back to a kind /
+ * cube bucket so ungrouped members still appear.
+ */
+export declare function memberGroup(o: {
+    meta?: Record<string, unknown>;
+}): string | undefined;
+
+/**
+ * Pure helpers over Cube `/v1/meta` shared by the field pickers + filter builder.
+ *
+ * The cardinal rule (docs/03 §A3.1): member identifiers are read **verbatim** from
+ * meta — never composed or guessed. A view's `prefix:true` members already carry
+ * the joined-cube prefix in `name` (e.g. `trip_performance.devices_name`), so we
+ * key everything off `member.name` exactly as the server returns it.
+ */
+/** What kind of member a picker/filter target wants. */
+export declare type MemberKind = "measure" | "dimension" | "dimensionOrMeasure" | "time" | "numberDimension" | "geoPoint";
+
+/**
  * Member-level metadata from the Cube annotation (`annotation().<bucket>.<member>.meta`).
  * `unit`/`quantity`/`convert` are the conventional keys cube-viz forwards, but the
  * shape is open so a host can read any custom meta its schema attaches.
@@ -8064,6 +8185,37 @@ export declare interface MemberMeta {
     /** Host opt-in for unit conversion. The default NEVER converts regardless of this flag. */
     convert?: boolean;
     [k: string]: unknown;
+}
+
+/** A flattened, UI-ready member descriptor (identity = `name`, read verbatim). */
+export declare interface MemberOption {
+    /** Fully-qualified member name, VERBATIM from meta. The value we emit. */
+    name: string;
+    /** Best human label: `shortTitle ?? title ?? name`. */
+    label: string;
+    title: string;
+    shortTitle: string;
+    /** Cube primitive type. Segments and synthetic geo points report their own kind. */
+    type: "time" | "number" | "string" | "boolean" | "segment" | "geoPoint";
+    memberType: "measure" | "dimension" | "segment";
+    /** Owning cube/view name (the part before the first dot, or cube.name). */
+    cube: string;
+    description?: string;
+    /** Member `meta` blob (unit/quantity/convert live here for formatting). */
+    meta?: Record<string, unknown>;
+    /** Cube `meta.quantity` (e.g. "distance", "time"), lifted for axis-unit checks. */
+    quantity?: string;
+    /** Cube `meta.unit` (e.g. "km", "L"), lifted for axis-unit checks. */
+    unit?: string;
+    /**
+     * Cube's weak `connectedComponent` for the owning cube. This is descriptive only;
+     * field visibility uses explicit cube `meta.joinTargets` because sibling facts in
+     * one component are not necessarily query-joinable. `undefined` = isolated cube.
+     */
+    connectedComponent?: number;
+    /** Coordinate members carried only by a synthetic `geoPoint` option. */
+    latMember?: string;
+    lngMember?: string;
 }
 
 /** Fully-qualified, dot-namespaced Cube member, e.g. "device_trips.total_distance". */
@@ -8147,6 +8299,9 @@ export declare const OrderDirSchema: z.ZodEnum<["asc", "desc"]>;
 export declare type OrderSpec = z.infer<typeof OrderSpecSchema>;
 
 export declare const OrderSpecSchema: z.ZodUnion<[z.ZodRecord<z.ZodString, z.ZodEnum<["asc", "desc"]>>, z.ZodArray<z.ZodTuple<[z.ZodString, z.ZodEnum<["asc", "desc"]>], null>, "many">]>;
+
+/** Humanize an atlas path slug for a heading: "engine-health" → "Engine health". */
+export declare function pathLabel(path: string): string;
 
 /**
  * Pick the canonical (widest) layout out of RGL's `allLayouts`. Prefers the

@@ -11,8 +11,9 @@ import { canonicalTimeOf, findMember, type MemberOption } from "../../primitives
 import { inferCube } from "../helpers";
 import { axisKeyOf, axisLabelOf } from "../builder/axis";
 import { getWells, placeField, readWells, type FieldKind, type WellDef } from "../builder/wells";
+import { Database } from "lucide-react";
+
 import { ChartFiltersPopover } from "./ChartFiltersPopover";
-import { ChartSourcePopover } from "./ChartSourcePopover";
 import { AxisChrome, LegendChrome } from "./ChartChrome";
 import { CenterTypePicker, ChartTypePill } from "./CenterTypePicker";
 import { computeJoinScope, cubeInJoinScope } from "./join-scope";
@@ -71,24 +72,15 @@ export function ChartEditOverlay({
   const placed = React.useMemo(() => readWells(spec, families), [spec, families]);
   const wellById = React.useMemo(() => new Map(wells.map((w) => [w.id, w])), [wells]);
 
-  // The source the user picked via the Source chip — scopes an empty chart until a
-  // field is placed (once fields exist, the spec's own source wins).
-  const [sourceOverride, setSourceOverride] = React.useState<string | undefined>(undefined);
   // Cross-table scope: which tables/views are joinable, and the single measure source.
+  // There is no separate source picker any more — the FIRST field placed anchors the
+  // chart (the table is implicit), and the field picker's atlas sections carry the
+  // navigation the old picker provided. Clearing every field un-anchors it again.
   const scope = React.useMemo(
-    () => computeJoinScope(meta, spec, sourceOverride, families),
-    [meta, spec, sourceOverride, families],
+    () => computeJoinScope(meta, spec, undefined, families),
+    [meta, spec, families],
   );
   const allPlaced = React.useMemo(() => Object.values(placed).flat(), [placed]);
-
-  // Re-point the whole chart to a new table/view (clears the now-incompatible fields).
-  const onSelectSource = React.useCallback(
-    (name: string): void => {
-      setSourceOverride(name);
-      update({ ...spec, query: {}, chart: { ...spec.chart, mapping: undefined, familyOptions: undefined } });
-    },
-    [spec, update],
-  );
   // The joinable tables a filter may target (the same graph the field picker offers).
   const scopeCubes = React.useMemo<string[]>(
     () =>
@@ -327,11 +319,21 @@ export function ChartEditOverlay({
             an empty chart shows the centred chooser overlay instead. */}
         {!isEmpty || queryless ? <ChartTypePill spec={spec} update={update} /> : null}
         <div className="cv-edit-overlay-actions">
-          <ChartSourcePopover
-            currentName={scope.viewLocked ?? scope.sourceCube?.name}
-            hasFields={allPlaced.length > 0}
-            onSelect={onSelectSource}
-          />
+          {/* The anchor chip: which table this chart reads (set implicitly by the
+              first field placed), at what grain. Read-only — the way to change it is
+              to clear the fields, which is what the old source picker did anyway. */}
+          {allPlaced.length > 0 && scope.sourceCube ? (
+            <span
+              className="cv-edit-anchor"
+              title={scope.sourceCube.grain ?? scope.sourceCube.title}
+            >
+              <Database className="cv-ec-icon--sm cv-ec-icon--muted" />
+              <span className="cv-ec-truncate">{scope.sourceCube.title}</span>
+              {scope.sourceCube.grain ? (
+                <span className="cv-edit-anchor-grain">{scope.sourceCube.grain}</span>
+              ) : null}
+            </span>
+          ) : null}
           <ChartFiltersPopover spec={spec} update={update} cube={cube} scopeCubes={scopeCubes} scope={scope} />
         </div>
       </div>

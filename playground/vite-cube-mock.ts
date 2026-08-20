@@ -95,6 +95,10 @@ interface MockCube {
   connectedComponent: number;
   /** Direct outbound join edges — what `join-scope.ts` walks (it fails closed). */
   joinTargets?: string[];
+  /** Field-atlas mount slug (cube meta.path) — groups tables under one heading. */
+  path?: string;
+  /** Human grain sentence (cube meta.grain) — "one row per trip". */
+  grain?: string;
   measures: MockMeasure[];
   dimensions: MockDimension[];
 }
@@ -110,6 +114,8 @@ const TRIPS: MockCube = {
   description: "Fleet trip facts (offline mock)",
   type: "cube",
   connectedComponent: 1,
+  path: "trips",
+  grain: "one row per trip",
   joinTargets: ["devices", "drivers", "geofences"],
   measures: [
     { name: "trips.count", title: "Trips Count", shortTitle: "Trips", scale: 24, integer: true },
@@ -117,15 +123,33 @@ const TRIPS: MockCube = {
       name: "trips.total_distance",
       title: "Trips Total Distance",
       shortTitle: "Distance",
-      meta: { unit: "km", quantity: "distance", group: "Trip metrics" },
+      // The distance AGGREGATE FAMILY: total (default) + avg + the per-trip row value
+      // below — the picker collapses all three into one row with an agg pill.
+      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "total", aggDefault: true, familyTitle: "Distance" },
       scale: 310,
+    },
+    {
+      name: "trips.avg_distance",
+      title: "Trips Average Distance",
+      shortTitle: "Avg distance",
+      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "avg" },
+      scale: 38,
+      rate: true,
     },
     {
       name: "trips.fuel",
       title: "Trips Fuel Used",
       shortTitle: "Fuel",
-      meta: { unit: "L", quantity: "volume", group: "Fuel" },
+      meta: { unit: "L", quantity: "volume", group: "Fuel", family: "fuel", agg: "total", aggDefault: true, familyTitle: "Fuel used" },
       scale: 46,
+    },
+    {
+      name: "trips.avg_fuel",
+      title: "Trips Average Fuel",
+      shortTitle: "Avg fuel",
+      meta: { unit: "L", quantity: "volume", group: "Fuel", family: "fuel", agg: "avg" },
+      scale: 9,
+      rate: true,
     },
     {
       name: "trips.avg_speed",
@@ -187,6 +211,15 @@ const TRIPS: MockCube = {
       meta: { group: "Safety" },
     },
     {
+      name: "trips.distance",
+      title: "Trips Distance",
+      shortTitle: "Distance",
+      type: "number",
+      values: ["12.4", "48.1", "88.9"],
+      // The family's row-level value — pill-labeled from the cube grain ("per trip").
+      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "value" },
+    },
+    {
       name: "trips.start_lat",
       title: "Trips Start Latitude",
       shortTitle: "Start latitude",
@@ -233,6 +266,8 @@ const DEVICES: MockCube = {
   description: "Telematics units installed in the fleet",
   type: "cube",
   connectedComponent: 1,
+  path: "vehicle",
+  grain: "one row per device",
   joinTargets: ["trips"],
   measures: [
     { name: "devices.count", title: "Devices Count", shortTitle: "Devices", scale: 12, integer: true },
@@ -298,6 +333,8 @@ const DRIVERS: MockCube = {
   description: "Driver roster and safety scoring",
   type: "cube",
   connectedComponent: 1,
+  path: "people",
+  grain: "one row per driver",
   joinTargets: ["trips"],
   measures: [
     { name: "drivers.count", title: "Drivers Count", shortTitle: "Drivers", scale: 18, integer: true },
@@ -364,6 +401,8 @@ const GEOFENCES: MockCube = {
   description: "Named areas trips are matched against",
   type: "cube",
   connectedComponent: 1,
+  path: "places",
+  grain: "one row per place",
   joinTargets: ["trips"],
   measures: [
     { name: "geofences.count", title: "Geofences Count", shortTitle: "Geofences", scale: 9, integer: true },
@@ -502,7 +541,15 @@ function metaResponse(): unknown {
       type: c.type,
       public: true,
       connectedComponent: c.connectedComponent,
-      ...(c.joinTargets ? { meta: { joinTargets: c.joinTargets } } : {}),
+      ...(c.joinTargets || c.path || c.grain
+        ? {
+            meta: {
+              ...(c.joinTargets ? { joinTargets: c.joinTargets } : {}),
+              ...(c.path ? { path: c.path } : {}),
+              ...(c.grain ? { grain: c.grain } : {}),
+            },
+          }
+        : {}),
       measures: c.measures.map((m) => ({
         name: m.name,
         title: m.title,
@@ -804,7 +851,24 @@ function annotationFor(query: LoadQuery): unknown {
  */
 function loadResponse(query: LoadQuery): unknown {
   const data = synthesizeRows(query);
-  const echoed = { ...query };
+  // Real Cube NORMALIZES a relative dateRange string ("last 30 days") into a
+  // concrete [from, to] pair in the echoed response query — and
+  // @cubejs-client/core's ResultSet.timeSeries RELIES on that (it calls
+  // `dateRange.find(...)`, which throws on a string). Echoing the raw query
+  // verbatim crashed every chart whose time axis used a relative range.
+  const echoed = {
+    ...query,
+    ...(Array.isArray(query.timeDimensions) && query.timeDimensions.length
+      ? {
+          timeDimensions: query.timeDimensions.map((td) => {
+            if (!td || td.dateRange === undefined || Array.isArray(td.dateRange)) return td;
+            const [from, to] = resolveRange(td.dateRange);
+            const iso = (t: number): string => new Date(t).toISOString().slice(0, 10);
+            return { ...td, dateRange: [`${iso(from)}T00:00:00.000`, `${iso(to)}T23:59:59.999`] };
+          }),
+        }
+      : {}),
+  };
   return {
     queryType: "regularQuery",
     results: [
