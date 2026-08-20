@@ -470,13 +470,20 @@ export function FieldPickerPopover({
                             const selIdx = row.variants.findIndex((v) => v.option.name === selName);
                             const idx = selIdx >= 0 ? selIdx : row.defaultIndex;
                             const { option, kind, reason } = row.variants[idx];
+                            // Every aggregation is an independently selectable segment —
+                            // all options visible at once, click to switch, blocked
+                            // variants disabled with their reason (never hidden mid-row).
                             const agg = row.familyKey
                               ? {
-                                  label: aggPillLabel(option, findCube(meta, option.cube)),
-                                  onCycle: (): void => {
-                                    const next = row.variants[(idx + 1) % row.variants.length];
-                                    setFamilySel((s) => ({ ...s, [row.familyKey!]: next.option.name }));
-                                  },
+                                  options: row.variants.map((v, vi) => ({
+                                    label: aggPillLabel(v.option, findCube(meta, v.option.cube)),
+                                    selected: vi === idx,
+                                    disabled: v.reason !== undefined,
+                                    title: v.reason,
+                                    onSelect: (): void => {
+                                      setFamilySel((s) => ({ ...s, [row.familyKey!]: v.option.name }));
+                                    },
+                                  })),
                                 }
                               : undefined;
                             return (
@@ -609,11 +616,20 @@ interface PickerRowProps {
   /** A small trailing chip (e.g. "default" on the cube's canonical time axis). */
   badge?: string;
   /**
-   * The aggregation pill for a collapsed family row ("total ▾"). A SIBLING of the row
-   * button (buttons cannot nest), clickable even when the current variant is blocked
-   * so the user can cycle to one that fits.
+   * The aggregation selector for a collapsed family row — every variant rendered as
+   * an independently selectable segment ("total | avg | max"), the active one filled.
+   * SIBLINGS of the row button (buttons cannot nest); a blocked variant renders
+   * disabled with its reason in the tooltip rather than disappearing.
    */
-  agg?: { label: string; onCycle: () => void };
+  agg?: {
+    options: Array<{
+      label: string;
+      selected: boolean;
+      disabled?: boolean;
+      title?: string;
+      onSelect: () => void;
+    }>;
+  };
 }
 
 /**
@@ -625,16 +641,22 @@ function PickerRow({ option, label, reason, onPick, unitBadge, badge, agg }: Pic
   const unit = unitBadge ? <span className="cv-field-unit">{unitBadge}</span> : null;
   const text = label ?? option.label;
   const aggPill = agg ? (
-    <button
-      type="button"
-      onClick={agg.onCycle}
-      title={`Aggregation: ${agg.label} — click to change`}
-      aria-label={`Aggregation: ${agg.label} — click to change`}
-      className="cv-picker-agg"
-    >
-      {agg.label}
-      <ChevronDown className="cv-ec-icon--xs" />
-    </button>
+    <span className="cv-picker-aggseg" role="radiogroup" aria-label="Aggregation">
+      {agg.options.map((o) => (
+        <button
+          key={o.label}
+          type="button"
+          role="radio"
+          aria-checked={o.selected}
+          disabled={o.disabled}
+          title={o.title ?? `Aggregation: ${o.label}`}
+          onClick={o.onSelect}
+          className={cn("cv-picker-aggseg-opt", o.selected && "cv-picker-aggseg-opt--on")}
+        >
+          {o.label}
+        </button>
+      ))}
+    </span>
   ) : null;
   const main = reason ? (
     <span
