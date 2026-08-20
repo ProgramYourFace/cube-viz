@@ -7159,9 +7159,10 @@ export declare type FormatRole = "value" | "axis" | "tooltip" | "label" | "categ
 export declare function geoPointId(latMember: string, lngMember: string): string;
 
 /**
- * The pill label for a "value" (row-level) variant, derived from the cube's grain so
- * it names the actual row: "one row per trip" → "per trip". Falls back to "per row"
- * when the model declares no grain.
+ * The segment label for a "value" (row-level) variant, derived from the cube's grain
+ * so it names the actual row: "one row per trip" → "each trip". "Each" (not "per")
+ * on purpose — this variant is a GRAIN switch (one point per row, nothing summarized),
+ * and "per trip" read as just another summary like "avg per trip".
  */
 export declare function grainAggLabel(grain: string | undefined): string;
 
@@ -8118,7 +8119,11 @@ export declare function memberAgg(o: {
     meta?: Record<string, unknown>;
 }): string | undefined;
 
-/** Whether this member is its family's model-declared default aggregation. */
+/**
+ * Whether this member is its family's default aggregation: an explicit
+ * `aggDefault: true` stamp (partition families, deliberate exceptions), else the
+ * variant whose `agg` matches its measurement kind's derived default.
+ */
 export declare function memberAggDefault(o: {
     meta?: Record<string, unknown>;
 }): boolean;
@@ -8134,7 +8139,7 @@ export declare function memberCanonicalTime(o: {
     meta?: Record<string, unknown>;
 }): boolean;
 
-/** The family's display label, authored on the default member. */
+/** The family's display label, authored on exactly one member. */
 export declare function memberFamilyTitle(o: {
     meta?: Record<string, unknown>;
 }): string | undefined;

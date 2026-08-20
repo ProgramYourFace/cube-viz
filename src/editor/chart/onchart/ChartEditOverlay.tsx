@@ -12,6 +12,7 @@ import {
   familyVariantsOf,
   findCube,
   findMember,
+  memberSoloHint,
   type MemberOption,
 } from "../../primitives/meta-helpers";
 import { inferCube } from "../helpers";
@@ -26,7 +27,7 @@ import {
 } from "../builder/wells";
 import { Database } from "lucide-react";
 
-import { aggPillLabel } from "./AggSegments";
+import { aggHint, aggPillLabel, isRowVariant, rowVariantHint } from "./AggSegments";
 import { ChartFiltersPopover } from "./ChartFiltersPopover";
 import { AxisChrome, LegendChrome } from "./ChartChrome";
 import { CenterTypePicker, ChartTypePill } from "./CenterTypePicker";
@@ -249,25 +250,34 @@ export function ChartEditOverlay({
         update(next);
       };
       const variants = familyVariantsOf(meta, option);
+      const cubeOpt = findCube(meta, option.cube);
       const agg =
         variants.length > 1
           ? {
-              options: variants.map((v) => {
+              options: variants.map((v, vi) => {
                 const kind: FieldKind = v.memberType === "measure" ? "number" : "numberDimension";
                 const reason =
                   v.name === member
                     ? undefined
                     : candidateReason(wellDef, kind, inWellW, v, (o) => reasonW(wellId, o));
+                const row = isRowVariant(v);
                 return {
                   label: aggPillLabel(v, findCube(meta, v.cube)),
                   selected: v.name === member,
                   disabled: reason !== undefined,
-                  title: reason,
+                  title: reason ?? (row ? rowVariantHint(cubeOpt) : undefined),
+                  // The row-level variant is a grain switch, not another summary —
+                  // the divider keeps it from reading as a sibling of total/avg.
+                  divider: row && vi > 0,
                   onSelect: () => onSelect(v.name, kind),
                 };
               }),
             }
           : undefined;
+      // The model's context nudge (meta `soloHint`) applies only while this is the
+      // sole placed member of its cube — the chart isn't otherwise about those rows.
+      const soloCube = allPlaced.filter((n) => findMember(meta, n)?.cube === option.cube);
+      const notice = soloCube.length === 1 ? memberSoloHint(option) : undefined;
       return {
         picker: {
           well: wellDef,
@@ -278,9 +288,11 @@ export function ChartEditOverlay({
           onSelect,
         },
         agg,
+        hint: agg ? aggHint(variants, cubeOpt, option) : undefined,
+        notice,
       };
     },
-    [queryless, wellById, meta, placed, spec, family, families, blockReasonWith, valueAxesFor, update],
+    [queryless, wellById, meta, placed, allPlaced, spec, family, families, blockReasonWith, valueAxesFor, update],
   );
 
   // Zones adapt to STATE: a horizontal bar swaps its value + category axes (value on the

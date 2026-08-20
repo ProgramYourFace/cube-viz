@@ -7,10 +7,12 @@ import { useCubeMeta, useDisplayUnit } from "@/hooks";
 
 import {
   collapseFamilies,
+  familyTitleOf,
   fieldBadge,
   findCube,
   listMembers,
   memberCanonicalTime,
+  memberFamilyTitle,
   memberGroup,
   pathLabel,
   type CubeOption,
@@ -19,7 +21,7 @@ import {
 } from "../../primitives/meta-helpers";
 import { placementBlockReason, wellAccepts } from "../builder/channels";
 import type { FieldKind, WellDef } from "../builder/wells";
-import { AggSegments, aggPillLabel } from "./AggSegments";
+import { AggSegments, aggPillLabel, isRowVariant, rowVariantHint } from "./AggSegments";
 import type { JoinScope } from "./join-scope";
 import {
   candidateReason,
@@ -226,7 +228,18 @@ export function FieldPickerPopover({
       for (const o of members) {
         if (placedSet.has(o.name)) continue;
         if (seen.has(o.name)) continue;
-        if (q && !(o.label.toLowerCase().includes(q) || o.name.toLowerCase().includes(q))) continue;
+        // A family member also answers to its FAMILY's title — the collapsed row is
+        // labelled "Time breakdown", so that search must find its variants.
+        const famTitle = memberFamilyTitle(o) ?? familyTitleOf(meta, o);
+        if (
+          q &&
+          !(
+            o.label.toLowerCase().includes(q) ||
+            o.name.toLowerCase().includes(q) ||
+            (famTitle?.toLowerCase().includes(q) ?? false)
+          )
+        )
+          continue;
         seen.add(o.name);
         const group = memberGroup(o);
         // Fallback buckets key by LABEL (not kind) so kinds sharing a label merge.
@@ -370,6 +383,19 @@ export function FieldPickerPopover({
           ) : null}
         </div>
 
+        {/* The anchor rule, stated BEFORE anything is rejected for breaking it: once a
+            chart is anchored, one line names the table it reads and its grain. The
+            per-row rejection copy ("This chart's numbers come from Trips…") then
+            confirms a rule this header already taught. Absent on an empty chart —
+            nothing is anchored yet — and while browsing a locked dataset. */}
+        {browse === "tables" && scope.sourceCube ? (
+          <div className="cv-picker-anchor">
+            Reading from <strong>{scope.sourceCube.title}</strong>
+            {scope.sourceCube.grain ? ` (${scope.sourceCube.grain})` : ""} · joined tables
+            included
+          </div>
+        ) : null}
+
         <div className="cv-picker-list">
           {!hasAny ? (
             emptiedByFilter ? (
@@ -474,15 +500,24 @@ export function FieldPickerPopover({
                             // variants disabled with their reason (never hidden mid-row).
                             const agg = row.familyKey
                               ? {
-                                  options: row.variants.map((v, vi) => ({
-                                    label: aggPillLabel(v.option, findCube(meta, v.option.cube)),
-                                    selected: vi === idx,
-                                    disabled: v.reason !== undefined,
-                                    title: v.reason,
-                                    onSelect: (): void => {
-                                      setFamilySel((s) => ({ ...s, [row.familyKey!]: v.option.name }));
-                                    },
-                                  })),
+                                  options: row.variants.map((v, vi) => {
+                                    const cubeOpt = findCube(meta, v.option.cube);
+                                    const isRow = isRowVariant(v.option);
+                                    return {
+                                      label: aggPillLabel(v.option, cubeOpt),
+                                      selected: vi === idx,
+                                      disabled: v.reason !== undefined,
+                                      // The row-level variant is a grain switch (one
+                                      // point per row) — its tooltip says so, and the
+                                      // divider keeps it from reading as a sibling
+                                      // summary of total/avg.
+                                      title: v.reason ?? (isRow ? rowVariantHint(cubeOpt) : undefined),
+                                      divider: isRow && vi > 0,
+                                      onSelect: (): void => {
+                                        setFamilySel((s) => ({ ...s, [row.familyKey!]: v.option.name }));
+                                      },
+                                    };
+                                  }),
                                 }
                               : undefined;
                             return (
