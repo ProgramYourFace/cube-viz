@@ -927,25 +927,45 @@
   flex: 1;
 }
 
-/* The aggregation pill on a collapsed family row ("total ▾" → "avg" → "per trip"). */
-.cv-picker-agg {
+/* The aggregation selector on a collapsed family row: every variant is an
+ * independently selectable segment ("total | avg | max"), the active one filled. */
+.cv-picker-aggseg {
   display: inline-flex;
   flex: none;
-  align-items: center;
-  gap: 2px;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 999px;
+}
+
+.cv-picker-aggseg-opt {
+  border: 0;
+  border-left: 1px solid var(--border);
   background: none;
-  padding: 1px 0.375rem;
+  padding: 1px 0.5rem;
   font: inherit;
   font-size: 10px;
   white-space: nowrap;
   color: var(--muted-foreground);
+  cursor: pointer;
 }
 
-.cv-picker-agg:hover {
-  border-color: var(--ring);
+.cv-picker-aggseg-opt:first-child {
+  border-left: 0;
+}
+
+.cv-picker-aggseg-opt:hover:not(:disabled) {
   color: var(--foreground);
+}
+
+.cv-picker-aggseg-opt--on {
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.cv-picker-aggseg-opt:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .cv-ec-icon--xs {
