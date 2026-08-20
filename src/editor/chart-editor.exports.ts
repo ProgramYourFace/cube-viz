@@ -37,6 +37,28 @@ export { adaptiveGranularity } from "./chart/builder/wells";
 // Host geo families reproduce a filled synthetic location id from their stored pair.
 export { geoPointId } from "./primitives/meta-helpers";
 
+// The `/v1/meta` projection the editor itself runs on, exported so hosts can build
+// meta-driven UI OUTSIDE the library (e.g. aa-app's chart-creation wizard reads the
+// same atlas paths / grains / aggregate families the field picker renders) without
+// re-parsing Cube meta themselves. Pure functions over `useCubeMeta()`'s result.
+export {
+  canonicalTimeOf,
+  collapseFamilies,
+  familyKeyOf,
+  findCube,
+  findMember,
+  grainAggLabel,
+  listCubes,
+  listMembers,
+  memberAgg,
+  memberAggDefault,
+  memberCanonicalTime,
+  memberFamilyTitle,
+  memberGroup,
+  pathLabel,
+} from "./primitives/meta-helpers";
+export type { CubeOption, FamilyRow, MemberKind, MemberOption } from "./primitives/meta-helpers";
+
 // The controlled-spec engine (validate + debounce-emit), for advanced hosts.
 export { useChartEditorState } from "./chart/useChartEditorState";
 export type {

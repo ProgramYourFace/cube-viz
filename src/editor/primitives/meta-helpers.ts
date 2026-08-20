@@ -69,6 +69,19 @@ export interface CubeOption {
    * model declares none — callers bucket those under a trailing fallback group.
    */
   category?: string;
+  /**
+   * Field-atlas mount slug from cube `meta.path` (e.g. "trips", "maintenance").
+   * Cubes sharing a path render under ONE atlas heading ({@link pathLabel}) — that is
+   * how a two-grain subject (maintenance records + schedules) stays one menu branch.
+   * Undefined ⇒ the cube falls back to `category` grouping.
+   */
+  path?: string;
+  /**
+   * Human grain sentence from cube `meta.grain` (e.g. "one row per trip"). Shown
+   * under the table heading so "which rows am I counting?" is answered before the
+   * first field is picked; also feeds {@link grainAggLabel}.
+   */
+  grain?: string;
 }
 
 /** The `connectedComponent` (join-graph id) of a cube/view, or undefined. */
@@ -84,9 +97,14 @@ function joinTargetsOf(c: { meta?: unknown }): string[] {
 
 /** Cube-level `meta.category` (see {@link CubeOption.category}); undefined when absent. */
 function categoryOf(c: { meta?: unknown }): string | undefined {
+  return cubeMetaString(c, "category");
+}
+
+/** Read a non-empty string key off a CUBE-level `meta` blob. */
+function cubeMetaString(c: { meta?: unknown }, key: string): string | undefined {
   if (!c.meta || typeof c.meta !== "object") return undefined;
-  const category = (c.meta as Record<string, unknown>).category;
-  return typeof category === "string" && category.length > 0 ? category : undefined;
+  const v = (c.meta as Record<string, unknown>)[key];
+  return typeof v === "string" && v.length > 0 ? v : undefined;
 }
 
 function isPublic(m: { public?: boolean; isVisible?: boolean }): boolean {
@@ -108,7 +126,15 @@ export function listCubes(meta: CubeMeta | undefined): CubeOption[] {
       connectedComponent: componentOf(c as { connectedComponent?: number }),
       joinTargets: joinTargetsOf(c),
       category: categoryOf(c),
+      path: cubeMetaString(c, "path"),
+      grain: cubeMetaString(c, "grain"),
     }));
+}
+
+/** Humanize an atlas path slug for a heading: "engine-health" → "Engine health". */
+export function pathLabel(path: string): string {
+  const words = path.replace(/[-_]+/g, " ").trim();
+  return words.length > 0 ? words[0].toUpperCase() + words.slice(1) : path;
 }
 
 /** A single cube/view's option (title, type, join-graph id) by name. */
@@ -205,6 +231,99 @@ export function groupMembersByMeta(
     entry.items.push(m);
   }
   return order.map((k) => [byKey.get(k)!.label, byKey.get(k)!.items] as [string, MemberOption[]]);
+}
+
+/* ── Aggregate families ────────────────────────────────────────────────────────
+ * The model publishes total/avg/max variants of one quantity as SEPARATE members
+ * (member names are public API — saved specs store them), linked by member meta:
+ *   family: "cost"            — the family key, unique within the cube
+ *   agg: "total" | "avg" | "min" | "max" | "median" | "fleet" | "value"
+ *   aggDefault: true          — on exactly one measure (the canonical pick)
+ *   familyTitle: "Cost"       — on the default (the collapsed row's label)
+ * "value" marks the family's ROW-LEVEL dimension (one number per record). The field
+ * picker renders a family as ONE row with an aggregation pill; queries still carry
+ * the concrete member name, so nothing about the wire format changes.
+ */
+
+/** The member's aggregation label within its family (undefined = not in a family). */
+export function memberAgg(o: { meta?: Record<string, unknown> }): string | undefined {
+  return metaString(o.meta, "agg");
+}
+
+/** The member's family key, namespaced by cube (families are per-cube). */
+export function familyKeyOf(o: Pick<MemberOption, "cube" | "meta">): string | undefined {
+  const family = metaString(o.meta, "family");
+  return family ? `${o.cube}:${family}` : undefined;
+}
+
+/** Whether this member is its family's model-declared default aggregation. */
+export function memberAggDefault(o: { meta?: Record<string, unknown> }): boolean {
+  return o.meta?.aggDefault === true;
+}
+
+/** The family's display label, authored on the default member. */
+export function memberFamilyTitle(o: { meta?: Record<string, unknown> }): string | undefined {
+  return metaString(o.meta, "familyTitle");
+}
+
+/**
+ * The pill label for a "value" (row-level) variant, derived from the cube's grain so
+ * it names the actual row: "one row per trip" → "per trip". Falls back to "per row"
+ * when the model declares no grain.
+ */
+export function grainAggLabel(grain: string | undefined): string {
+  const m = grain?.match(/per\s+(.+)$/i);
+  return m ? `per ${m[1]}` : "per row";
+}
+
+/** One collapsed picker row: a lone member, or a family of aggregation variants. */
+export interface FamilyRow<T extends { option: MemberOption }> {
+  /** Set only when ≥2 variants collapsed (the pill renders for these). */
+  familyKey?: string;
+  /** Row label: the model's familyTitle for a family, the member label otherwise. */
+  label: string;
+  /** Variants in incoming order (a lone member has exactly one). */
+  variants: T[];
+  /** The variant to lead with: model default, else first addable, else first. */
+  defaultIndex: number;
+}
+
+/**
+ * Collapse a candidate list into picker rows: candidates sharing a (cube, family)
+ * merge into one row; everything else passes through untouched. Order is stable —
+ * a family row sits where its first variant appeared.
+ */
+export function collapseFamilies<T extends { option: MemberOption; reason?: string }>(
+  items: T[],
+): FamilyRow<T>[] {
+  const rows: FamilyRow<T>[] = [];
+  const byFamily = new Map<string, FamilyRow<T>>();
+  for (const item of items) {
+    const key = familyKeyOf(item.option);
+    if (!key) {
+      rows.push({ label: item.option.label, variants: [item], defaultIndex: 0 });
+      continue;
+    }
+    let row = byFamily.get(key);
+    if (!row) {
+      row = { familyKey: key, label: item.option.label, variants: [], defaultIndex: 0 };
+      byFamily.set(key, row);
+      rows.push(row);
+    }
+    row.variants.push(item);
+  }
+  for (const row of rows) {
+    if (!row.familyKey) continue;
+    // A "family" of one renders as a plain row (no pill) but keeps its clean title.
+    const titled = row.variants.find((v) => memberFamilyTitle(v.option));
+    const def = row.variants.findIndex((v) => memberAggDefault(v.option));
+    const addable = row.variants.findIndex((v) => v.reason === undefined);
+    row.defaultIndex = def >= 0 ? def : addable >= 0 ? addable : 0;
+    row.label =
+      memberFamilyTitle(titled?.option ?? {}) ?? row.variants[row.defaultIndex].option.label;
+    if (row.variants.length < 2) row.familyKey = undefined;
+  }
+  return rows;
 }
 
 /**
