@@ -405,6 +405,18 @@ function normalizeMeasures(
   });
 }
 
+/**
+ * Map a boolean dimension's raw pivot value ("1"/"0", "true"/"false") to its
+ * human word. Returns undefined for anything that isn't a recognizable boolean
+ * encoding, so callers can fall through to the raw value untouched.
+ */
+function booleanWord(v: unknown): "yes" | "no" | undefined {
+  const s = String(v);
+  if (s === "1" || s === "true") return "yes";
+  if (s === "0" || s === "false") return "no";
+  return undefined;
+}
+
 /* mode (b): one NormalizedSeries per distinct pivot value. */
 function normalizePivot(
   resultSet: AnyResultSet,
@@ -438,6 +450,14 @@ function normalizePivot(
   // The primary measure's meta drives the value-axis unit (single-measure case).
   const valueMeta = findMember(annotation, value);
 
+  // A boolean split's raw values are "1"/"0" — meaningless as legend/tooltip
+  // labels. Name those series "<dimension title>: yes|no" instead (the title
+  // carries the question, the word carries the answer). Only the LABEL changes;
+  // series keys and data stay keyed on the raw value.
+  const pivotDimMeta = annotation.dimensions[pivotMember];
+  const pivotIsBoolean = pivotDimMeta?.type === "boolean";
+  const pivotTitle = pivotDimMeta?.shortTitle ?? pivotDimMeta?.title ?? pivotMember;
+
   const all = seriesNames.map((sn): NormalizedSeries => {
     // yValues = [pivotValue, measure]. The pivot value is the natural label; in
     // multi-measure mode we prefix the measure so series stay distinguishable.
@@ -454,7 +474,9 @@ function normalizePivot(
     // value of that measure identically — see docs/02-chart-options.md §7.6.)
     const measureLabel =
       measureSpecMeta?.label ?? measureMeta?.shortTitle ?? measureMeta?.title ?? measure;
-    const base = pivotValue ?? sn.shortTitle ?? sn.title ?? sn.key;
+    const rawBase = pivotValue ?? sn.shortTitle ?? sn.title ?? sn.key;
+    const word = pivotIsBoolean ? booleanWord(rawBase) : undefined;
+    const base = word ? `${pivotTitle}: ${word}` : rawBase;
     const label = multiMeasure ? `${measureLabel} · ${base}` : base;
     const data = chartRows.map((row) => coerceNumber(row[sn.key]));
     return {
