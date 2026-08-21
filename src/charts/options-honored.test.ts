@@ -119,6 +119,16 @@ describe("buildStackedRows", () => {
     ]);
   });
 
+  it("keeps a zero on the running total, never the absolute baseline", () => {
+    // d3's stackOffsetDiverging parks a 0 at the axis (`[0, 0]`) — a curved
+    // stacked AREA then interpolates through that vertex, dragging the band
+    // through every series below it. The stacked area mark reads these rows,
+    // so a 0-valued upper series must sit ON the totals beneath it.
+    const zeroed = chartData(["Mon"], [series("a", [10]), series("b", [0])]);
+    const rows = buildStackedRows(zeroed, zeroed.series);
+    expect(rows[1]).toMatchObject({ value: 0, y1: 10, y2: 10 });
+  });
+
   it("leaves a null datum as a zero-width interval with no share", () => {
     const gappy = chartData(["Mon"], [series("a", [null]), series("b", [8])]);
     const rows = buildStackedRows(gappy, gappy.series, { normalize: true });

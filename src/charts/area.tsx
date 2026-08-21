@@ -1,5 +1,5 @@
 import * as React from "react";
-import { areaY, defineChart, dot, lineY, stack, type ChartMark } from "@tanstack/charts";
+import { areaY, defineChart, dot, lineY, type ChartMark } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
 
 import type { ChartComponentProps } from "./types";
@@ -120,18 +120,32 @@ export function AreaChartFamily({
       : undefined;
 
     if (stacked) {
-      // Per-series `meta.stackId`: one areaY mark PER STACK, each stacking its own
-      // series implicitly. Separate stacks overlay each other from the shared zero
-      // baseline (the Recharts behavior — distinct stackIds were independent bands),
-      // which the translucent fill keeps readable. A single stack is the common case
-      // and renders exactly as before.
+      // Per-series `meta.stackId`: one areaY mark PER STACK. Separate stacks overlay
+      // each other from the shared zero baseline (the Recharts behavior — distinct
+      // stackIds were independent bands), which the translucent fill keeps readable.
+      //
+      // EXPLICIT [y1, y2] extents from our own stacker (the bar family's pattern),
+      // NOT the implicit `layout` stack: the library's implicit stacking rides d3's
+      // `stackOffsetDiverging`, whose zero branch parks a 0-valued segment at the
+      // ABSOLUTE baseline (`d[0] = 0, d[1] = 0`) instead of on the running total.
+      // Invisible for a bar (a zero-height rect at the axis), but a curved area
+      // interpolates through that parked vertex — so any upper series that touches
+      // 0 dived through every band below it to the axis and climbed back out.
+      // `buildStackedRows` keeps zeros on the running total (`y2 = y1 + 0`), and
+      // its `normalize` option already covers percent mode, so the `stack()` layout
+      // is gone entirely. Null rows keep their value so the mark still splits the
+      // band into gap segments; connectNulls drops them to bridge the gap, as the
+      // implicit path did via skipNull.
       for (const { stackId, series: group } of stackGroups(primaries)) {
-        const rows = buildSeriesRows(data, { series: group, skipNull: connectNulls, temporal });
+        const allRows = buildStackedRows(data, group, { normalize: percent, temporal });
+        const rows = connectNulls ? allRows.filter((r) => r.value !== null) : allRows;
         marks.push(
           areaY(rows, {
             id: stackId ? `cv-area-stack-${stackId}` : "cv-area-stack",
             x: xField,
             y: "value",
+            y1: "y1",
+            y2: "y2",
             z: "label",
             color: "label",
             // "i" alone collides across series inside a single multi-series mark.
@@ -141,7 +155,6 @@ export function AreaChartFamily({
             // Boundary stroke; evaluated from each z-group's first row → per-series color.
             stroke: (r: SeriesRow) => colorByKey.get(r.key) ?? "currentColor",
             strokeWidth,
-            layout: percent ? stack({ offset: "normalize" }) : undefined,
           }),
         );
       }
