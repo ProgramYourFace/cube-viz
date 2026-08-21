@@ -238,12 +238,52 @@ export function groupMembersByMeta(
  * (member names are public API — saved specs store them), linked by member meta:
  *   family: "cost"            — the family key, unique within the cube
  *   agg: "total" | "avg" | "min" | "max" | "median" | "fleet" | "value"
- *   aggDefault: true          — on exactly one measure (the canonical pick)
- *   familyTitle: "Cost"       — on the default (the collapsed row's label)
+ *   kind: "flow" | "gauge" | "counter" | "stat" | "part"  — measurement kind
+ *   familyTitle: "Cost"       — on exactly one member (the collapsed row's label)
  * "value" marks the family's ROW-LEVEL dimension (one number per record). The field
  * picker renders a family as ONE row with an aggregation pill; queries still carry
  * the concrete member name, so nothing about the wire format changes.
+ *
+ * `kind` is the model's ONE statement about what sort of number the family holds;
+ * the default aggregation and the "latest" segment label DERIVE from it (see
+ * {@link defaultAggForKind}), so the model no longer hand-stamps `aggDefault` /
+ * `aggLabel` except where it deliberately overrides:
+ *   flow    — an amount that adds up over time (fuel, cost, dwell) → total
+ *   gauge   — a point-in-time reading (speed, RPM, fuel level)     → avg
+ *   counter — a lifetime number that only grows (odometer)         → max, shown "latest"
+ *   stat    — a per-event statistic (trip distance, alert length)  → avg
+ *   part    — a PARTITION family: variants are named parts of one whole (idle |
+ *             moving | engine-on …), not aggregations. No derivable default —
+ *             the model stamps `aggDefault: true` explicitly, and each variant's
+ *             `agg` slug doubles as its segment name.
  */
+
+/** Measurement kind of a family (member meta `kind`) — see the block comment above. */
+export type MeasureKind = "flow" | "gauge" | "counter" | "stat" | "part";
+
+/** The member's measurement kind, when its family declares one. */
+export function memberMeasureKind(o: { meta?: Record<string, unknown> }): MeasureKind | undefined {
+  const k = metaString(o.meta, "kind");
+  return k === "flow" || k === "gauge" || k === "counter" || k === "stat" || k === "part"
+    ? k
+    : undefined;
+}
+
+/** The aggregation a measurement kind defaults to (undefined for `part` — explicit). */
+export function defaultAggForKind(kind: MeasureKind | undefined): string | undefined {
+  switch (kind) {
+    case "flow":
+      return "total";
+    case "gauge":
+      return "avg";
+    case "counter":
+      return "max";
+    case "stat":
+      return "avg";
+    default:
+      return undefined;
+  }
+}
 
 /** The member's aggregation label within its family (undefined = not in a family). */
 export function memberAgg(o: { meta?: Record<string, unknown> }): string | undefined {
@@ -256,24 +296,71 @@ export function familyKeyOf(o: Pick<MemberOption, "cube" | "meta">): string | un
   return family ? `${o.cube}:${family}` : undefined;
 }
 
-/** Whether this member is its family's model-declared default aggregation. */
+/**
+ * Whether this member is its family's default aggregation: an explicit
+ * `aggDefault: true` stamp (partition families, deliberate exceptions), else the
+ * variant whose `agg` matches its measurement kind's derived default.
+ */
 export function memberAggDefault(o: { meta?: Record<string, unknown> }): boolean {
-  return o.meta?.aggDefault === true;
+  if (o.meta?.aggDefault === true) return true;
+  const derived = defaultAggForKind(memberMeasureKind(o));
+  return derived !== undefined && memberAgg(o) === derived;
 }
 
-/** The family's display label, authored on the default member. */
+/**
+ * A model-authored hint for a PARTITION family (member meta `familyHint`, on the
+ * member that carries `familyTitle`) — states how the parts relate ("idle + moving
+ * = engine-on"). Shown under the segment control; derived-kind families get their
+ * hint from `kind` instead (see AggSegments `aggKindHint`).
+ */
+export function memberFamilyHint(o: { meta?: Record<string, unknown> }): string | undefined {
+  return metaString(o.meta, "familyHint");
+}
+
+/**
+ * A model-authored nudge shown when this member is the ONLY placed member of its
+ * cube (member meta `soloHint`). Carries steers like "trip totals sum detected
+ * trips — fleet-wide totals live on Location history" that only apply when the
+ * chart isn't otherwise about that cube's rows.
+ */
+export function memberSoloHint(o: { meta?: Record<string, unknown> }): string | undefined {
+  return metaString(o.meta, "soloHint");
+}
+
+/** The family's display label, authored on exactly one member. */
 export function memberFamilyTitle(o: { meta?: Record<string, unknown> }): string | undefined {
   return metaString(o.meta, "familyTitle");
 }
 
 /**
- * The pill label for a "value" (row-level) variant, derived from the cube's grain so
- * it names the actual row: "one row per trip" → "per trip". Falls back to "per row"
- * when the model declares no grain.
+ * The family title for ANY of a family's variants — only one member carries the
+ * `familyTitle` stamp, but every variant must answer to it (e.g. in picker search).
+ * Undefined for members outside a family.
+ */
+export function familyTitleOf(
+  meta: CubeMeta | undefined,
+  o: MemberOption,
+): string | undefined {
+  if (!familyKeyOf(o)) return undefined;
+  return familyVariantsOf(meta, o)
+    .map(memberFamilyTitle)
+    .find((t) => t !== undefined);
+}
+
+/** The row noun from a cube's grain sentence: "one row per trip" → "trip". */
+export function grainNoun(grain: string | undefined): string {
+  const m = grain?.match(/per\s+(.+)$/i);
+  return m ? m[1] : "row";
+}
+
+/**
+ * The segment label for a "value" (row-level) variant, derived from the cube's grain
+ * so it names the actual row: "one row per trip" → "each trip". "Each" (not "per")
+ * on purpose — this variant is a GRAIN switch (one point per row, nothing summarized),
+ * and "per trip" read as just another summary like "avg per trip".
  */
 export function grainAggLabel(grain: string | undefined): string {
-  const m = grain?.match(/per\s+(.+)$/i);
-  return m ? `per ${m[1]}` : "per row";
+  return `each ${grainNoun(grain)}`;
 }
 
 /**

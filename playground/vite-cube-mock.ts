@@ -123,16 +123,18 @@ const TRIPS: MockCube = {
       name: "trips.total_distance",
       title: "Trips Total Distance",
       shortTitle: "Distance",
-      // The distance AGGREGATE FAMILY: total (default) + avg + the per-trip row value
-      // below — the picker collapses all three into one row with an agg pill.
-      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "total", aggDefault: true, familyTitle: "Distance" },
+      // The distance AGGREGATE FAMILY: total + avg + the each-trip row value below —
+      // the picker collapses all three into one row with an agg pill. `kind: "flow"`
+      // DERIVES the total default (no aggDefault stamp), and `soloHint` shows in the
+      // pill popover while this is the only placed trips member.
+      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "total", kind: "flow", familyTitle: "Distance", soloHint: "Adds up detected trips only." },
       scale: 310,
     },
     {
       name: "trips.avg_distance",
       title: "Trips Average Distance",
       shortTitle: "Avg distance",
-      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "avg" },
+      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "avg", kind: "flow" },
       scale: 38,
       rate: true,
     },
@@ -140,16 +142,40 @@ const TRIPS: MockCube = {
       name: "trips.fuel",
       title: "Trips Fuel Used",
       shortTitle: "Fuel",
-      meta: { unit: "L", quantity: "volume", group: "Fuel", family: "fuel", agg: "total", aggDefault: true, familyTitle: "Fuel used" },
+      meta: { unit: "L", quantity: "volume", group: "Fuel", family: "fuel", agg: "total", kind: "flow", familyTitle: "Fuel used" },
       scale: 46,
     },
     {
       name: "trips.avg_fuel",
       title: "Trips Average Fuel",
       shortTitle: "Avg fuel",
-      meta: { unit: "L", quantity: "volume", group: "Fuel", family: "fuel", agg: "avg" },
+      meta: { unit: "L", quantity: "volume", group: "Fuel", family: "fuel", agg: "avg", kind: "flow" },
       scale: 9,
       rate: true,
+    },
+    // A PARTITION family (`kind: "part"`): the variants are named parts of one whole,
+    // not aggregations — the segment control reads "moving | idle | stopped" and the
+    // familyHint states how the parts relate. Explicit aggDefault (no derivable one).
+    {
+      name: "trips.moving_time",
+      title: "Trips Moving Time",
+      shortTitle: "Moving time",
+      meta: { unit: "h", quantity: "time", group: "Trip metrics", family: "time_breakdown", agg: "moving", kind: "part", aggDefault: true, familyTitle: "Time breakdown", familyHint: "Moving + idle + stopped add up to the trip's span." },
+      scale: 5,
+    },
+    {
+      name: "trips.idle_time",
+      title: "Trips Idle Time",
+      shortTitle: "Idle time",
+      meta: { unit: "h", quantity: "time", group: "Trip metrics", family: "time_breakdown", agg: "idle", kind: "part" },
+      scale: 2,
+    },
+    {
+      name: "trips.stopped_time",
+      title: "Trips Stopped Time",
+      shortTitle: "Stopped time",
+      meta: { unit: "h", quantity: "time", group: "Trip metrics", family: "time_breakdown", agg: "stopped", kind: "part" },
+      scale: 1,
     },
     {
       name: "trips.avg_speed",
@@ -216,8 +242,9 @@ const TRIPS: MockCube = {
       shortTitle: "Distance",
       type: "number",
       values: ["12.4", "48.1", "88.9"],
-      // The family's row-level value — pill-labeled from the cube grain ("per trip").
-      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "value" },
+      // The family's row-level value — segment-labeled from the cube grain ("each
+      // trip"), rendered after a divider: it is a grain switch, not another summary.
+      meta: { unit: "km", quantity: "distance", group: "Trip metrics", family: "distance", agg: "value", kind: "flow" },
     },
     {
       name: "trips.start_lat",
@@ -285,6 +312,23 @@ const DEVICES: MockCube = {
       shortTitle: "Uptime",
       meta: { unit: "h", quantity: "time", group: "Health" },
       scale: 640,
+    },
+    // A lifetime COUNTER family: `kind: "counter"` derives the max default AND the
+    // "latest" segment label (an odometer's max IS its current reading).
+    {
+      name: "devices.max_odometer",
+      title: "Devices Max Odometer",
+      shortTitle: "Odometer",
+      meta: { unit: "km", quantity: "distance", group: "Health", family: "odometer", agg: "max", kind: "counter", familyTitle: "Odometer" },
+      scale: 84000,
+    },
+    {
+      name: "devices.avg_odometer",
+      title: "Devices Average Odometer",
+      shortTitle: "Avg odometer",
+      meta: { unit: "km", quantity: "distance", group: "Health", family: "odometer", agg: "avg", kind: "counter" },
+      scale: 61000,
+      rate: true,
     },
   ],
   dimensions: [

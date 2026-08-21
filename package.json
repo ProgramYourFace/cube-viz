@@ -1,6 +1,6 @@
 {
   "name": "cube-viz",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Cube-backed dashboard/chart spec renderer + editor for React — @tanstack/charts marks with semantic cv- CSS",
   "type": "module",
   "license": "MIT",

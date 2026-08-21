@@ -39,6 +39,18 @@ export interface PillSwapControls {
   };
   /** Aggregation variants when the field belongs to a family with ≥2 of them. */
   agg?: { options: AggSegmentOption[] };
+  /**
+   * One teaching sentence under the segments — the family's measurement-kind rule
+   * ("a reading — the average is usually right"), or what the selected row-level
+   * variant does to the chart. See AggSegments `aggHint`.
+   */
+  hint?: string;
+  /**
+   * A model-authored context nudge (member meta `soloHint`), shown only while this
+   * is the sole placed member of its cube — e.g. steering a lonely trip total
+   * toward the canonical fleet number.
+   */
+  notice?: string;
 }
 
 /**
@@ -411,10 +423,12 @@ function SwapSection({
   if (!swap) return null;
   return (
     <>
+      {swap.notice ? <p className="cv-ec-hint cv-field-pill-notice">{swap.notice}</p> : null}
       {swap.agg ? (
         <div className="cv-ec-field cv-ec-field--loose">
           <span className="cv-ec-label">Aggregation</span>
           <AggSegments options={swap.agg.options} className="cv-field-pill-aggseg" />
+          {swap.hint ? <p className="cv-ec-hint">{swap.hint}</p> : null}
         </div>
       ) : null}
       <FieldPickerPopover
