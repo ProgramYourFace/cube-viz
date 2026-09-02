@@ -3,11 +3,11 @@
  * dedicated `*.exports.ts` (NOT a shared `index.ts`) so the barrel wiring can be
  * assembled later without touching this file. A host imports the editor + the
  * helpers it needs to drive it (factories for ids, the layout/spec mutators for
- * building custom toolbars, and the responsive shell).
+ * building custom toolbars, and the pure variable-usage rewrites).
  */
 
 export { DashboardEditor } from "./DashboardEditor";
-export type { DashboardEditorProps } from "./DashboardEditor";
+export type { DashboardEditorProps, EditMeta } from "./DashboardEditor";
 
 /* ── sub-panels (compose a custom editor layout) ──────────────────────────── */
 export { EditorToolbar } from "./dashboard/EditorToolbar";
@@ -19,8 +19,11 @@ export type { EditorCanvasProps } from "./dashboard/EditorCanvas";
 export { WidgetEditPanel } from "./dashboard/WidgetEditPanel";
 export type { WidgetEditPanelProps } from "./dashboard/WidgetEditPanel";
 
-export { VariablesPanel } from "./dashboard/VariablesPanel";
-export type { VariablesPanelProps } from "./dashboard/VariablesPanel";
+export { VariablesDock } from "./dashboard/VariablesDock";
+export type { VariablesDockProps } from "./dashboard/VariablesDock";
+
+export { InsertLines } from "./dashboard/InsertLines";
+export type { InsertLinesProps } from "./dashboard/InsertLines";
 
 export { TextWidgetEditor } from "./dashboard/TextWidgetEditor";
 export type { TextWidgetEditorProps } from "./dashboard/TextWidgetEditor";
@@ -31,14 +34,29 @@ export type { InputWidgetEditorProps } from "./dashboard/InputWidgetEditor";
 /* ── pure spec/layout helpers + factories (host toolbars / tests) ─────────── */
 export {
   appendWidget,
+  insertWidgetAtRow,
   removeWidget,
   replaceWidget,
   mergeLayout,
   pickCanonicalLayout,
   placeNewItem,
+  rowBoundaries,
+  editorGridMetrics,
+  rowBoundaryTop,
   CANONICAL_BREAKPOINT,
   DEFAULT_COLS,
+  DEFAULT_FOOTPRINT,
 } from "./dashboard/layout";
+export type { EditorGridMetrics } from "./dashboard/layout";
+
+/* ── variable usage: rename/remove WITHOUT orphaning bindings ─────────────── */
+export {
+  variableUsages,
+  usageSummary,
+  renameVariable,
+  removeVariable,
+} from "./dashboard/variableUsage";
+export type { VariableUsage } from "./dashboard/variableUsage";
 
 export {
   createIdFactory,

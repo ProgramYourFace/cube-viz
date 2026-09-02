@@ -10,13 +10,14 @@ import { Copy, Pencil, Trash2 } from "lucide-react";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import type { DashboardSpec, GridConfig, LayoutItem } from "@/spec";
+import type { DashboardSpec, LayoutItem, WidgetSpec } from "@/spec";
 import { DashboardProvider } from "@/hooks";
 import { RenderWidget, DRAG_HANDLE_CLASS } from "@/render";
 import { useContainerWidth } from "@/render/useContainerWidth";
 import { cn } from "@/components/ui/utils";
 
-import { CANONICAL_BREAKPOINT, pickCanonicalLayout } from "./layout";
+import { CANONICAL_BREAKPOINT, editorGridMetrics, pickCanonicalLayout, rowBoundaries } from "./layout";
+import { EmptyCanvas, InsertLines } from "./InsertLines";
 
 /**
  * The editor canvas — the dashboard rendered EDITABLE (docs/03 §A3.2 "Canvas").
@@ -26,23 +27,19 @@ import { CANONICAL_BREAKPOINT, pickCanonicalLayout } from "./layout";
  *  - captures RGL's `onLayoutChange(layout, allLayouts)`, lifts the **canonical
  *    (widest) layout**, and reports it via `onLayoutChange` so the editor writes it
  *    back to the single `spec.layout`;
- *  - overlays a click target + selected ring + delete affordance per widget for
- *    select-to-edit.
+ *  - overlays a click target + selected ring + hover-revealed actions per widget for
+ *    select-to-edit;
+ *  - overlays {@link InsertLines} — the row-boundary `+` that adds a widget WHERE the
+ *    user is pointing (and the empty-board tiles when there is nothing yet).
  *
  * We compose the pieces rather than `<Dashboard editable />` because the runtime
  * component intentionally exposes neither a layout-change nor a selection callback.
+ *
+ * Cell metrics come from `editorGridMetrics()` — the canvas keeps the CANONICAL column
+ * count at every width and scales the cell SIZE to fit, so you always see and edit the
+ * true canonical layout. The insert overlay reads the same metrics, so its lines land
+ * on exactly the pixels RGL laid the rows out at.
  */
-
-const CANONICAL_COLS_DEFAULT = 12;
-
-// The edit canvas keeps the CANONICAL column count at every width and scales the cell
-// SIZE down to fit, instead of reflowing to responsive breakpoints — so you always
-// see and edit the true canonical layout. RGL's column width already tracks the
-// container; we scale rowHeight + gaps in proportion so the whole grid shrinks
-// uniformly (cells keep their aspect ratio). Drag/resize stay accurate because the
-// layout is still in canonical grid units.
-const EDIT_DESIGN_WIDTH = 900;
-const EDIT_MIN_SCALE = 0.4;
 
 function toRglLayout(items: LayoutItem[]): RglLayoutItem[] {
   return items.map((it) => {
@@ -67,6 +64,11 @@ export interface EditorCanvasProps {
   onDelete: (id: string) => void;
   /** Canonical (widest) layout captured from a drag/resize. */
   onLayoutChange: (layout: LayoutItem[]) => void;
+  /**
+   * Insert a fresh widget of `kind` at a row boundary (the `+` on an insert line, or
+   * an empty-board tile — those pass row 0). Omit to hide the insert affordances.
+   */
+  onInsert?: (kind: WidgetSpec["type"], rowY: number) => void;
 }
 
 function EditorCanvasImpl({
@@ -77,29 +79,29 @@ function EditorCanvasImpl({
   onDuplicate,
   onDelete,
   onLayoutChange,
+  onInsert,
 }: EditorCanvasProps): React.ReactElement {
-  const [ref, width] = useContainerWidth<HTMLDivElement>();
+  const [measureRef, width] = useContainerWidth<HTMLDivElement>();
+  // The measured element is ALSO the surface the insert overlay hit-tests the pointer
+  // against, so keep our own handle on it alongside the measuring ref callback.
+  const canvasRef = React.useRef<HTMLDivElement | null>(null);
+  const setCanvasRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      canvasRef.current = node;
+      measureRef(node);
+    },
+    [measureRef],
+  );
 
-  const grid: GridConfig = spec.grid ?? {};
-  const canonicalCols = grid.cols ?? CANONICAL_COLS_DEFAULT;
-  const rowHeight = grid.rowHeight ?? 40;
-  const margin: readonly [number, number] = grid.margin ?? [12, 12];
-  const containerPadding: readonly [number, number] = grid.containerPadding ?? [0, 0];
+  const metrics = React.useMemo(() => editorGridMetrics(spec.grid, width), [spec.grid, width]);
+  const { cols: canonicalCols, rowHeight: rowHeightEff } = metrics;
+  const marginEff = metrics.margin;
+  const paddingEff = metrics.containerPadding;
 
-  // One canonical breakpoint (no responsive reflow); scale the cell metrics to fit.
-  // Quantize the scale to the nearest 0.05 so sub-pixel ResizeObserver width jitter
-  // doesn't churn rowHeightEff/marginEff -> a full RGL pixel-relayout every frame.
-  const rawScale = Math.max(EDIT_MIN_SCALE, Math.min(1, width / EDIT_DESIGN_WIDTH));
-  const scale = Math.round(rawScale / 0.05) * 0.05;
-  const rowHeightEff = Math.max(8, Math.round(rowHeight * scale));
-  const marginEff: [number, number] = [
-    Math.round(margin[0] * scale),
-    Math.round(margin[1] * scale),
-  ];
-  const paddingEff: [number, number] = [
-    Math.round(containerPadding[0] * scale),
-    Math.round(containerPadding[1] * scale),
-  ];
+  // An in-flight drag/resize hides the insert lines — a line under a moving widget is
+  // both wrong (the boundaries are mid-flight) and a distraction.
+  const [interacting, setInteracting] = React.useState(false);
+  const rows = React.useMemo(() => rowBoundaries(spec.layout), [spec.layout]);
 
   const layouts = React.useMemo<ResponsiveLayouts>(
     () => ({ [CANONICAL_BREAKPOINT]: toRglLayout(spec.layout) as Layout }),
@@ -142,7 +144,10 @@ function EditorCanvasImpl({
 
   return (
     <DashboardProvider spec={spec}>
-      <div ref={ref} className="cv-editor-canvas">
+      <div ref={setCanvasRef} className="cv-editor-canvas">
+        {width > 0 && onInsert && spec.widgets.length === 0 ? (
+          <EmptyCanvas onInsert={(kind) => onInsert(kind, 0)} />
+        ) : null}
         {width > 0 ? (
           <ResponsiveGridLayout
             width={width}
@@ -159,6 +164,10 @@ function EditorCanvasImpl({
             // Resize from three corners; the top-right is reserved for the actions.
             resizeConfig={{ enabled: true, handles: ["se", "sw", "nw"] }}
             onLayoutChange={handleLayoutChange}
+            onDragStart={() => setInteracting(true)}
+            onDragStop={() => setInteracting(false)}
+            onResizeStart={() => setInteracting(true)}
+            onResizeStop={() => setInteracting(false)}
           >
             {spec.layout.map((item) => {
               const widget = widgetsById.get(item.i);
@@ -192,9 +201,9 @@ function EditorCanvasImpl({
                   }}
                   className={cn(
                     "cv-editor-widget",
-                    // No idle/hover outline (it read as harsh); only the SELECTED
-                    // widget gets a ring. Keyboard focus still shows a faint ring
-                    // (see .cv-editor-widget:focus-visible).
+                    // Idle = no chrome at all; hover paints a faint 1px ring so the
+                    // hover target (and its action cluster) is obvious, and the
+                    // SELECTED widget keeps the strong ring.
                     selected && "cv-editor-widget--selected",
                   )}
                 >
@@ -205,11 +214,13 @@ function EditorCanvasImpl({
                       resize handles and the action buttons. Rendered before the actions
                       so it never wins their hit-test. */}
                   <div aria-hidden className={cn(DRAG_HANDLE_CLASS, "cv-editor-widget-drag-layer")} />
-                  {/* Edit / duplicate / delete — top-right, ALWAYS visible + clickable
-                      in edit mode, rendered LAST at z-[20] so they sit above the drag
-                      layer. (The old hover-revealed, pointer-events-none version was a
-                      flaky hit-test target the drag layer kept stealing — you couldn't
-                      click the buttons.) stopPropagation so a click doesn't also select. */}
+                  {/* Edit / duplicate / delete — top-right, revealed on hover / focus /
+                      selection (see .cv-editor-widget-actions), rendered LAST at z-20 so
+                      they sit above the drag layer. They keep `pointer-events: auto` at
+                      ALL times, fading only their opacity: an earlier hover version
+                      toggled pointer-events too, and the drag layer stole every click
+                      that landed during the fade. stopPropagation so a click doesn't
+                      also select. */}
                   <div className="cv-editor-widget-actions">
                     <button
                       type="button"
@@ -249,6 +260,17 @@ function EditorCanvasImpl({
               );
             })}
           </ResponsiveGridLayout>
+        ) : null}
+        {/* Insert lines LAST so they paint above the grid; the layer itself is
+            pointer-transparent (see InsertLines) so drag/resize are untouched. */}
+        {width > 0 && onInsert && spec.widgets.length > 0 ? (
+          <InsertLines
+            rows={rows}
+            metrics={metrics}
+            containerRef={canvasRef}
+            onInsert={onInsert}
+            disabled={interacting}
+          />
         ) : null}
       </div>
     </DashboardProvider>

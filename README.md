@@ -96,11 +96,27 @@ function App({ spec }: { spec: DashboardSpec }) {
 - **`<ChartView spec={...} />`** — renders a standalone `ChartSpec` in the default widget chrome
   (no dashboard / variables).
 - **`<DashboardEditor spec={...} onChange={...} onSave={...} />`** — the panel-less, on-chart
-  editing surface. The library writes nothing itself: wire `onChange` (debounced; the next spec)
-  and `onSave` (re-validated through `DashboardSpecSchema`) to your store. It is intentionally
-  history-less — the **host** owns undo/redo and re-seeds `spec` on undo/redo, passing
-  `onUndo`/`onRedo`/`canUndo`/`canRedo`/`onDiscard` so the controls live in the one toolbar.
+  editing surface. The library writes nothing itself: wire `onChange` (debounced; the next spec
+  **plus an `EditMeta` describing the edit**) and `onSave` (re-validated through
+  `DashboardSpecSchema`) to your store. Widgets are added **in context** — hover a row boundary
+  on the canvas for an insert line and its `+` (Chart · Text · Input); an empty board offers the
+  same three as tiles. Dashboard variables open in a **docked right-hand panel** beside the live
+  canvas, where a rename rewrites every `{var}` token and input binding with it. It is
+  intentionally history-less — the **host** owns undo/redo and re-seeds `spec` on undo/redo,
+  passing `onUndo`/`onRedo`/`canUndo`/`canRedo`/`onDiscard` (plus optional `undoLabel`/`redoLabel`,
+  built from the `EditMeta`) so the controls live in the one toolbar.
   `<ChartEditor>` (single-chart) is also exported.
+
+  ```ts
+  type EditMeta = {
+    kind: "layout" | "name" | "variables" | "widget" | "text" | "add" | "remove" | "duplicate";
+    widgetId?: string;
+    /** Short imperative phrase for a tooltip: `edit "Fuel by week"`, "move widget". */
+    label: string;
+    /** Commits sharing a key are ONE undo step (a name typed, one chart-editing session). */
+    coalesceKey?: string;
+  };
+  ```
 
 ### `CubeVizProvider` props
 

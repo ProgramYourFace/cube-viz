@@ -1,6 +1,6 @@
 import type { Layout, LayoutItem as RglLayoutItem } from "react-grid-layout";
 
-import type { DashboardSpec, LayoutItem, WidgetSpec } from "@/spec";
+import type { DashboardSpec, GridConfig, LayoutItem, WidgetSpec } from "@/spec";
 
 /**
  * Layout-plumbing helpers for the dashboard editor (docs/03 §A3.2).
@@ -82,7 +82,7 @@ export function mergeLayout(prev: LayoutItem[], next: Layout): LayoutItem[] {
 }
 
 /** Default grid footprint per widget kind (canonical-cols units). */
-const DEFAULT_FOOTPRINT: Record<WidgetSpec["type"], { w: number; h: number; minW: number; minH: number }> = {
+export const DEFAULT_FOOTPRINT: Record<WidgetSpec["type"], { w: number; h: number; minW: number; minH: number }> = {
   chart: { w: 6, h: 6, minW: 3, minH: 4 },
   text: { w: 6, h: 3, minW: 2, minH: 2 },
   input: { w: 3, h: 2, minW: 2, minH: 1 },
@@ -126,6 +126,111 @@ export function appendWidget(
     widgets: [...spec.widgets, widget],
     layout: [...spec.layout, item],
   };
+}
+
+/**
+ * A dashboard spec with a widget inserted AT a row boundary: everything at or below
+ * `rowY` slides down by the new item's height and the newcomer takes the freed row at
+ * `x: 0`. This is the in-context "insert here" seam (the `+` on a canvas row line) —
+ * appending would have dropped the widget at the bottom, miles from where the user
+ * pointed. `rowY` past the last row degenerates to an append (nothing to shift). Pure.
+ */
+export function insertWidgetAtRow(
+  spec: DashboardSpec,
+  widget: WidgetSpec,
+  rowY: number,
+  cols: number = spec.grid?.cols ?? DEFAULT_COLS,
+): DashboardSpec {
+  const fp = DEFAULT_FOOTPRINT[widget.type];
+  const w = Math.min(fp.w, cols);
+  const item: LayoutItem = {
+    i: widget.id,
+    x: 0,
+    y: rowY,
+    w,
+    h: fp.h,
+    minW: Math.min(fp.minW, w),
+    minH: fp.minH,
+  };
+  const shifted = spec.layout.map((it) => (it.y >= rowY ? { ...it, y: it.y + fp.h } : it));
+  return {
+    ...spec,
+    widgets: [...spec.widgets, widget],
+    layout: [...shifted, item],
+  };
+}
+
+/**
+ * The distinct row boundaries of a layout, ascending: the top (0), the bottom edge of
+ * every item (`y + h`), and hence the bottom of the board.
+ *
+ * Boundaries that a TALLER neighbour straddles are dropped. Two reasons: the insert
+ * line drawn there would slice through the middle of that widget (it reads as a line
+ * across a chart, not as a gap), and an insert at such a row overlaps the straddler,
+ * so RGL's compactor would push the newcomer somewhere other than where the line
+ * promised. What's left is exactly the rows where "insert here" is honest.
+ */
+export function rowBoundaries(layout: readonly LayoutItem[]): number[] {
+  const set = new Set<number>([0]);
+  for (const it of layout) set.add(it.y + it.h);
+  return [...set]
+    .filter((y) => !layout.some((it) => it.y < y && it.y + it.h > y))
+    .sort((a, b) => a - b);
+}
+
+/**
+ * The cell metrics the EDIT canvas renders at. The editor keeps the CANONICAL column
+ * count at every width and scales the cell SIZE to fit (rather than reflowing to
+ * responsive breakpoints), so you always see and edit the true canonical layout.
+ *
+ * The scale is quantized to the nearest 0.05 so sub-pixel ResizeObserver width jitter
+ * doesn't churn the metrics into a full RGL pixel-relayout every frame. Shared with the
+ * insert-line overlay, which must land on exactly the pixels RGL used.
+ */
+export interface EditorGridMetrics {
+  cols: number;
+  rowHeight: number;
+  margin: [number, number];
+  containerPadding: [number, number];
+  scale: number;
+}
+
+/** Design width the edit canvas' cell metrics are authored against. */
+const EDIT_DESIGN_WIDTH = 900;
+/** Never shrink cells below this fraction (below it the board is unreadable). */
+const EDIT_MIN_SCALE = 0.4;
+
+export function editorGridMetrics(
+  grid: GridConfig | undefined,
+  width: number,
+): EditorGridMetrics {
+  const cols = grid?.cols ?? DEFAULT_COLS;
+  const rowHeight = grid?.rowHeight ?? 40;
+  const margin = grid?.margin ?? [12, 12];
+  const containerPadding = grid?.containerPadding ?? [0, 0];
+
+  const rawScale = Math.max(EDIT_MIN_SCALE, Math.min(1, width / EDIT_DESIGN_WIDTH));
+  const scale = Math.round(rawScale / 0.05) * 0.05;
+  return {
+    cols,
+    rowHeight: Math.max(8, Math.round(rowHeight * scale)),
+    margin: [Math.round(margin[0] * scale), Math.round(margin[1] * scale)],
+    containerPadding: [
+      Math.round(containerPadding[0] * scale),
+      Math.round(containerPadding[1] * scale),
+    ],
+    scale,
+  };
+}
+
+/**
+ * Pixel offset (from the grid container's top) of a row boundary — RGL's own row
+ * arithmetic: `top(y) = paddingTop + y * (rowHeight + marginY)`. A boundary line is
+ * drawn in the MIDDLE of the gap above the row, so it reads as "between" two rows.
+ */
+export function rowBoundaryTop(rowY: number, m: EditorGridMetrics): number {
+  const top = m.containerPadding[1] + rowY * (m.rowHeight + m.margin[1]) - m.margin[1] / 2;
+  return Math.max(0, top);
 }
 
 /**

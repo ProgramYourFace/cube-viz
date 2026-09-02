@@ -16,11 +16,11 @@ import { cn } from "@/components/ui/utils";
 import { EditorToolbar } from "./dashboard/EditorToolbar";
 import { EditorCanvas } from "./dashboard/EditorCanvas";
 import { WidgetEditPanel } from "./dashboard/WidgetEditPanel";
-import { VariablesPanel } from "./dashboard/VariablesPanel";
+import { VariablesDock } from "./dashboard/VariablesDock";
 import { useDebouncedCallback } from "./dashboard/useDebouncedCallback";
 import {
-  appendWidget,
   duplicateWidget,
+  insertWidgetAtRow,
   mergeLayout,
   removeWidget,
   replaceWidget,
@@ -32,18 +32,38 @@ import { EditorErrorBoundary } from "./primitives/EditorErrorBoundary";
  * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
  *
  * `spec` is a {@link DashboardSpec}; every edit produces a new `DashboardSpec` and
- * fires `onChange` (debounced). `onSave` receives the spec re-validated through
- * {@link DashboardSpecSchema}. The editor itself NEVER persists — the host owns I/O.
+ * fires `onChange` (debounced) WITH an {@link EditMeta} describing what changed.
+ * `onSave` receives the spec re-validated through {@link DashboardSpecSchema}. The
+ * editor itself NEVER persists — the host owns I/O.
  *
- * Layout: an {@link EditorShell} in `canvas-panel` mode — WIDE docks an edit panel
- * to the right and the {@link EditorCanvas} reflows into the remaining width; NARROW
- * stacks a full-width inline panel above the canvas (NO native sheet), so the same
- * web build edits correctly inside a mobile WebView. Selecting a widget opens its
- * editor in the panel; with nothing selected the panel shows dashboard variables.
+ * Layout: a toolbar over a body that is a flex row — the {@link EditorCanvas} grows,
+ * and the {@link VariablesDock} docks to its right when the toolbar's Variables toggle
+ * is on (the canvas stays MOUNTED and live, so you can see the input widgets you're
+ * declaring variables for). Adding widgets is in-context: the canvas' row insert lines
+ * put the newcomer where the user is pointing. A widget's pencil still opens a
+ * full-screen editor over everything, and that one DOES unmount the canvas — it fully
+ * occludes it, and background CubeCharts would re-render on every keystroke.
  *
  * The canvas captures RGL drag/resize and writes back the single canonical (widest)
  * `spec.layout`, preserving each item's `minW`/`minH`/`static`.
  */
+
+/**
+ * What a single edit DID — passed to `onChange` beside the next spec so the host can
+ * build an undo stack that reads like the user's actions rather than "change #47".
+ *
+ * `label` is a short imperative noun phrase for a tooltip ("Undo move widget"), and
+ * `coalesceKey` marks commits the host should FOLD INTO ONE undo step: every keystroke
+ * in the name field, a whole chart-editing session. A key is scoped to its editing
+ * session — closing a widget's editor starts a new one, so re-opening the same chart
+ * later is its own undo step rather than joining the previous edit.
+ */
+export type EditMeta = {
+  kind: "layout" | "name" | "variables" | "widget" | "text" | "add" | "remove" | "duplicate";
+  widgetId?: string;
+  label: string;
+  coalesceKey?: string;
+};
 
 export interface DashboardEditorProps {
   /** The dashboard spec to edit (JSON-in). Identity change = a host re-seed (undo/
@@ -65,10 +85,12 @@ export interface DashboardEditorProps {
    */
   onRemoteAdopted?: (spec: DashboardSpec) => void;
   /**
-   * Called on every edit with the next spec (debounced by {@link debounceMs}). The
-   * editor writes nothing itself — wire this to your store/preview.
+   * Called on every edit with the next spec (debounced by {@link debounceMs}) and an
+   * {@link EditMeta} describing the edit. The editor writes nothing itself — wire this
+   * to your store/preview. Ignoring the second argument is fine (and is what callers
+   * written before edit metadata existed do).
    */
-  onChange?: (spec: DashboardSpec) => void;
+  onChange?: (spec: DashboardSpec, meta: EditMeta) => void;
   /**
    * Called when the user clicks Save, with the spec re-validated through
    * {@link DashboardSpecSchema}. Omit to hide the Save button.
@@ -91,6 +113,13 @@ export interface DashboardEditorProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  /**
+   * What the next undo/redo would do, in the host's words — it holds the stack, so it
+   * holds the labels (built from the {@link EditMeta} of each change). Rendered as
+   * "Undo move widget" on the button's tooltip + accessible name.
+   */
+  undoLabel?: string;
+  redoLabel?: string;
   /** Throw away unsaved changes (host clears its draft + re-seeds the published spec). */
   onDiscard?: () => void;
   /**
@@ -100,11 +129,11 @@ export interface DashboardEditorProps {
    */
   families?: ChartFamilyDescriptor[];
   /**
-   * Intercept the toolbar's "Chart" button. When provided, clicking Chart calls THIS
-   * instead of appending a blank chart widget — the host runs its own creation flow
-   * (e.g. an AI wizard), inserts the widget through `spec`, and points
-   * {@link DashboardEditorProps.openWidgetId} at it to land in the chart editor.
-   * The Text/Input buttons keep their default behaviour.
+   * Intercept "add a chart". When provided, choosing Chart on an insert line (or an
+   * empty-board tile) calls THIS instead of inserting a blank chart widget — the host
+   * runs its own creation flow (e.g. an AI wizard), inserts the widget through `spec`,
+   * and points {@link DashboardEditorProps.openWidgetId} at it to land in the chart
+   * editor. Text/Input keep their default in-place insert.
    */
   onCreateChart?: () => void;
   /**
@@ -129,6 +158,8 @@ export function DashboardEditor({
   onRedo,
   canUndo,
   canRedo,
+  undoLabel,
+  redoLabel,
   onDiscard,
   families,
   onCreateChart,
@@ -151,10 +182,10 @@ export function DashboardEditor({
   // Wall-clock of the last LOCAL edit — the live-collab merge waits for a brief quiet
   // gap before adopting a remote spec, so it never fires mid-drag / mid-edit.
   const lastLocalEditRef = React.useRef(0);
-  // Which editor is open full-screen: a specific widget, the variables, or none.
-  const [editing, setEditing] = React.useState<
-    { kind: "widget"; id: string } | { kind: "variables" } | null
-  >(null);
+  // Which widget's editor is open full-screen (null = the canvas).
+  const [editing, setEditing] = React.useState<{ kind: "widget"; id: string } | null>(null);
+  // Whether the variables dock is open beside the canvas.
+  const [variablesOpen, setVariablesOpen] = React.useState(false);
 
   // Latest selection / edit target, read by the live-collab merge so it protects the
   // current widget without re-arming the effect on every select.
@@ -172,25 +203,38 @@ export function DashboardEditor({
   if (idFactoryRef.current === null) idFactoryRef.current = newId ?? createIdFactory();
   const mintId = newId ?? idFactoryRef.current;
 
+  // Debounced JSON-out. The meta travels WITH the spec, so a debounce window delivers
+  // the meta of the last commit in it — which is the one describing the settled state.
   const debouncedChange = useDebouncedCallback(
-    (next: DashboardSpec) => onChange?.(next),
+    (next: DashboardSpec, meta: EditMeta) => onChange?.(next, meta),
     debounceMs,
   );
 
   // The single mutation seam: a FUNCTIONAL update so two commits in one tick compose
   // (e.g. inline "New variable" adds a variable AND binds the widget — both must land,
-  // not clobber each other via a stale `draft` closure).
+  // not clobber each other via a stale `draft` closure). Every call names what it did
+  // ({@link EditMeta}) so the host's undo stack can label + coalesce its entries.
   const commit = React.useCallback(
-    (update: (prev: DashboardSpec) => DashboardSpec) => {
+    (update: (prev: DashboardSpec) => DashboardSpec, meta: EditMeta) => {
       lastLocalEditRef.current = Date.now();
       setDraft((prev) => {
         const next = update(prev);
-        debouncedChange(next);
+        debouncedChange(next, meta);
         return next;
       });
     },
     [debouncedChange],
   );
+
+  /* ────────────────────────── edit-session coalescing ───────────────────────
+   * One chart-editing session = ONE undo step, so every commit for a widget shares a
+   * coalesceKey. Closing the editor bumps that widget's session counter, so re-opening
+   * the same widget later starts a fresh key (and thus a fresh undo step) rather than
+   * folding into the edit the user finished ten minutes ago. */
+  const sessionsRef = React.useRef<Map<string, number>>(new Map());
+  const sessionKey = React.useCallback((prefix: string, id: string): string => {
+    return `${prefix}:${id}:${sessionsRef.current.get(id) ?? 0}`;
+  }, []);
 
   /* ──────────────────── live collaboration (remote merge) ───────────────────
    * Adopt a collaborator's merged spec into the local draft, but only once the user
@@ -225,18 +269,26 @@ export function DashboardEditor({
 
   /* ─────────────────────────────── widgets ──────────────────────────────── */
 
-  const handleAdd = React.useCallback(
-    (type: WidgetSpec["type"]) => {
+  // In-context add: the `+` on a canvas row line (or an empty-board tile, which passes
+  // row 0). The widget lands AT that row and pushes the rest of the board down.
+  const handleInsert = React.useCallback(
+    (type: WidgetSpec["type"], rowY: number) => {
       // The host may own chart creation (wizard flow) — see onCreateChart/openWidgetId.
+      // It inserts through `spec`, so it decides the placement itself.
       if (type === "chart" && onCreateChart) {
         onCreateChart();
         return;
       }
       const widget = newWidget(type, mintId());
-      commit((d) => appendWidget(d, widget));
+      commit((d) => insertWidgetAtRow(d, widget, rowY), {
+        kind: "add",
+        widgetId: widget.id,
+        label: `add ${type}`,
+      });
       setSelectedId(widget.id);
-      // Open the new widget straight into the full-screen editor.
-      setEditing({ kind: "widget", id: widget.id });
+      // A blank chart is useless until it's configured, so it opens straight into its
+      // editor; a text/input widget is editable in place from the canvas.
+      if (type === "chart") setEditing({ kind: "widget", id: widget.id });
     },
     [commit, mintId, onCreateChart],
   );
@@ -262,9 +314,13 @@ export function DashboardEditor({
 
   const handleDelete = React.useCallback(
     (id: string) => {
-      commit((d) => removeWidget(d, id));
+      commit((d) => removeWidget(d, id), {
+        kind: "remove",
+        widgetId: id,
+        label: `delete "${titleOf(draftRef.current.widgets.find((w) => w.id === id))}"`,
+      });
       setSelectedId((cur) => (cur === id ? null : cur));
-      setEditing((cur) => (cur?.kind === "widget" && cur.id === id ? null : cur));
+      setEditing((cur) => (cur?.id === id ? null : cur));
     },
     [commit],
   );
@@ -272,39 +328,73 @@ export function DashboardEditor({
   const handleDuplicate = React.useCallback(
     (id: string) => {
       const copyId = mintId();
-      commit((d) => duplicateWidget(d, id, copyId));
+      commit((d) => duplicateWidget(d, id, copyId), {
+        kind: "duplicate",
+        widgetId: copyId,
+        label: `duplicate "${titleOf(draftRef.current.widgets.find((w) => w.id === id))}"`,
+      });
       setSelectedId(copyId);
     },
     [commit, mintId],
   );
 
   const handleWidgetChange = React.useCallback(
-    (widget: WidgetSpec) => commit((d) => replaceWidget(d, widget)),
-    [commit],
+    (widget: WidgetSpec) => {
+      const kind = widget.type === "text" ? "text" : "widget";
+      commit((d) => replaceWidget(d, widget), {
+        kind,
+        widgetId: widget.id,
+        label: `edit "${titleOf(widget)}"`,
+        coalesceKey: sessionKey(kind, widget.id),
+      });
+    },
+    [commit, sessionKey],
   );
 
   const handleLayoutChange = React.useCallback(
     (layout: LayoutItem[]) =>
-      commit((d) => {
-        const merged = mergeLayout(d.layout, layout);
-        // Structural short-circuit: RGL fires onLayoutChange on mount and re-sync,
-        // and mergeLayout always allocates a fresh array. If the geometry is
-        // byte-identical, return the SAME spec reference so we don't setState — this
-        // breaks the RGL onLayoutChange -> setState -> re-sync -> onLayoutChange loop.
-        return layoutsEqual(d.layout, merged) ? d : { ...d, layout: merged };
-      }),
+      commit(
+        (d) => {
+          const merged = mergeLayout(d.layout, layout);
+          // Structural short-circuit: RGL fires onLayoutChange on mount and re-sync,
+          // and mergeLayout always allocates a fresh array. If the geometry is
+          // byte-identical, return the SAME spec reference so we don't setState — this
+          // breaks the RGL onLayoutChange -> setState -> re-sync -> onLayoutChange loop.
+          return layoutsEqual(d.layout, merged) ? d : { ...d, layout: merged };
+        },
+        { kind: "layout", label: "layout change" },
+      ),
     [commit],
   );
 
   /* ────────────────────────── dashboard-level edits ─────────────────────── */
 
   const handleNameChange = React.useCallback(
-    (name: string) => commit((d) => ({ ...d, name: name || undefined })),
+    (name: string) =>
+      commit((d) => ({ ...d, name: name || undefined }), {
+        kind: "name",
+        label: "rename dashboard",
+        // Every keystroke is one commit; the host folds them into one undo step.
+        coalesceKey: "name",
+      }),
     [commit],
   );
 
+  // The chart editor's inline "New variable" hands back the whole declaration list.
   const handleVariablesChange = React.useCallback(
-    (variables: VariableDecl[]) => commit((d) => ({ ...d, variables })),
+    (variables: VariableDecl[]) =>
+      commit((d) => ({ ...d, variables }), {
+        kind: "variables",
+        label: "edit variables",
+        coalesceKey: "variables",
+      }),
+    [commit],
+  );
+
+  // The dock emits pure spec TRANSFORMS (a rename rewrites widgets too, not just decls).
+  const handleVariablesTransform = React.useCallback(
+    (update: (prev: DashboardSpec) => DashboardSpec) =>
+      commit(update, { kind: "variables", label: "edit variables", coalesceKey: "variables" }),
     [commit],
   );
 
@@ -336,25 +426,26 @@ export function DashboardEditor({
 
   /* ──────────────────── full-screen editor (edit button) ────────────────── */
 
-  // The widget being edited (full-screen), or null. Editing variables is its own kind.
-  const editingWidget =
-    editing?.kind === "widget" ? (draft.widgets.find((w) => w.id === editing.id) ?? null) : null;
+  // The widget being edited (full-screen), or null.
+  const editingWidget = editing ? (draft.widgets.find((w) => w.id === editing.id) ?? null) : null;
 
   // Close the editor if its widget was removed out from under it.
   React.useEffect(() => {
-    if (editing?.kind === "widget" && !draft.widgets.some((w) => w.id === editing.id)) {
+    if (editing && !draft.widgets.some((w) => w.id === editing.id)) {
       setEditing(null);
     }
   }, [editing, draft.widgets]);
 
-  const closeEditor = React.useCallback(() => setEditing(null), []);
+  // "Done" ENDS the editing session: the next edit of this widget gets a fresh
+  // coalesceKey, so one open-edit-close round is one undo step.
+  const closeEditor = React.useCallback(() => {
+    setEditing((cur) => {
+      if (cur) sessionsRef.current.set(cur.id, (sessionsRef.current.get(cur.id) ?? 0) + 1);
+      return null;
+    });
+  }, []);
 
-  const overlayTitle =
-    editing?.kind === "variables"
-      ? "Dashboard variables"
-      : editingWidget
-        ? (editingWidget.title ?? `${cap(editingWidget.type)} widget`)
-        : "";
+  const overlayTitle = editingWidget ? titleOf(editingWidget) : "";
 
   return (
     <FamilyRegistryOverride families={families}>
@@ -370,12 +461,15 @@ export function DashboardEditor({
       <EditorToolbar
         name={draft.name ?? ""}
         onNameChange={handleNameChange}
-        onAdd={handleAdd}
-        onEditVariables={() => setEditing({ kind: "variables" })}
+        onToggleVariables={() => setVariablesOpen((o) => !o)}
+        variablesOpen={variablesOpen}
+        variableCount={draft.variables.length}
         onUndo={onUndo}
         onRedo={onRedo}
         canUndo={canUndo}
         canRedo={canRedo}
+        undoLabel={undoLabel}
+        redoLabel={redoLabel}
         onDiscard={onDiscard}
         discardDisabled={!dirty}
         onSave={onSave ? handleSave : undefined}
@@ -389,21 +483,35 @@ export function DashboardEditor({
         </p>
       ) : null}
 
-      {/* The canvas scrolls — widgets below the fold are reachable (was clipped to
-          the viewport, so you couldn't scroll to edit lower charts). */}
-      <div className="cv-dashboard-editor-scroll">
-        {/* While a full-screen editor is open the canvas is fully occluded, so we
-            UNMOUNT it — otherwise every debounced chart-edit draft re-renders +
-            reconciles dozens of background CubeCharts the user can't see. */}
-        {!editing ? (
-          <EditorCanvas
+      {/* Body: canvas (grows) + the variables dock (fixed width) beside it. */}
+      <div className="cv-dashboard-editor-body">
+        {/* The canvas scrolls — widgets below the fold are reachable (was clipped to
+            the viewport, so you couldn't scroll to edit lower charts). */}
+        <div className="cv-dashboard-editor-scroll">
+          {/* While a full-screen editor is open the canvas is fully occluded, so we
+              UNMOUNT it — otherwise every debounced chart-edit draft re-renders +
+              reconciles dozens of background CubeCharts the user can't see. */}
+          {!editing ? (
+            <EditorCanvas
+              spec={draft}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+              onEdit={handleEdit}
+              onDuplicate={handleDuplicate}
+              onDelete={handleDelete}
+              onLayoutChange={handleLayoutChange}
+              onInsert={handleInsert}
+            />
+          ) : null}
+        </div>
+
+        {/* The dock stays out of the way while a widget editor is open (that surface
+            takes the whole screen and carries its own variable controls). */}
+        {variablesOpen && !editing ? (
+          <VariablesDock
             spec={draft}
-            selectedId={selectedId}
-            onSelect={handleSelect}
-            onEdit={handleEdit}
-            onDuplicate={handleDuplicate}
-            onDelete={handleDelete}
-            onLayoutChange={handleLayoutChange}
+            onChange={handleVariablesTransform}
+            onClose={() => setVariablesOpen(false)}
           />
         ) : null}
       </div>
@@ -445,11 +553,7 @@ export function DashboardEditor({
               dashboard editor and the board reads as unopenable. */}
           <EditorErrorBoundary label={overlayTitle} resetKey={draft}>
           <div className="cv-dashboard-editor-fullscreen-body">
-            {editing.kind === "variables" ? (
-              <div className="cv-dashboard-editor-fullscreen-column">
-                <VariablesPanel variables={draft.variables} onChange={handleVariablesChange} />
-              </div>
-            ) : editingWidget?.type === "chart" ? (
+            {editingWidget?.type === "chart" ? (
               <WidgetEditPanel
                 fill
                 widget={editingWidget}
@@ -476,9 +580,16 @@ export function DashboardEditor({
   );
 }
 
-/** Capitalize a widget type for the editor header. */
-function cap(s: string): string {
-  return s.length ? s[0].toUpperCase() + s.slice(1) : s;
+/**
+ * How a widget is NAMED in headers and undo labels: its own title, else its kind
+ * ("Chart widget"). Always a string — an undo label is never allowed to read
+ * "delete "undefined"".
+ */
+function titleOf(widget: WidgetSpec | undefined): string {
+  if (!widget) return "widget";
+  if (widget.title) return widget.title;
+  const type = widget.type;
+  return `${type[0].toUpperCase()}${type.slice(1)} widget`;
 }
 
 /**
