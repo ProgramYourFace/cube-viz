@@ -19,8 +19,8 @@ import { TextWidgetEditor } from "./TextWidgetEditor";
 import { InputWidgetEditor } from "./InputWidgetEditor";
 
 /**
- * The per-widget edit panel hosted in the docked/inline {@link EditorShell} panel
- * (docs/03 §A3.2 "Select-to-edit"). Dispatches by widget type:
+ * The per-widget edit panel hosted in the dashboard editor's full-screen widget
+ * editor (docs/03 §A3.2 "Select-to-edit"). Dispatches by widget type:
  *  - chart → the sibling {@link ChartEditor} (a ChartSpec-in/out editor; we adapt
  *    the `ChartWidget` ↔ `ChartSpec` at the seam so the chart editor stays unaware
  *    of the dashboard envelope)

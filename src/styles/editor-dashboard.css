@@ -94,8 +94,18 @@
   color: var(--destructive);
 }
 
+/* Editor body: the canvas grows, the variables dock (when open) sits beside it. */
+.cv-dashboard-editor-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
 /* Scrolling canvas region (widgets below the fold stay reachable). */
 .cv-dashboard-editor-scroll {
+  min-width: 0;
   min-height: 0;
   flex: 1 1 0%;
   overflow-y: auto;
@@ -180,12 +190,32 @@
   }
 }
 
-/* Add-widget button cluster. */
+/* Toolbar button cluster (the Variables toggle). */
 .cv-editor-toolbar-group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem;
+}
+
+/* Count badge on the Variables toggle. */
+.cv-editor-toolbar-badge {
+  display: inline-flex;
+  min-width: 1.125rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 12%, transparent);
+  padding: 0 0.3125rem;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.125rem;
+}
+
+/* Variables toggle while its dock is open — reads as pressed, not just hovered. */
+.cv-editor-toolbar-variables--on.cv-editor-toolbar-variables--on {
+  border: 1px solid var(--border);
+  color: var(--foreground);
 }
 
 /* Right-aligned edit-session actions (Undo / Redo / Discard / Save). */
@@ -219,6 +249,7 @@
 /* ───────────────────────────── EditorCanvas ─────────────────────────────── */
 
 .cv-editor-canvas {
+  position: relative; /* the insert-line overlay is absolutely placed over the grid */
   width: 100%;
 }
 
@@ -240,6 +271,12 @@
 
 .cv-editor-widget:focus-visible {
   outline: none;
+}
+
+/* Hovering a widget paints a faint 1px ring so the hover target — and the action
+   cluster that fades in with it — is obvious before you click anything. */
+.cv-editor-widget:hover:not(.cv-editor-widget--selected) {
+  box-shadow: 0 0 0 1px var(--border);
 }
 
 /* Only the SELECTED widget gets a ring (ring-2 ring-primary, offset 2 on the
@@ -266,7 +303,11 @@
   border-radius: calc(var(--radius) + 4px);
 }
 
-/* Edit / duplicate / delete cluster — top-right, always clickable (z-20). */
+/* Edit / duplicate / delete cluster — top-right, revealed on hover / keyboard focus /
+   selection so an idle board is all content and no chrome.
+   Only OPACITY animates: `pointer-events` stays `auto` at every opacity, so a click
+   that lands mid-fade still hits the button instead of falling through to the drag
+   layer below (z-10) — the failure mode of the first hover version. */
 .cv-editor-widget-actions {
   position: absolute;
   right: 0.5rem;
@@ -275,6 +316,15 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-editor-widget:hover .cv-editor-widget-actions,
+.cv-editor-widget:focus-within .cv-editor-widget-actions,
+.cv-editor-widget--selected .cv-editor-widget-actions {
+  opacity: 1;
 }
 
 .cv-editor-widget-action {
@@ -308,6 +358,188 @@
 .cv-editor-widget-action--danger:hover {
   background: var(--destructive);
   color: var(--destructive-foreground);
+}
+
+/* ───────────────────────────── InsertLines ──────────────────────────────── */
+
+/* The overlay is pointer-TRANSPARENT end to end; only the active line's `+` button
+   re-enables clicks, so drags, resizes and chart interactions pass straight through. */
+.cv-insert-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+
+/* One line per row boundary, centred on the gap between two rows. */
+.cv-insert-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  height: 0;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-insert-line--active {
+  opacity: 1;
+}
+
+.cv-insert-line-rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+/* Vertical variant: a column gap INSIDE one row band, so it spans only that band's
+   height (top/left/height come from the layout, inline). */
+.cv-insert-line--col {
+  right: auto;
+  width: 0;
+}
+
+.cv-insert-line--col .cv-insert-line-rule {
+  right: auto;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  height: auto;
+}
+
+.cv-insert-line-button {
+  position: relative;
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid color-mix(in oklab, var(--primary) 55%, transparent);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--primary);
+  cursor: pointer;
+  /* Clickable only when its line is shown — an invisible line must not eat clicks. */
+  pointer-events: none;
+}
+
+.cv-insert-line--active .cv-insert-line-button {
+  pointer-events: auto;
+}
+
+.cv-insert-line-button:hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.cv-insert-line-button svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* The Chart · Text · Input menu the `+` opens. */
+.cv-insert-menu.cv-insert-menu {
+  display: flex;
+  width: auto;
+  min-width: 9rem;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.25rem;
+}
+
+.cv-insert-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cv-insert-menu-item:hover {
+  background: var(--accent);
+}
+
+.cv-insert-menu-item svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
+}
+
+/* Empty board: there is no row to hover, so the three kinds are offered outright. */
+.cv-editor-empty {
+  display: flex;
+  min-height: 18rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.cv-editor-empty-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.cv-editor-empty-hint {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.cv-editor-empty-tiles {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.cv-editor-empty-tile {
+  display: flex;
+  width: 7rem;
+  height: 5.5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition:
+    border-color 120ms cubic-bezier(0.4, 0, 0.2, 1),
+    background 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cv-editor-empty-tile:hover {
+  border-color: var(--primary);
+  background: var(--accent);
+}
+
+.cv-editor-empty-tile svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--muted-foreground);
 }
 
 /* ──────────────────────────── WidgetEditPanel ───────────────────────────── */
@@ -524,7 +756,86 @@
   background: var(--border);
 }
 
-/* ───────────────────────────── VariablesPanel ───────────────────────────── */
+/* ───────────────────────────── VariablesDock ────────────────────────────── */
+
+/* Docked beside the canvas (not over it): the board stays visible + interactive
+   while you declare the variables its input widgets bind to. Own scroll, so a long
+   variable list never scrolls the canvas away. */
+.cv-variables-dock {
+  display: flex;
+  width: 22rem;
+  flex-shrink: 0;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  padding-left: 0.75rem;
+}
+
+.cv-variables-dock-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.cv-variables-dock-title {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+.cv-variables-dock-count {
+  display: inline-flex;
+  min-width: 1.125rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--muted);
+  padding: 0 0.3125rem;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.125rem;
+  color: var(--muted-foreground);
+}
+
+.cv-variables-dock-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cv-variables-dock-body {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}
+
+/* "Used by 2 inputs · 5 queries" + the delete that unbinds them. */
+.cv-variable-row-usage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  margin-top: 0.375rem;
+  padding-top: 0.375rem;
+}
+
+.cv-variable-row-usage-text {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--foreground);
+}
+
+.cv-variable-row-usage-text--none {
+  color: var(--muted-foreground);
+}
 
 .cv-variables-empty {
   border: 1px dashed var(--border);
@@ -640,141 +951,6 @@
   gap: 0.25rem;
   border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   padding: 0.625rem;
-}
-
-/* ────────────────────── EditorShell (primitives) ────────────────────────── */
-
-.cv-editor-shell {
-  display: flex;
-  width: 100%;
-}
-
-.cv-editor-shell--stacked {
-  flex-direction: column;
-}
-
-.cv-editor-shell--split {
-  align-items: stretch;
-}
-
-.cv-editor-shell--fill {
-  height: 100%;
-}
-
-/* Full-width band in a stacked layout (canvas or panel). */
-.cv-editor-shell-pane {
-  width: 100%;
-}
-
-.cv-editor-shell-pane--fixed {
-  flex-shrink: 0;
-}
-
-.cv-editor-shell-pane--scroll {
-  min-height: 0;
-  flex: 1 1 0%;
-  overflow-y: auto;
-}
-
-/* Separator between stacked preview + config (was `my-3`). */
-.cv-editor-shell-gap {
-  margin-block: 0.75rem;
-}
-
-/* Wide two-pane: fixed-width config column + flexible preview. */
-.cv-editor-shell-config {
-  flex-shrink: 0;
-  overflow-y: auto;
-  padding-right: 0.75rem;
-}
-
-.cv-editor-shell-preview {
-  min-width: 0;
-  flex: 1 1 0%;
-  padding-left: 0.75rem;
-}
-
-/* Narrow canvas-panel: toggle row + inline drop-in panel card. */
-.cv-editor-shell-toggle-row {
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.cv-editor-shell-panel-card {
-  margin-bottom: 0.75rem;
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--card);
-}
-
-.cv-editor-shell-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  padding: 0.5rem 0.75rem;
-}
-
-.cv-editor-shell-panel-title {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 500;
-}
-
-.cv-editor-shell-panel-body {
-  padding: 0.75rem;
-}
-
-/* Wide canvas-panel: docked side panel + reflowing canvas. */
-.cv-editor-shell-dock {
-  flex-shrink: 0;
-  overflow-y: auto;
-}
-
-.cv-editor-shell-dock-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.25rem 0.75rem 0.5rem;
-}
-
-.cv-editor-shell-dock-title {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 500;
-}
-
-.cv-editor-shell-dock-icon {
-  width: 1rem;
-  height: 1rem;
-  color: var(--muted-foreground);
-}
-
-.cv-editor-shell-dock-body--right {
-  padding-left: 0.75rem;
-}
-
-.cv-editor-shell-dock-body--left {
-  padding-right: 0.75rem;
-}
-
-.cv-editor-shell-canvas-main {
-  min-width: 0;
-  flex: 1 1 0%;
-}
-
-.cv-editor-shell-canvas-main--pad-right {
-  padding-right: 0.75rem;
-}
-
-.cv-editor-shell-canvas-main--pad-left {
-  padding-left: 0.75rem;
 }
 
 /* ─────────────────────── FieldRow (primitives) ──────────────────────────── */

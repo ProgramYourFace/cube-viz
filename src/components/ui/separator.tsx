@@ -11,7 +11,7 @@ export interface SeparatorProps extends React.HTMLAttributes<HTMLDivElement> {
 /**
  * shadcn "new-york" Separator, implemented WITHOUT `@radix-ui/react-separator`
  * (not installed). A 1px divider; `orientation="vertical"` is used by the
- * EditorShell two-pane border and inline toolbars.
+ * chart-editor two-pane borders and inline toolbars.
  */
 const Separator = React.forwardRef<HTMLDivElement, SeparatorProps>(
   ({ className, orientation = "horizontal", decorative = true, ...props }, ref) => {

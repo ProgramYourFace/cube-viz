@@ -4413,6 +4413,49 @@ export declare const ColorAssignmentSchema: z.ZodObject<{
 }>;
 
 /**
+ * The column boundaries of every row band, i.e. the places a widget can be inserted
+ * BESIDE another rather than between rows.
+ *
+ * A band is the space between two consecutive {@link rowBoundaries}; because those are
+ * never straddled, every item belongs to exactly one band. Within a band we offer each
+ * item's right edge, minus the canvas edges (`0` and `cols` — no room there) and minus
+ * any edge a wider item in the same band straddles (inserting inside a widget is not a
+ * thing). The rightmost edge of a band that doesn't reach `cols` is kept: that's the
+ * free-right-edge case, where the newcomer just fills the empty columns.
+ */
+export declare function columnBoundaries(layout: readonly LayoutItem[], cols?: number): ColumnBoundary[];
+
+/**
+ * A vertical insert target: the gap between two horizontally adjacent widgets inside
+ * one row band (or a row's free right edge). `rowY`/`rowBottom` are the band it lives
+ * in — a column line is only ever as tall as its own row.
+ */
+export declare interface ColumnBoundary {
+    /** Top of the row band (the row an insert here lands on). */
+    rowY: number;
+    /** Bottom of the row band (exclusive) — the line's height. */
+    rowBottom: number;
+    /** Column the newcomer would take. */
+    x: number;
+    /** Nothing sits to the right in this band: free columns, so no one has to move. */
+    free: boolean;
+}
+
+/**
+ * Pixel offset (from the grid container's left) of a column boundary — the mirror of
+ * {@link rowBoundaryTop}: `left(x) = paddingLeft + x * (colWidth + marginX)`, drawn in
+ * the MIDDLE of the gap to the left of that column.
+ */
+export declare function columnBoundaryLeft(colX: number, m: EditorGridMetrics, containerWidth: number): number;
+
+/**
+ * Width of ONE grid column in pixels — RGL divides what's left after the container
+ * padding and the inter-column gaps. Needed to place the vertical insert lines on the
+ * same pixels the grid put its columns on.
+ */
+export declare function columnWidth(m: EditorGridMetrics, containerWidth: number): number;
+
+/**
  * Every overridable slot in cube-viz, keyed by stable slot name. Each field is
  * optional; a missing slot falls back to the built-in. See {@link resolveChart}.
  */
@@ -4898,24 +4941,8 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, onDiscard, families, onCreateChart, openWidgetId, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, className, }: DashboardEditorProps): React_2.ReactElement;
 
-/**
- * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
- *
- * `spec` is a {@link DashboardSpec}; every edit produces a new `DashboardSpec` and
- * fires `onChange` (debounced). `onSave` receives the spec re-validated through
- * {@link DashboardSpecSchema}. The editor itself NEVER persists — the host owns I/O.
- *
- * Layout: an {@link EditorShell} in `canvas-panel` mode — WIDE docks an edit panel
- * to the right and the {@link EditorCanvas} reflows into the remaining width; NARROW
- * stacks a full-width inline panel above the canvas (NO native sheet), so the same
- * web build edits correctly inside a mobile WebView. Selecting a widget opens its
- * editor in the panel; with nothing selected the panel shows dashboard variables.
- *
- * The canvas captures RGL drag/resize and writes back the single canonical (widest)
- * `spec.layout`, preserving each item's `minW`/`minH`/`static`.
- */
 export declare interface DashboardEditorProps {
     /** The dashboard spec to edit (JSON-in). Identity change = a host re-seed (undo/
      *  redo / discard / switching dashboards) — it fully replaces the working draft. */
@@ -4936,10 +4963,12 @@ export declare interface DashboardEditorProps {
      */
     onRemoteAdopted?: (spec: DashboardSpec) => void;
     /**
-     * Called on every edit with the next spec (debounced by {@link debounceMs}). The
-     * editor writes nothing itself — wire this to your store/preview.
+     * Called on every edit with the next spec (debounced by {@link debounceMs}) and an
+     * {@link EditMeta} describing the edit. The editor writes nothing itself — wire this
+     * to your store/preview. Ignoring the second argument is fine (and is what callers
+     * written before edit metadata existed do).
      */
-    onChange?: (spec: DashboardSpec) => void;
+    onChange?: (spec: DashboardSpec, meta: EditMeta) => void;
     /**
      * Called when the user clicks Save, with the spec re-validated through
      * {@link DashboardSpecSchema}. Omit to hide the Save button.
@@ -4962,6 +4991,13 @@ export declare interface DashboardEditorProps {
     onRedo?: () => void;
     canUndo?: boolean;
     canRedo?: boolean;
+    /**
+     * What the next undo/redo would do, in the host's words — it holds the stack, so it
+     * holds the labels (built from the {@link EditMeta} of each change). Rendered as
+     * "Undo move widget" on the button's tooltip + accessible name.
+     */
+    undoLabel?: string;
+    redoLabel?: string;
     /** Throw away unsaved changes (host clears its draft + re-seeds the published spec). */
     onDiscard?: () => void;
     /**
@@ -4971,11 +5007,11 @@ export declare interface DashboardEditorProps {
      */
     families?: ChartFamilyDescriptor[];
     /**
-     * Intercept the toolbar's "Chart" button. When provided, clicking Chart calls THIS
-     * instead of appending a blank chart widget — the host runs its own creation flow
-     * (e.g. an AI wizard), inserts the widget through `spec`, and points
-     * {@link DashboardEditorProps.openWidgetId} at it to land in the chart editor.
-     * The Text/Input buttons keep their default behaviour.
+     * Intercept "add a chart". When provided, choosing Chart on an insert line (or an
+     * empty-board tile) calls THIS instead of inserting a blank chart widget — the host
+     * runs its own creation flow (e.g. an AI wizard), inserts the widget through `spec`,
+     * and points {@link DashboardEditorProps.openWidgetId} at it to land in the chart
+     * editor. Text/Input keep their default in-place insert.
      */
     onCreateChart?: () => void;
     /**
@@ -6795,6 +6831,14 @@ export declare const DEFAULT_COLOR_RAMP: ChartColorToken[];
 /** Mirror of {@link Dashboard}'s default grid column count (12). */
 export declare const DEFAULT_COLS = 12;
 
+/** Default grid footprint per widget kind (canonical-cols units). */
+export declare const DEFAULT_FOOTPRINT: Record<WidgetSpec["type"], {
+    w: number;
+    h: number;
+    minW: number;
+    minH: number;
+}>;
+
 /**
  * The look cube-viz ships with. Chosen to read well in a dashboard TILE — the size
  * every chart here actually renders at — which is why bars are capped and the area
@@ -6830,6 +6874,42 @@ export declare function defaultForType(type: VariableDecl["type"]): VariableDecl
 export declare const DRAG_HANDLE_CLASS = "cube-viz-drag-handle";
 
 /**
+ * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
+ *
+ * `spec` is a {@link DashboardSpec}; every edit produces a new `DashboardSpec` and
+ * fires `onChange` (debounced) WITH an {@link EditMeta} describing what changed.
+ * `onSave` receives the spec re-validated through {@link DashboardSpecSchema}. The
+ * editor itself NEVER persists — the host owns I/O.
+ *
+ * Layout: a toolbar over a body that is a flex row — the {@link EditorCanvas} grows,
+ * and the {@link VariablesDock} docks to its right when the toolbar's Variables toggle
+ * is on (the canvas stays MOUNTED and live, so you can see the input widgets you're
+ * declaring variables for). Adding widgets is in-context: the canvas' row insert lines
+ * put the newcomer where the user is pointing. A widget's pencil still opens a
+ * full-screen editor over everything, and that one DOES unmount the canvas — it fully
+ * occludes it, and background CubeCharts would re-render on every keystroke.
+ *
+ * The canvas captures RGL drag/resize and writes back the single canonical (widest)
+ * `spec.layout`, preserving each item's `minW`/`minH`/`static`.
+ */
+/**
+ * What a single edit DID — passed to `onChange` beside the next spec so the host can
+ * build an undo stack that reads like the user's actions rather than "change #47".
+ *
+ * `label` is a short imperative noun phrase for a tooltip ("Undo move widget"), and
+ * `coalesceKey` marks commits the host should FOLD INTO ONE undo step: every keystroke
+ * in the name field, a whole chart-editing session. A key is scoped to its editing
+ * session — closing a widget's editor starts a new one, so re-opening the same chart
+ * later is its own undo step rather than joining the previous edit.
+ */
+export declare type EditMeta = {
+    kind: "layout" | "name" | "variables" | "widget" | "text" | "add" | "remove" | "duplicate";
+    widgetId?: string;
+    label: string;
+    coalesceKey?: string;
+};
+
+/**
  * The canvas renders a live CubeChart per widget, so it is the single most expensive
  * subtree in the editor. Memoize it so unrelated DashboardEditor re-renders (e.g. the
  * deferred whole-dashboard validation settling, or a selection change handled by
@@ -6838,7 +6918,7 @@ export declare const DRAG_HANDLE_CLASS = "cube-viz-drag-handle";
  */
 export declare const EditorCanvas: React_2.MemoExoticComponent<typeof EditorCanvasImpl>;
 
-declare function EditorCanvasImpl({ spec, selectedId, onSelect, onEdit, onDuplicate, onDelete, onLayoutChange, }: EditorCanvasProps): React_2.ReactElement;
+declare function EditorCanvasImpl({ spec, selectedId, onSelect, onEdit, onDuplicate, onDelete, onLayoutChange, onInsert, }: EditorCanvasProps): React_2.ReactElement;
 
 export declare interface EditorCanvasProps {
     spec: DashboardSpec;
@@ -6853,29 +6933,70 @@ export declare interface EditorCanvasProps {
     onDelete: (id: string) => void;
     /** Canonical (widest) layout captured from a drag/resize. */
     onLayoutChange: (layout: LayoutItem[]) => void;
+    /**
+     * Insert a fresh widget of `kind` at a row boundary (the `+` on an insert line, or
+     * an empty-board tile — those pass row 0). Omit to hide the insert affordances.
+     */
+    onInsert?: (kind: WidgetSpec["type"], rowY: number) => void;
 }
 
-export declare function EditorToolbar({ name, onNameChange, onAdd, onEditVariables, onUndo, onRedo, canUndo, canRedo, onDiscard, discardDisabled, onSave, saveDisabled, className, }: EditorToolbarProps): React_2.ReactElement;
+/**
+ * The cell metrics the EDIT canvas renders at. The editor keeps the CANONICAL column
+ * count at every width and scales the cell SIZE to fit (rather than reflowing to
+ * responsive breakpoints), so you always see and edit the true canonical layout.
+ *
+ * The scale is quantized to the nearest 0.05 so sub-pixel ResizeObserver width jitter
+ * doesn't churn the metrics into a full RGL pixel-relayout every frame. Shared with the
+ * insert-line overlay, which must land on exactly the pixels RGL used.
+ */
+export declare interface EditorGridMetrics {
+    cols: number;
+    rowHeight: number;
+    margin: [number, number];
+    containerPadding: [number, number];
+    scale: number;
+}
+
+export declare function editorGridMetrics(grid: GridConfig | undefined, width: number): EditorGridMetrics;
+
+export declare function EditorToolbar({ name, onNameChange, onToggleVariables, variablesOpen, variableCount, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, discardDisabled, onSave, saveDisabled, className, }: EditorToolbarProps): React_2.ReactElement;
 
 /**
  * The dashboard editor toolbar (docs/03 §A3.2): the single, unified control bar for
- * editing — the dashboard name, the add-widget buttons (chart / text / input /
- * variables), and the edit-session actions (Undo / Redo / Discard / Save) grouped on
- * the right. Wraps to extra rows on a narrow container so it stays usable in a mobile
- * WebView. Purely presentational — every action is a callback; history (undo/redo) and
+ * the edit SESSION — the dashboard name, the Variables dock toggle, and Undo / Redo /
+ * Discard / Save grouped on the right. Wraps to extra rows on a narrow container so it
+ * stays usable in a mobile WebView.
+ *
+ * Adding widgets is deliberately NOT here any more: Chart/Text/Input buttons always
+ * dropped the newcomer at the bottom of the board, nowhere near where the user was
+ * working. Adding is now in-context, on the canvas' row insert lines (see
+ * {@link InsertLines}).
+ *
+ * Purely presentational — every action is a callback; history (undo/redo) and
  * persistence (save/discard) are owned by the host and surfaced here as props.
  */
 export declare interface EditorToolbarProps {
     name: string;
     onNameChange: (name: string) => void;
-    onAdd: (type: WidgetSpec["type"]) => void;
-    /** Open the dashboard-variables editor (full-screen). */
-    onEditVariables?: () => void;
+    /** Toggle the docked dashboard-variables panel. Omit to hide the button. */
+    onToggleVariables?: () => void;
+    /** Whether the variables dock is open (the button shows an active state). */
+    variablesOpen?: boolean;
+    /** Declared-variable count, shown as a badge on the Variables button. */
+    variableCount?: number;
     /** Step back/forward through edit history. Buttons hidden if the handler is omitted. */
     onUndo?: () => void;
     onRedo?: () => void;
     canUndo?: boolean;
     canRedo?: boolean;
+    /**
+     * What the next undo/redo would do, in the host's own words ("move widget",
+     * `edit "Fuel by week"`) — rendered as "Undo move widget" on the button's tooltip +
+     * accessible name. The host builds these from the {@link EditMeta} it receives on
+     * every change; a plain "Undo" is the fallback.
+     */
+    undoLabel?: string;
+    redoLabel?: string;
     /** Throw away unsaved changes (revert to the last saved/published spec). */
     onDiscard?: () => void;
     /** Disable Discard when there's nothing to revert. */
@@ -7722,6 +7843,39 @@ export declare interface InputWidgetViewProps {
     title?: string;
 }
 
+export declare function InsertLines({ rows, columns, metrics, width, containerRef, onInsert, disabled, }: InsertLinesProps): React_2.ReactElement | null;
+
+export declare interface InsertLinesProps {
+    /** Row boundaries (grid units) an insert can target — see `rowBoundaries()`. */
+    rows: readonly number[];
+    /** Column boundaries per row band — see `columnBoundaries()`. */
+    columns: readonly ColumnBoundary[];
+    /** The canvas' effective cell metrics; converts a row/column to a pixel offset. */
+    metrics: EditorGridMetrics;
+    /** Measured canvas width — the column pixel maths needs it. */
+    width: number;
+    /** The element the pointer is tracked against (the canvas the layer covers). */
+    containerRef: React_2.RefObject<HTMLElement | null>;
+    /**
+     * Insert a fresh widget of `kind` at row `rowY` — beside the row's widgets when
+     * `colX` is given (a vertical line), between rows when it is not.
+     */
+    onInsert: (kind: WidgetSpec["type"], rowY: number, colX?: number) => void;
+    /** Hide everything (a drag/resize is in flight). */
+    disabled?: boolean;
+}
+
+export declare function insertWidgetAtColumn(spec: DashboardSpec, widget: WidgetSpec, rowY: number, colX: number, cols?: number): DashboardSpec;
+
+/**
+ * A dashboard spec with a widget inserted AT a row boundary: everything at or below
+ * `rowY` slides down by the new item's height and the newcomer takes the freed row at
+ * `x: 0`. This is the in-context "insert here" seam (the `+` on a canvas row line) —
+ * appending would have dropped the widget at the bottom, miles from where the user
+ * pointed. `rowY` past the last row degenerates to an append (nothing to shift). Pure.
+ */
+export declare function insertWidgetAtRow(spec: DashboardSpec, widget: WidgetSpec, rowY: number, cols?: number): DashboardSpec;
+
 /**
  * The variable resolver — legs 2 & 3 of the binding model, plus the `noFilter`
  * fail-safe rule. Pure, framework-free. See docs/01-spec-schema.md §5.
@@ -8493,8 +8647,25 @@ export declare const ReferenceLineOptSchema: z.ZodObject<{
     colorToken?: "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5" | undefined;
 }>;
 
+/**
+ * Drop a variable's declaration AND unbind everything that depended on it: input
+ * widgets fall back to an empty binding (the panel then makes the user re-pick), and
+ * every `{var:name}` token is replaced by the variable's `default` — or removed
+ * outright when it had none, since leaving the token behind would resolve to nothing
+ * and the chart would query for a variable that no longer exists.
+ */
+export declare function removeVariable(spec: DashboardSpec, name: string): DashboardSpec;
+
 /** A dashboard spec with one widget (+ its layout item) removed. Pure. */
 export declare function removeWidget(spec: DashboardSpec, id: string): DashboardSpec;
+
+/**
+ * Rename a variable EVERYWHERE: the declaration, every `{var:from}` token in every
+ * widget, and every input widget bound to it. Returns the spec unchanged when the
+ * name is a no-op or `to` is already taken (the caller shows the inline error — we
+ * refuse rather than silently merge two variables into one).
+ */
+export declare function renameVariable(spec: DashboardSpec, from: string, to: string): DashboardSpec;
 
 export declare function RenderWidget({ widget, dragHandleProps, editable, onRangeSelect, onPointSelect, }: RenderWidgetProps): ReactElement;
 
@@ -8649,6 +8820,28 @@ export declare interface ResultAnnotation {
     segments: Record<string, AnnotatedMember>;
     timeDimensions: Record<string, AnnotatedMember>;
 }
+
+/**
+ * The distinct row boundaries of a layout, ascending: the top (0), the bottom edge of
+ * every item (`y + h`), and hence the bottom of the board.
+ *
+ * Boundaries that a TALLER neighbour straddles are dropped. Two reasons: the insert
+ * line drawn there would slice through the middle of that widget (it reads as a line
+ * across a chart, not as a gap), and an insert at such a row overlaps the straddler,
+ * so RGL's compactor would push the newcomer somewhere other than where the line
+ * promised. What's left is exactly the rows where "insert here" is honest.
+ */
+export declare function rowBoundaries(layout: readonly LayoutItem[]): number[];
+
+/**
+ * Pixel offset (from the grid container's top) of a row boundary — RGL's own row
+ * arithmetic: `top(y) = paddingTop + y * (rowHeight + marginY)`. A boundary line is
+ * drawn in the MIDDLE of the gap above the row, so it reads as "between" two rows.
+ */
+export declare function rowBoundaryTop(rowY: number, m: EditorGridMetrics): number;
+
+/** Pixel height of `rows` grid rows (RGL: rows and the gaps between them). */
+export declare function rowSpanHeight(rows: number, m: EditorGridMetrics): number;
 
 /** Non-throwing variant for editor/preview boundaries. */
 export declare function safeLoadSpec(raw: unknown): LoadResult;
@@ -12158,6 +12351,9 @@ export declare interface UnitDef {
     toImperial: (v: number) => number;
 }
 
+/** "2 inputs · 5 queries" — or "Unused". The one-line "Used by" caption. */
+export declare function usageSummary(usage: VariableUsage | undefined): string;
+
 export declare interface UseChartEditorState {
     /** The current working spec (may be an invalid draft mid-edit). */
     draft: ChartSpec;
@@ -12382,23 +12578,32 @@ export declare const VariableDeclSchema: z.ZodObject<{
     default?: string | number | boolean | [string, string] | string[] | number[] | undefined;
 }>;
 
-export declare function VariablesPanel({ variables, onChange, newName, }: VariablesPanelProps): React_2.ReactElement;
+export declare function VariablesDock({ spec, onChange, onClose, newName, className, }: VariablesDockProps): React_2.ReactElement;
 
 /**
  * Declare / edit / remove the dashboard's {@link VariableDecl}[] (docs/03 §A3.2
- * "Variables"). Each variable carries a name, type, optional label, `array` flag,
- * and a default. Date-range/time defaults PREFER relative strings ("This month")
- * over absolute pairs, so the dashboard opens with a sensible live range and never
- * bakes in stale absolute dates.
+ * "Variables") in a DOCKED right-hand panel, beside a live canvas — it replaced a
+ * full-screen overlay that unmounted the board, so you could not see the input widgets
+ * you were declaring variables for.
  *
- * Variable names are validated inline (non-empty, unique). The panel emits the full
- * `VariableDecl[]` on every edit; the editor owns merging it into the spec.
+ * Every mutation goes through the pure rewrites in `variableUsage.ts` rather than
+ * patching the declaration in place: a rename carries every `{var}` token and input
+ * binding with it, and a delete unbinds instead of orphaning. Each row therefore also
+ * states who depends on it ("2 inputs · 5 queries"), and deleting something in use
+ * asks first.
+ *
+ * The dock emits pure spec TRANSFORMS (not a finished spec), so two edits in one tick
+ * compose through the editor's single commit seam.
  */
-export declare interface VariablesPanelProps {
-    variables: VariableDecl[];
-    onChange: (variables: VariableDecl[]) => void;
+export declare interface VariablesDockProps {
+    spec: DashboardSpec;
+    /** Apply a pure spec transform through the editor's commit seam. */
+    onChange: (update: (prev: DashboardSpec) => DashboardSpec) => void;
+    /** Close the dock (the toolbar's Variables toggle mirrors this). */
+    onClose?: () => void;
     /** Mint a unique fallback variable name when adding. */
     newName?: () => string;
+    className?: string;
 }
 
 /**
@@ -12423,6 +12628,34 @@ export declare interface VariableStore {
 export declare type VariableType = z.infer<typeof VariableTypeSchema>;
 
 export declare const VariableTypeSchema: z.ZodEnum<["dateRange", "time", "granularity", "string", "number", "boolean", "dimension", "measure", "dimensionOrMeasure"]>;
+
+/**
+ * Variable USAGE — who actually depends on a declared dashboard variable, and the
+ * rewrites that keep those dependents honest when a variable is renamed or removed.
+ *
+ * A variable name is a REFERENCE, not a label: input widgets bind to it by name
+ * (`control.variable`) and chart widgets carry `{ var: "name" }` tokens deep inside
+ * their query / chart options. Editing the declaration alone therefore orphans every
+ * one of those bindings silently — the board keeps rendering, the control keeps
+ * writing to a variable nothing reads. So the variables UI never patches a name in
+ * place: it goes through {@link renameVariable} (rewrites declaration + refs + input
+ * bindings together) or {@link removeVariable} (drops the declaration AND unbinds).
+ *
+ * Everything here is pure — no React, no spec mutation.
+ */
+export declare interface VariableUsage {
+    /** Ids of input widgets bound to this variable (`control.variable === name`). */
+    inputs: string[];
+    /** How many `{var:name}` tokens live in chart widgets' query / chart options. */
+    refs: number;
+}
+
+/**
+ * Usage of every declared variable (plus any name only referenced, never declared —
+ * a dangling ref is exactly what the panel should surface). Declared-but-unused
+ * variables get a zeroed entry, so a caller can read `usages[name]` unconditionally.
+ */
+export declare function variableUsages(spec: DashboardSpec): Record<string, VariableUsage>;
 
 export declare type VariableValue = z.infer<typeof VariableValueSchema>;
 
@@ -12522,8 +12755,8 @@ export declare interface WidgetChromeProps {
 export declare function WidgetEditPanel({ widget, variables, onChange, onVariablesChange, fill, }: WidgetEditPanelProps): React_2.ReactElement;
 
 /**
- * The per-widget edit panel hosted in the docked/inline {@link EditorShell} panel
- * (docs/03 §A3.2 "Select-to-edit"). Dispatches by widget type:
+ * The per-widget edit panel hosted in the dashboard editor's full-screen widget
+ * editor (docs/03 §A3.2 "Select-to-edit"). Dispatches by widget type:
  *  - chart → the sibling {@link ChartEditor} (a ChartSpec-in/out editor; we adapt
  *    the `ChartWidget` ↔ `ChartSpec` at the seam so the chart editor stays unaware
  *    of the dashboard envelope)
