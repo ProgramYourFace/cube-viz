@@ -279,11 +279,9 @@ A `number` KPI is intentionally **not** a chart — it's a formatted value with 
 interface TableFamilyOptions {
   columns?: TableColumnOpt[];     // override/order; default = all members from annotation
   pageSize?: number;              // client paging (default 25)
-  sortable?: boolean;             // header-click sort (client) → default true
-  stickyHeader?: boolean;
-  rowHeight?: "compact" | "default";
-  showRowNumbers?: boolean;
   conditionalFormat?: CondFormatRule[]; // cell coloring by value
+  // REMOVED in v4: sortable, stickyHeader, rowHeight, showRowNumbers — sorting and a
+  // pinned header are always on, density follows the row count, row numbers are gone.
 }
 
 interface TableColumnOpt {
@@ -302,7 +300,25 @@ interface CondFormatRule {
 }
 ```
 
-Table does **not** use the chart renderer. It renders a plain styled table (`cv-table-*`) from `raw.rows` (`resultSet.tablePivot()`) and `raw.annotation` (`resultSet.tableColumns()` → titles/types). Pivot mode (`mapping.series.mode:"pivot"`) produces grouped columns via `tableColumns`' nested `children`. Sorting/paging are client-side over `raw.rows`.
+Table does **not** use the chart renderer. Since 2026-09 it is a **headless TanStack Table**
+(`@tanstack/react-table` v8) over `raw.rows` (`resultSet.tablePivot()`) + `raw.annotation`
+(`resultSet.tableColumns()` → titles/types), rendered through the `cv-table-*` ui primitives:
+
+- **Sorting** — click a header; shift-click adds a second sort column. Numeric-aware
+  comparator (numbers by value, everything else as text). Always on.
+- **Search** — a global search box appears once the table has more than 8 rows; it matches
+  the **formatted** cell text (so `29.6 mpg` is found by "mpg" or "29.6"), and the toolbar
+  shows `N of M` while a query is active. Pagination resets on a new query.
+- **Paging** — `pageSize` (default 25); the footer (`a–b of N`, `page x / y`, Prev/Next) only
+  renders when the rows overflow one page.
+- **Sticky header** and **density**: the header pins to the scroll container; cells tighten once
+  more than 12 rows are showing.
+- Pivot mode (`mapping.series.mode:"pivot"`) produces grouped columns via `tableColumns`' nested
+  `children`.
+
+Layout note: the family wrapper is `.cv-table-family`; `.cv-table` is the `<table>` element
+(ui primitive). They must stay distinct — a shared class once put the wrapper's flex layout on
+the `<table>` and detached the header row from the column grid.
 
 ---
 

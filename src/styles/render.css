@@ -326,20 +326,66 @@
 
 /* ───────────────────────────── table family ───────────────────────────────
  * src/charts/table.tsx — the shadcn <Table> primitives carry their own
- * styles; these are the family's OWN chrome (sticky header, row numbers,
- * sort buttons, pagination). Cell/button overrides are scoped under
- * `.cv-table` to outrank the ui primitives' single-class rules.
+ * styles; these are the family's OWN chrome (toolbar, sticky header, sort
+ * buttons, pagination). Cell/button overrides are scoped under `.cv-table`
+ * (the <table> element) to outrank the ui primitives' single-class rules.
+ *
+ * The family WRAPPER is `.cv-table-family`, NOT `.cv-table`: the ui `<Table>`
+ * primitive already owns `.cv-table` on the <table> element, and giving the
+ * wrapper the same class once put `display:flex; flex-direction:column` on the
+ * <table> itself — <thead> and <tbody> became flex items and stopped sharing
+ * column widths, so headers drifted off their cells.
  */
 
-.cv-table {
+.cv-table-family {
   display: flex;
   height: 100%;
   width: 100%;
+  min-height: 0;
   flex-direction: column;
+}
+
+/* Toolbar: global search (shown once the rows outgrow a glance) + match count. */
+.cv-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.25rem 0.5rem;
+}
+
+.cv-table-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  max-width: 18rem;
+}
+
+.cv-table-search-icon {
+  position: absolute;
+  left: 0.5rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.cv-table-family .cv-table-search-input {
+  height: 1.75rem;
+  padding-left: 1.75rem;
+  font-size: 0.8125rem;
+}
+
+.cv-table-meta {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
 }
 
 .cv-table-scroll {
   width: 100%;
+  min-height: 0;
 }
 
 /* stickyHeader: the wrapper scrolls, the header pins to its top. */
@@ -423,6 +469,7 @@
 
 .cv-table-pager {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 

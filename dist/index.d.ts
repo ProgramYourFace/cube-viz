@@ -11778,10 +11778,12 @@ export declare const TableColumnOptSchema: z.ZodObject<{
 }>;
 
 /**
- * `table` — covers table + pivot (docs/02-chart-options.md §2.7). Renders a
- * shadcn <Table> from `raw.rows` + annotation; client-side sort + paging. NOT
- * Recharts. Columns default to every annotated member, overridable/orderable
- * via `familyOptions.columns`.
+ * `table` — covers table + pivot (docs/02-chart-options.md §2.7). A headless
+ * TanStack Table over `raw.rows` + annotation: client-side sorting (shift-click
+ * for multi-column), a global search over the FORMATTED cell text (so "29.6 mpg"
+ * is searchable as the user reads it), and paging. NOT a chart-renderer family.
+ * Columns default to every annotated member, overridable/orderable via
+ * `familyOptions.columns`.
  */
 export declare function TableFamily({ data, options, format }: ChartComponentProps): React_2.ReactElement;
 
