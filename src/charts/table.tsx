@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import type { ChartFormat } from "@/format";
+import { formatDateValue, looksLikeIsoDate } from "@/format/dates";
 import type { ResultAnnotation } from "@/adapter/types";
 import type { ChartComponentProps } from "./types";
 import type { CondFormatRule, TableColumnOpt, TableFamilyOptions } from "./defaults";
@@ -255,7 +256,7 @@ export function resolveColumns(
       // Per-column `format` (decimals/prefix/suffix/currency/dateFormat/kind) re-binds
       // the formatter for THIS column only, merged over the chart-level `format`.
       const columnFormat = c.format && format.derive ? format.derive(c.format) : format;
-      const text = (value: unknown) => cellText(value, isMeasure, member, columnFormat);
+      const text = (value: unknown) => cellText(value, isMeasure, member, columnFormat, c.format);
       return {
         member,
         key,
@@ -268,8 +269,21 @@ export function resolveColumns(
     });
 }
 
-function cellText(value: unknown, isMeasure: boolean, member: string, format: ChartFormat): string {
+function cellText(
+  value: unknown,
+  isMeasure: boolean,
+  member: string,
+  format: ChartFormat,
+  columnOptions: TableColumnOpt["format"] | undefined,
+): string {
   if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "number" && Number.isNaN(value)) return "—";
+  // A timestamp-valued measure (`max(ping time)` = "last seen") arrives as an
+  // ISO string, or the column says it is a date: never push that through the
+  // numeric path, which printed NaN.
+  if (columnOptions?.kind === "date" || (typeof value === "string" && looksLikeIsoDate(value))) {
+    return formatDateValue(value as string | number, columnOptions);
+  }
   if (isMeasure) {
     const n = typeof value === "number" ? value : Number(value);
     return Number.isFinite(n) ? String(format.value(n, member)) : String(value);

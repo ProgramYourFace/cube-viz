@@ -58,6 +58,27 @@ describe("resolveColumns", () => {
     ]);
     expect(cols[1].text(59.4)).toBe("59.4 gal");
     expect(cols[1].text(null)).toBe("—");
+    expect(cols[1].text(Number.NaN)).toBe("—");
+  });
+
+  it("renders a timestamp-valued measure as a date, never NaN", () => {
+    const cols = resolveColumns(
+      [{ "device_locations.last_ping_time": "2026-09-02T20:14:24.000" }],
+      {
+        measures: { "device_locations.last_ping_time": { title: "Last seen" } },
+        dimensions: {},
+        timeDimensions: {},
+        segments: {},
+      } as unknown as ResultAnnotation,
+      { columns: [{ member: "device_locations.last_ping_time", format: { kind: "date" } }] },
+      format,
+    );
+    const text = cols[0].text("2026-09-02T20:14:24.000");
+    expect(text).not.toContain("NaN");
+    expect(text).toMatch(/2026|Sep/);
+    // Even without the column format, an ISO string is recognised.
+    const bare = resolveColumns([{ "device_locations.last_ping_time": "2026-09-02T20:14:24.000" }], undefined, {}, format);
+    expect(bare[0].text("2026-09-02T20:14:24.000")).not.toContain("NaN");
   });
 
   it("honors column overrides: order, hidden, label, align, per-column format", () => {
