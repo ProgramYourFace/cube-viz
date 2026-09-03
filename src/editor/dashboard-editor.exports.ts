@@ -35,19 +35,24 @@ export type { InputWidgetEditorProps } from "./dashboard/InputWidgetEditor";
 export {
   appendWidget,
   insertWidgetAtRow,
+  insertWidgetAtColumn,
   removeWidget,
   replaceWidget,
   mergeLayout,
   pickCanonicalLayout,
   placeNewItem,
   rowBoundaries,
+  columnBoundaries,
   editorGridMetrics,
   rowBoundaryTop,
+  rowSpanHeight,
+  columnWidth,
+  columnBoundaryLeft,
   CANONICAL_BREAKPOINT,
   DEFAULT_COLS,
   DEFAULT_FOOTPRINT,
 } from "./dashboard/layout";
-export type { EditorGridMetrics } from "./dashboard/layout";
+export type { EditorGridMetrics, ColumnBoundary } from "./dashboard/layout";
 
 /* ── variable usage: rename/remove WITHOUT orphaning bindings ─────────────── */
 export {

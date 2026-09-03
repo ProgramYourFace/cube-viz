@@ -5,21 +5,34 @@ import type { WidgetSpec } from "@/spec";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/components/ui/utils";
 
-import { rowBoundaryTop, type EditorGridMetrics } from "./layout";
+import {
+  columnBoundaryLeft,
+  rowBoundaryTop,
+  rowSpanHeight,
+  type ColumnBoundary,
+  type EditorGridMetrics,
+} from "./layout";
 
 /**
  * Insert lines — the in-context "add a widget HERE" affordance that replaced the
  * toolbar's Chart/Text/Input buttons (which always dropped the newcomer at the bottom,
  * nowhere near where the user was looking).
  *
- * One invisible line sits at every ROW BOUNDARY of the current layout (the top, every
- * item's bottom edge, and so the bottom of the board). Bring the pointer within
- * {@link HIT_BAND} px of one and it fades in as a hairline with a round `+`; the `+`
- * opens a three-item menu (Chart · Text · Input) that inserts at THAT row.
+ * Two sets, one mental model:
+ *  - HORIZONTAL lines at every row boundary — insert BETWEEN rows (everything below
+ *    slides down);
+ *  - VERTICAL lines in the column gaps inside a row band, plus a row's free right edge
+ *    — insert BESIDE (the row-mates shift, squeeze, or drop below).
+ *
+ * Bring the pointer within {@link HIT_BAND} px of a line and it fades in as a hairline
+ * with a round `+`; the `+` opens a three-item menu (Chart · Text · Input) that inserts
+ * at THAT position. Exactly ONE line is ever active: the nearest boundary across both
+ * sets wins, so a row line and a column line never light up together and fight for the
+ * same click.
  *
  * Hit-testing is done by MEASURING the pointer against the boundary offsets rather
- * than by laying transparent hit bands over the canvas: a band tall enough to be
- * catchable would overlap the widgets above and below it and swallow their drags and
+ * than by laying transparent hit bands over the canvas: a band tall (or wide) enough to
+ * be catchable would overlap the widgets either side of it and swallow their drags and
  * corner resizes. So the whole layer is `pointer-events: none` and only the ACTIVE
  * line's button takes clicks. The layer is also hidden outright while RGL has a
  * drag/resize in flight (`disabled`), so a line can never flicker under a moving widget.
@@ -31,12 +44,19 @@ const HIT_BAND = 10;
 export interface InsertLinesProps {
   /** Row boundaries (grid units) an insert can target — see `rowBoundaries()`. */
   rows: readonly number[];
-  /** The canvas' effective cell metrics; converts a row to a pixel offset. */
+  /** Column boundaries per row band — see `columnBoundaries()`. */
+  columns: readonly ColumnBoundary[];
+  /** The canvas' effective cell metrics; converts a row/column to a pixel offset. */
   metrics: EditorGridMetrics;
+  /** Measured canvas width — the column pixel maths needs it. */
+  width: number;
   /** The element the pointer is tracked against (the canvas the layer covers). */
   containerRef: React.RefObject<HTMLElement | null>;
-  /** Insert a fresh widget of `kind` at row `rowY`. */
-  onInsert: (kind: WidgetSpec["type"], rowY: number) => void;
+  /**
+   * Insert a fresh widget of `kind` at row `rowY` — beside the row's widgets when
+   * `colX` is given (a vertical line), between rows when it is not.
+   */
+  onInsert: (kind: WidgetSpec["type"], rowY: number, colX?: number) => void;
   /** Hide everything (a drag/resize is in flight). */
   disabled?: boolean;
 }
@@ -47,44 +67,86 @@ const KINDS: { kind: WidgetSpec["type"]; label: string; Icon: typeof BarChart3 }
   { kind: "input", label: "Input", Icon: SlidersHorizontal },
 ];
 
+/** One line, resolved to pixels: where it sits and what inserting there means. */
+type Target = {
+  key: string;
+  axis: "row" | "col";
+  rowY: number;
+  colX?: number;
+  /** Pixel geometry within the canvas. */
+  top: number;
+  left?: number;
+  height?: number;
+};
+
 export function InsertLines({
   rows,
+  columns,
   metrics,
+  width,
   containerRef,
   onInsert,
   disabled,
 }: InsertLinesProps): React.ReactElement | null {
   // The line under the pointer, and the one whose menu is open. An open menu PINS its
   // line visible — the pointer has left the band to reach the menu by then.
-  const [hoverRow, setHoverRow] = React.useState<number | null>(null);
-  const [menuRow, setMenuRow] = React.useState<number | null>(null);
+  const [hoverKey, setHoverKey] = React.useState<string | null>(null);
+  const [menuKey, setMenuKey] = React.useState<string | null>(null);
 
-  const tops = React.useMemo(
-    () => rows.map((row) => ({ row, top: rowBoundaryTop(row, metrics) })),
-    [rows, metrics],
-  );
+  const targets = React.useMemo<Target[]>(() => {
+    const out: Target[] = rows.map((rowY) => ({
+      key: `row:${rowY}`,
+      axis: "row",
+      rowY,
+      top: rowBoundaryTop(rowY, metrics),
+    }));
+    for (const c of columns) {
+      out.push({
+        key: `col:${c.rowY}:${c.x}`,
+        axis: "col",
+        rowY: c.rowY,
+        colX: c.x,
+        // The line spans its own row band only — a column gap means nothing outside it.
+        top: rowBoundaryTop(c.rowY, metrics) + metrics.margin[1] / 2,
+        left: columnBoundaryLeft(c.x, metrics, width),
+        height: rowSpanHeight(c.rowBottom - c.rowY, metrics),
+      });
+    }
+    return out;
+  }, [rows, columns, metrics, width]);
+
   // Read by the pointer listener so it never re-binds as the layout changes.
-  const topsRef = React.useRef(tops);
-  topsRef.current = tops;
+  const targetsRef = React.useRef(targets);
+  targetsRef.current = targets;
 
   React.useEffect(() => {
     const el = containerRef.current;
     if (!el || disabled) return;
     const onMove = (e: PointerEvent): void => {
       const box = el.getBoundingClientRect();
+      const x = e.clientX - box.left;
       const y = e.clientY - box.top;
-      let best: number | null = null;
+      // ONE winner across both sets: the single nearest boundary, so a row line and a
+      // column line can never both light up around a corner.
+      let best: string | null = null;
       let bestDist = HIT_BAND;
-      for (const { row, top } of topsRef.current) {
-        const dist = Math.abs(y - top);
+      for (const t of targetsRef.current) {
+        let dist: number;
+        if (t.axis === "row") {
+          dist = Math.abs(y - t.top);
+        } else {
+          // A column line only answers to the pointer inside its own row band.
+          if (y < t.top || y > t.top + (t.height ?? 0)) continue;
+          dist = Math.abs(x - (t.left ?? 0));
+        }
         if (dist <= bestDist) {
-          best = row;
+          best = t.key;
           bestDist = dist;
         }
       }
-      setHoverRow(best);
+      setHoverKey(best);
     };
-    const onLeave = (): void => setHoverRow(null);
+    const onLeave = (): void => setHoverKey(null);
     el.addEventListener("pointermove", onMove);
     el.addEventListener("pointerleave", onLeave);
     return () => {
@@ -96,32 +158,41 @@ export function InsertLines({
   // A drag starting mid-hover would otherwise leave a line stranded on screen.
   React.useEffect(() => {
     if (disabled) {
-      setHoverRow(null);
-      setMenuRow(null);
+      setHoverKey(null);
+      setMenuKey(null);
     }
   }, [disabled]);
 
   if (disabled) return null;
 
   return (
-    <div aria-hidden={false} data-slot="insert-lines" className="cv-insert-lines">
-      {tops.map(({ row, top }) => {
-        const active = menuRow === row || hoverRow === row;
+    <div data-slot="insert-lines" className="cv-insert-lines">
+      {targets.map((t) => {
+        const active = menuKey === t.key || hoverKey === t.key;
+        const column = t.axis === "col";
         return (
           <div
-            key={row}
-            style={{ top }}
-            className={cn("cv-insert-line", active && "cv-insert-line--active")}
+            key={t.key}
+            style={column ? { top: t.top, left: t.left, height: t.height } : { top: t.top }}
+            className={cn(
+              "cv-insert-line",
+              column && "cv-insert-line--col",
+              active && "cv-insert-line--active",
+            )}
           >
             <span className="cv-insert-line-rule" />
             <Popover
-              open={menuRow === row}
-              onOpenChange={(open) => setMenuRow(open ? row : null)}
+              open={menuKey === t.key}
+              onOpenChange={(open) => setMenuKey(open ? t.key : null)}
             >
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  aria-label={`Insert a widget at row ${row}`}
+                  aria-label={
+                    column
+                      ? `Insert a widget beside row ${t.rowY}, at column ${t.colX}`
+                      : `Insert a widget at row ${t.rowY}`
+                  }
                   // Only the visible line takes clicks; the rest of the layer stays
                   // transparent to the pointer so drags and resizes pass through.
                   tabIndex={active ? 0 : -1}
@@ -130,16 +201,20 @@ export function InsertLines({
                   <Plus />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="center" side="bottom" className="cv-insert-menu">
+              <PopoverContent
+                align="center"
+                side={column ? "right" : "bottom"}
+                className="cv-insert-menu"
+              >
                 {KINDS.map(({ kind, label, Icon }) => (
                   <button
                     key={kind}
                     type="button"
                     className="cv-insert-menu-item"
                     onClick={() => {
-                      setMenuRow(null);
-                      setHoverRow(null);
-                      onInsert(kind, row);
+                      setMenuKey(null);
+                      setHoverKey(null);
+                      onInsert(kind, t.rowY, t.colX);
                     }}
                   >
                     <Icon />

@@ -396,6 +396,21 @@
   background: color-mix(in oklab, var(--primary) 55%, transparent);
 }
 
+/* Vertical variant: a column gap INSIDE one row band, so it spans only that band's
+   height (top/left/height come from the layout, inline). */
+.cv-insert-line--col {
+  right: auto;
+  width: 0;
+}
+
+.cv-insert-line--col .cv-insert-line-rule {
+  right: auto;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  height: auto;
+}
+
 .cv-insert-line-button {
   position: relative;
   display: inline-flex;

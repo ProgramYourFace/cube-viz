@@ -4,7 +4,10 @@ import { SCHEMA_VERSION, type DashboardSpec } from "@/spec";
 
 import { newWidget } from "./factories";
 import {
+  columnBoundaries,
+  columnBoundaryLeft,
   editorGridMetrics,
+  insertWidgetAtColumn,
   insertWidgetAtRow,
   rowBoundaries,
   rowBoundaryTop,
@@ -104,6 +107,127 @@ describe("rowBoundaries", () => {
   });
 });
 
+/** A board carrying an arbitrary layout (widgets are irrelevant to the placement math). */
+function boardWith(layout: DashboardSpec["layout"]): DashboardSpec {
+  return { ...board(), widgets: [], layout } as DashboardSpec;
+}
+
+describe("columnBoundaries", () => {
+  it("offers each row band's right edge when the row has free columns", () => {
+    // Both bands stop at column 6 of 12, so both offer a free-edge insert.
+    expect(columnBoundaries(board().layout)).toEqual([
+      { rowY: 0, rowBottom: 6, x: 6, free: true },
+      { rowY: 6, rowBottom: 9, x: 6, free: true },
+    ]);
+  });
+
+  it("offers the gap between two adjacent widgets, and never the canvas edge", () => {
+    expect(
+      columnBoundaries([
+        { i: "a", x: 0, y: 0, w: 6, h: 4 },
+        { i: "b", x: 6, y: 0, w: 6, h: 4 },
+      ]),
+    ).toEqual([{ rowY: 0, rowBottom: 4, x: 6, free: false }]); // 12 is the canvas edge
+  });
+
+  it("drops an edge a wider band-mate straddles", () => {
+    expect(
+      columnBoundaries([
+        { i: "wide", x: 0, y: 0, w: 8, h: 6 },
+        { i: "top", x: 8, y: 0, w: 2, h: 3 },
+        { i: "bottom", x: 8, y: 3, w: 4, h: 3 },
+      ]),
+      // `top`'s right edge (10) is inside `bottom` (8→12), so only 8 survives.
+    ).toEqual([{ rowY: 0, rowBottom: 6, x: 8, free: false }]);
+  });
+});
+
+describe("insertWidgetAtColumn", () => {
+  it("shifts the row-mates right when the row still fits", () => {
+    const spec = boardWith([
+      { i: "a", x: 0, y: 0, w: 3, h: 4 },
+      { i: "b", x: 3, y: 0, w: 3, h: 4 },
+    ]);
+    const next = insertWidgetAtColumn(spec, newWidget("input", "c"), 0, 3);
+    const byId = new Map(next.layout.map((it) => [it.i, it]));
+    expect(byId.get("c")).toMatchObject({ x: 3, y: 0, w: 3, h: 2 });
+    expect(byId.get("a")).toMatchObject({ x: 0, w: 3 });
+    expect(byId.get("b")).toMatchObject({ x: 6, y: 0, w: 3 });
+  });
+
+  it("squeezes the row-mates when shifting would overflow the grid", () => {
+    const spec = boardWith([
+      { i: "a", x: 0, y: 0, w: 6, h: 4 },
+      { i: "b", x: 6, y: 0, w: 6, h: 4, minW: 2 },
+    ]);
+    const next = insertWidgetAtColumn(spec, newWidget("input", "c"), 0, 6);
+    const byId = new Map(next.layout.map((it) => [it.i, it]));
+    expect(byId.get("c")).toMatchObject({ x: 6, y: 0, w: 3 });
+    expect(byId.get("b")).toMatchObject({ x: 9, y: 0, w: 3 }); // squeezed, still >= minW
+    expect(byId.get("b")!.x + byId.get("b")!.w).toBeLessThanOrEqual(12);
+  });
+
+  it("pushes down rather than squeezing a row-mate into an unreadable sliver", () => {
+    // `b` declares no minW; the squeeze floor (2 cols) makes the row infeasible, so it
+    // drops below instead of surviving as a 1-column strip.
+    const spec = boardWith([
+      { i: "a", x: 0, y: 0, w: 8, h: 6 },
+      { i: "b", x: 8, y: 0, w: 4, h: 3 },
+    ]);
+    const next = insertWidgetAtColumn(spec, newWidget("input", "c"), 0, 8);
+    const byId = new Map(next.layout.map((it) => [it.i, it]));
+    expect(byId.get("c")).toMatchObject({ x: 8, y: 0, w: 3 });
+    expect(byId.get("b")).toMatchObject({ x: 8, y: 2, w: 4 });
+  });
+
+  it("pushes the row-mates down when even a squeezed row cannot fit", () => {
+    const spec = boardWith([
+      { i: "a", x: 0, y: 0, w: 6, h: 6 },
+      { i: "b", x: 6, y: 0, w: 6, h: 6 },
+    ]);
+    const next = insertWidgetAtColumn(spec, newWidget("chart", "c"), 0, 6);
+    const byId = new Map(next.layout.map((it) => [it.i, it]));
+    expect(byId.get("c")).toMatchObject({ x: 6, y: 0, w: 6, h: 6 });
+    expect(byId.get("a")).toMatchObject({ x: 0, y: 0 }); // left of the line: untouched
+    expect(byId.get("b")).toMatchObject({ x: 6, y: 6, w: 6 }); // dropped below
+  });
+
+  it("fills a row's free right edge without moving anyone", () => {
+    const spec = boardWith([{ i: "a", x: 0, y: 0, w: 6, h: 4 }]);
+    const next = insertWidgetAtColumn(spec, newWidget("chart", "c"), 0, 6);
+    expect(next.layout.find((it) => it.i === "a")).toMatchObject({ x: 0, y: 0, w: 6 });
+    expect(next.layout.find((it) => it.i === "c")).toMatchObject({ x: 6, y: 0, w: 6, h: 6 });
+  });
+
+  it("caps a free-edge insert at the columns that are actually left", () => {
+    const spec = boardWith([{ i: "a", x: 0, y: 0, w: 10, h: 4 }]);
+    const item = insertWidgetAtColumn(spec, newWidget("chart", "c"), 0, 10).layout.find(
+      (it) => it.i === "c",
+    );
+    expect(item).toMatchObject({ x: 10, w: 2, minW: 2 });
+  });
+
+  it("leaves widgets in OTHER row bands alone", () => {
+    const spec = boardWith([
+      { i: "a", x: 0, y: 0, w: 6, h: 4 },
+      { i: "b", x: 6, y: 0, w: 6, h: 4 },
+      { i: "below", x: 0, y: 4, w: 12, h: 3 },
+    ]);
+    const next = insertWidgetAtColumn(spec, newWidget("input", "c"), 0, 6);
+    expect(next.layout.find((it) => it.i === "below")).toMatchObject({ x: 0, y: 4, w: 12 });
+  });
+
+  it("does not mutate the input spec", () => {
+    const spec = boardWith([
+      { i: "a", x: 0, y: 0, w: 6, h: 4 },
+      { i: "b", x: 6, y: 0, w: 6, h: 4 },
+    ]);
+    const snapshot = JSON.stringify(spec);
+    insertWidgetAtColumn(spec, newWidget("chart", "c"), 0, 6);
+    expect(JSON.stringify(spec)).toBe(snapshot);
+  });
+});
+
 describe("editorGridMetrics / rowBoundaryTop", () => {
   it("scales the cell metrics down on a narrow canvas and never below the floor", () => {
     expect(editorGridMetrics(undefined, 900).scale).toBe(1);
@@ -119,5 +243,12 @@ describe("editorGridMetrics / rowBoundaryTop", () => {
     const m = editorGridMetrics(undefined, 900); // rowHeight 40, margin [12,12]
     expect(rowBoundaryTop(0, m)).toBe(0); // clamped: never above the grid
     expect(rowBoundaryTop(6, m)).toBe(6 * 52 - 6);
+  });
+
+  it("puts a column line in the middle of the gap left of its column", () => {
+    const m = editorGridMetrics(undefined, 900);
+    // 12 cols, 11 gaps of 12px → colWidth 64; left(6) = 6*(64+12) - 6.
+    expect(columnBoundaryLeft(6, m, 900)).toBe(450);
+    expect(columnBoundaryLeft(0, m, 900)).toBe(0); // clamped to the grid's left edge
   });
 });

@@ -16,7 +16,13 @@ import { RenderWidget, DRAG_HANDLE_CLASS } from "@/render";
 import { useContainerWidth } from "@/render/useContainerWidth";
 import { cn } from "@/components/ui/utils";
 
-import { CANONICAL_BREAKPOINT, editorGridMetrics, pickCanonicalLayout, rowBoundaries } from "./layout";
+import {
+  CANONICAL_BREAKPOINT,
+  columnBoundaries,
+  editorGridMetrics,
+  pickCanonicalLayout,
+  rowBoundaries,
+} from "./layout";
 import { EmptyCanvas, InsertLines } from "./InsertLines";
 
 /**
@@ -102,6 +108,10 @@ function EditorCanvasImpl({
   // both wrong (the boundaries are mid-flight) and a distraction.
   const [interacting, setInteracting] = React.useState(false);
   const rows = React.useMemo(() => rowBoundaries(spec.layout), [spec.layout]);
+  const columns = React.useMemo(
+    () => columnBoundaries(spec.layout, canonicalCols),
+    [spec.layout, canonicalCols],
+  );
 
   const layouts = React.useMemo<ResponsiveLayouts>(
     () => ({ [CANONICAL_BREAKPOINT]: toRglLayout(spec.layout) as Layout }),
@@ -266,7 +276,9 @@ function EditorCanvasImpl({
         {width > 0 && onInsert && spec.widgets.length > 0 ? (
           <InsertLines
             rows={rows}
+            columns={columns}
             metrics={metrics}
+            width={width}
             containerRef={canvasRef}
             onInsert={onInsert}
             disabled={interacting}

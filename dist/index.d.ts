@@ -4413,6 +4413,49 @@ export declare const ColorAssignmentSchema: z.ZodObject<{
 }>;
 
 /**
+ * The column boundaries of every row band, i.e. the places a widget can be inserted
+ * BESIDE another rather than between rows.
+ *
+ * A band is the space between two consecutive {@link rowBoundaries}; because those are
+ * never straddled, every item belongs to exactly one band. Within a band we offer each
+ * item's right edge, minus the canvas edges (`0` and `cols` — no room there) and minus
+ * any edge a wider item in the same band straddles (inserting inside a widget is not a
+ * thing). The rightmost edge of a band that doesn't reach `cols` is kept: that's the
+ * free-right-edge case, where the newcomer just fills the empty columns.
+ */
+export declare function columnBoundaries(layout: readonly LayoutItem[], cols?: number): ColumnBoundary[];
+
+/**
+ * A vertical insert target: the gap between two horizontally adjacent widgets inside
+ * one row band (or a row's free right edge). `rowY`/`rowBottom` are the band it lives
+ * in — a column line is only ever as tall as its own row.
+ */
+export declare interface ColumnBoundary {
+    /** Top of the row band (the row an insert here lands on). */
+    rowY: number;
+    /** Bottom of the row band (exclusive) — the line's height. */
+    rowBottom: number;
+    /** Column the newcomer would take. */
+    x: number;
+    /** Nothing sits to the right in this band: free columns, so no one has to move. */
+    free: boolean;
+}
+
+/**
+ * Pixel offset (from the grid container's left) of a column boundary — the mirror of
+ * {@link rowBoundaryTop}: `left(x) = paddingLeft + x * (colWidth + marginX)`, drawn in
+ * the MIDDLE of the gap to the left of that column.
+ */
+export declare function columnBoundaryLeft(colX: number, m: EditorGridMetrics, containerWidth: number): number;
+
+/**
+ * Width of ONE grid column in pixels — RGL divides what's left after the container
+ * padding and the inter-column gaps. Needed to place the vertical insert lines on the
+ * same pixels the grid put its columns on.
+ */
+export declare function columnWidth(m: EditorGridMetrics, containerWidth: number): number;
+
+/**
  * Every overridable slot in cube-viz, keyed by stable slot name. Each field is
  * optional; a missing slot falls back to the built-in. See {@link resolveChart}.
  */
@@ -7800,20 +7843,29 @@ export declare interface InputWidgetViewProps {
     title?: string;
 }
 
-export declare function InsertLines({ rows, metrics, containerRef, onInsert, disabled, }: InsertLinesProps): React_2.ReactElement | null;
+export declare function InsertLines({ rows, columns, metrics, width, containerRef, onInsert, disabled, }: InsertLinesProps): React_2.ReactElement | null;
 
 export declare interface InsertLinesProps {
     /** Row boundaries (grid units) an insert can target — see `rowBoundaries()`. */
     rows: readonly number[];
-    /** The canvas' effective cell metrics; converts a row to a pixel offset. */
+    /** Column boundaries per row band — see `columnBoundaries()`. */
+    columns: readonly ColumnBoundary[];
+    /** The canvas' effective cell metrics; converts a row/column to a pixel offset. */
     metrics: EditorGridMetrics;
+    /** Measured canvas width — the column pixel maths needs it. */
+    width: number;
     /** The element the pointer is tracked against (the canvas the layer covers). */
     containerRef: React_2.RefObject<HTMLElement | null>;
-    /** Insert a fresh widget of `kind` at row `rowY`. */
-    onInsert: (kind: WidgetSpec["type"], rowY: number) => void;
+    /**
+     * Insert a fresh widget of `kind` at row `rowY` — beside the row's widgets when
+     * `colX` is given (a vertical line), between rows when it is not.
+     */
+    onInsert: (kind: WidgetSpec["type"], rowY: number, colX?: number) => void;
     /** Hide everything (a drag/resize is in flight). */
     disabled?: boolean;
 }
+
+export declare function insertWidgetAtColumn(spec: DashboardSpec, widget: WidgetSpec, rowY: number, colX: number, cols?: number): DashboardSpec;
 
 /**
  * A dashboard spec with a widget inserted AT a row boundary: everything at or below
@@ -8787,6 +8839,9 @@ export declare function rowBoundaries(layout: readonly LayoutItem[]): number[];
  * drawn in the MIDDLE of the gap above the row, so it reads as "between" two rows.
  */
 export declare function rowBoundaryTop(rowY: number, m: EditorGridMetrics): number;
+
+/** Pixel height of `rows` grid rows (RGL: rows and the gaps between them). */
+export declare function rowSpanHeight(rows: number, m: EditorGridMetrics): number;
 
 /** Non-throwing variant for editor/preview boundaries. */
 export declare function safeLoadSpec(raw: unknown): LoadResult;

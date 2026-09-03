@@ -20,6 +20,7 @@ import { VariablesDock } from "./dashboard/VariablesDock";
 import { useDebouncedCallback } from "./dashboard/useDebouncedCallback";
 import {
   duplicateWidget,
+  insertWidgetAtColumn,
   insertWidgetAtRow,
   mergeLayout,
   removeWidget,
@@ -269,10 +270,11 @@ export function DashboardEditor({
 
   /* ─────────────────────────────── widgets ──────────────────────────────── */
 
-  // In-context add: the `+` on a canvas row line (or an empty-board tile, which passes
-  // row 0). The widget lands AT that row and pushes the rest of the board down.
+  // In-context add: the `+` on a canvas insert line (or an empty-board tile, which
+  // passes row 0). A ROW line drops the widget at that row and pushes the board down;
+  // a COLUMN line puts it beside the row's widgets and makes room within the row.
   const handleInsert = React.useCallback(
-    (type: WidgetSpec["type"], rowY: number) => {
+    (type: WidgetSpec["type"], rowY: number, colX?: number) => {
       // The host may own chart creation (wizard flow) — see onCreateChart/openWidgetId.
       // It inserts through `spec`, so it decides the placement itself.
       if (type === "chart" && onCreateChart) {
@@ -280,11 +282,17 @@ export function DashboardEditor({
         return;
       }
       const widget = newWidget(type, mintId());
-      commit((d) => insertWidgetAtRow(d, widget, rowY), {
-        kind: "add",
-        widgetId: widget.id,
-        label: `add ${type}`,
-      });
+      commit(
+        (d) =>
+          colX === undefined
+            ? insertWidgetAtRow(d, widget, rowY)
+            : insertWidgetAtColumn(d, widget, rowY, colX),
+        {
+          kind: "add",
+          widgetId: widget.id,
+          label: `add ${type}`,
+        },
+      );
       setSelectedId(widget.id);
       // A blank chart is useless until it's configured, so it opens straight into its
       // editor; a text/input widget is editable in place from the canvas.

@@ -98,9 +98,11 @@ function App({ spec }: { spec: DashboardSpec }) {
 - **`<DashboardEditor spec={...} onChange={...} onSave={...} />`** — the panel-less, on-chart
   editing surface. The library writes nothing itself: wire `onChange` (debounced; the next spec
   **plus an `EditMeta` describing the edit**) and `onSave` (re-validated through
-  `DashboardSpecSchema`) to your store. Widgets are added **in context** — hover a row boundary
-  on the canvas for an insert line and its `+` (Chart · Text · Input); an empty board offers the
-  same three as tiles. Dashboard variables open in a **docked right-hand panel** beside the live
+  `DashboardSpecSchema`) to your store. Widgets are added **in context** — hover a row
+  boundary for a horizontal insert line, or a column gap inside a row for a vertical one, and
+  take its `+` (Chart · Text · Input); the widget lands between the rows or *beside* its
+  neighbours (which shift, squeeze, or drop below to make room). An empty board offers the same
+  three kinds as tiles. Dashboard variables open in a **docked right-hand panel** beside the live
   canvas, where a rename rewrites every `{var}` token and input binding with it. It is
   intentionally history-less — the **host** owns undo/redo and re-seeds `spec` on undo/redo,
   passing `onUndo`/`onRedo`/`canUndo`/`canRedo`/`onDiscard` (plus optional `undoLabel`/`redoLabel`,
