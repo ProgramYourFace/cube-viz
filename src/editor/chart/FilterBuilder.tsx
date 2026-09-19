@@ -24,6 +24,7 @@ import {
 
 import { MemberPicker, MemberUnitChip } from "../primitives/MemberPicker";
 import { SegmentedControl } from "../primitives/SegmentedControl";
+import { useParsedText } from "../primitives/useParsedText";
 import {
   findMember,
   OPERATOR_LABELS,
@@ -520,15 +521,40 @@ function FilterValueField({
       onChange={(next) =>
         onChange(next === undefined ? [] : isVarRef(next) ? [next] : (next as Scalar[]))
       }
-      renderFixed={(arr, set) => (
-        <Input
-          id={fieldId}
-          value={(arr ?? []).map(String).join(", ")}
-          onChange={(e) => set(splitValues(e.target.value))}
-          placeholder="value, value…"
-          className="cv-ec-h8"
-        />
-      )}
+      renderFixed={(arr, set) => <ScalarListInput id={fieldId} values={arr} onChange={set} />}
+    />
+  );
+}
+
+/**
+ * The comma-separated value list. The raw text is buffered ({@link useParsedText}) so
+ * the states between two values survive: with the input's value derived from the
+ * parsed list, typing the comma in "a," re-rendered as "a" — the comma vanished and a
+ * second value could only be added by typing both words and going back for the comma.
+ */
+function ScalarListInput({
+  id,
+  values,
+  onChange,
+}: {
+  id?: string;
+  values: Scalar[] | undefined;
+  onChange: (values: Scalar[] | undefined) => void;
+}): React.ReactElement {
+  const { text, onText, onBlur } = useParsedText<string[]>({
+    value: (values ?? []).map(String),
+    parse: splitValues,
+    format: joinValues,
+    onChange,
+  });
+  return (
+    <Input
+      id={id}
+      value={text}
+      onChange={(e) => onText(e.target.value)}
+      onBlur={onBlur}
+      placeholder="value, value…"
+      className="cv-ec-h8"
     />
   );
 }
@@ -547,9 +573,14 @@ function dateRangeToValues(dr: DateRange): (Scalar | VarRef)[] {
 }
 
 /** Split a comma-separated value string into trimmed, non-empty string values. */
-function splitValues(text: string): string[] {
+export function splitValues(text: string): string[] {
   return text
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+}
+
+/** The canonical display of a value list (inverse of {@link splitValues}). */
+export function joinValues(values: string[]): string {
+  return values.join(", ");
 }

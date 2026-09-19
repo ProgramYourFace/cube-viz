@@ -1,5 +1,11 @@
 import * as React from "react";
 
+/** The debounced function, plus `cancel()` to drop whatever is pending. */
+export type DebouncedCallback<A extends unknown[]> = ((...args: A) => void) & {
+  /** Drop the pending invocation (nothing fires). For a hard re-seed that supersedes it. */
+  cancel: () => void;
+};
+
 /**
  * Debounce a callback by `delay` ms, keeping the latest callback identity without
  * resetting the timer (a ref holds the current fn). Cleans the pending timer up on
@@ -11,7 +17,7 @@ import * as React from "react";
 export function useDebouncedCallback<A extends unknown[]>(
   fn: (...args: A) => void,
   delay: number,
-): (...args: A) => void {
+): DebouncedCallback<A> {
   const fnRef = React.useRef(fn);
   React.useEffect(() => {
     fnRef.current = fn;
@@ -36,7 +42,7 @@ export function useDebouncedCallback<A extends unknown[]>(
     [],
   );
 
-  return React.useCallback(
+  const debounced = React.useCallback(
     (...args: A) => {
       if (timerRef.current !== null) clearTimeout(timerRef.current);
       pendingArgsRef.current = args;
@@ -48,4 +54,12 @@ export function useDebouncedCallback<A extends unknown[]>(
     },
     [delay],
   );
+
+  const cancel = React.useCallback(() => {
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    pendingArgsRef.current = null;
+  }, []);
+
+  return React.useMemo(() => Object.assign(debounced, { cancel }), [debounced, cancel]);
 }

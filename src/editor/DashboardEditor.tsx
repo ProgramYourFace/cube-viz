@@ -27,7 +27,19 @@ import {
   replaceWidget,
 } from "./dashboard/layout";
 import { createIdFactory, newWidget, type IdFactory } from "./dashboard/factories";
+import { mergeRemote } from "./dashboard/mergeRemote";
 import { EditorErrorBoundary } from "./primitives/EditorErrorBoundary";
+
+/**
+ * How long a LOCAL edit shields its widget / top-level field from a remote merge. A
+ * local change younger than this is either already in the shared draft (so keeping the
+ * local copy changes nothing) or still travelling through the host's debounce and round
+ * trip — and a remote spec that predates it would revert it on screen while the server
+ * still receives it. Covers the host's typical debounce + save + subscription lag with
+ * margin; a genuine concurrent edit to the same widget inside this window resolves to
+ * the local copy (the same last-writer-wins the shared draft already has).
+ */
+export const RECENT_EDIT_PROTECT_MS = 2000;
 
 /**
  * DashboardEditor (docs/03 §A3.2) — the JSON-in / JSON-out dashboard editor.
@@ -225,16 +237,36 @@ export function DashboardEditor({
     debounceMs,
   );
 
+  // What the local user changed lately, for the remote merge to protect: widget ids
+  // (`w:<id>`, also shielding the widget's layout item) and top-level fields
+  // (`f:<key>`), each with the wall-clock of its last local edit. See
+  // RECENT_EDIT_PROTECT_MS.
+  const recentEditsRef = React.useRef<Map<string, number>>(new Map());
+
   // The single mutation seam: a FUNCTIONAL update so two commits in one tick compose
   // (e.g. inline "New variable" adds a variable AND binds the widget — both must land,
   // not clobber each other via a stale `draft` closure). Every call names what it did
-  // ({@link EditMeta}) so the host's undo stack can label + coalesce its entries.
+  // ({@link EditMeta}) so the host's undo stack can label + coalesce its entries. A
+  // no-op update (same spec back) emits nothing — RGL reports an unchanged layout on
+  // mount, and that must not read as an edit downstream.
   const commit = React.useCallback(
     (update: (prev: DashboardSpec) => DashboardSpec, meta: EditMeta) => {
-      lastLocalEditRef.current = Date.now();
+      const now = Date.now();
+      lastLocalEditRef.current = now;
+      if (meta.widgetId) recentEditsRef.current.set(`w:${meta.widgetId}`, now);
+      if (meta.kind === "name") recentEditsRef.current.set("f:name", now);
+      if (meta.kind === "variables") recentEditsRef.current.set("f:variables", now);
       setDraft((prev) => {
         const next = update(prev);
-        debouncedChange(next, meta);
+        if (next !== prev) {
+          // A layout edit names no widget; shield exactly the items whose geometry moved.
+          if (meta.kind === "layout") {
+            for (const id of changedLayoutIds(prev.layout, next.layout)) {
+              recentEditsRef.current.set(`w:${id}`, now);
+            }
+          }
+          debouncedChange(next, meta);
+        }
         return next;
       });
     },
@@ -270,9 +302,21 @@ export function DashboardEditor({
       }
       adoptedRemoteRef.current = remoteSpec;
       const protectedIds = new Set<string>();
+      const protectedFields = new Set<string>();
       if (editingRef.current?.kind === "widget") protectedIds.add(editingRef.current.id);
       if (selectedIdRef.current) protectedIds.add(selectedIdRef.current);
-      const merged = mergeRemote(remoteSpec, draftRef.current, protectedIds);
+      // Plus everything the local user touched within the protection window (and
+      // forget older entries while we're here).
+      const now = Date.now();
+      for (const [key, at] of recentEditsRef.current) {
+        if (now - at > RECENT_EDIT_PROTECT_MS) {
+          recentEditsRef.current.delete(key);
+          continue;
+        }
+        if (key.startsWith("w:")) protectedIds.add(key.slice(2));
+        else if (key.startsWith("f:")) protectedFields.add(key.slice(2));
+      }
+      const merged = mergeRemote(remoteSpec, draftRef.current, protectedIds, protectedFields);
       setDraft(merged);
       onRemoteAdopted?.(merged); // keep the host's diff base in sync (no echo-out)
     };
@@ -660,35 +704,13 @@ function layoutsEqual(a: LayoutItem[], b: LayoutItem[]): boolean {
   return true;
 }
 
-/**
- * Merge a collaborator's `remote` spec into the `local` working draft, per widget /
- * layout item (last-write-wins), but always keeping the LOCAL copy of `protectedIds`
- * (the widget under active edit) so live updates never clobber what you're touching.
- * Remote deletes win for non-protected widgets; protected local-only widgets (e.g. a
- * just-added one not yet round-tripped) are preserved.
- */
-function mergeRemote(
-  remote: DashboardSpec,
-  local: DashboardSpec,
-  protectedIds: Set<string>,
-): DashboardSpec {
-  const localWidgetById = new Map(local.widgets.map((w) => [w.id, w]));
-  const remoteWidgetIds = new Set(remote.widgets.map((w) => w.id));
-  const widgets: WidgetSpec[] = remote.widgets.map((w) =>
-    protectedIds.has(w.id) && localWidgetById.has(w.id) ? localWidgetById.get(w.id)! : w,
-  );
-  for (const w of local.widgets) {
-    if (!remoteWidgetIds.has(w.id) && protectedIds.has(w.id)) widgets.push(w);
-  }
-
-  const localLayoutById = new Map(local.layout.map((l) => [l.i, l]));
-  const remoteLayoutIds = new Set(remote.layout.map((l) => l.i));
-  const layout: LayoutItem[] = remote.layout.map((l) =>
-    protectedIds.has(l.i) && localLayoutById.has(l.i) ? localLayoutById.get(l.i)! : l,
-  );
-  for (const l of local.layout) {
-    if (!remoteLayoutIds.has(l.i) && protectedIds.has(l.i)) layout.push(l);
-  }
-
-  return { ...remote, widgets, layout };
+/** Ids of the layout items whose geometry differs between two layouts (added ones included). */
+function changedLayoutIds(prev: LayoutItem[], next: LayoutItem[]): string[] {
+  const before = new Map(prev.map((l) => [l.i, l]));
+  return next
+    .filter((l) => {
+      const p = before.get(l.i);
+      return !p || p.x !== l.x || p.y !== l.y || p.w !== l.w || p.h !== l.h;
+    })
+    .map((l) => l.i);
 }

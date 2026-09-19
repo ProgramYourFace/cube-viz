@@ -6839,6 +6839,12 @@ export declare type DateRange = z.infer<typeof DateRangeSchema>;
 /** Absolute `[from, to]` pair OR a relative string like "last 30 days" / "This month". */
 export declare const DateRangeSchema: z.ZodUnion<[z.ZodTuple<[z.ZodString, z.ZodString], null>, z.ZodString]>;
 
+/** The debounced function, plus `cancel()` to drop whatever is pending. */
+declare type DebouncedCallback<A extends unknown[]> = ((...args: A) => void) & {
+    /** Drop the pending invocation (nothing fires). For a hard re-seed that supersedes it. */
+    cancel: () => void;
+};
+
 /**
  * Deep-merge `override` over `base`: objects recurse, **arrays replace wholesale**,
  * scalars/undefined-aware (an explicit `undefined` does not clobber a base value).
@@ -12495,7 +12501,7 @@ export declare function useDashboard(): DashboardContextValue;
  * Used to debounce the editor's `onChange` so keystroke-level edits don't flood the
  * host while still emitting JSON-out on every change (eventually-consistent).
  */
-export declare function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => void, delay: number): (...args: A) => void;
+export declare function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => void, delay: number): DebouncedCallback<A>;
 
 /**
  * Storage-unit → DISPLAY-unit mapper for the current viewer ("km" → "mi" when the
@@ -12772,19 +12778,23 @@ export declare interface WidgetChromeProps {
     };
 }
 
-export declare function WidgetEditPanel({ widget, variables, onChange, onVariablesChange, fill, }: WidgetEditPanelProps): React_2.ReactElement;
+export declare const WidgetEditPanel: React_2.NamedExoticComponent<WidgetEditPanelProps>;
 
 /**
  * The per-widget edit panel hosted in the dashboard editor's full-screen widget
  * editor (docs/03 §A3.2 "Select-to-edit"). Dispatches by widget type:
  *  - chart → the sibling {@link ChartEditor} (a ChartSpec-in/out editor; we adapt
  *    the `ChartWidget` ↔ `ChartSpec` at the seam so the chart editor stays unaware
- *    of the dashboard envelope)
+ *    of the dashboard envelope — see widgetSpecAdapter.ts)
  *  - text  → the editable TipTap {@link TextWidgetEditor}
  *  - input → the {@link InputWidgetEditor} (variable + kind + kind options)
  *
  * Plus a shared title field for every widget. The panel is pure: it emits the next
  * `WidgetSpec` upward; the editor merges it into the spec.
+ *
+ * Memoised: the dashboard editor re-renders on every host re-render (a DOM-component
+ * host re-marshals its props on each native render), and none of that should reach the
+ * chart editor + its live preview unless the widget, variables or callbacks changed.
  */
 export declare interface WidgetEditPanelProps {
     widget: WidgetSpec;

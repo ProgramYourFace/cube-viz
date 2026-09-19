@@ -21,6 +21,7 @@ import {
 
 import { FieldRow } from "../primitives/FieldRow";
 import { SwitchRow } from "../primitives/SwitchRow";
+import { useParsedText } from "../primitives/useParsedText";
 import { defaultForType, newVariable } from "./factories";
 import {
   removeVariable,
@@ -425,31 +426,72 @@ function DefaultField({
         ? "Comma-separated values."
         : undefined;
 
-  const display = Array.isArray(decl.default)
-    ? decl.default.join(", ")
-    : stringifyScalar(decl.default);
+  if (decl.array) {
+    return (
+      <FieldRow label="Default" htmlFor={defaultId} hint={hint} className="cv-ed-row-tight">
+        <ListDefaultInput
+          id={defaultId}
+          value={Array.isArray(decl.default) ? decl.default.map(String) : []}
+          placeholder={defaultPlaceholder(decl.type)}
+          onChange={onChange}
+        />
+      </FieldRow>
+    );
+  }
 
   return (
     <FieldRow label="Default" htmlFor={defaultId} hint={hint} className="cv-ed-row-tight">
       <Input
         id={defaultId}
-        value={display}
+        value={stringifyScalar(decl.default)}
         placeholder={defaultPlaceholder(decl.type)}
         onChange={(e) => {
           const raw = e.target.value;
-          if (raw === "") {
-            onChange(undefined);
-            return;
-          }
-          if (decl.array) {
-            const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
-            onChange(list);
-            return;
-          }
-          onChange(raw);
+          onChange(raw === "" ? undefined : raw);
         }}
       />
     </FieldRow>
+  );
+}
+
+/** Comma-separated list → trimmed non-empty values (every intermediate string parses). */
+function splitList(text: string): string[] {
+  return text.split(",").map((s) => s.trim()).filter(Boolean);
+}
+function joinList(values: string[]): string {
+  return values.join(", ");
+}
+
+/**
+ * The comma-separated default of a multi-value variable. Buffered raw text
+ * ({@link useParsedText}) so the comma being typed between two values survives —
+ * derived from the parsed list, "a," re-rendered as "a" and the comma was lost.
+ */
+function ListDefaultInput({
+  id,
+  value,
+  placeholder,
+  onChange,
+}: {
+  id: string;
+  value: string[];
+  placeholder: string;
+  onChange: (value: VariableValue | undefined) => void;
+}): React.ReactElement {
+  const { text, onText, onBlur } = useParsedText<string[]>({
+    value,
+    parse: splitList,
+    format: joinList,
+    onChange: (list) => onChange(list.length === 0 ? undefined : list),
+  });
+  return (
+    <Input
+      id={id}
+      value={text}
+      placeholder={placeholder}
+      onChange={(e) => onText(e.target.value)}
+      onBlur={onBlur}
+    />
   );
 }
 

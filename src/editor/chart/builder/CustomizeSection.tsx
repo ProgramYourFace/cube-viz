@@ -16,6 +16,7 @@ import {
 import { FieldRow } from "../../primitives/FieldRow";
 import { SegmentedControl } from "../../primitives/SegmentedControl";
 import { SwitchRow } from "../../primitives/SwitchRow";
+import { useParsedText } from "../../primitives/useParsedText";
 
 export interface CustomizeSectionProps {
   spec: ChartSpec;
@@ -130,18 +131,10 @@ export function CustomizeSection({ spec, update }: CustomizeSectionProps): React
       {transformKind === "rollingAvg" ? (
         <KField label="Window (points)">
           {(id) => (
-            <Input
+            <WindowInput
               id={id}
-              type="number"
-              min={2}
-              max={90}
-              className="cv-ec-h8 cv-transform-window"
               value={chart.transform?.window ?? DEFAULT_TRANSFORM_WINDOW}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10);
-                const window = Number.isFinite(n) ? Math.min(90, Math.max(2, n)) : DEFAULT_TRANSFORM_WINDOW;
-                setEnvelope({ transform: { kind: "rollingAvg", window } });
-              }}
+              onChange={(window) => setEnvelope({ transform: { kind: "rollingAvg", window } })}
             />
           )}
         </KField>
@@ -314,6 +307,53 @@ export function hasCustomizeOptions(
  * caption is a real `<label htmlFor>` over a generated id, which the control adopts —
  * so these numeric knobs have accessible names instead of only a placeholder.
  */
+/** Rolling-average window bounds (points). */
+const WINDOW_MIN = 2;
+const WINDOW_MAX = 90;
+/** Any typed text → a valid window: clamped, default when blank or unparsable. */
+function parseWindow(text: string): number {
+  const n = parseInt(text, 10);
+  return Number.isFinite(n) ? Math.min(WINDOW_MAX, Math.max(WINDOW_MIN, n)) : DEFAULT_TRANSFORM_WINDOW;
+}
+function formatWindow(n: number): string {
+  return String(n);
+}
+
+/**
+ * The rolling window field. Its value is clamped to ≥ {@link WINDOW_MIN}, so an input
+ * whose text was derived from the clamped value could not be typed into: "1" (on the
+ * way to "15") snapped to "2", and clearing the field snapped to the default. The raw
+ * text is buffered ({@link useParsedText}); the clamp applies to what is emitted.
+ */
+function WindowInput({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: number;
+  onChange: (window: number) => void;
+}): React.ReactElement {
+  const { text, onText, onBlur } = useParsedText<number>({
+    value,
+    parse: parseWindow,
+    format: formatWindow,
+    onChange,
+  });
+  return (
+    <Input
+      id={id}
+      type="number"
+      min={WINDOW_MIN}
+      max={WINDOW_MAX}
+      className="cv-ec-h8 cv-transform-window"
+      value={text}
+      onChange={(e) => onText(e.target.value)}
+      onBlur={onBlur}
+    />
+  );
+}
+
 function KField({
   label,
   children,
