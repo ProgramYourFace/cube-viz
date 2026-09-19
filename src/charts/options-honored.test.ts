@@ -119,6 +119,24 @@ describe("buildStackedRows", () => {
     ]);
   });
 
+  it("keeps a ZERO datum at the running top of its stack, not at the baseline", () => {
+    // TEMPORARY: the area family stacks through these explicit intervals because
+    // TanStack's implicit stack (d3 `stackOffsetDiverging`) pins a zero value's
+    // interval to [0, 0] — the "band falls to the x axis" bug. Drop this pin along
+    // with the workaround in area.tsx once @tanstack/charts stacks zeros in place.
+    const zeroed = chartData(
+      ["Mon", "Tue", "Wed"],
+      [series("green", [5, 5, 5]), series("yellow", [3, 3, 3]), series("purple", [4, 0, 4])],
+    );
+    const rows = buildStackedRows(zeroed, zeroed.series);
+    const purple = rows.filter((r) => r.key === "purple");
+    expect(purple.map((r) => [r.y1, r.y2])).toEqual([
+      [8, 12],
+      [8, 8],
+      [8, 12],
+    ]);
+  });
+
   it("leaves a null datum as a zero-width interval with no share", () => {
     const gappy = chartData(["Mon"], [series("a", [null]), series("b", [8])]);
     const rows = buildStackedRows(gappy, gappy.series, { normalize: true });
