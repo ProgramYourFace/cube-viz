@@ -1,5 +1,5 @@
 import * as React from "react";
-import { areaY, defineChart, dot, lineY, stack, type ChartMark } from "@tanstack/charts";
+import { areaY, defineChart, dot, lineY, type ChartMark } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
 
 import type { ChartComponentProps } from "./types";
@@ -39,10 +39,11 @@ import {
  * `stackMode` is the load-bearing input, translated to the TanStack grammar:
  *  - none    → one areaY PER SERIES with an explicit `y1: 0` baseline (explicit
  *              endpoints opt out of implicit stacking → overlapping fills).
- *  - stacked → ONE areaY over long rows with `z`/`color` = label, so repeated x
- *              positions stack implicitly by series.
- *  - percent → the stacked mark plus `layout: stack({ offset: "normalize" })`,
- *              percent value ticks, and share-of-total tooltip rows.
+ *  - stacked → ONE areaY over long rows with `z`/`color` = label and EXPLICIT
+ *              `y1`/`y2` intervals from `buildStackedRows` (see the workaround note
+ *              in the stacked branch — implicit stacking drops zeros to the axis).
+ *  - percent → the same mark with normalized intervals, percent value ticks, and
+ *              share-of-total tooltip rows.
  * TanStack areas don't draw their upper line; the boundary stroke comes from the
  * areaY mark's own `stroke` channel (no separate line layer needed).
  * orientation is ignored, as before. Dual-axis was removed with the combo family.
@@ -120,18 +121,36 @@ export function AreaChartFamily({
       : undefined;
 
     if (stacked) {
-      // Per-series `meta.stackId`: one areaY mark PER STACK, each stacking its own
-      // series implicitly. Separate stacks overlay each other from the shared zero
-      // baseline (the Recharts behavior — distinct stackIds were independent bands),
-      // which the translucent fill keeps readable. A single stack is the common case
-      // and renders exactly as before.
+      // Per-series `meta.stackId`: one areaY mark PER STACK. Separate stacks overlay
+      // each other from the shared zero baseline (the Recharts behavior — distinct
+      // stackIds were independent bands), which the translucent fill keeps readable.
+      // A single stack is the common case and renders exactly as before.
+      //
+      // TEMPORARY WORKAROUND — explicit `y1`/`y2` instead of TanStack's implicit stack.
+      // The implicit stack (`stackValues`) runs d3's `stackOffsetDiverging`, and d3
+      // pins a ZERO value's interval to the baseline (`d[0] = 0, d[1] = 0`) rather than
+      // to the running top of the positive stack. A series that is 0 for one bucket
+      // (Cube fills missing time buckets with 0) therefore drew both of its edges
+      // sweeping down to the x axis and back up. TanStack exposes no "none" offset to
+      // opt out, so we pre-compute the intervals ourselves (`buildStackedRows`, which
+      // keeps a zero at the current top and already serves the stacked dot mark).
+      // Revert to `y: "value"` + implicit stacking (`layout: stack(...)`) once
+      // @tanstack/charts stacks zeros in place.
       for (const { stackId, series: group } of stackGroups(primaries)) {
-        const rows = buildSeriesRows(data, { series: group, skipNull: connectNulls, temporal });
+        const rows = buildStackedRows(data, group, { normalize: percent, temporal }).filter(
+          // `connectNulls` drops the null rows so the curve bridges the gap; otherwise a
+          // null row stays and breaks the segment (the mark skips a non-finite `y`).
+          (r) => !(connectNulls && r.value === null),
+        );
         marks.push(
           areaY(rows, {
             id: stackId ? `cv-area-stack-${stackId}` : "cv-area-stack",
             x: xField,
+            // `y` stays the RAW value (what the tooltip/focus reads); the explicit
+            // interval carries the stacking.
             y: "value",
+            y1: "y1",
+            y2: "y2",
             z: "label",
             color: "label",
             // "i" alone collides across series inside a single multi-series mark.
@@ -141,7 +160,6 @@ export function AreaChartFamily({
             // Boundary stroke; evaluated from each z-group's first row → per-series color.
             stroke: (r: SeriesRow) => colorByKey.get(r.key) ?? "currentColor",
             strokeWidth,
-            layout: percent ? stack({ offset: "normalize" }) : undefined,
           }),
         );
       }
