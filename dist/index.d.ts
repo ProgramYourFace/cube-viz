@@ -4941,7 +4941,7 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, renderWidgetAside, className, }: DashboardEditorProps): React_2.ReactElement;
 
 export declare interface DashboardEditorProps {
     /** The dashboard spec to edit (JSON-in). Identity change = a host re-seed (undo/
@@ -5021,6 +5021,17 @@ export declare interface DashboardEditorProps {
      * until the host passes a different id.
      */
     openWidgetId?: string;
+    /**
+     * A host panel rendered BESIDE the full-screen chart editor (e.g. an AI editing
+     * chat). `update` is the editor's own widget-change path (same undo coalescing as a
+     * manual edit), `close` is the header's Done. Rendered only for chart widgets; the
+     * host owns the panel's width and its collapsed state.
+     */
+    renderWidgetAside?: (ctx: {
+        widget: WidgetSpec;
+        update: (next: WidgetSpec) => void;
+        close: () => void;
+    }) => React_2.ReactNode;
     className?: string;
 }
 

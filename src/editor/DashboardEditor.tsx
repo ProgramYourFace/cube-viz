@@ -144,6 +144,13 @@ export interface DashboardEditorProps {
    * until the host passes a different id.
    */
   openWidgetId?: string;
+  /**
+   * A host panel rendered BESIDE the full-screen chart editor (e.g. an AI editing
+   * chat). `update` is the editor's own widget-change path (same undo coalescing as a
+   * manual edit), `close` is the header's Done. Rendered only for chart widgets; the
+   * host owns the panel's width and its collapsed state.
+   */
+  renderWidgetAside?: (ctx: { widget: WidgetSpec; update: (next: WidgetSpec) => void; close: () => void }) => React.ReactNode;
   className?: string;
 }
 
@@ -165,6 +172,7 @@ export function DashboardEditor({
   families,
   onCreateChart,
   openWidgetId,
+  renderWidgetAside,
   className,
 }: DashboardEditorProps): React.ReactElement {
   // Local working copy; the host's `spec` seeds it and re-seeds when its identity
@@ -454,6 +462,10 @@ export function DashboardEditor({
   }, []);
 
   const overlayTitle = editingWidget ? titleOf(editingWidget) : "";
+  const aside =
+    editingWidget?.type === "chart" && renderWidgetAside
+      ? renderWidgetAside({ widget: editingWidget, update: handleWidgetChange, close: closeEditor })
+      : null;
 
   return (
     <FamilyRegistryOverride families={families}>
@@ -562,13 +574,22 @@ export function DashboardEditor({
           <EditorErrorBoundary label={overlayTitle} resetKey={draft}>
           <div className="cv-dashboard-editor-fullscreen-body">
             {editingWidget?.type === "chart" ? (
-              <WidgetEditPanel
-                fill
-                widget={editingWidget}
-                variables={draft.variables}
-                onChange={handleWidgetChange}
-                onVariablesChange={handleVariablesChange}
-              />
+              <div className="cv-dashboard-editor-fullscreen-row">
+                <div className="cv-dashboard-editor-fullscreen-main">
+                  <WidgetEditPanel
+                    fill
+                    widget={editingWidget}
+                    variables={draft.variables}
+                    onChange={handleWidgetChange}
+                    onVariablesChange={handleVariablesChange}
+                  />
+                </div>
+                {aside ? (
+                  <aside data-slot="dashboard-editor-aside" className="cv-dashboard-editor-fullscreen-aside">
+                    {aside}
+                  </aside>
+                ) : null}
+              </div>
             ) : editingWidget ? (
               <div className="cv-dashboard-editor-fullscreen-column">
                 <WidgetEditPanel
