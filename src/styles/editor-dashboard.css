@@ -139,6 +139,13 @@
   gap: 0.5rem;
 }
 
+.cv-dashboard-editor-fullscreen-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .cv-dashboard-editor-fullscreen-title {
   overflow: hidden;
   text-overflow: ellipsis;

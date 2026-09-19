@@ -151,6 +151,10 @@ export interface DashboardEditorProps {
    * host owns the panel's width and its collapsed state.
    */
   renderWidgetAside?: (ctx: { widget: WidgetSpec; update: (next: WidgetSpec) => void; close: () => void }) => React.ReactNode;
+  /** Host controls in the full-screen editor's header (right side, before Delete) — e.g. the button that re-opens a collapsed aside. */
+  renderWidgetHeaderExtra?: (ctx: { widget: WidgetSpec; update: (next: WidgetSpec) => void; close: () => void }) => React.ReactNode;
+  /** The full-screen widget editor opened (its id) or closed (null) — the host hides overlays that would sit on top of it. */
+  onEditingChange?: (widgetId: string | null) => void;
   className?: string;
 }
 
@@ -173,6 +177,8 @@ export function DashboardEditor({
   onCreateChart,
   openWidgetId,
   renderWidgetAside,
+  renderWidgetHeaderExtra,
+  onEditingChange,
   className,
 }: DashboardEditorProps): React.ReactElement {
   // Local working copy; the host's `spec` seeds it and re-seeds when its identity
@@ -462,10 +468,13 @@ export function DashboardEditor({
   }, []);
 
   const overlayTitle = editingWidget ? titleOf(editingWidget) : "";
-  const aside =
-    editingWidget?.type === "chart" && renderWidgetAside
-      ? renderWidgetAside({ widget: editingWidget, update: handleWidgetChange, close: closeEditor })
-      : null;
+  const asideCtx = editingWidget?.type === "chart" ? { widget: editingWidget, update: handleWidgetChange, close: closeEditor } : null;
+  const aside = asideCtx && renderWidgetAside ? renderWidgetAside(asideCtx) : null;
+  const headerExtra = asideCtx && renderWidgetHeaderExtra ? renderWidgetHeaderExtra(asideCtx) : null;
+  const editingId = editing?.id ?? null;
+  React.useEffect(() => {
+    onEditingChange?.(editingId);
+  }, [editingId, onEditingChange]);
 
   return (
     <FamilyRegistryOverride families={families}>
@@ -555,16 +564,19 @@ export function DashboardEditor({
               </Button>
               <span className="cv-dashboard-editor-fullscreen-title">{overlayTitle}</span>
             </div>
-            {editingWidget ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="cv-ed-danger"
-                onClick={() => handleDelete(editingWidget.id)}
-              >
-                <Trash2 /> Delete
-              </Button>
-            ) : null}
+            <div className="cv-dashboard-editor-fullscreen-actions">
+              {headerExtra}
+              {editingWidget ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="cv-ed-danger"
+                  onClick={() => handleDelete(editingWidget.id)}
+                >
+                  <Trash2 /> Delete
+                </Button>
+              ) : null}
+            </div>
           </header>
 
           {/* The header above stays OUTSIDE this boundary on purpose: whatever goes

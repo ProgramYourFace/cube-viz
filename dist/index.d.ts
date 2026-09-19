@@ -4941,7 +4941,7 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, renderWidgetAside, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, renderWidgetAside, renderWidgetHeaderExtra, onEditingChange, className, }: DashboardEditorProps): React_2.ReactElement;
 
 export declare interface DashboardEditorProps {
     /** The dashboard spec to edit (JSON-in). Identity change = a host re-seed (undo/
@@ -5032,6 +5032,14 @@ export declare interface DashboardEditorProps {
         update: (next: WidgetSpec) => void;
         close: () => void;
     }) => React_2.ReactNode;
+    /** Host controls in the full-screen editor's header (right side, before Delete) — e.g. the button that re-opens a collapsed aside. */
+    renderWidgetHeaderExtra?: (ctx: {
+        widget: WidgetSpec;
+        update: (next: WidgetSpec) => void;
+        close: () => void;
+    }) => React_2.ReactNode;
+    /** The full-screen widget editor opened (its id) or closed (null) — the host hides overlays that would sit on top of it. */
+    onEditingChange?: (widgetId: string | null) => void;
     className?: string;
 }
 
