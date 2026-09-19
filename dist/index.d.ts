@@ -45,10 +45,11 @@ export declare function appendWidget(spec: DashboardSpec, widget: WidgetSpec, co
  * `stackMode` is the load-bearing input, translated to the TanStack grammar:
  *  - none    → one areaY PER SERIES with an explicit `y1: 0` baseline (explicit
  *              endpoints opt out of implicit stacking → overlapping fills).
- *  - stacked → ONE areaY over long rows with `z`/`color` = label, so repeated x
- *              positions stack implicitly by series.
- *  - percent → the stacked mark plus `layout: stack({ offset: "normalize" })`,
- *              percent value ticks, and share-of-total tooltip rows.
+ *  - stacked → ONE areaY over long rows with `z`/`color` = label and EXPLICIT
+ *              `y1`/`y2` intervals from `buildStackedRows` (see the workaround note
+ *              in the stacked branch — implicit stacking drops zeros to the axis).
+ *  - percent → the same mark with normalized intervals, percent value ticks, and
+ *              share-of-total tooltip rows.
  * TanStack areas don't draw their upper line; the boundary stroke comes from the
  * areaY mark's own `stroke` channel (no separate line layer needed).
  * orientation is ignored, as before. Dual-axis was removed with the combo family.
