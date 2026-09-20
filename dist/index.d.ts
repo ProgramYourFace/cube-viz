@@ -4942,7 +4942,7 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, renderWidgetAside, renderWidgetHeaderExtra, onEditingChange, adoptRemoteWidget, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, renderWidgetAside, renderWidgetHeaderExtra, onEditingChange, adoptRemoteWidget, onDropWidget, className, }: DashboardEditorProps): React_2.ReactElement;
 
 export declare interface DashboardEditorProps {
     /** The dashboard spec to edit (JSON-in). Identity change = a host re-seed (undo/
@@ -5051,6 +5051,16 @@ export declare interface DashboardEditorProps {
     adoptRemoteWidget?: {
         id: string;
         key: string;
+    };
+    /**
+     * Accept a chart dragged from outside the editor (HTML5 drag-and-drop, web): the
+     * host names the dataTransfer `mimeType` its drag sources set and turns the payload
+     * into a widget (minting a board-unique id) — or returns undefined to reject it. The
+     * editor inserts the widget at the cell the ghost landed on, as one undoable "add".
+     */
+    onDropWidget?: {
+        mimeType: string;
+        parse: (data: string) => WidgetSpec | undefined;
     };
     className?: string;
 }
@@ -6955,7 +6965,7 @@ export declare type EditMeta = {
  */
 export declare const EditorCanvas: React_2.MemoExoticComponent<typeof EditorCanvasImpl>;
 
-declare function EditorCanvasImpl({ spec, selectedId, onSelect, onEdit, onDuplicate, onDelete, onLayoutChange, onInsert, }: EditorCanvasProps): React_2.ReactElement;
+declare function EditorCanvasImpl({ spec, selectedId, onSelect, onEdit, onDuplicate, onDelete, onLayoutChange, onInsert, externalDrop, }: EditorCanvasProps): React_2.ReactElement;
 
 export declare interface EditorCanvasProps {
     spec: DashboardSpec;
@@ -6975,6 +6985,21 @@ export declare interface EditorCanvasProps {
      * an empty-board tile — those pass row 0). Omit to hide the insert affordances.
      */
     onInsert?: (kind: WidgetSpec["type"], rowY: number) => void;
+    /**
+     * Accept HTML5 drags from OUTSIDE the grid (a chart rendered elsewhere on the page,
+     * e.g. in a chat): `mimeType` is the dataTransfer type the source sets, and
+     * `onDrop` receives its string payload plus the grid cell the ghost landed on
+     * (a chart footprint). Web only by nature. Omit to reject external drops.
+     */
+    externalDrop?: {
+        mimeType: string;
+        onDrop: (data: string, at: {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
+        }) => void;
+    };
 }
 
 /**

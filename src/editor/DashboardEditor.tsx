@@ -25,6 +25,7 @@ import {
   mergeLayout,
   removeWidget,
   replaceWidget,
+  DEFAULT_FOOTPRINT,
 } from "./dashboard/layout";
 import { createIdFactory, newWidget, type IdFactory } from "./dashboard/factories";
 import { mergeRemote } from "./dashboard/mergeRemote";
@@ -175,6 +176,13 @@ export interface DashboardEditorProps {
    * collaborator's clobber. The open chart editor re-seeds from the adopted widget.
    */
   adoptRemoteWidget?: { id: string; key: string };
+  /**
+   * Accept a chart dragged from outside the editor (HTML5 drag-and-drop, web): the
+   * host names the dataTransfer `mimeType` its drag sources set and turns the payload
+   * into a widget (minting a board-unique id) — or returns undefined to reject it. The
+   * editor inserts the widget at the cell the ghost landed on, as one undoable "add".
+   */
+  onDropWidget?: { mimeType: string; parse: (data: string) => WidgetSpec | undefined };
   className?: string;
 }
 
@@ -200,6 +208,7 @@ export function DashboardEditor({
   renderWidgetHeaderExtra,
   onEditingChange,
   adoptRemoteWidget,
+  onDropWidget,
   className,
 }: DashboardEditorProps): React.ReactElement {
   // Local working copy; the host's `spec` seeds it and re-seeds when its identity
@@ -351,6 +360,30 @@ export function DashboardEditor({
   // In-context add: the `+` on a canvas insert line (or an empty-board tile, which
   // passes row 0). A ROW line drops the widget at that row and pushes the board down;
   // a COLUMN line puts it beside the row's widgets and makes room within the row.
+  const externalDrop = React.useMemo(
+    () =>
+      onDropWidget
+        ? {
+            mimeType: onDropWidget.mimeType,
+            onDrop: (data: string, at: { x: number; y: number; w: number; h: number }) => {
+              const widget = onDropWidget.parse(data);
+              if (!widget) return;
+              const fp = DEFAULT_FOOTPRINT[widget.type];
+              commit(
+                (d) => ({
+                  ...d,
+                  widgets: [...d.widgets, widget],
+                  layout: [...d.layout, { i: widget.id, x: at.x, y: at.y, w: at.w, h: at.h, minW: Math.min(fp.minW, at.w), minH: fp.minH }],
+                }),
+                { kind: "add", widgetId: widget.id, label: "add chart", coalesceKey: sessionKey("add", widget.id) },
+              );
+              setSelectedId(widget.id);
+            },
+          }
+        : undefined,
+    [onDropWidget, commit, sessionKey],
+  );
+
   const handleInsert = React.useCallback(
     (type: WidgetSpec["type"], rowY: number, colX?: number) => {
       // The host may own chart creation (wizard flow) — see onCreateChart/openWidgetId.
@@ -594,6 +627,7 @@ export function DashboardEditor({
               onDelete={handleDelete}
               onLayoutChange={handleLayoutChange}
               onInsert={handleInsert}
+              externalDrop={externalDrop}
             />
           ) : null}
         </div>

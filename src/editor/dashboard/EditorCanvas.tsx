@@ -24,6 +24,7 @@ import {
   rowBoundaries,
 } from "./layout";
 import { EmptyCanvas, InsertLines } from "./InsertLines";
+import { DEFAULT_FOOTPRINT } from "./layout";
 
 /**
  * The editor canvas — the dashboard rendered EDITABLE (docs/03 §A3.2 "Canvas").
@@ -75,6 +76,13 @@ export interface EditorCanvasProps {
    * an empty-board tile — those pass row 0). Omit to hide the insert affordances.
    */
   onInsert?: (kind: WidgetSpec["type"], rowY: number) => void;
+  /**
+   * Accept HTML5 drags from OUTSIDE the grid (a chart rendered elsewhere on the page,
+   * e.g. in a chat): `mimeType` is the dataTransfer type the source sets, and
+   * `onDrop` receives its string payload plus the grid cell the ghost landed on
+   * (a chart footprint). Web only by nature. Omit to reject external drops.
+   */
+  externalDrop?: { mimeType: string; onDrop: (data: string, at: { x: number; y: number; w: number; h: number }) => void };
 }
 
 function EditorCanvasImpl({
@@ -86,6 +94,7 @@ function EditorCanvasImpl({
   onDelete,
   onLayoutChange,
   onInsert,
+  externalDrop,
 }: EditorCanvasProps): React.ReactElement {
   const [measureRef, width] = useContainerWidth<HTMLDivElement>();
   // The measured element is ALSO the surface the insert overlay hit-tests the pointer
@@ -174,6 +183,21 @@ function EditorCanvasImpl({
             // Resize from three corners; the top-right is reserved for the actions.
             resizeConfig={{ enabled: true, handles: ["se", "sw", "nw"] }}
             onLayoutChange={handleLayoutChange}
+            {...(externalDrop
+              ? {
+                  dropConfig: {
+                    enabled: true,
+                    defaultItem: { w: Math.min(DEFAULT_FOOTPRINT.chart.w, canonicalCols), h: DEFAULT_FOOTPRINT.chart.h },
+                    // Only OUR payload draws the ghost; a stray file/text drag is rejected.
+                    onDragOver: (e: DragEvent) => (e.dataTransfer?.types.includes(externalDrop.mimeType) ? undefined : false),
+                  },
+                  onDrop: (_layout: Layout, item: LayoutItem | undefined, e: Event) => {
+                    const data = (e as DragEvent).dataTransfer?.getData(externalDrop.mimeType);
+                    if (!data || !item) return;
+                    externalDrop.onDrop(data, { x: item.x, y: item.y, w: item.w, h: item.h });
+                  },
+                }
+              : {})}
             onDragStart={() => setInteracting(true)}
             onDragStop={() => setInteracting(false)}
             onResizeStart={() => setInteracting(true)}
