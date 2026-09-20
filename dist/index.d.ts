@@ -4942,7 +4942,7 @@ export declare interface DashboardContextValue {
     decls: VariableDecl[];
 }
 
-export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, renderWidgetAside, renderWidgetHeaderExtra, onEditingChange, className, }: DashboardEditorProps): React_2.ReactElement;
+export declare function DashboardEditor({ spec, remoteSpec, onRemoteAdopted, onChange, onSave, newId, debounceMs, onUndo, onRedo, canUndo, canRedo, undoLabel, redoLabel, onDiscard, families, onCreateChart, openWidgetId, renderWidgetAside, renderWidgetHeaderExtra, onEditingChange, adoptRemoteWidget, className, }: DashboardEditorProps): React_2.ReactElement;
 
 export declare interface DashboardEditorProps {
     /** The dashboard spec to edit (JSON-in). Identity change = a host re-seed (undo/
@@ -5041,6 +5041,17 @@ export declare interface DashboardEditorProps {
     }) => React_2.ReactNode;
     /** The full-screen widget editor opened (its id) or closed (null) — the host hides overlays that would sit on top of it. */
     onEditingChange?: (widgetId: string | null) => void;
+    /**
+     * Adopt ONE widget from {@link remoteSpec} even though it is protected (open in the
+     * full-screen editor, selected, or edited lately): the host names the widget and a key
+     * that changes per adoption (e.g. the draft revision that carried it). For a change the
+     * user asked an assistant to make to the chart they have open — it is theirs, not a
+     * collaborator's clobber. The open chart editor re-seeds from the adopted widget.
+     */
+    adoptRemoteWidget?: {
+        id: string;
+        key: string;
+    };
     className?: string;
 }
 

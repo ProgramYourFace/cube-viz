@@ -167,6 +167,14 @@ export interface DashboardEditorProps {
   renderWidgetHeaderExtra?: (ctx: { widget: WidgetSpec; update: (next: WidgetSpec) => void; close: () => void }) => React.ReactNode;
   /** The full-screen widget editor opened (its id) or closed (null) — the host hides overlays that would sit on top of it. */
   onEditingChange?: (widgetId: string | null) => void;
+  /**
+   * Adopt ONE widget from {@link remoteSpec} even though it is protected (open in the
+   * full-screen editor, selected, or edited lately): the host names the widget and a key
+   * that changes per adoption (e.g. the draft revision that carried it). For a change the
+   * user asked an assistant to make to the chart they have open — it is theirs, not a
+   * collaborator's clobber. The open chart editor re-seeds from the adopted widget.
+   */
+  adoptRemoteWidget?: { id: string; key: string };
   className?: string;
 }
 
@@ -191,6 +199,7 @@ export function DashboardEditor({
   renderWidgetAside,
   renderWidgetHeaderExtra,
   onEditingChange,
+  adoptRemoteWidget,
   className,
 }: DashboardEditorProps): React.ReactElement {
   // Local working copy; the host's `spec` seeds it and re-seeds when its identity
@@ -290,8 +299,13 @@ export function DashboardEditor({
    * (the full-screen-edited widget + the selected one). Remote merges do NOT fire
    * `onChange` — they aren't the local user's edits, so they don't loop back out. */
   const adoptedRemoteRef = React.useRef<DashboardSpec | undefined>(remoteSpec);
+  // The last {@link adoptRemoteWidget} key honoured — each key forces exactly one adoption.
+  const adoptedForceKeyRef = React.useRef<string | undefined>(undefined);
+  const adoptKey = adoptRemoteWidget?.key;
+  const adoptId = adoptRemoteWidget?.id;
   React.useEffect(() => {
-    if (!remoteSpec || remoteSpec === adoptedRemoteRef.current) return;
+    const pendingForce = adoptKey !== undefined && adoptKey !== adoptedForceKeyRef.current;
+    if (!remoteSpec || (remoteSpec === adoptedRemoteRef.current && !pendingForce)) return;
     const QUIET_MS = 500;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const tryAdopt = (): void => {
@@ -316,6 +330,12 @@ export function DashboardEditor({
         if (key.startsWith("w:")) protectedIds.add(key.slice(2));
         else if (key.startsWith("f:")) protectedFields.add(key.slice(2));
       }
+      // A forced adoption: the named widget takes the remote version regardless of protection.
+      if (pendingForce && adoptId && remoteSpec.widgets.some((w) => w.id === adoptId)) {
+        adoptedForceKeyRef.current = adoptKey;
+        protectedIds.delete(adoptId);
+        recentEditsRef.current.delete(`w:${adoptId}`);
+      }
       const merged = mergeRemote(remoteSpec, draftRef.current, protectedIds, protectedFields);
       setDraft(merged);
       onRemoteAdopted?.(merged); // keep the host's diff base in sync (no echo-out)
@@ -324,7 +344,7 @@ export function DashboardEditor({
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [remoteSpec]);
+  }, [remoteSpec, adoptKey, adoptId]);
 
   /* ─────────────────────────────── widgets ──────────────────────────────── */
 
